@@ -133,3 +133,106 @@
   background: var(--color-surface-elevated);
   border-bottom: 1px solid var(--color-border-subtle);
 }
+
+@media (max-width: 400px) {
+  .row {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+}
+
+/* Lineage Edge */
+.lineageEdge {
+  background-color: var(--color-border-subtle);
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.edgeNeutral {
+  background-color: var(--color-state-neutral);
+  opacity: 0.2;
+}
+
+.edgeActive {
+  background-color: var(--color-state-active);
+}
+
+.edgeWaiting {
+  background-color: var(--color-state-waiting);
+}
+
+.edgeHalted {
+  background-color: var(--color-state-halted);
+}
+
+.edgeSuccess {
+  background-color: var(--color-state-success);
+}
+
+.vertical {
+  margin: 0 auto;
+}
+
+.horizontal {
+  margin: auto 0;
+}
+
+/* Memory Drawer */
+.memoryDrawer {
+  display: flex;
+  flex-direction: column;
+  margin-top: -8px; /* Tucks under the previous component */
+  margin-bottom: 16px;
+}
+
+.memoryDrawerTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: 24px;
+  border-radius: 4px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.memoryDrawerTrigger:hover,
+.memoryDrawerTrigger:focus {
+  color: var(--color-text-primary);
+  background: rgba(0,0,0,0.03);
+  outline: none;
+}
+
+.memoryDrawerIcon {
+  display: inline-block;
+  transition: transform var(--transition-snappy);
+  font-size: 0.8rem;
+}
+
+.memoryDrawerContent {
+  padding-left: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  animation: slideDown 200ms ease-out forwards;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

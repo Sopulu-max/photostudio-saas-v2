@@ -3,6 +3,8 @@ import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
 import { KernelState } from '@/components/ontology/StateBadge';
 import { Invitation } from '@/components/ontology/Invitation';
+import { LineageEdge } from '@/components/ontology/LineageEdge';
+import { MemoryDrawer } from '@/components/ontology/MemoryDrawer';
 
 export default function SpecimenPage() {
   const { passport, wedding } = MockScenarios;
@@ -98,6 +100,24 @@ export default function SpecimenPage() {
         </h2>
         <div style={{ maxWidth: '400px' }}>
           <Invitation label="Create New Service Instance" />
+        </div>
+      </section>
+
+      {/* ONTOLOGY LINEAGE (EDGES & MEMORY) */}
+      <section style={{ marginBottom: '60px' }}>
+        <h2 style={{ fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '24px', borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: '12px' }}>
+          Ontological Lineage (Memory & Edges)
+        </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '600px' }}>
+          {/* Active instance at the front */}
+          <EntitySignature type="service_instance" data={wedding.instances[1]} scale="row" />
+          
+          <MemoryDrawer label="View Origin Lineage">
+            <LineageEdge status={wedding.instances[1].status as KernelState} length={32} />
+            <EntitySignature type="agreement" data={wedding.agreement} scale="row" />
+            <LineageEdge status={wedding.agreement.status as KernelState} length={32} />
+            <EntitySignature type="request" data={wedding.request} scale="row" />
+          </MemoryDrawer>
         </div>
       </section>
 
