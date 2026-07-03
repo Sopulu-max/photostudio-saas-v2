@@ -123,4 +123,43 @@ export class KernelRepository {
     if (error || !data) return null;
     return this.mapAgreement(data);
   }
+
+  // --- Collection Fetchers ---
+
+  async getInstancesByOrganization(orgId: string): Promise<ServiceInstanceDTO[]> {
+    const { data, error } = await this.supabase
+      .from('service_instances')
+      .select('*')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data.map(row => this.mapServiceInstance(row));
+  }
+
+  async getAgreementsByOrganization(orgId: string): Promise<AgreementDTO[]> {
+    const { data, error } = await this.supabase
+      .from('agreements')
+      .select(`
+        *,
+        requests(*),
+        service_instances(*)
+      `)
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data.map(row => this.mapAgreement(row));
+  }
+
+  // --- Mutations ---
+
+  async updateInstanceStatus(id: string, newStatus: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('service_instances')
+      .update({ status: newStatus })
+      .eq('id', id);
+      
+    return !error;
+  }
 }
