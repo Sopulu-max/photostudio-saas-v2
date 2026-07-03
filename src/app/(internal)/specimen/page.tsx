@@ -8,9 +8,9 @@ export default function SpecimenPage() {
   const { passport, wedding } = MockScenarios;
 
   // Let's create an artificial organization and asset for the full 9-signature spread
-  const mockOrg = { name: "Sopulu's Studio", status: 'active', id: 'org-1' };
-  const mockService = { id: 'svc-1', name: 'Wedding Photography Base' };
-  const mockAsset = { id: 'ast-1', name: 'DSC001.ARW', url: '...' };
+  const mockOrg: any = { name: "Sopulu's Studio", status: 'active', id: 'org-1' };
+  const mockService: any = { id: 'svc-1', name: 'Wedding Photography Base' };
+  const mockAsset: any = { id: 'ast-1', name: 'DSC001.ARW', url: '...' };
 
   const allStates: KernelState[] = ['created', 'scheduled', 'in_progress', 'waiting', 'halted', 'completed', 'delivered', 'archived', 'proposed', 'active', 'modified', 'cancelled'];
 
@@ -84,7 +84,7 @@ export default function SpecimenPage() {
             <EntitySignature 
               key={st}
               type="service_instance" 
-              data={{ ...wedding.instances[0], status: st }} 
+              data={{ ...wedding.instances[0], status: st } as any} 
               scale="card" 
             />
           ))}

@@ -5,7 +5,14 @@ import {
   CustomerDTO, 
   RequestDTO, 
   AgreementDTO, 
-  ServiceInstanceDTO, 
+  ServiceInstanceDTO,
+  IdentityDTO,
+  ServiceDTO,
+  AssetDTO,
+  RequestState,
+  AgreementState,
+  InstanceState,
+  AssetState
 } from './types';
 
 export class KernelRepository {
@@ -21,6 +28,33 @@ export class KernelRepository {
       status: row.status,
       createdAt: row.created_at,
       archivedAt: row.archived_at,
+    };
+  }
+
+  private mapIdentity(row: Database['public']['Tables']['identities']['Row']): IdentityDTO {
+    return {
+      organizationId: row.organization_id,
+      name: row.name,
+      logoUrl: row.logo_url,
+      brandColors: (row.brand_colors as Record<string, any>) || {},
+      typography: (row.typography as Record<string, any>) || {},
+      contactData: (row.contact_data as Record<string, any>) || {},
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private mapService(row: Database['public']['Tables']['services']['Row']): ServiceDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      name: row.name,
+      description: row.description,
+      pricingRules: (row.pricing_rules as Record<string, any>) || {},
+      requiredFields: (row.required_fields as Record<string, any>) || {},
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 
@@ -42,7 +76,7 @@ export class KernelRepository {
       organizationId: row.organization_id,
       customerId: row.customer_id,
       requestedServices: (row.requested_services as Record<string, any>) || {},
-      status: row.status,
+      status: row.status as RequestState,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -54,7 +88,7 @@ export class KernelRepository {
       organizationId: row.organization_id,
       agreementId: row.agreement_id,
       serviceId: row.service_id,
-      status: row.status,
+      status: row.status as InstanceState,
       fulfillmentData: (row.fulfillment_data as Record<string, any>) || {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -71,13 +105,28 @@ export class KernelRepository {
     return {
       id: row.id,
       organizationId: row.organization_id,
+      customerId: row.customer_id,
       requestId: row.request_id,
-      status: row.status,
+      status: row.status as AgreementState,
       terms: (row.terms as Record<string, any>) || {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       request: requestRaw ? this.mapRequest(requestRaw) : undefined,
       instances: instancesRaw.map((i: any) => this.mapServiceInstance(i)),
+    };
+  }
+
+  private mapAsset(row: Database['public']['Tables']['assets']['Row']): AssetDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      originType: row.origin_type as 'produced' | 'provided',
+      originInstanceId: row.origin_instance_id,
+      originCustomerId: row.origin_customer_id,
+      contentReference: row.content_reference,
+      status: row.status as AssetState,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 
@@ -154,11 +203,31 @@ export class KernelRepository {
 
   // --- Mutations ---
 
-  async updateInstanceStatus(id: string, newStatus: string): Promise<boolean> {
+  // --- Operations (Event-Driven) ---
+
+  async transitionInstance(
+    orgId: string, 
+    instanceId: string, 
+    transition: InstanceState, 
+    actorId?: string
+  ): Promise<boolean> {
+    
+    // In a real system, you'd fetch the current state here and validate against a legality map
+    // (e.g. created -> scheduled is ok, completed -> created is not).
+    
+    // Insert the transition event. The DB trigger will automatically update the status.
     const { error } = await this.supabase
-      .from('service_instances')
-      .update({ status: newStatus })
-      .eq('id', id);
+      .from('events')
+      .insert({
+        organization_id: orgId,
+        entity_type: 'service_instance',
+        entity_id: instanceId,
+        event_type: `service_instance.${transition}`,
+        actor_id: actorId,
+        payload: {
+          transitionedTo: transition
+        }
+      });
       
     return !error;
   }

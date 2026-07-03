@@ -1,10 +1,10 @@
 import React from 'react';
 import { EntitySignature } from '@/components/ontology/EntitySignature';
-import { StateBadge, KernelState } from '@/components/ontology/StateBadge';
+import { StateBadge } from '@/components/ontology/StateBadge';
 import { StateTransitionControl } from '@/components/ontology/StateTransitionControl';
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
-import { ServiceInstanceDTO } from '@/lib/domains/kernel/types';
+import { ServiceInstanceDTO, InstanceState } from '@/lib/domains/kernel/types';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
 
 // The hardcoded org ID — will be replaced with auth context later.
@@ -38,7 +38,7 @@ function groupByState(instances: ServiceInstanceDTO[]) {
 }
 
 // Define the pipeline column order — active work first, terminal states last
-const PIPELINE_ORDER: KernelState[] = [
+const PIPELINE_ORDER: InstanceState[] = [
   'created', 'scheduled', 'in_progress', 'waiting',
   'halted', 'completed', 'delivered', 'archived',
 ];
@@ -139,7 +139,7 @@ export default async function InstancesPage() {
                     </span>
                     <StateTransitionControl 
                       instanceId={inst.id} 
-                      currentState={inst.status as KernelState} 
+                      currentState={inst.status} 
                     />
                   </div>
                 </div>

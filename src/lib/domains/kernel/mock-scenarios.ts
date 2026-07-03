@@ -28,6 +28,7 @@ export const SopuluRequest: RequestDTO = {
 export const SopuluAgreement: AgreementDTO = {
   id: 'agr-passport-01',
   organizationId: ORG_ID,
+  customerId: SopuluCustomer.id,
   requestId: SopuluRequest.id,
   status: 'active', // Valid Agreement Status
   terms: { price: 2000, currency: 'NGN', verbal: true },
@@ -71,6 +72,7 @@ export const WeddingRequest: RequestDTO = {
 export const WeddingAgreement: AgreementDTO = {
   id: 'agr-wedding-01',
   organizationId: ORG_ID,
+  customerId: WeddingCustomer.id,
   requestId: WeddingRequest.id,
   status: 'active', // Valid Agreement Status
   terms: { price: 500000, currency: 'NGN', contractSigned: true },

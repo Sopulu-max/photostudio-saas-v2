@@ -1,23 +1,9 @@
 import React from 'react';
 import styles from './ontology.module.css';
+import { RequestState, AgreementState, InstanceState, AssetState } from '@/lib/domains/kernel/types';
 
 // Strict union derived exclusively from the Kernel Specification.
-// Any drift here causes a compilation error across the entire system.
-export type KernelState = 
-  // Instances
-  | 'created' 
-  | 'scheduled' 
-  | 'in_progress' 
-  | 'waiting' 
-  | 'completed' 
-  | 'delivered' 
-  | 'archived' 
-  | 'halted'
-  // Agreements
-  | 'proposed' 
-  | 'active' 
-  | 'modified' 
-  | 'cancelled';
+export type KernelState = RequestState | AgreementState | InstanceState | AssetState | 'cancelled' | 'halted';
 
 interface StateBadgeProps {
   state: KernelState;

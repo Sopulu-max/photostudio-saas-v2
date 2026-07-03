@@ -89,6 +89,28 @@
   border-left: 3px solid var(--color-brand-primary);
 }
 
+.sigOrganization {
+  /* The root, foundational structure */
+  border: 2px solid var(--color-border-focus);
+}
+
+.sigIdentity {
+  /* The projection of organization */
+  border-top: 3px solid var(--color-brand-primary);
+}
+
+.sigAsset {
+  /* Material pieces */
+  border-bottom: 2px solid var(--color-border-subtle);
+  border-radius: 2px;
+}
+
+.sigOutcome {
+  /* Final delivered assets */
+  border: 1px solid var(--color-state-success);
+  box-shadow: 0 0 0 1px rgba(56, 176, 0, 0.1);
+}
+
 /* Chip variants */
 .chip {
   display: inline-flex;

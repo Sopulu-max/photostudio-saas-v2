@@ -3,13 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
-import { KernelState } from '@/components/ontology/StateBadge';
+import { InstanceState } from '@/lib/domains/kernel/types';
 
-export async function transitionInstanceStatus(instanceId: string, newStatus: KernelState) {
+// Hardcoded for Phase 4 scaffold. In production, this comes from auth session.
+const SCAFFOLD_ORG_ID = '11111111-1111-1111-1111-111111111111';
+
+export async function transitionInstance(instanceId: string, newStatus: InstanceState) {
   const supabase = await createClient();
   const repo = new KernelRepository(supabase);
   
-  const success = await repo.updateInstanceStatus(instanceId, newStatus);
+  // Actor ID is null for now, as we lack auth
+  const success = await repo.transitionInstance(SCAFFOLD_ORG_ID, instanceId, newStatus, null as any);
   
   if (success) {
     // Revalidate the pipeline and ledger pages so they reflect the new state instantly

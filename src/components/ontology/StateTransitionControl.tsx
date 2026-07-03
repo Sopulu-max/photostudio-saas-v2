@@ -1,21 +1,15 @@
 "use client";
 
 import React, { useTransition } from 'react';
-import { KernelState } from './StateBadge';
-import { transitionInstanceStatus } from '@/app/actions/kernel';
+import { InstanceState } from '@/lib/domains/kernel/types';
+import { transitionInstance } from '@/app/actions/kernel';
 
 interface StateTransitionControlProps {
   instanceId: string;
-  currentState: KernelState;
+  currentState: InstanceState;
 }
 
-// All valid kernel states an owner can force-transition to.
-// No guard rails — the studio owner has full override authority.
-const ALL_STATES: KernelState[] = [
-  'created', 'scheduled', 'in_progress', 'waiting',
-  'completed', 'delivered', 'archived', 'halted',
-];
-
+// The UI labels for the canonical states
 const STATE_LABELS: Record<string, string> = {
   created: 'Created',
   scheduled: 'Scheduled',
@@ -24,19 +18,49 @@ const STATE_LABELS: Record<string, string> = {
   completed: 'Completed',
   delivered: 'Delivered',
   archived: 'Archived',
-  halted: 'Halted',
+  accepted: 'Accepted',
+  revised: 'Revised',
+};
+
+// The legality map for state transitions. 
+// Keys are the current state, values are the permitted NEXT states.
+// 'halted' is intentionally omitted as a destination per kernel law.
+const LEGAL_TRANSITIONS: Record<InstanceState, InstanceState[]> = {
+  created: ['scheduled', 'in_progress'],
+  scheduled: ['in_progress'],
+  in_progress: ['waiting', 'completed'],
+  waiting: ['in_progress', 'completed'],
+  completed: ['delivered'],
+  delivered: ['accepted', 'revised', 'archived'],
+  accepted: ['archived'],
+  revised: ['in_progress', 'waiting', 'completed'],
+  halted: ['in_progress'], // Can only be un-halted
+  archived: [], // Terminal state
 };
 
 export function StateTransitionControl({ instanceId, currentState }: StateTransitionControlProps) {
   const [isPending, startTransition] = useTransition();
 
+  // Get allowed next states from the map. Always include current state so the select doesn't blank out.
+  const allowedNextStates = LEGAL_TRANSITIONS[currentState] || [];
+  const options = [currentState, ...allowedNextStates.filter(s => s !== currentState)];
+
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const newStatus = e.target.value as KernelState;
+    const newStatus = e.target.value as InstanceState;
     if (newStatus === currentState) return;
 
     startTransition(async () => {
-      await transitionInstanceStatus(instanceId, newStatus);
+      await transitionInstance(instanceId, newStatus);
     });
+  }
+
+  // If no transitions are allowed (terminal state), just render a static badge/text
+  if (allowedNextStates.length === 0) {
+    return (
+      <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+        {STATE_LABELS[currentState] || currentState}
+      </span>
+    );
   }
 
   return (
@@ -59,9 +83,9 @@ export function StateTransitionControl({ instanceId, currentState }: StateTransi
         letterSpacing: '0.02em',
       }}
     >
-      {ALL_STATES.map(s => (
+      {options.map(s => (
         <option key={s} value={s}>
-          {s === currentState ? `● ${STATE_LABELS[s]}` : STATE_LABELS[s]}
+          {s === currentState ? `● ${STATE_LABELS[s] || s}` : (STATE_LABELS[s] || s)}
         </option>
       ))}
     </select>

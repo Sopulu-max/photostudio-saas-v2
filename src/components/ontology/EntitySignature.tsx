@@ -16,18 +16,22 @@ import {
   CustomerDTO, 
   RequestDTO, 
   AgreementDTO, 
-  ServiceInstanceDTO 
+  ServiceInstanceDTO,
+  IdentityDTO,
+  ServiceDTO,
+  AssetDTO,
+  OutcomeDTO
 } from '@/lib/domains/kernel/types';
 
 // We map Kernel concepts to standard props so the Signature renderer knows what to do
-type EntityType = 'organization' | 'customer' | 'request' | 'agreement' | 'service' | 'service_instance' | 'outcome' | 'asset';
+type EntityType = 'organization' | 'identity' | 'customer' | 'request' | 'agreement' | 'service' | 'service_instance' | 'outcome' | 'asset';
 type Scale = 'card' | 'row' | 'chip';
 
 interface EntitySignatureProps {
   type: EntityType;
   scale?: Scale;
   // The raw Kernel entity bounds to this signature
-  data: OrganizationDTO | CustomerDTO | RequestDTO | AgreementDTO | ServiceInstanceDTO | any; // 'any' for missing DTOs currently like Outcome
+  data: OrganizationDTO | IdentityDTO | CustomerDTO | RequestDTO | AgreementDTO | ServiceDTO | ServiceInstanceDTO | AssetDTO | OutcomeDTO;
 }
 
 export function EntitySignature({ type, scale = 'row', data }: EntitySignatureProps) {
@@ -38,7 +42,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
   const label = getLabelForEntity(type, data);
   
   // 3. Resolve State (if entity carries state)
-  const state = (data.status as KernelState) || null;
+  const state = ('status' in data ? data.status as KernelState : null);
 
   // 4. Resolve Shape Class
   let shapeClass = '';
@@ -48,6 +52,10 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
     case 'request': shapeClass = styles.sigRequest; break;
     case 'customer': shapeClass = styles.sigCustomer; break;
     case 'service_instance': shapeClass = styles.sigInstance; break;
+    case 'organization': shapeClass = styles.sigOrganization; break;
+    case 'identity': shapeClass = styles.sigIdentity; break;
+    case 'asset': shapeClass = styles.sigAsset; break;
+    case 'outcome': shapeClass = styles.sigOutcome; break;
   }
 
   // Render per scale
@@ -99,6 +107,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
 function getIconForEntity(type: EntityType) {
   switch (type) {
     case 'organization': return Building2;
+    case 'identity': return User; // Or a badge icon, but we stick to existing imports
     case 'customer': return User;
     case 'request': return FileText;
     case 'agreement': return Briefcase;
@@ -113,10 +122,14 @@ function getIconForEntity(type: EntityType) {
 function getLabelForEntity(type: EntityType, data: any): string {
   switch (type) {
     case 'organization': return data.name || 'Unknown Organization';
+    case 'identity': return data.name || 'Unknown Identity';
+    case 'service': return data.name || 'Unknown Service';
     case 'customer': return data.profileData?.name || data.primaryIdentifier || 'Unknown Customer';
     case 'request': return `Req: ${data.id.substring(0,8)}`;
     case 'agreement': return `Agr: ${data.id.substring(0,8)}`;
     case 'service_instance': return `Inst: ${data.id.substring(0,8)}`;
+    case 'asset': return `Asset: ${data.id.substring(0,8)}`;
+    case 'outcome': return `Outcome: ${data.id.substring(0,8)}`;
     default: return data.id?.substring(0,8) || 'Unknown';
   }
 }

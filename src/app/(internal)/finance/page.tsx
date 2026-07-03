@@ -94,7 +94,7 @@ export default async function FinancePage() {
                 
                 {/* Status */}
                 <div>
-                  <StateBadge state={agr.status as KernelState} />
+                  <StateBadge state={agr.status} />
                 </div>
                 
                 {/* Terms — showing price if available */}
