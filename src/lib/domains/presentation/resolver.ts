@@ -1,118 +1,74 @@
-import { AudienceContext, FacingConfig, TIER_NEVER_EXTERNAL, TIER_COUNTERPARTY_GUARANTEED, TIER_CONFIGURABLE_CLOSED, TIER_CONFIGURABLE_OPEN } from './types';
-import { SchemaRegistry } from './schema-registry';
+import { globalSchemaRegistry } from './registry';
+import { AudienceContext, FacingTier, FacingConfig } from './types';
 
-/**
- * The Audience-Context Resolver.
- * Enforces the F1 and F2 facing laws on any DTO before it reaches the presentation layer.
- */
-export function resolveForAudience<T extends Record<string, any>>(
-  entity: T,
-  entityType: string,
-  audience: AudienceContext,
-  config: FacingConfig
-): Partial<T> {
-  // Staff bypasses the facing filters (they see everything).
-  if (audience.role === 'staff') {
-    return { ...entity };
+function resolveTier(tier: FacingTier, audience: AudienceContext, isCounterparty: boolean, isConfiguredToExpose: boolean = false): boolean {
+  if (audience.role === 'staff') return true;
+
+  switch (tier) {
+    case 'never_external': // F1 Law
+      return false;
+    case 'counterparty_guaranteed': // F2 Law
+      return isCounterparty;
+    case 'configurable_closed':
+      return isConfiguredToExpose;
+    case 'configurable_open':
+      return isConfiguredToExpose !== false;
+    default:
+      return false; // Safe default
   }
-
-  return scrubObject(entity, entityType, audience, config, '');
 }
 
-/**
- * Recursively scrubs an object based on the SchemaRegistry.
- */
-function scrubObject(
-  obj: any,
-  entityType: string,
-  audience: AudienceContext,
-  config: FacingConfig,
-  currentPath: string
-): any {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== 'object') return obj;
+export function resolveEntityForAudience(entity: any, entityType: string, audience: AudienceContext, facingConfig: FacingConfig = {}): any {
+  if (!entity) return entity;
+  
+  // Deep clone to avoid mutating the original
+  const resolved = JSON.parse(JSON.stringify(entity));
+  
+  const schema = globalSchemaRegistry.getEntitySchema(entityType);
+  if (!schema) return resolved;
 
-  // Handle Arrays
-  if (Array.isArray(obj)) {
-    return obj.map((item) => scrubObject(item, entityType, audience, config, currentPath));
+  // Determine if this audience is the counterparty to this entity.
+  let isCounterparty = false;
+  if (audience.role === 'customer') {
+    if (entityType === 'Customer' && entity.id === audience.id) {
+      isCounterparty = true;
+    }
+    // For Agreement, check if entity.customerId === audience.id
+    if (entityType === 'Agreement' && entity.customerId === audience.id) {
+      isCounterparty = true;
+    }
   }
 
-  const result: any = {};
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Construct the path for the registry lookup
-    // If it's a top-level key, it's 'AgreementDTO.status'
-    // If it's nested inside fulfillmentData, it's 'ServiceInstanceDTO.fulfillmentData.nestedKey'
-    const absolutePath = currentPath ? `${currentPath}.${key}` : `${entityType}.${key}`;
+  // Iterate over registered attributes and scrub those that fail the tier check
+  for (const [key, attr] of Object.entries(schema.attributes)) {
+    const isConfiguredToExpose = facingConfig[attr.key] ?? (attr.facingTier === 'configurable_open');
+    const isAllowed = resolveTier(attr.facingTier, audience, isCounterparty, isConfiguredToExpose);
     
-    // Check registry for exact path. If not found, check parent path (if nested).
-    let tier = SchemaRegistry[absolutePath];
-    
-    if (!tier && currentPath) {
-      // Fallback: If we don't have 'ServiceInstanceDTO.fulfillmentData.internalNotes', 
-      // but we do have 'ServiceInstanceDTO.fulfillmentData', use the parent's tier.
-      tier = SchemaRegistry[currentPath];
-    }
-
-    // Ultimate fallback: F1 (deny by default)
-    if (!tier) {
-      tier = TIER_NEVER_EXTERNAL;
-    }
-
-    const isCounterparty = audience.id !== null && obj.customerId === audience.id;
-
-    // Apply Facing Laws
-    let shouldInclude = false;
-
-    switch (tier) {
-      case TIER_NEVER_EXTERNAL:
-        shouldInclude = false; // Hard drop for non-staff
-        break;
-
-      case TIER_COUNTERPARTY_GUARANTEED:
-        shouldInclude = isCounterparty; // F2 guarantee
-        break;
-
-      case TIER_CONFIGURABLE_CLOSED:
-        // Closed by default, check if studio configured it to be open
-        shouldInclude = config[absolutePath] === true;
-        break;
-
-      case TIER_CONFIGURABLE_OPEN:
-        // Open by default, check if studio explicitly closed it
-        shouldInclude = config[absolutePath] !== false;
-        break;
-    }
-
-    if (shouldInclude) {
-      // Recurse into nested objects
-      if (typeof value === 'object' && value !== null) {
-        // Special case: if this is a related entity (like AgreementDTO.request), 
-        // we might want to change the entityType. For now, we rely on the registry 
-        // mapping 'AgreementDTO.request' to guarantee it, and then we scrub the 
-        // child object using 'RequestDTO' if we can infer it.
-        // For Stage 0, we just continue the path (e.g. AgreementDTO.request.status).
-        // Since we mapped 'AgreementDTO.request' as TIER_COUNTERPARTY_GUARANTEED, 
-        // we include it, but we still recurse to scrub its children.
-        const childType = getInferredEntityType(entityType, key);
-        const nextPath = childType ? childType : absolutePath;
-        
-        result[key] = scrubObject(value, childType || entityType, audience, config, childType ? '' : absolutePath);
-      } else {
-        result[key] = value;
+    if (!isAllowed) {
+      // Scrub it by traversing the object path
+      const parts = attr.key.split('.');
+      let current = resolved;
+      let validPath = true;
+      
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) {
+          validPath = false;
+          break;
+        }
+        current = current[parts[i]];
+      }
+      
+      if (validPath && current && typeof current === 'object' && parts[parts.length - 1] in current) {
+        delete current[parts[parts.length - 1]];
       }
     }
   }
 
-  return result;
+  return resolved;
 }
 
-/**
- * Helper to infer entity types for relations.
- * e.g. If we are in AgreementDTO and the key is 'request', the child is a RequestDTO.
- */
-function getInferredEntityType(parentType: string, key: string): string | null {
-  if (parentType === 'AgreementDTO' && key === 'request') return 'RequestDTO';
-  if (parentType === 'AgreementDTO' && key === 'instances') return 'ServiceInstanceDTO';
-  return null;
+// Backward compatibility alias for specimen/page.tsx
+export function resolveForAudience(entity: any, entityType: string, audience: AudienceContext, facingConfig: FacingConfig = {}): any {
+  return resolveEntityForAudience(entity, entityType, audience, facingConfig);
 }
+

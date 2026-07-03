@@ -203,6 +203,72 @@ export class KernelRepository {
 
   // --- Mutations ---
 
+  async createCustomer(orgId: string, primaryIdentifier: string, profileData: any): Promise<CustomerDTO | null> {
+    const { data, error } = await this.supabase
+      .from('customers')
+      .insert({
+        organization_id: orgId,
+        primary_identifier: primaryIdentifier,
+        profile_data: profileData,
+        status: 'active'
+      })
+      .select('*')
+      .single();
+    
+    if (error || !data) return null;
+    return this.mapCustomer(data);
+  }
+
+  async createRequest(orgId: string, customerId: string, requestedServices: any): Promise<RequestDTO | null> {
+    const { data, error } = await this.supabase
+      .from('requests')
+      .insert({
+        organization_id: orgId,
+        customer_id: customerId,
+        requested_services: requestedServices,
+        status: 'accepted'
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) return null;
+    return this.mapRequest(data);
+  }
+
+  async createAgreement(orgId: string, customerId: string, requestId: string, terms: any): Promise<AgreementDTO | null> {
+    const { data, error } = await this.supabase
+      .from('agreements')
+      .insert({
+        organization_id: orgId,
+        customer_id: customerId,
+        request_id: requestId,
+        terms: terms,
+        status: 'active'
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) return null;
+    return this.mapAgreement(data);
+  }
+
+  async createServiceInstance(orgId: string, agreementId: string, serviceId: string, fulfillmentData: any): Promise<ServiceInstanceDTO | null> {
+    const { data, error } = await this.supabase
+      .from('service_instances')
+      .insert({
+        organization_id: orgId,
+        agreement_id: agreementId,
+        service_id: serviceId,
+        fulfillment_data: fulfillmentData,
+        status: 'created'
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) return null;
+    return this.mapServiceInstance(data);
+  }
+
   // --- Operations (Event-Driven) ---
 
   async transitionInstance(
