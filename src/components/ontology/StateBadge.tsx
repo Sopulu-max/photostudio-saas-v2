@@ -1,0 +1,66 @@
+import React from 'react';
+import styles from './ontology.module.css';
+
+// Strict union derived exclusively from the Kernel Specification.
+// Any drift here causes a compilation error across the entire system.
+export type KernelState = 
+  // Instances
+  | 'created' 
+  | 'scheduled' 
+  | 'in_progress' 
+  | 'waiting' 
+  | 'completed' 
+  | 'delivered' 
+  | 'archived' 
+  | 'halted'
+  // Agreements
+  | 'proposed' 
+  | 'active' 
+  | 'modified' 
+  | 'cancelled';
+
+interface StateBadgeProps {
+  state: KernelState;
+  // The display register mapping (e.g. mapping "proposed" -> "draft").
+  label?: string; 
+}
+
+/**
+ * The Universal State Grammar.
+ * Only accepts canonical states. Register-mapped words are passed as `label`.
+ */
+export function StateBadge({ state, label }: StateBadgeProps) {
+  let stateClass = styles.neutral;
+  let defaultLabel = state.replace('_', ' ');
+
+  switch (state) {
+    case 'waiting':
+      stateClass = styles.waiting;
+      break;
+    case 'in_progress':
+    case 'active':
+      stateClass = styles.active;
+      break;
+    case 'halted':
+    case 'cancelled':
+      stateClass = styles.halted;
+      break;
+    case 'completed':
+    case 'delivered':
+    case 'archived':
+      stateClass = styles.success;
+      break;
+    case 'created':
+    case 'scheduled':
+    case 'proposed':
+    case 'modified':
+      stateClass = styles.neutral; 
+      break;
+  }
+
+  return (
+    <span className={`${styles.badge} ${stateClass}`}>
+      {label || defaultLabel}
+    </span>
+  );
+}

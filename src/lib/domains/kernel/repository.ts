@@ -1,0 +1,126 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '@/lib/database.types';
+import { 
+  OrganizationDTO, 
+  CustomerDTO, 
+  RequestDTO, 
+  AgreementDTO, 
+  ServiceInstanceDTO, 
+} from './types';
+
+export class KernelRepository {
+  constructor(private readonly supabase: SupabaseClient<Database>) {}
+
+  // --- Mappers ---
+  // Enforces the strict boundary. Raw rows never leak to the UI.
+
+  private mapOrganization(row: Database['public']['Tables']['organizations']['Row']): OrganizationDTO {
+    return {
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      createdAt: row.created_at,
+      archivedAt: row.archived_at,
+    };
+  }
+
+  private mapCustomer(row: Database['public']['Tables']['customers']['Row']): CustomerDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      primaryIdentifier: row.primary_identifier,
+      profileData: (row.profile_data as Record<string, any>) || {},
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private mapRequest(row: Database['public']['Tables']['requests']['Row']): RequestDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      customerId: row.customer_id,
+      requestedServices: (row.requested_services as Record<string, any>) || {},
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private mapServiceInstance(row: Database['public']['Tables']['service_instances']['Row']): ServiceInstanceDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      agreementId: row.agreement_id,
+      serviceId: row.service_id,
+      status: row.status,
+      fulfillmentData: (row.fulfillment_data as Record<string, any>) || {},
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private mapAgreement(row: any): AgreementDTO {
+    const instancesRaw = Array.isArray(row.service_instances) 
+      ? row.service_instances 
+      : (row.service_instances ? [row.service_instances] : []);
+      
+    const requestRaw = Array.isArray(row.requests) ? row.requests[0] : row.requests;
+
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      requestId: row.request_id,
+      status: row.status,
+      terms: (row.terms as Record<string, any>) || {},
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      request: requestRaw ? this.mapRequest(requestRaw) : undefined,
+      instances: instancesRaw.map((i: any) => this.mapServiceInstance(i)),
+    };
+  }
+
+  // --- Queries (Fetchers) ---
+
+  async getOrganization(id: string): Promise<OrganizationDTO | null> {
+    const { data, error } = await this.supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapOrganization(data);
+  }
+
+  async getCustomer(id: string): Promise<CustomerDTO | null> {
+    const { data, error } = await this.supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapCustomer(data);
+  }
+
+  /**
+   * Fetches an agreement and its immediate graph (the Request that spawned it, 
+   * and the Service Instances it contains).
+   */
+  async getAgreementWithGraph(id: string): Promise<AgreementDTO | null> {
+    const { data, error } = await this.supabase
+      .from('agreements')
+      .select(`
+        *,
+        requests(*),
+        service_instances(*)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapAgreement(data);
+  }
+}
