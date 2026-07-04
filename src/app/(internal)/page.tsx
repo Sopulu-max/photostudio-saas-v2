@@ -14,9 +14,10 @@ import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { StateBadge, KernelState } from '@/components/ontology/StateBadge';
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
-import { ServiceInstanceDTO, AgreementDTO } from '@/lib/domains/kernel/types';
-import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
+import { ServiceInstanceDTO, AgreementDTO, ServiceDTO } from '@/lib/domains/kernel/types';
 import { getOrgId } from '@/lib/auth';
+import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
+import { QuickSaleTerminal } from '@/components/quick-sale/QuickSaleTerminal';
 
 // Ensure this page is server-rendered on each request (not statically pre-rendered)
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,8 @@ export const dynamic = 'force-dynamic';
 async function getDashboardData(orgId: string | null) {
   let instances: ServiceInstanceDTO[] = [];
   let agreements: AgreementDTO[] = [];
+  let services: ServiceDTO[] = [];
+  let dbOffline = false;
 
   try {
     const { createClient } = await import('@/lib/supabase/server');
@@ -31,31 +34,31 @@ async function getDashboardData(orgId: string | null) {
     const repo = new KernelRepository(supabase);
     
     if (orgId) {
-      const [dbInstances, dbAgreements] = await Promise.all([
+      const [dbInstances, dbAgreements, dbServices] = await Promise.all([
         repo.getInstancesByOrganization(orgId),
         repo.getAgreementsByOrganization(orgId),
+        repo.getServicesByOrganization(orgId),
       ]);
       
       if (dbInstances.length > 0) instances = dbInstances;
       if (dbAgreements.length > 0) agreements = dbAgreements;
+      if (dbServices.length > 0) services = dbServices;
     }
-  } catch {
-    // Database unavailable — fall through to mock data
+  } catch (error) {
+    console.error("Database connection failed", error);
+    dbOffline = true;
   }
 
-  // Graceful degradation
-  if (instances.length === 0) {
-    const { passport, wedding } = MockScenarios;
-    instances = [passport.instance, ...wedding.instances];
-    agreements = [passport.agreement, wedding.agreement];
-  }
-
-  return { instances, agreements };
+  return { instances, agreements, services, dbOffline };
 }
 
 export default async function CommandCenterPage() {
   const orgId = await getOrgId();
-  const { instances, agreements } = await getDashboardData(orgId);
+  const { instances, agreements, services, dbOffline } = await getDashboardData(orgId);
+
+  if (dbOffline) {
+    return <DatabaseOfflineFallback />;
+  }
 
   // Derive metrics from the kernel data
   const needsAttention = instances.filter(i => i.status === 'waiting' || i.status === 'halted');
@@ -74,26 +77,34 @@ export default async function CommandCenterPage() {
   const currency = activeAgreements[0]?.terms?.currency || 'NGN';
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1100px' }}>
+    <div className="p-[20px] md:p-[40px] max-w-[1100px] w-full mx-auto">
 
-      {/* Greeting */}
-      <div style={{ marginBottom: '48px' }}>
-        <h1 style={{ 
-          fontFamily: 'var(--font-family-serif)', 
-          fontSize: '2.4rem', 
-          fontWeight: 700,
-          marginBottom: '6px',
-          lineHeight: 1.2,
-        }}>
-          Command Center
-        </h1>
-        <p style={{ 
-          color: 'var(--color-text-secondary)', 
-          fontSize: '1rem',
-          lineHeight: 1.5,
-        }}>
-          {instances.length} instance{instances.length !== 1 ? 's' : ''} across {agreements.length} agreement{agreements.length !== 1 ? 's' : ''}.
-        </p>
+      {/* Top Section: Greeting & Quick Sale */}
+      <div className="flex flex-col md:flex-row gap-8 mb-12 justify-between items-start">
+        {/* Greeting */}
+        <div>
+          <h1 style={{ 
+            fontFamily: 'var(--font-family-serif)', 
+            fontSize: '2.4rem', 
+            fontWeight: 700,
+            marginBottom: '6px',
+            lineHeight: 1.2,
+          }}>
+            Command Center
+          </h1>
+          <p style={{ 
+            color: 'var(--color-text-secondary)', 
+            fontSize: '1rem',
+            lineHeight: 1.5,
+          }}>
+            {instances.length} instance{instances.length !== 1 ? 's' : ''} across {agreements.length} agreement{agreements.length !== 1 ? 's' : ''}.
+          </p>
+        </div>
+
+        {/* Quick Sale Terminal */}
+        <div className="w-full md:w-auto">
+          <QuickSaleTerminal services={services} />
+        </div>
       </div>
 
       {/* Metric Cards */}

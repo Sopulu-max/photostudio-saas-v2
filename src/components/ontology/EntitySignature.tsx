@@ -43,6 +43,11 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
   
   // 3. Resolve State (if entity carries state)
   const state = ('status' in data ? data.status : null);
+  
+  // Extract reason if waiting
+  const reason = (type === 'service_instance' && state === 'waiting' && 'fulfillmentData' in data) 
+    ? (data.fulfillmentData as any)?.waiting_reason || 'Pending action'
+    : null;
 
   // 4. Resolve Shape Class
   let shapeClass = '';
@@ -64,7 +69,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
       <div className={`${styles.chip} ${shapeClass}`}>
         <Icon size={14} />
         <span>{label}</span>
-        {state && <StateBadge state={state} />}
+        {state && <StateBadge state={state} reason={reason} />}
       </div>
     );
   }
@@ -76,7 +81,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
           <Icon size={20} />
           <span style={{ fontWeight: 500 }}>{label}</span>
         </div>
-        {state && <StateBadge state={state} />}
+        {state && <StateBadge state={state} reason={reason} />}
       </div>
     );
   }
@@ -95,7 +100,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
       </div>
       {state && (
         <div style={{ marginTop: 'auto', paddingTop: '12px' }}>
-          <StateBadge state={state} />
+          <StateBadge state={state} reason={reason} />
         </div>
       )}
     </div>

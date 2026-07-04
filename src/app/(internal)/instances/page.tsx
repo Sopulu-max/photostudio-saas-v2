@@ -5,26 +5,27 @@ import { StateTransitionControl } from '@/components/ontology/StateTransitionCon
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { ServiceInstanceDTO, InstanceState } from '@/lib/domains/kernel/types';
-import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
-
 import { getOrgId } from '@/lib/auth';
+import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
 
-async function getInstances(orgId: string | null): Promise<ServiceInstanceDTO[]> {
+async function getInstancesData(orgId: string | null) {
+  let instances: ServiceInstanceDTO[] = [];
+  let dbOffline = false;
+
   if (orgId) {
     try {
       const { createClient } = await import('@/lib/supabase/server');
       const supabase = await createClient();
       const repo = new KernelRepository(supabase);
-      const instances = await repo.getInstancesByOrganization(orgId);
-      if (instances.length > 0) return instances;
-    } catch {
-      // Database unavailable — fall through to mock data
+      const dbInstances = await repo.getInstancesByOrganization(orgId);
+      if (dbInstances.length > 0) instances = dbInstances;
+    } catch (error) {
+      console.error("Database connection failed", error);
+      dbOffline = true;
     }
   }
   
-  // Graceful degradation: use mock fixtures
-  const { passport, wedding } = MockScenarios;
-  return [passport.instance, ...wedding.instances];
+  return { instances, dbOffline };
 }
 
 // Group instances by state for the pipeline columns
@@ -55,9 +56,14 @@ const STATE_LABELS: Record<string, string> = {
   archived: 'Archived',
 };
 
-export default async function InstancesPage() {
+export default async function PipelinePage() {
   const orgId = await getOrgId();
-  const instances = await getInstances(orgId);
+  const { instances, dbOffline } = await getInstancesData(orgId);
+
+  if (dbOffline) {
+    return <DatabaseOfflineFallback />;
+  }
+
   const grouped = groupByState(instances);
 
   // Only show columns that have instances in them (plus always show in_progress)
@@ -83,20 +89,32 @@ export default async function InstancesPage() {
       </div>
 
       {/* Pipeline Columns */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: `repeat(${Math.min(activeColumns.length, 4)}, 1fr)`,
-        gap: '24px',
-        alignItems: 'start'
-      }}>
+      <div 
+        style={{ 
+          display: 'flex', 
+          overflowX: 'auto',
+          gap: '24px',
+          paddingBottom: '24px',
+          alignItems: 'start',
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
+        }}
+        className="pipeline-container"
+      >
         {activeColumns.map(state => (
-          <div key={state} style={{
-            background: 'var(--color-surface-elevated)',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: '8px',
-            padding: '20px',
-            minHeight: '200px',
-          }}>
+          <div 
+            key={state} 
+            style={{
+              background: 'var(--color-surface-elevated)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '20px',
+              minWidth: 'min(300px, 85vw)',
+              flex: '1 0 auto',
+              scrollSnapAlign: 'start',
+              minHeight: '200px',
+            }}
+          >
             {/* Column Header */}
             <div style={{ 
               display: 'flex', 
@@ -120,8 +138,11 @@ export default async function InstancesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(grouped[state] || []).map(inst => (
                 <div key={inst.id} style={{
-                  background: 'var(--color-surface-base)',
-                  border: '1px solid var(--color-border-subtle)',
+                  background: inst.status === 'waiting' ? 'var(--color-surface-elevated)' : 'var(--color-surface-base)',
+                  border: inst.status === 'waiting' 
+                    ? '1px solid rgba(232, 93, 4, 0.4)' 
+                    : '1px solid var(--color-border-subtle)',
+                  boxShadow: inst.status === 'waiting' ? '0 0 12px rgba(232, 93, 4, 0.1)' : 'none',
                   borderRadius: '6px',
                   padding: '12px',
                   display: 'flex',

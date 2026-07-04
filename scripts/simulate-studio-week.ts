@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
-import { KernelRepository } from './src/lib/domains/kernel/repository';
+import { KernelRepository } from '../src/lib/domains/kernel/repository';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
+import WebSocket from 'ws';
+
+if (typeof global.WebSocket === 'undefined') {
+  (global as any).WebSocket = WebSocket;
+}
 
 // Load environment variables (ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set)
-dotenv.config({ path: resolve(__dirname, '.env.local') });
+dotenv.config({ path: resolve(__dirname, '../.env.local') });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Using admin key to bypass RLS for the simulation script
@@ -45,6 +50,7 @@ async function simulateWeek() {
     const inst1 = await repo.createServiceInstance(ORG_ID, agr1.id, SERVICES.PASSPORT, { origin: 'Walk-in' });
     
     // Shoot happens immediately, delivered 15 mins later
+    await repo.transitionInstance(ORG_ID, inst1.id, 'in_progress');
     await repo.transitionInstance(ORG_ID, inst1.id, 'completed');
     await repo.transitionInstance(ORG_ID, inst1.id, 'delivered');
     console.log(`✅ Emeka's passport photos delivered. ₦5,000 earned.\n`);
@@ -72,6 +78,7 @@ async function simulateWeek() {
     const inst3 = await repo.createServiceInstance(ORG_ID, agr3.id, SERVICES.FRAME, { size: '24x36', type: 'Canvas' });
     
     // Instance is waiting on the printer
+    await repo.transitionInstance(ORG_ID, inst3.id, 'in_progress');
     await repo.transitionInstance(ORG_ID, inst3.id, 'waiting');
     console.log(`✅ Mrs. Folashade's frame order recorded. Instance is 'waiting' on production.\n`);
 

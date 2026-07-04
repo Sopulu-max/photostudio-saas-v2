@@ -9,13 +9,15 @@ interface StateBadgeProps {
   state: KernelState;
   // The display register mapping (e.g. mapping "proposed" -> "draft").
   label?: string; 
+  // The reason for waiting (rendered prominently if state === 'waiting')
+  reason?: string | null;
 }
 
 /**
  * The Universal State Grammar.
  * Only accepts canonical states. Register-mapped words are passed as `label`.
  */
-export function StateBadge({ state, label }: StateBadgeProps) {
+export function StateBadge({ state, label, reason }: StateBadgeProps) {
   let stateClass = styles.neutral;
   let defaultLabel = state.replace('_', ' ');
 
@@ -44,8 +46,15 @@ export function StateBadge({ state, label }: StateBadgeProps) {
   }
 
   return (
-    <span className={`${styles.badge} ${stateClass}`}>
-      {label || defaultLabel}
-    </span>
+    <div className="flex flex-col gap-1 items-start">
+      <span className={`${styles.badge} ${stateClass}`}>
+        {label || defaultLabel}
+      </span>
+      {state === 'waiting' && reason && (
+        <span className="text-[11px] font-semibold text-[#e85d04] uppercase tracking-wider bg-[#e85d04]/10 px-2 py-0.5 rounded border border-[#e85d04]/20 animate-pulse">
+          {reason}
+        </span>
+      )}
+    </div>
   );
 }

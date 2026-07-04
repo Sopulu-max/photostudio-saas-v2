@@ -4,30 +4,36 @@ import { StateBadge, KernelState } from '@/components/ontology/StateBadge';
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { AgreementDTO } from '@/lib/domains/kernel/types';
-import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
 import { getOrgId } from '@/lib/auth';
+import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
 
-async function getAgreements(orgId: string | null): Promise<AgreementDTO[]> {
+async function getFinanceData(orgId: string | null) {
+  let agreements: AgreementDTO[] = [];
+  let dbOffline = false;
+
   if (orgId) {
     try {
       const { createClient } = await import('@/lib/supabase/server');
       const supabase = await createClient();
       const repo = new KernelRepository(supabase);
-      const agreements = await repo.getAgreementsByOrganization(orgId);
-      if (agreements.length > 0) return agreements;
-    } catch {
-      // Database unavailable — fall through to mock data
+      const dbAgreements = await repo.getAgreementsByOrganization(orgId);
+      if (dbAgreements.length > 0) agreements = dbAgreements;
+    } catch (error) {
+      console.error("Database connection failed", error);
+      dbOffline = true;
     }
   }
   
-  // Graceful degradation: use mock fixtures
-  const { passport, wedding } = MockScenarios;
-  return [passport.agreement, wedding.agreement];
+  return { agreements, dbOffline };
 }
 
 export default async function FinancePage() {
   const orgId = await getOrgId();
-  const agreements = await getAgreements(orgId);
+  const { agreements, dbOffline } = await getFinanceData(orgId);
+
+  if (dbOffline) {
+    return <DatabaseOfflineFallback />;
+  }
 
   return (
     <div style={{ padding: '40px' }}>

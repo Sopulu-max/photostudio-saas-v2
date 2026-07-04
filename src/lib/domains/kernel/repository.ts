@@ -134,7 +134,32 @@ export class KernelRepository {
     };
   }
 
+  private mapService(row: Database['public']['Tables']['services']['Row']): ServiceDTO {
+    return {
+      id: row.id,
+      organizationId: row.organization_id,
+      name: row.name,
+      description: row.description,
+      pricingRules: (row.pricing_rules as Record<string, any>) || {},
+      requiredFields: (row.required_fields as Record<string, any>) || {},
+      status: row.status as ServiceState,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
   // --- Queries (Fetchers) ---
+
+  async getServicesByOrganization(orgId: string): Promise<ServiceDTO[]> {
+    const { data, error } = await this.supabase
+      .from('services')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('status', 'active');
+      
+    if (error) throw error;
+    return (data || []).map(row => this.mapService(row));
+  }
 
   async getOrganization(id: string): Promise<OrganizationDTO | null> {
     const { data, error } = await this.supabase
