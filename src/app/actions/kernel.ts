@@ -12,8 +12,8 @@ export async function transitionInstance(instanceId: string, eventSuffix: string
   const supabase = await createClient();
   const repo = new KernelRepository(supabase);
   
-  // Actor ID is null for now, as we lack auth
-  const success = await repo.transitionInstance(SCAFFOLD_ORG_ID, instanceId, eventSuffix, null as any);
+  // Actor ID is undefined until auth is wired; the repository accepts string | undefined
+  const success = await repo.transitionInstance(SCAFFOLD_ORG_ID, instanceId, eventSuffix, undefined);
   
   if (success) {
     // Revalidate the pipeline and ledger pages so they reflect the new state instantly

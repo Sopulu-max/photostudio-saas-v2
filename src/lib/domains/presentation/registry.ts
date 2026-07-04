@@ -53,10 +53,10 @@ export class SchemaRegistry {
   }
 
   // A studio can extend the schema at runtime
-  public registerCustomAttribute(entityType: string, attribute: AttributeSchema) {
+  public registerCustomAttribute(entityType: EntitySchema['entityType'], attribute: AttributeSchema) {
     let schema = this.schemas.get(entityType);
     if (!schema) {
-      schema = { entityType: entityType as any, attributes: {} };
+      schema = { entityType, attributes: {} };
       this.schemas.set(entityType, schema);
     }
     schema.attributes[attribute.key] = attribute;

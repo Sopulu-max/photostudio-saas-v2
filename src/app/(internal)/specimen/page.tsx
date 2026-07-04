@@ -5,6 +5,7 @@ import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { useState } from 'react';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
 import { KernelState } from '@/components/ontology/StateBadge';
+import { ServiceInstanceDTO } from '@/lib/domains/kernel/types';
 import { Invitation } from '@/components/ontology/Invitation';
 import { LineageEdge } from '@/components/ontology/LineageEdge';
 import { MemoryDrawer } from '@/components/ontology/MemoryDrawer';
@@ -97,7 +98,7 @@ export default function SpecimenPage() {
             <EntitySignature 
               key={st}
               type="service_instance" 
-              data={{ ...wedding.instances[0], status: st } as any} 
+              data={{ ...wedding.instances[0], status: st } as ServiceInstanceDTO} 
               scale="card" 
             />
           ))}
