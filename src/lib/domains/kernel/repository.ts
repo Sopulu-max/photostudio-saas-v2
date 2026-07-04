@@ -12,7 +12,11 @@ import {
   RequestState,
   AgreementState,
   InstanceState,
-  AssetState
+  AssetState,
+  OrganizationState,
+  CustomerState,
+  ServiceState,
+  LEGAL_TRANSITIONS
 } from './types';
 
 export class KernelRepository {
@@ -25,7 +29,7 @@ export class KernelRepository {
     return {
       id: row.id,
       name: row.name,
-      status: row.status,
+      status: row.status as OrganizationState,
       createdAt: row.created_at,
       archivedAt: row.archived_at,
     };
@@ -52,7 +56,7 @@ export class KernelRepository {
       description: row.description,
       pricingRules: (row.pricing_rules as Record<string, any>) || {},
       requiredFields: (row.required_fields as Record<string, any>) || {},
-      status: row.status,
+      status: row.status as ServiceState,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -64,7 +68,7 @@ export class KernelRepository {
       organizationId: row.organization_id,
       primaryIdentifier: row.primary_identifier,
       profileData: (row.profile_data as Record<string, any>) || {},
-      status: row.status,
+      status: row.status as CustomerState,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -204,6 +208,15 @@ export class KernelRepository {
   // --- Mutations ---
 
   async createCustomer(orgId: string, primaryIdentifier: string, profileData: any): Promise<CustomerDTO | null> {
+    const { data: existing } = await this.supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('primary_identifier', primaryIdentifier)
+      .single();
+      
+    if (existing) return this.mapCustomer(existing);
+
     const { data, error } = await this.supabase
       .from('customers')
       .insert({
@@ -232,6 +245,12 @@ export class KernelRepository {
       .single();
 
     if (error || !data) return null;
+
+    await this.supabase.from('events').insert([
+      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created' },
+      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.accepted' }
+    ]);
+
     return this.mapRequest(data);
   }
 
@@ -249,6 +268,12 @@ export class KernelRepository {
       .single();
 
     if (error || !data) return null;
+
+    await this.supabase.from('events').insert([
+      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed' },
+      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.active' }
+    ]);
+
     return this.mapAgreement(data);
   }
 
@@ -266,6 +291,11 @@ export class KernelRepository {
       .single();
 
     if (error || !data) return null;
+
+    await this.supabase.from('events').insert([
+      { organization_id: orgId, entity_type: 'service_instance', entity_id: data.id, event_type: 'service_instance.created' }
+    ]);
+
     return this.mapServiceInstance(data);
   }
 
@@ -274,24 +304,40 @@ export class KernelRepository {
   async transitionInstance(
     orgId: string, 
     instanceId: string, 
-    transition: InstanceState, 
+    eventSuffix: string, 
     actorId?: string
   ): Promise<boolean> {
     
-    // In a real system, you'd fetch the current state here and validate against a legality map
-    // (e.g. created -> scheduled is ok, completed -> created is not).
+    // 1. Fetch current instance via RLS to guarantee ownership (N2 fix)
+    const { data: instance, error: fetchError } = await this.supabase
+      .from('service_instances')
+      .select('id, status')
+      .eq('id', instanceId)
+      .single();
+      
+    if (fetchError || !instance) {
+      throw new Error('Instance not found or access denied (ownership failed)');
+    }
+
+    // 2. Validate legality of transition (N4 fix)
+    const eventType = `service_instance.${eventSuffix}`;
+    const allowedEvents = LEGAL_TRANSITIONS['service_instances'][instance.status] || [];
     
-    // Insert the transition event. The DB trigger will automatically update the status.
+    if (!allowedEvents.includes(eventType)) {
+      throw new Error(`ILLEGAL_TRANSITION: Cannot apply event ${eventType} to instance in state ${instance.status}`);
+    }
+    
+    // 3. Insert the transition event. The DB trigger will automatically update the status.
     const { error } = await this.supabase
       .from('events')
       .insert({
         organization_id: orgId,
         entity_type: 'service_instance',
         entity_id: instanceId,
-        event_type: `service_instance.${transition}`,
+        event_type: eventType,
         actor_id: actorId,
         payload: {
-          transitionedTo: transition
+          transitionedTo: eventSuffix
         }
       });
       

@@ -42,7 +42,7 @@ export function EntitySignature({ type, scale = 'row', data }: EntitySignaturePr
   const label = getLabelForEntity(type, data);
   
   // 3. Resolve State (if entity carries state)
-  const state = ('status' in data ? data.status as KernelState : null);
+  const state = ('status' in data ? data.status : null);
 
   // 4. Resolve Shape Class
   let shapeClass = '';
@@ -119,17 +119,19 @@ function getIconForEntity(type: EntityType) {
   }
 }
 
-function getLabelForEntity(type: EntityType, data: any): string {
+type EntityData = OrganizationDTO | IdentityDTO | CustomerDTO | RequestDTO | AgreementDTO | ServiceDTO | ServiceInstanceDTO | AssetDTO | OutcomeDTO;
+
+function getLabelForEntity(type: EntityType, data: EntityData): string {
   switch (type) {
-    case 'organization': return data.name || 'Unknown Organization';
-    case 'identity': return data.name || 'Unknown Identity';
-    case 'service': return data.name || 'Unknown Service';
-    case 'customer': return data.profileData?.name || data.primaryIdentifier || 'Unknown Customer';
-    case 'request': return `Req: ${data.id.substring(0,8)}`;
-    case 'agreement': return `Agr: ${data.id.substring(0,8)}`;
-    case 'service_instance': return `Inst: ${data.id.substring(0,8)}`;
-    case 'asset': return `Asset: ${data.id.substring(0,8)}`;
-    case 'outcome': return `Outcome: ${data.id.substring(0,8)}`;
-    default: return data.id?.substring(0,8) || 'Unknown';
+    case 'organization': return (data as OrganizationDTO).name || 'Unknown Organization';
+    case 'identity': return (data as IdentityDTO).name || 'Unknown Identity';
+    case 'service': return (data as ServiceDTO).name || 'Unknown Service';
+    case 'customer': return (data as CustomerDTO).profileData?.name || (data as CustomerDTO).primaryIdentifier || 'Unknown Customer';
+    case 'request': return `Req: ${(data as RequestDTO).id.substring(0,8)}`;
+    case 'agreement': return `Agr: ${(data as AgreementDTO).id.substring(0,8)}`;
+    case 'service_instance': return `Inst: ${(data as ServiceInstanceDTO).id.substring(0,8)}`;
+    case 'asset': return `Asset: ${(data as AssetDTO).id.substring(0,8)}`;
+    case 'outcome': return `Outcome: ${(data as OutcomeDTO).id.substring(0,8)}`;
+    default: return ('id' in data ? data.id.substring(0,8) : 'Unknown');
   }
 }

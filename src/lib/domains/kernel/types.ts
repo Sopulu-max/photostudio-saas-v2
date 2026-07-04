@@ -2,15 +2,19 @@ import { Database } from '@/lib/database.types';
 
 export type Json = Database['public']['Tables']['customers']['Row']['profile_data'];
 
-export type RequestState = 'created' | 'reviewed' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
-export type AgreementState = 'proposed' | 'active' | 'modified' | 'fulfilled' | 'closed' | 'cancelled' | 'disputed';
-export type InstanceState = 'created' | 'scheduled' | 'in_progress' | 'waiting' | 'completed' | 'delivered' | 'archived' | 'halted' | 'accepted' | 'revised';
-export type AssetState = 'registered' | 'consumed' | 'archived';
+export type RequestState = 'open' | 'accepted' | 'rejected' | 'expired'; // Based on prior knowledge + user: "already right in the DB"
+export type AgreementState = 'proposed' | 'active' | 'completed' | 'cancelled';
+export type InstanceState = 'created' | 'scheduled' | 'in_progress' | 'waiting' | 'completed' | 'delivered' | 'archived' | 'halted';
+export type AssetState = 'registered' | 'available' | 'in_use' | 'retained' | 'released';
+
+export type OrganizationState = 'created' | 'active' | 'suspended' | 'archived';
+export type CustomerState = 'active' | 'merged' | 'archived';
+export type ServiceState = 'active' | 'retired';
 
 export interface OrganizationDTO {
   id: string;
   name: string;
-  status: string; // active, archived, etc.
+  status: OrganizationState;
   createdAt: string;
   archivedAt: string | null;
 }
@@ -33,7 +37,7 @@ export interface ServiceDTO {
   description: string | null;
   pricingRules: Record<string, any>;
   requiredFields: Record<string, any>;
-  status: string; // active, retired
+  status: ServiceState;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +47,7 @@ export interface CustomerDTO {
   organizationId: string;
   primaryIdentifier: string;
   profileData: Record<string, any>;
-  status: string;
+  status: CustomerState;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,3 +104,34 @@ export interface OutcomeDTO extends AssetDTO {
   originType: 'produced';
   originInstanceId: string; // Must be present for produced outcomes
 }
+
+/**
+ * Server-side truth for what events are legal from what states.
+ * Used by the repository to throw ILLEGAL_TRANSITION.
+ */
+export const LEGAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
+  service_instances: {
+    // currentState -> allowed events
+    'created': ['service_instance.scheduled', 'service_instance.in_progress', 'service_instance.cancelled', 'service_instance.halted'],
+    'scheduled': ['service_instance.in_progress', 'service_instance.waiting', 'service_instance.halted', 'service_instance.cancelled'],
+    'in_progress': ['service_instance.completed', 'service_instance.waiting', 'service_instance.halted'],
+    'waiting': ['service_instance.in_progress', 'service_instance.halted'],
+    'halted': ['service_instance.in_progress', 'service_instance.scheduled', 'service_instance.cancelled'],
+    'completed': ['service_instance.delivered', 'service_instance.archived'],
+    'delivered': ['service_instance.archived'],
+    'archived': []
+  },
+  agreements: {
+    'proposed': ['agreement.active', 'agreement.cancelled'],
+    'active': ['agreement.completed', 'agreement.cancelled', 'agreement.modified'], // modified doesn't change state but is legal to emit
+    'completed': ['agreement.archived'],
+    'cancelled': []
+  },
+  requests: {
+    'open': ['request.accepted', 'request.rejected', 'request.expired'],
+    'accepted': [],
+    'rejected': [],
+    'expired': []
+  }
+};
+

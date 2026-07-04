@@ -25,7 +25,7 @@ export default function SpecimenPage() {
   const mockService: any = { id: 'svc-1', name: 'Wedding Photography Base' };
   const mockAsset: any = { id: 'ast-1', name: 'DSC001.ARW', url: '...' };
 
-  const allStates: KernelState[] = ['created', 'scheduled', 'in_progress', 'waiting', 'halted', 'completed', 'delivered', 'archived', 'proposed', 'active', 'modified', 'cancelled'];
+  const allStates: KernelState[] = ['created', 'scheduled', 'in_progress', 'waiting', 'halted', 'completed', 'delivered', 'archived', 'proposed', 'active', 'cancelled'];
 
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>

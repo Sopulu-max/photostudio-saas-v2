@@ -1,9 +1,9 @@
 import React from 'react';
 import styles from './ontology.module.css';
-import { RequestState, AgreementState, InstanceState, AssetState } from '@/lib/domains/kernel/types';
+import { RequestState, AgreementState, InstanceState, AssetState, OrganizationState, CustomerState, ServiceState } from '@/lib/domains/kernel/types';
 
 // Strict union derived exclusively from the Kernel Specification.
-export type KernelState = RequestState | AgreementState | InstanceState | AssetState | 'cancelled' | 'halted';
+export type KernelState = RequestState | AgreementState | InstanceState | AssetState | OrganizationState | CustomerState | ServiceState | 'cancelled' | 'halted';
 
 interface StateBadgeProps {
   state: KernelState;
@@ -39,7 +39,6 @@ export function StateBadge({ state, label }: StateBadgeProps) {
     case 'created':
     case 'scheduled':
     case 'proposed':
-    case 'modified':
       stateClass = styles.neutral; 
       break;
   }

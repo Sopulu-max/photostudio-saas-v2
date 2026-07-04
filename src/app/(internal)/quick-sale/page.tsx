@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { executeQuickSale } from '@/app/actions/quick-sale';
 import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { LineageEdge } from '@/components/ontology/LineageEdge';
-import { RequestState, AgreementState, InstanceState } from '@/lib/domains/kernel/types';
+import { RequestState, AgreementState, InstanceState, CustomerState } from '@/lib/domains/kernel/types';
 
 export default function QuickSalePage() {
   const [customerName, setCustomerName] = useState('');
@@ -38,7 +38,7 @@ export default function QuickSalePage() {
     organizationId: 'org-1111-2222-3333-4444',
     primaryIdentifier: customerPhone || 'Unknown Phone',
     profileData: { name: customerName || 'Unknown Name' },
-    status: 'active',
+    status: 'active' as CustomerState,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
