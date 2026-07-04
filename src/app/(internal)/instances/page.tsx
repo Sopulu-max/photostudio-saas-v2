@@ -7,18 +7,19 @@ import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { ServiceInstanceDTO, InstanceState } from '@/lib/domains/kernel/types';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
 
-// The hardcoded org ID — will be replaced with auth context later.
-const ORG_ID = '11111111-2222-3333-4444-555555555555';
+import { getOrgId } from '@/lib/auth';
 
-async function getInstances(): Promise<ServiceInstanceDTO[]> {
-  try {
-    const { createClient } = await import('@/lib/supabase/server');
-    const supabase = await createClient();
-    const repo = new KernelRepository(supabase);
-    const instances = await repo.getInstancesByOrganization(ORG_ID);
-    if (instances.length > 0) return instances;
-  } catch {
-    // Database unavailable — fall through to mock data
+async function getInstances(orgId: string | null): Promise<ServiceInstanceDTO[]> {
+  if (orgId) {
+    try {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      const repo = new KernelRepository(supabase);
+      const instances = await repo.getInstancesByOrganization(orgId);
+      if (instances.length > 0) return instances;
+    } catch {
+      // Database unavailable — fall through to mock data
+    }
   }
   
   // Graceful degradation: use mock fixtures
@@ -55,7 +56,8 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 export default async function InstancesPage() {
-  const instances = await getInstances();
+  const orgId = await getOrgId();
+  const instances = await getInstances(orgId);
   const grouped = groupByState(instances);
 
   // Only show columns that have instances in them (plus always show in_progress)

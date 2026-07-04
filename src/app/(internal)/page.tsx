@@ -16,13 +16,12 @@ import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { ServiceInstanceDTO, AgreementDTO } from '@/lib/domains/kernel/types';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
-
-const ORG_ID = '11111111-2222-3333-4444-555555555555';
+import { getOrgId } from '@/lib/auth';
 
 // Ensure this page is server-rendered on each request (not statically pre-rendered)
 export const dynamic = 'force-dynamic';
 
-async function getDashboardData() {
+async function getDashboardData(orgId: string | null) {
   let instances: ServiceInstanceDTO[] = [];
   let agreements: AgreementDTO[] = [];
 
@@ -31,13 +30,15 @@ async function getDashboardData() {
     const supabase = await createClient();
     const repo = new KernelRepository(supabase);
     
-    const [dbInstances, dbAgreements] = await Promise.all([
-      repo.getInstancesByOrganization(ORG_ID),
-      repo.getAgreementsByOrganization(ORG_ID),
-    ]);
-    
-    if (dbInstances.length > 0) instances = dbInstances;
-    if (dbAgreements.length > 0) agreements = dbAgreements;
+    if (orgId) {
+      const [dbInstances, dbAgreements] = await Promise.all([
+        repo.getInstancesByOrganization(orgId),
+        repo.getAgreementsByOrganization(orgId),
+      ]);
+      
+      if (dbInstances.length > 0) instances = dbInstances;
+      if (dbAgreements.length > 0) agreements = dbAgreements;
+    }
   } catch {
     // Database unavailable — fall through to mock data
   }
@@ -53,7 +54,8 @@ async function getDashboardData() {
 }
 
 export default async function CommandCenterPage() {
-  const { instances, agreements } = await getDashboardData();
+  const orgId = await getOrgId();
+  const { instances, agreements } = await getDashboardData(orgId);
 
   // Derive metrics from the kernel data
   const needsAttention = instances.filter(i => i.status === 'waiting' || i.status === 'halted');

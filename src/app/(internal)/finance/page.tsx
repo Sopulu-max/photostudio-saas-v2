@@ -5,18 +5,19 @@ import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { AgreementDTO } from '@/lib/domains/kernel/types';
 import { MockScenarios } from '@/lib/domains/kernel/mock-scenarios';
+import { getOrgId } from '@/lib/auth';
 
-const ORG_ID = '11111111-2222-3333-4444-555555555555';
-
-async function getAgreements(): Promise<AgreementDTO[]> {
-  try {
-    const { createClient } = await import('@/lib/supabase/server');
-    const supabase = await createClient();
-    const repo = new KernelRepository(supabase);
-    const agreements = await repo.getAgreementsByOrganization(ORG_ID);
-    if (agreements.length > 0) return agreements;
-  } catch {
-    // Database unavailable — fall through to mock data
+async function getAgreements(orgId: string | null): Promise<AgreementDTO[]> {
+  if (orgId) {
+    try {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      const repo = new KernelRepository(supabase);
+      const agreements = await repo.getAgreementsByOrganization(orgId);
+      if (agreements.length > 0) return agreements;
+    } catch {
+      // Database unavailable — fall through to mock data
+    }
   }
   
   // Graceful degradation: use mock fixtures
@@ -25,7 +26,8 @@ async function getAgreements(): Promise<AgreementDTO[]> {
 }
 
 export default async function FinancePage() {
-  const agreements = await getAgreements();
+  const orgId = await getOrgId();
+  const agreements = await getAgreements(orgId);
 
   return (
     <div style={{ padding: '40px' }}>
