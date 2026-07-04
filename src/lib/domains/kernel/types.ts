@@ -2,7 +2,7 @@ import { Database } from '@/lib/database.types';
 
 export type Json = Database['public']['Tables']['customers']['Row']['profile_data'];
 
-export type RequestState = 'open' | 'accepted' | 'rejected' | 'expired'; // Based on prior knowledge + user: "already right in the DB"
+export type RequestState = 'created' | 'reviewed' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type AgreementState = 'proposed' | 'active' | 'completed' | 'cancelled';
 export type InstanceState = 'created' | 'scheduled' | 'in_progress' | 'waiting' | 'completed' | 'delivered' | 'archived' | 'halted';
 export type AssetState = 'registered' | 'available' | 'in_use' | 'retained' | 'released';
@@ -23,9 +23,9 @@ export interface IdentityDTO {
   organizationId: string;
   name: string;
   logoUrl: string | null;
-  brandColors: Record<string, any>;
-  typography: Record<string, any>;
-  contactData: Record<string, any>;
+  brandColors: Record<string, string>;
+  typography: Record<string, string>;
+  contactData: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,8 +35,8 @@ export interface ServiceDTO {
   organizationId: string;
   name: string;
   description: string | null;
-  pricingRules: Record<string, any>;
-  requiredFields: Record<string, any>;
+  pricingRules: Record<string, unknown>;
+  requiredFields: Record<string, unknown>;
   status: ServiceState;
   createdAt: string;
   updatedAt: string;
@@ -46,7 +46,7 @@ export interface CustomerDTO {
   id: string;
   organizationId: string;
   primaryIdentifier: string;
-  profileData: Record<string, any>;
+  profileData: Record<string, unknown>;
   status: CustomerState;
   createdAt: string;
   updatedAt: string;
@@ -56,7 +56,7 @@ export interface RequestDTO {
   id: string;
   organizationId: string;
   customerId: string;
-  requestedServices: Record<string, any>;
+  requestedServices: Array<{ serviceId: string, [key: string]: unknown }>;
   status: RequestState;
   createdAt: string;
   updatedAt: string;
@@ -68,7 +68,7 @@ export interface ServiceInstanceDTO {
   agreementId: string;
   serviceId: string;
   status: InstanceState;
-  fulfillmentData: Record<string, any>;
+  fulfillmentData: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,7 +79,7 @@ export interface AgreementDTO {
   customerId: string;
   requestId: string | null;
   status: AgreementState;
-  terms: Record<string, any>;
+  terms: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   
@@ -123,15 +123,24 @@ export const LEGAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
   },
   agreements: {
     'proposed': ['agreement.active', 'agreement.cancelled'],
-    'active': ['agreement.completed', 'agreement.cancelled', 'agreement.modified'], // modified doesn't change state but is legal to emit
+    'active': ['agreement.completed', 'agreement.cancelled'],
     'completed': ['agreement.archived'],
     'cancelled': []
   },
   requests: {
-    'open': ['request.accepted', 'request.rejected', 'request.expired'],
+    'created': ['request.reviewed', 'request.accepted', 'request.declined', 'request.withdrawn', 'request.expired'],
+    'reviewed': ['request.accepted', 'request.declined', 'request.withdrawn', 'request.expired'],
     'accepted': [],
-    'rejected': [],
+    'declined': [],
+    'withdrawn': [],
     'expired': []
+  },
+  assets: {
+    'registered': ['asset.available', 'asset.in_use', 'asset.released'],
+    'available': ['asset.in_use', 'asset.released'],
+    'in_use': ['asset.retained', 'asset.released', 'asset.available'],
+    'retained': ['asset.released'],
+    'released': []
   }
 };
 

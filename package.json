@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run tests/unit",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration --setupFiles tests/integration/setup.ts",
-    "test:gate": "vitest run tests/integration/kernel-gate.test.ts --setupFiles tests/integration/setup.ts"
+    "test:integration": "vitest run tests/integration --fileParallelism=false",
+    "test:gate": "vitest run tests/integration --fileParallelism=false"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.11",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
@@ -31,6 +33,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "pg": "^8.22.0",
     "typescript": "^5",
     "vitest": "^4.1.9",
     "ws": "^8.21.0"

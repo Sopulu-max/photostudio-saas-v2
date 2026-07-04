@@ -1,133 +1,115 @@
 import React from 'react';
-import { EntitySignature } from '@/components/ontology/EntitySignature';
-import { StateBadge, KernelState } from '@/components/ontology/StateBadge';
-import { Invitation } from '@/components/ontology/Invitation';
-import { KernelRepository } from '@/lib/domains/kernel/repository';
-import { AgreementDTO } from '@/lib/domains/kernel/types';
 import { getOrgId } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
+import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
+import { StateBadge } from '@/components/ontology/StateBadge';
+import { EntitySignature } from '@/components/ontology/EntitySignature';
+import { AgreementControls } from './AgreementControls';
+import Link from 'next/link';
 
-async function getFinanceData(orgId: string | null) {
-  let agreements: AgreementDTO[] = [];
+export const dynamic = 'force-dynamic';
+
+export default async function FinanceLedgerPage() {
+  const orgId = await getOrgId();
+  if (!orgId) return <div>Unauthorized</div>;
+
+  let agreements: any[] = [];
   let dbOffline = false;
 
-  if (orgId) {
-    try {
-      const { createClient } = await import('@/lib/supabase/server');
-      const supabase = await createClient();
-      const repo = new KernelRepository(supabase);
-      const dbAgreements = await repo.getAgreementsByOrganization(orgId);
-      if (dbAgreements.length > 0) agreements = dbAgreements;
-    } catch (error) {
-      console.error("Database connection failed", error);
-      dbOffline = true;
-    }
+  try {
+    const supabase = await createClient();
+    const repo = new KernelRepository(supabase);
+    agreements = await repo.getAgreementsByOrganization(orgId);
+  } catch (error) {
+    console.error("Database connection failed", error);
+    dbOffline = true;
   }
-  
-  return { agreements, dbOffline };
-}
 
-export default async function FinancePage() {
-  const orgId = await getOrgId();
-  const { agreements, dbOffline } = await getFinanceData(orgId);
-
-  if (dbOffline) {
-    return <DatabaseOfflineFallback />;
-  }
+  if (dbOffline) return <DatabaseOfflineFallback />;
 
   return (
-    <div style={{ padding: '40px' }}>
-
-      {/* Page Header */}
+    <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ marginBottom: '40px' }}>
-        <h1 style={{ 
-          fontFamily: 'var(--font-family-serif)', 
-          fontSize: '2rem', 
-          marginBottom: '8px' 
-        }}>
-          Ledger
+        <h1 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '2rem', marginBottom: '8px' }}>
+          Ledger & Agreements
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
-          Every agreement your studio has entered. The financial membrane between a request and the work.
+          The financial backbone of the studio. Activate proposed agreements and track settlement.
         </p>
       </div>
 
-      {/* Agreements Table */}
-      {agreements.length === 0 ? (
-        <Invitation label="No agreements yet. Accept a request to create one." />
-      ) : (
-        <div style={{
-          background: 'var(--color-surface-elevated)',
-          border: '1px solid var(--color-border-subtle)',
-          borderRadius: '8px',
-          overflow: 'hidden',
-        }}>
-          {/* Table Header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '2fr 1fr 1fr 1fr',
-            gap: '16px',
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--color-border-subtle)',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--color-text-secondary)',
-          }}>
-            <span>Agreement</span>
-            <span>Status</span>
-            <span>Terms</span>
-            <span>Instances</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {agreements.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--color-text-tertiary)' }}>
+            No agreements found.
           </div>
-
-          {/* Agreement Rows */}
-          {agreements.map(agr => {
-            const price = agr.terms?.price;
-            const currency = agr.terms?.currency || '';
-            const instanceCount = agr.instances?.length ?? 0;
-            
+        ) : (
+          agreements.map(agr => {
+            const isProposed = agr.status === 'proposed';
             return (
-              <div key={agr.id} style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 1fr 1fr 1fr',
-                gap: '16px',
-                padding: '16px 20px',
-                borderBottom: '1px solid var(--color-border-subtle)',
-                alignItems: 'center',
-                transition: 'background var(--transition-fast)',
+              <div key={agr.id} style={{ 
+                background: 'var(--color-surface-elevated)', 
+                borderRadius: '8px', 
+                border: '1px solid var(--color-border-subtle)',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
               }}>
-                {/* Agreement Signature */}
-                <EntitySignature type="agreement" data={agr} scale="row" />
                 
-                {/* Status */}
-                <div>
-                  <StateBadge state={agr.status} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-family-mono)' }}>
+                        AGR-{agr.id.slice(0,8).toUpperCase()}
+                      </span>
+                      <StateBadge state={agr.status as any} label={agr.status} />
+                    </div>
+                    <Link href={`/customers/${agr.customerId}`} style={{ fontSize: '0.9rem', color: 'var(--color-state-active)', textDecoration: 'none' }}>
+                      View Customer Lineage
+                    </Link>
+                  </div>
+                  
+                  {isProposed && (
+                    <AgreementControls agrId={agr.id} />
+                  )}
                 </div>
-                
-                {/* Terms — showing price if available */}
-                <div style={{ fontWeight: 600, fontFamily: 'var(--font-family-sans)' }}>
-                  {price != null 
-                    ? `${currency} ${Number(price).toLocaleString()}`
-                    : <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>—</span>
-                  }
+
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 300px' }}>
+                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>Terms</h3>
+                    <pre style={{ 
+                      background: 'var(--color-surface-base)', 
+                      padding: '12px', 
+                      borderRadius: '4px', 
+                      fontSize: '0.8rem', 
+                      overflowX: 'auto',
+                      border: '1px solid var(--color-border-subtle)'
+                    }}>
+                      {JSON.stringify(agr.terms, null, 2)}
+                    </pre>
+                  </div>
+                  
+                  {agr.instances && agr.instances.length > 0 && (
+                    <div style={{ flex: '1 1 300px' }}>
+                      <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>Governed Instances</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {agr.instances.map((inst: any) => (
+                          <div key={inst.id} style={{ padding: '8px', background: 'var(--color-surface-base)', borderRadius: '4px', border: '1px solid var(--color-border-subtle)' }}>
+                            <EntitySignature type="service_instance" data={inst} scale="row" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                {/* Instance Count */}
-                <div style={{ 
-                  fontSize: '0.9rem', 
-                  color: instanceCount > 0 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' 
-                }}>
-                  {instanceCount > 0 
-                    ? `${instanceCount} instance${instanceCount > 1 ? 's' : ''}`
-                    : 'None'
-                  }
-                </div>
+
               </div>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
     </div>
   );
 }

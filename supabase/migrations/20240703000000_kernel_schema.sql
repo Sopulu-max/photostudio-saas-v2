@@ -68,7 +68,7 @@ create table public.agreements (
     organization_id uuid not null references public.organizations(id) on delete restrict,
     customer_id uuid not null references public.customers(id) on delete restrict,
     request_id uuid references public.requests(id) on delete restrict,
-    status text not null default 'proposed' check (status in ('proposed', 'active', 'modified', 'fulfilled', 'closed', 'cancelled', 'disputed')),
+    status text not null default 'proposed' check (status in ('proposed', 'active', 'completed', 'cancelled')),
     terms jsonb default '{}'::jsonb,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -84,7 +84,7 @@ create table public.service_instances (
     organization_id uuid not null references public.organizations(id) on delete restrict,
     agreement_id uuid not null references public.agreements(id) on delete restrict,
     service_id uuid not null references public.services(id) on delete restrict,
-    status text not null default 'created' check (status in ('created', 'scheduled', 'in_progress', 'waiting', 'completed', 'delivered', 'archived', 'halted', 'accepted', 'revised')),
+    status text not null default 'created' check (status in ('created', 'scheduled', 'in_progress', 'waiting', 'completed', 'delivered', 'archived', 'halted')),
     fulfillment_data jsonb default '{}'::jsonb,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -97,7 +97,7 @@ create table public.assets (
     origin_instance_id uuid references public.service_instances(id) on delete restrict,
     origin_customer_id uuid references public.customers(id) on delete restrict,
     content_reference text not null,
-    status text not null default 'registered' check (status in ('registered', 'consumed', 'archived')),
+    status text not null default 'registered' check (status in ('registered', 'available', 'in_use', 'retained', 'released')),
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
     
@@ -176,14 +176,19 @@ begin
     -- Extract the status from event_type (e.g. "agreement.active" -> "active")
     new_status := split_part(new.event_type, '.', 2);
     
+    -- agreement.modified is an event, but it does NOT change the status of the agreement.
+    if new.entity_type = 'agreement' and new_status = 'modified' then
+        return new;
+    end if;
+    
     -- Validate and apply based on canonical unions
-    if new.entity_type = 'agreement' and new_status in ('proposed', 'active', 'modified', 'fulfilled', 'closed', 'cancelled', 'disputed') then
+    if new.entity_type = 'agreement' and new_status in ('proposed', 'active', 'completed', 'cancelled') then
         update public.agreements set status = new_status where id = new.entity_id;
     elsif new.entity_type = 'request' and new_status in ('created', 'reviewed', 'accepted', 'declined', 'withdrawn', 'expired') then
         update public.requests set status = new_status where id = new.entity_id;
-    elsif new.entity_type = 'service_instance' and new_status in ('created', 'scheduled', 'in_progress', 'waiting', 'completed', 'delivered', 'archived', 'halted', 'accepted', 'revised') then
+    elsif new.entity_type = 'service_instance' and new_status in ('created', 'scheduled', 'in_progress', 'waiting', 'completed', 'delivered', 'archived', 'halted') then
         update public.service_instances set status = new_status where id = new.entity_id;
-    elsif new.entity_type = 'asset' and new_status in ('registered', 'consumed', 'archived') then
+    elsif new.entity_type = 'asset' and new_status in ('registered', 'available', 'in_use', 'retained', 'released') then
         update public.assets set status = new_status where id = new.entity_id;
     end if;
     

@@ -165,6 +165,33 @@ export default async function PipelinePage() {
                       currentState={inst.status} 
                     />
                   </div>
+                  {/* Surfaced Waiting Reason or Workstep */}
+                  {(inst.status === 'waiting' && inst.fulfillmentData?.waitingReason) && (
+                    <div style={{ 
+                      marginTop: '4px', 
+                      fontSize: '0.75rem', 
+                      color: 'var(--color-state-waiting)', 
+                      background: 'rgba(232, 93, 4, 0.05)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      borderLeft: '2px solid var(--color-state-waiting)'
+                    }}>
+                      Reason: {String(inst.fulfillmentData.waitingReason)}
+                    </div>
+                  )}
+                  {(inst.status === 'in_progress' && inst.fulfillmentData?.workstep) && (
+                    <div style={{ 
+                      marginTop: '4px', 
+                      fontSize: '0.75rem', 
+                      color: 'var(--color-state-active)', 
+                      background: 'rgba(59, 130, 246, 0.05)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      borderLeft: '2px solid var(--color-state-active)'
+                    }}>
+                      Step: {String(inst.fulfillmentData.workstep)}
+                    </div>
+                  )}
                 </div>
               ))}
 

@@ -134,19 +134,6 @@ export class KernelRepository {
     };
   }
 
-  private mapService(row: Database['public']['Tables']['services']['Row']): ServiceDTO {
-    return {
-      id: row.id,
-      organizationId: row.organization_id,
-      name: row.name,
-      description: row.description,
-      pricingRules: (row.pricing_rules as Record<string, any>) || {},
-      requiredFields: (row.required_fields as Record<string, any>) || {},
-      status: row.status as ServiceState,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
-  }
 
   // --- Queries (Fetchers) ---
 
@@ -181,6 +168,17 @@ export class KernelRepository {
 
     if (error || !data) return null;
     return this.mapCustomer(data);
+  }
+
+  async getRequest(id: string): Promise<RequestDTO | null> {
+    const { data, error } = await this.supabase
+      .from('requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapRequest(data);
   }
 
   /**
@@ -230,142 +228,4 @@ export class KernelRepository {
     return data.map(row => this.mapAgreement(row));
   }
 
-  // --- Mutations ---
-
-  async createCustomer(orgId: string, primaryIdentifier: string, profileData: any): Promise<CustomerDTO | null> {
-    const { data: existing } = await this.supabase
-      .from('customers')
-      .select('*')
-      .eq('organization_id', orgId)
-      .eq('primary_identifier', primaryIdentifier)
-      .single();
-      
-    if (existing) return this.mapCustomer(existing);
-
-    const { data, error } = await this.supabase
-      .from('customers')
-      .insert({
-        organization_id: orgId,
-        primary_identifier: primaryIdentifier,
-        profile_data: profileData,
-        status: 'active'
-      })
-      .select('*')
-      .single();
-    
-    if (error || !data) return null;
-    return this.mapCustomer(data);
-  }
-
-  async createRequest(orgId: string, customerId: string, requestedServices: any): Promise<RequestDTO | null> {
-    const { data, error } = await this.supabase
-      .from('requests')
-      .insert({
-        organization_id: orgId,
-        customer_id: customerId,
-        requested_services: requestedServices,
-        status: 'accepted'
-      })
-      .select('*')
-      .single();
-
-    if (error || !data) return null;
-
-    await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created' },
-      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.accepted' }
-    ]);
-
-    return this.mapRequest(data);
-  }
-
-  async createAgreement(orgId: string, customerId: string, requestId: string, terms: any): Promise<AgreementDTO | null> {
-    const { data, error } = await this.supabase
-      .from('agreements')
-      .insert({
-        organization_id: orgId,
-        customer_id: customerId,
-        request_id: requestId,
-        terms: terms,
-        status: 'active'
-      })
-      .select('*')
-      .single();
-
-    if (error || !data) return null;
-
-    await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed' },
-      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.active' }
-    ]);
-
-    return this.mapAgreement(data);
-  }
-
-  async createServiceInstance(orgId: string, agreementId: string, serviceId: string, fulfillmentData: any): Promise<ServiceInstanceDTO | null> {
-    const { data, error } = await this.supabase
-      .from('service_instances')
-      .insert({
-        organization_id: orgId,
-        agreement_id: agreementId,
-        service_id: serviceId,
-        fulfillment_data: fulfillmentData,
-        status: 'created'
-      })
-      .select('*')
-      .single();
-
-    if (error || !data) return null;
-
-    await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'service_instance', entity_id: data.id, event_type: 'service_instance.created' }
-    ]);
-
-    return this.mapServiceInstance(data);
-  }
-
-  // --- Operations (Event-Driven) ---
-
-  async transitionInstance(
-    orgId: string, 
-    instanceId: string, 
-    eventSuffix: string, 
-    actorId?: string
-  ): Promise<boolean> {
-    
-    // 1. Fetch current instance via RLS to guarantee ownership (N2 fix)
-    const { data: instance, error: fetchError } = await this.supabase
-      .from('service_instances')
-      .select('id, status')
-      .eq('id', instanceId)
-      .single();
-      
-    if (fetchError || !instance) {
-      throw new Error('Instance not found or access denied (ownership failed)');
-    }
-
-    // 2. Validate legality of transition (N4 fix)
-    const eventType = `service_instance.${eventSuffix}`;
-    const allowedEvents = LEGAL_TRANSITIONS['service_instances'][instance.status] || [];
-    
-    if (!allowedEvents.includes(eventType)) {
-      throw new Error(`ILLEGAL_TRANSITION: Cannot apply event ${eventType} to instance in state ${instance.status}`);
-    }
-    
-    // 3. Insert the transition event. The DB trigger will automatically update the status.
-    const { error } = await this.supabase
-      .from('events')
-      .insert({
-        organization_id: orgId,
-        entity_type: 'service_instance',
-        entity_id: instanceId,
-        event_type: eventType,
-        actor_id: actorId,
-        payload: {
-          transitionedTo: eventSuffix
-        }
-      });
-      
-    return !error;
-  }
 }

@@ -4,6 +4,11 @@
  * for the test suite. Requires `npx supabase start` to be running.
  */
 import { config } from 'dotenv';
+import WebSocket from 'ws';
+
+if (typeof global.WebSocket === 'undefined') {
+  (global as any).WebSocket = WebSocket;
+}
 
 // Load .env.local (Next.js convention) so tests see NEXT_PUBLIC_SUPABASE_* vars
 config({ path: '.env.local' });

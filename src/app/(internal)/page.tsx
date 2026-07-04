@@ -61,7 +61,17 @@ export default async function CommandCenterPage() {
   }
 
   // Derive metrics from the kernel data
-  const needsAttention = instances.filter(i => i.status === 'waiting' || i.status === 'halted');
+  const now = new Date();
+  const needsAttention = instances.filter(i => {
+    if (i.status !== 'waiting' && i.status !== 'halted') return false;
+    // Highlight if stuck > 5 days
+    const updated = new Date(i.updatedAt);
+    const daysStuck = (now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysStuck > 5) {
+      (i as any).stuckWarning = true;
+    }
+    return true;
+  });
   const inProgress = instances.filter(i => i.status === 'in_progress');
   const scheduled = instances.filter(i => i.status === 'scheduled' || i.status === 'created');
   const completed = instances.filter(i => 
@@ -194,10 +204,15 @@ export default async function CommandCenterPage() {
               {needsAttention.map(inst => (
                 <div key={inst.id} style={{
                   padding: '12px',
-                  background: 'var(--color-surface-base)',
-                  border: '1px solid var(--color-border-subtle)',
+                  background: (inst as any).stuckWarning ? 'rgba(232, 93, 4, 0.05)' : 'var(--color-surface-base)',
+                  border: (inst as any).stuckWarning ? '1px solid var(--color-state-waiting)' : '1px solid var(--color-border-subtle)',
                   borderRadius: '6px',
                 }}>
+                  {(inst as any).stuckWarning && (
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-state-waiting)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <AlertTriangle size={14} /> STUCK {'>'} 5 DAYS
+                    </div>
+                  )}
                   <EntitySignature type="service_instance" data={inst} scale="row" />
                 </div>
               ))}

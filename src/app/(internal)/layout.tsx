@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { signOut } from '@/app/actions/auth';
+import { SyncStateIndicator } from '@/components/layout/SyncStateIndicator';
 
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -91,6 +92,7 @@ export default async function InternalLayout({ children }: { children: React.Rea
 
       {/* MAIN CONTENT */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
+        <SyncStateIndicator />
         {children}
       </main>
     </div>
