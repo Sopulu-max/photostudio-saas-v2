@@ -9,8 +9,8 @@ import { RequestState, AgreementState, InstanceState, CustomerState } from '@/li
 export default function QuickSalePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [serviceId, setServiceId] = useState('svc-passport');
-  const [price, setPrice] = useState('2000');
+  const [serviceId, setServiceId] = useState('00000000-0000-0000-0000-000000000001');
+  const [price, setPrice] = useState('5000');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -130,9 +130,10 @@ export default function QuickSalePage() {
                   onChange={(e) => setServiceId(e.target.value)}
                   style={{ width: '100%', padding: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border-subtle)', borderRadius: '6px', color: 'var(--color-text)', fontSize: '1rem' }}
                 >
-                  <option value="svc-passport">Passport Photo</option>
-                  <option value="svc-print">USB Printing</option>
-                  <option value="svc-portrait">Studio Portrait</option>
+                  <option value="00000000-0000-0000-0000-000000000001">Walk-in Passport Photo</option>
+                  <option value="00000000-0000-0000-0000-000000000002">Studio Portrait Session</option>
+                  <option value="00000000-0000-0000-0000-000000000005">Photobook Printing (A3)</option>
+                  <option value="00000000-0000-0000-0000-000000000006">Wall Frame (24x36 Canvas)</option>
                 </select>
               </div>
 
