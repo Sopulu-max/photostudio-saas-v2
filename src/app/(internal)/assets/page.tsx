@@ -14,6 +14,7 @@ export default async function AssetsPage() {
 
   let assets: any[] = [];
   let instances: any[] = [];
+  let events: any[] = [];
   let dbOffline = false;
 
   try {
@@ -32,20 +33,25 @@ export default async function AssetsPage() {
 
     instances = await repo.getInstancesByOrganization(orgId);
 
+    const { data: eData } = await supabase
+      .from('events')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('event_type', 'asset.delivered');
+    if (eData) events = eData;
+
   } catch (error) {
     console.error("Database connection failed", error);
     dbOffline = true;
   }
 
-  if (dbOffline) return <DatabaseOfflineFallback />;
-
-  // Filter instances that can produce an outcome (e.g. in_progress)
   const activeInstances = instances.filter(i => 
     i.status === 'in_progress' || i.status === 'waiting'
   );
 
   return (
     <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
+      {dbOffline && <DatabaseOfflineFallback />}
       <div style={{ marginBottom: '40px' }}>
         <h1 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '2rem', marginBottom: '8px' }}>
           Assets & Outcomes
@@ -97,6 +103,21 @@ export default async function AssetsPage() {
                   {asset.status === 'registered' && (
                     <div style={{ marginTop: '12px' }}>
                       <AssetControls deliverOnly={true} assetId={asset.id} />
+                    </div>
+                  )}
+                  {asset.status === 'delivered' && (
+                    <div style={{ 
+                      marginTop: '12px', 
+                      fontSize: '0.8rem', 
+                      color: 'var(--color-state-active)',
+                      background: 'rgba(59, 130, 246, 0.05)',
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      borderLeft: '2px solid var(--color-state-active)'
+                    }}>
+                      <strong>Usage Rights:</strong> {
+                        events.find(e => e.entity_id === asset.id)?.payload?.terms || 'Standard / Unspecified'
+                      }
                     </div>
                   )}
                 </div>

@@ -5,19 +5,27 @@ import { createClient } from '@/lib/supabase/server';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { getOrgId } from '@/lib/auth';
 
-export async function transitionInstance(instanceId: string, eventSuffix: string) {
-  const orgId = await getOrgId();
-  if (!orgId) return { success: false, error: 'Not authenticated' };
-
-  const supabase = await createClient();
-  const repo = new KernelRepository(supabase);
-
+export async function transitionInstance(instanceId: string, eventSuffix: string, payload: Record<string, unknown> = {}) {
   try {
-    const success = await repo.transitionInstance(orgId, instanceId, eventSuffix, undefined);
+    const { orgId, ops } = await getOps();
+    const success = await ops.transitionInstance(orgId, instanceId, eventSuffix, payload);
     if (success) {
       revalidatePath('/instances');
       revalidatePath('/finance');
       revalidatePath('/specimen');
+    }
+    return { success };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}
+
+export async function recordWorkstepAction(instanceId: string, stepName: string) {
+  try {
+    const { orgId, ops } = await getOps();
+    const success = await ops.recordWorkstep(orgId, instanceId, stepName);
+    if (success) {
+      revalidatePath('/instances');
     }
     return { success };
   } catch (e) {
@@ -107,7 +115,7 @@ export async function registerAssetAction(assetData: { customerId: string, insta
 export async function produceOutcomeAction(instanceId: string, contentReference: string) {
   try {
     const { orgId, ops } = await getOps();
-    const id = await ops.produceOutcome(orgId, instanceId, contentReference);
+    const id = await ops.produceOutcome(orgId, instanceId, { contentReference });
     revalidatePath('/assets');
     revalidatePath('/instances');
     return { success: true, data: id };
@@ -116,10 +124,10 @@ export async function produceOutcomeAction(instanceId: string, contentReference:
   }
 }
 
-export async function deliverOutcomeAction(assetId: string) {
+export async function deliverOutcomeAction(assetId: string, usageRights: Record<string, unknown> = {}) {
   try {
     const { orgId, ops } = await getOps();
-    await ops.deliverOutcome(orgId, assetId);
+    await ops.deliverOutcome(orgId, assetId, usageRights);
     revalidatePath('/assets');
     revalidatePath('/instances');
     return { success: true };

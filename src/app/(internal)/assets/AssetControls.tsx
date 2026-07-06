@@ -16,29 +16,39 @@ export function AssetControls({ activeInstances = [], deliverOnly = false, asset
   const [instanceId, setInstanceId] = useState('');
   const [customerId, setCustomerId] = useState('');
 
+  const [usageRights, setUsageRights] = useState('Personal Use');
+
   if (deliverOnly && assetId) {
     return (
-      <button 
-        disabled={isPending}
-        onClick={() => {
-          startTransition(async () => {
-            await deliverOutcomeAction(assetId);
-          });
-        }}
-        style={{
-          background: 'var(--color-state-active)',
-          color: 'white',
-          border: 'none',
-          padding: '8px 16px',
-          borderRadius: '4px',
-          cursor: isPending ? 'wait' : 'pointer',
-          opacity: isPending ? 0.6 : 1,
-          fontSize: '0.8rem',
-          fontWeight: 600
-        }}
-      >
-        Deliver Asset
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <input 
+          value={usageRights}
+          onChange={(e) => setUsageRights(e.target.value)}
+          placeholder="Usage Rights (e.g. Commercial, Personal)"
+          style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', fontSize: '0.8rem' }}
+        />
+        <button 
+          disabled={isPending}
+          onClick={() => {
+            startTransition(async () => {
+              await deliverOutcomeAction(assetId, { terms: usageRights });
+            });
+          }}
+          style={{
+            background: 'var(--color-state-active)',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: isPending ? 'wait' : 'pointer',
+            opacity: isPending ? 0.6 : 1,
+            fontSize: '0.8rem',
+            fontWeight: 600
+          }}
+        >
+          Deliver Asset
+        </button>
+      </div>
     );
   }
 

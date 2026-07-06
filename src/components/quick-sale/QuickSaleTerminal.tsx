@@ -38,16 +38,16 @@ export function QuickSaleTerminal({ services }: QuickSaleTerminalProps) {
       formData.set('customerName', 'Walk-in Customer');
     }
 
-    const result = await executeQuickSale(formData);
+    const { success, error, agreementId, customerId } = await executeQuickSale(formData);
 
-    if (!result.success) {
-      setError(result.error || 'Quick sale failed.');
+    if (!success) {
+      setError(error || 'Quick sale failed.');
       setStatus('idle');
     } else {
       setReceipt({
-        customerName: result.customer?.profileData?.name || 'Walk-in Customer',
+        customerName: (formData.get('customerName') as string) || 'Walk-in Customer',
         serviceName: service?.name || 'Service',
-        amount: service?.pricingRules?.base_price || 0,
+        amount: Number((service?.pricingRules as any)?.base_price) || 0,
       });
       setStatus('success');
     }

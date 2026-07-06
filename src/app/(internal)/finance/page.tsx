@@ -6,30 +6,47 @@ import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFall
 import { StateBadge } from '@/components/ontology/StateBadge';
 import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { AgreementControls } from './AgreementControls';
+import { AgreementDetailDrawer } from '@/components/finance/AgreementDetailDrawer';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
+
+async function getAgreementsData(orgId: string | null) {
+  let agreements: any[] = [];
+  let events: any[] = [];
+  let dbOffline = false;
+
+  if (orgId) {
+    try {
+      const supabase = await createClient();
+      const repo = new KernelRepository(supabase);
+      
+      agreements = await repo.getAgreementsByOrganization(orgId);
+
+      const { data: dbEvents } = await supabase
+        .from('events')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('entity_type', 'agreement');
+      if (dbEvents) events = dbEvents;
+    } catch (error) {
+      console.error("Database connection failed", error);
+      dbOffline = true;
+    }
+  }
+
+  return { agreements, events, dbOffline };
+}
 
 export default async function FinanceLedgerPage() {
   const orgId = await getOrgId();
   if (!orgId) return <div>Unauthorized</div>;
 
-  let agreements: any[] = [];
-  let dbOffline = false;
-
-  try {
-    const supabase = await createClient();
-    const repo = new KernelRepository(supabase);
-    agreements = await repo.getAgreementsByOrganization(orgId);
-  } catch (error) {
-    console.error("Database connection failed", error);
-    dbOffline = true;
-  }
-
-  if (dbOffline) return <DatabaseOfflineFallback />;
+  const { agreements, events, dbOffline } = await getAgreementsData(orgId);
 
   return (
     <div style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
+      {dbOffline && <DatabaseOfflineFallback />}
       <div style={{ marginBottom: '40px' }}>
         <h1 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '2rem', marginBottom: '8px' }}>
           Ledger & Agreements
@@ -78,17 +95,29 @@ export default async function FinanceLedgerPage() {
 
                 <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 1 300px' }}>
-                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>Terms</h3>
-                    <pre style={{ 
+                    <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>Terms summary</h3>
+                    <div style={{ 
                       background: 'var(--color-surface-base)', 
-                      padding: '12px', 
-                      borderRadius: '4px', 
-                      fontSize: '0.8rem', 
-                      overflowX: 'auto',
-                      border: '1px solid var(--color-border-subtle)'
+                      padding: '16px', 
+                      borderRadius: '6px', 
+                      border: '1px solid var(--color-border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px'
                     }}>
-                      {JSON.stringify(agr.terms, null, 2)}
-                    </pre>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-tertiary)' }}>Price</span>
+                        <span style={{ fontWeight: 600 }}>{agr.terms?.price ? `${agr.terms.price} ${agr.terms.currency || 'NGN'}` : 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-tertiary)' }}>Deliverables</span>
+                        <span style={{ fontSize: '0.85rem' }}>{agr.terms?.deliverables || 'Standard'}</span>
+                      </div>
+                      
+                      <div style={{ marginTop: '4px', paddingTop: '12px', borderTop: '1px solid var(--color-border-subtle)' }}>
+                        <AgreementDetailDrawer agreement={agr} events={events} />
+                      </div>
+                    </div>
                   </div>
                   
                   {agr.instances && agr.instances.length > 0 && (

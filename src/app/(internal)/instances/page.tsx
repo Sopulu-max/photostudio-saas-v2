@@ -2,6 +2,7 @@ import React from 'react';
 import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { StateBadge } from '@/components/ontology/StateBadge';
 import { StateTransitionControl } from '@/components/ontology/StateTransitionControl';
+import { WorkstepList } from '@/components/ontology/WorkstepList';
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
 import { ServiceInstanceDTO, InstanceState } from '@/lib/domains/kernel/types';
@@ -10,6 +11,7 @@ import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFall
 
 async function getInstancesData(orgId: string | null) {
   let instances: ServiceInstanceDTO[] = [];
+  let events: any[] = [];
   let dbOffline = false;
 
   if (orgId) {
@@ -19,13 +21,20 @@ async function getInstancesData(orgId: string | null) {
       const repo = new KernelRepository(supabase);
       const dbInstances = await repo.getInstancesByOrganization(orgId);
       if (dbInstances.length > 0) instances = dbInstances;
+
+      const { data: dbEvents } = await supabase
+        .from('events')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('event_type', 'service_instance.workstep');
+      if (dbEvents) events = dbEvents;
     } catch (error) {
       console.error("Database connection failed", error);
       dbOffline = true;
     }
   }
   
-  return { instances, dbOffline };
+  return { instances, events, dbOffline };
 }
 
 // Group instances by state for the pipeline columns
@@ -58,11 +67,7 @@ const STATE_LABELS: Record<string, string> = {
 
 export default async function PipelinePage() {
   const orgId = await getOrgId();
-  const { instances, dbOffline } = await getInstancesData(orgId);
-
-  if (dbOffline) {
-    return <DatabaseOfflineFallback />;
-  }
+  const { instances, events, dbOffline } = await getInstancesData(orgId);
 
   const grouped = groupByState(instances);
 
@@ -73,6 +78,7 @@ export default async function PipelinePage() {
 
   return (
     <div style={{ padding: '40px' }}>
+      {dbOffline && <DatabaseOfflineFallback />}
       
       {/* Page Header */}
       <div style={{ marginBottom: '40px' }}>
@@ -165,8 +171,8 @@ export default async function PipelinePage() {
                       currentState={inst.status} 
                     />
                   </div>
-                  {/* Surfaced Waiting Reason or Workstep */}
-                  {(inst.status === 'waiting' && inst.fulfillmentData?.waitingReason) && (
+                  {/* Surfaced Waiting Reason */}
+                  {(inst.status === 'waiting' && (inst.fulfillmentData as any)?.waitingReason) && (
                     <div style={{ 
                       marginTop: '4px', 
                       fontSize: '0.75rem', 
@@ -176,21 +182,16 @@ export default async function PipelinePage() {
                       borderRadius: '4px',
                       borderLeft: '2px solid var(--color-state-waiting)'
                     }}>
-                      Reason: {String(inst.fulfillmentData.waitingReason)}
+                      Reason: {String((inst.fulfillmentData as any).waitingReason)}
                     </div>
                   )}
-                  {(inst.status === 'in_progress' && inst.fulfillmentData?.workstep) && (
-                    <div style={{ 
-                      marginTop: '4px', 
-                      fontSize: '0.75rem', 
-                      color: 'var(--color-state-active)', 
-                      background: 'rgba(59, 130, 246, 0.05)',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      borderLeft: '2px solid var(--color-state-active)'
-                    }}>
-                      Step: {String(inst.fulfillmentData.workstep)}
-                    </div>
+                  
+                  {/* Instance Workboard for active instances */}
+                  {(inst.status === 'in_progress' || inst.status === 'waiting') && (
+                    <WorkstepList 
+                      instanceId={inst.id} 
+                      events={events.filter((e: any) => e.entity_id === inst.id)} 
+                    />
                   )}
                 </div>
               ))}

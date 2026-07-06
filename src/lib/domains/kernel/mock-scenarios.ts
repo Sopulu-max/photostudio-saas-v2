@@ -30,7 +30,9 @@ const reqPassport: RequestDTO = {
   id: 'req-passport-001',
   organizationId: ORG_ID,
   customerId: customerSopulu.id,
-  requestedServices: { serviceId: SERVICES.PASSPORT, name: 'Walk-in Passport' },
+  requestedServices: [
+    { serviceId: SERVICES.PASSPORT }
+  ] as any,
   status: 'accepted',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -76,10 +78,9 @@ const reqWedding: RequestDTO = {
   id: 'req-wedding-001',
   organizationId: ORG_ID,
   customerId: customerWedding.id,
-  requestedServices: { 
-    serviceId: SERVICES.WEDDING_WHITE, 
-    name: 'White Wedding Coverage + Extras' 
-  },
+  requestedServices: [
+    { serviceId: SERVICES.WEDDING_WHITE }
+  ] as any,
   status: 'accepted',
   createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
   updatedAt: new Date(Date.now() - 86400000 * 30).toISOString(),

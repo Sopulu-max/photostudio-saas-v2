@@ -34,7 +34,7 @@ export default function QuickSalePage() {
   const isGhost = !result;
 
   const ghostCustomer = {
-    id: isGhost ? '...' : result.customer.id,
+    id: isGhost ? '...' : result.customerId,
     organizationId: 'org-1111-2222-3333-4444',
     primaryIdentifier: customerPhone || 'Unknown Phone',
     profileData: { name: customerName || 'Unknown Name' },
@@ -44,17 +44,17 @@ export default function QuickSalePage() {
   };
 
   const ghostRequest = {
-    id: isGhost ? '...' : result.request.id,
+    id: isGhost ? '...' : result.requestId,
     organizationId: 'org-1111-2222-3333-4444',
     customerId: ghostCustomer.id,
-    requestedServices: { serviceId, name: 'Walk-in Quick Sale' },
+    requestedServices: [{ serviceId }],
     status: 'accepted' as RequestState,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
   const ghostAgreement = {
-    id: isGhost ? '...' : result.agreement.id,
+    id: isGhost ? '...' : result.agreementId,
     organizationId: 'org-1111-2222-3333-4444',
     customerId: ghostCustomer.id,
     requestId: ghostRequest.id,
@@ -65,7 +65,7 @@ export default function QuickSalePage() {
   };
 
   const ghostInstance = {
-    id: isGhost ? '...' : result.instance.id,
+    id: isGhost ? '...' : 'generated-by-trigger',
     organizationId: 'org-1111-2222-3333-4444',
     agreementId: ghostAgreement.id,
     serviceId: serviceId,

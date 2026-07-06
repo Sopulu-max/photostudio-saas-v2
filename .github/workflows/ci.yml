@@ -33,6 +33,9 @@ jobs:
     - name: Verify Types
       run: npm run typecheck
 
+    - name: Check Schema Drift
+      run: npm run check:schema
+
     - name: Run Linter
       run: npm run lint
 

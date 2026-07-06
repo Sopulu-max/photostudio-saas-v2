@@ -14,7 +14,7 @@ export default async function CustomerProfilePage({ params }: { params: { id: st
   const orgId = await getOrgId();
   if (!orgId) return <div>Unauthorized</div>;
 
-  let customer = null;
+  let customer: any = null;
   let agreements: any[] = [];
   let events: any[] = [];
   let dbOffline = false;
@@ -127,23 +127,31 @@ export default async function CustomerProfilePage({ params }: { params: { id: st
               <EntitySignature type="customer" data={customer} />
               <LineageEdge direction="vertical" length={24} />
               
-              <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
-                {agreements.map((agr: any) => (
-                  <div key={agr.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ padding: '8px', background: 'var(--color-surface-elevated)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', gap: '0', alignItems: 'flex-start', position: 'relative' }}>
+                {agreements.map((agr: any, index: number) => (
+                  <div key={agr.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0 12px' }}>
+                    <div style={{ padding: '8px', background: 'var(--color-surface-elevated)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', zIndex: 1 }}>
                       <EntitySignature type="agreement" data={agr} />
                     </div>
                     {agr.instances && agr.instances.length > 0 && (
-                      <>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <LineageEdge direction="vertical" length={24} status={agr.status} />
-                        <div style={{ display: 'flex', gap: '16px', borderTop: '2px solid var(--color-border-subtle)', paddingTop: '16px', marginTop: '-2px' }}>
-                          {agr.instances.map((inst: any) => (
-                            <div key={inst.id} style={{ padding: '8px', background: 'var(--color-surface-elevated)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                              <EntitySignature type="service_instance" data={inst} scale="row" />
+                        <div style={{ display: 'flex', position: 'relative', justifyContent: 'center' }}>
+                          {/* Horizontal bus for instances */}
+                          {agr.instances.length > 1 && (
+                            <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 0, display: 'flex' }}>
+                              <LineageEdge direction="horizontal" length={(agr.instances.length - 1) * 100} status={agr.status} />
                             </div>
-                          ))}
+                          )}
+                          <div style={{ display: 'flex', gap: '16px', paddingTop: '16px' }}>
+                            {agr.instances.map((inst: any) => (
+                              <div key={inst.id} style={{ padding: '8px', background: 'var(--color-surface-elevated)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', zIndex: 1 }}>
+                                <EntitySignature type="service_instance" data={inst} scale="row" />
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 ))}

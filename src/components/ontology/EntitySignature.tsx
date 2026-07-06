@@ -131,7 +131,7 @@ function getLabelForEntity(type: EntityType, data: EntityData): string {
     case 'organization': return (data as OrganizationDTO).name || 'Unknown Organization';
     case 'identity': return (data as IdentityDTO).name || 'Unknown Identity';
     case 'service': return (data as ServiceDTO).name || 'Unknown Service';
-    case 'customer': return (data as CustomerDTO).profileData?.name || (data as CustomerDTO).primaryIdentifier || 'Unknown Customer';
+    case 'customer': return (data as any).profileData?.name || (data as CustomerDTO).primaryIdentifier || 'Unknown Customer';
     case 'request': return `Req: ${(data as RequestDTO).id.substring(0,8)}`;
     case 'agreement': return `Agr: ${(data as AgreementDTO).id.substring(0,8)}`;
     case 'service_instance': return `Inst: ${(data as ServiceInstanceDTO).id.substring(0,8)}`;

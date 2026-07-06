@@ -11,7 +11,9 @@
     "test": "vitest run tests/unit",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration --fileParallelism=false",
-    "test:gate": "vitest run tests/integration --fileParallelism=false"
+    "test:gate": "vitest run tests/integration --fileParallelism=false",
+    "generate:schema": "tsx scripts/generate-schema.ts",
+    "check:schema": "tsx scripts/generate-schema.ts --check"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.11",
@@ -34,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "pg": "^8.22.0",
+    "tsx": "^4.23.0",
     "typescript": "^5",
     "vitest": "^4.1.9",
     "ws": "^8.21.0"

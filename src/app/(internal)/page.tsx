@@ -56,10 +56,6 @@ export default async function CommandCenterPage() {
   const orgId = await getOrgId();
   const { instances, agreements, services, dbOffline } = await getDashboardData(orgId);
 
-  if (dbOffline) {
-    return <DatabaseOfflineFallback />;
-  }
-
   // Derive metrics from the kernel data
   const now = new Date();
   const needsAttention = instances.filter(i => {
@@ -88,6 +84,7 @@ export default async function CommandCenterPage() {
 
   return (
     <div className="p-[20px] md:p-[40px] max-w-[1100px] w-full mx-auto">
+      {dbOffline && <DatabaseOfflineFallback />}
 
       {/* Top Section: Greeting & Quick Sale */}
       <div className="flex flex-col md:flex-row gap-8 mb-12 justify-between items-start">
@@ -275,7 +272,7 @@ export default async function CommandCenterPage() {
                 fontFamily: 'var(--font-family-sans)',
                 letterSpacing: '-0.02em',
               }}>
-                {currency} {totalRevenue.toLocaleString()}
+                {String(currency)} {totalRevenue.toLocaleString()}
               </div>
             </div>
           )}

@@ -6,10 +6,23 @@ export type RequestState = 'created' | 'reviewed' | 'accepted' | 'declined' | 'w
 export type AgreementState = 'proposed' | 'active' | 'completed' | 'cancelled';
 export type InstanceState = 'created' | 'scheduled' | 'in_progress' | 'waiting' | 'completed' | 'delivered' | 'archived' | 'halted';
 export type AssetState = 'registered' | 'available' | 'in_use' | 'retained' | 'released';
-
 export type OrganizationState = 'created' | 'active' | 'suspended' | 'archived';
 export type CustomerState = 'active' | 'merged' | 'archived';
 export type ServiceState = 'active' | 'retired';
+
+export type EntityType = 'request' | 'agreement' | 'service_instance' | 'asset' | 'organization' | 'customer' | 'service' | 'identity';
+
+export interface RequestedService {
+  serviceId: string;
+  assetId?: string;
+}
+
+export interface ModifyAgreementCommand {
+  termChanges?: Record<string, unknown>;
+  addServices?: RequestedService[];
+  removeServices?: string[]; // IDs of instances to halt
+}
+
 
 export interface OrganizationDTO {
   id: string;
@@ -105,28 +118,40 @@ export interface OutcomeDTO extends AssetDTO {
   originInstanceId: string; // Must be present for produced outcomes
 }
 
+export const NON_STATUS_EVENTS = new Set([
+  'agreement.modified',
+  'asset.delivered',
+  'identity.updated',
+  'identity.created',
+  'service.defined',
+  'organization.created',
+  'customer.registered',
+  'service_instance.workstep'
+] as const);
+
+export type NonStatusEvent = typeof NON_STATUS_EVENTS extends Set<infer T> ? T : never;
+
 /**
  * Server-side truth for what events are legal from what states.
- * Used by the repository to throw ILLEGAL_TRANSITION.
+ * Strictly adheres to Ops Spec O13 and multi-entity lifecycles.
  */
-export const LEGAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
+export const LEGAL_TRANSITIONS = {
   service_instances: {
-    // currentState -> allowed events
-    'created': ['service_instance.scheduled', 'service_instance.in_progress', 'service_instance.cancelled', 'service_instance.halted'],
-    'scheduled': ['service_instance.in_progress', 'service_instance.waiting', 'service_instance.halted', 'service_instance.cancelled'],
-    'in_progress': ['service_instance.completed', 'service_instance.waiting', 'service_instance.halted'],
+    'created': ['service_instance.scheduled', 'service_instance.in_progress', 'service_instance.halted'],
+    'scheduled': ['service_instance.in_progress', 'service_instance.waiting', 'service_instance.halted'],
+    'in_progress': ['service_instance.waiting', 'service_instance.completed', 'service_instance.halted'],
     'waiting': ['service_instance.in_progress', 'service_instance.halted'],
-    'halted': ['service_instance.in_progress', 'service_instance.scheduled', 'service_instance.cancelled'],
+    'halted': ['service_instance.in_progress', 'service_instance.scheduled'],
     'completed': ['service_instance.delivered', 'service_instance.archived'],
     'delivered': ['service_instance.archived'],
     'archived': []
-  },
+  } as Record<InstanceState, string[]>,
   agreements: {
     'proposed': ['agreement.active', 'agreement.cancelled'],
     'active': ['agreement.completed', 'agreement.cancelled'],
-    'completed': ['agreement.archived'],
+    'completed': [],
     'cancelled': []
-  },
+  } as Record<AgreementState, string[]>,
   requests: {
     'created': ['request.reviewed', 'request.accepted', 'request.declined', 'request.withdrawn', 'request.expired'],
     'reviewed': ['request.accepted', 'request.declined', 'request.withdrawn', 'request.expired'],
@@ -134,13 +159,28 @@ export const LEGAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
     'declined': [],
     'withdrawn': [],
     'expired': []
-  },
+  } as Record<RequestState, string[]>,
   assets: {
     'registered': ['asset.available', 'asset.in_use', 'asset.released'],
     'available': ['asset.in_use', 'asset.released'],
     'in_use': ['asset.retained', 'asset.released', 'asset.available'],
     'retained': ['asset.released'],
     'released': []
-  }
+  } as Record<AssetState, string[]>,
+  organizations: {
+    'created': ['organization.active', 'organization.suspended', 'organization.archived'],
+    'active': ['organization.suspended', 'organization.archived'],
+    'suspended': ['organization.active', 'organization.archived'],
+    'archived': []
+  } as Record<OrganizationState, string[]>,
+  customers: {
+    'active': ['customer.merged', 'customer.archived'],
+    'merged': ['customer.archived'],
+    'archived': []
+  } as Record<CustomerState, string[]>,
+  services: {
+    'active': ['service.retired'],
+    'retired': ['service.active']
+  } as Record<ServiceState, string[]>
 };
 

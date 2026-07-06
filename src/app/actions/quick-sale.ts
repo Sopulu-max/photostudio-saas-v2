@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { KernelRepository } from '@/lib/domains/kernel/repository';
+import { KernelOperations } from '@/lib/domains/kernel/operations';
 import { getOrgId } from '@/lib/auth';
 
 export async function executeQuickSale(formData: FormData) {
@@ -18,25 +18,27 @@ export async function executeQuickSale(formData: FormData) {
 
   try {
     const supabase = await createClient();
+    const { KernelRepository } = await import('@/lib/domains/kernel/repository');
     const repo = new KernelRepository(supabase);
+    const ops = new KernelOperations(supabase, repo);
 
     // 1. Customer (idempotent lookup-or-create)
-    const customer = await repo.createCustomer(orgId, customerPhone, { name: customerName });
-    if (!customer) throw new Error('Database connection failed.');
+    const customerId = await ops.createCustomer(orgId, customerPhone, { name: customerName });
+    if (!customerId) throw new Error('Database connection failed.');
 
     // 2. Request
-    const request = await repo.createRequest(orgId, customer.id, { serviceId, name: 'Walk-in Quick Sale' });
-    if (!request) throw new Error('Failed to create request');
+    const requestId = await ops.submitRequest(orgId, customerId, [{ serviceId, name: 'Walk-in Quick Sale' }]);
+    if (!requestId) throw new Error('Failed to create request');
+    await ops.resolveRequest(orgId, requestId, 'accept');
 
     // 3. Agreement
-    const agreement = await repo.createAgreement(orgId, customer.id, request.id, { price, currency: 'NGN' });
-    if (!agreement) throw new Error('Failed to create agreement');
+    const agreementId = await ops.proposeAgreement(orgId, customerId, requestId, { price, currency: 'NGN', services: [{ serviceId }] });
+    if (!agreementId) throw new Error('Failed to create agreement');
 
-    // 4. Service instance
-    const instance = await repo.createServiceInstance(orgId, agreement.id, serviceId, { origin: 'Walk-in' });
-    if (!instance) throw new Error('Failed to create instance');
+    // 4. Activate Agreement (Spawns the service instance automatically)
+    await ops.activateAgreement(orgId, agreementId);
 
-    return { success: true, agreement, instance, customer, request };
+    return { success: true, agreementId, customerId, requestId };
   } catch (error) {
     console.error('Quick Sale Error:', error);
     return {

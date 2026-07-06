@@ -79,7 +79,7 @@ export class KernelRepository {
       id: row.id,
       organizationId: row.organization_id,
       customerId: row.customer_id,
-      requestedServices: (row.requested_services as Record<string, any>) || {},
+      requestedServices: (row.requested_services as unknown as any[]) || [],
       status: row.status as RequestState,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

@@ -3,13 +3,11 @@ import { Database } from '@/lib/database.types';
 import { KernelRepository } from './repository';
 import { 
   LEGAL_TRANSITIONS, 
-  RequestState, 
-  AgreementState,
-  InstanceState,
-  AssetState,
-  OrganizationState,
-  CustomerState,
-  ServiceState,
+  NON_STATUS_EVENTS,
+  NonStatusEvent,
+  EntityType,
+  RequestedService,
+  ModifyAgreementCommand,
   ServiceInstanceDTO
 } from './types';
 
@@ -25,18 +23,19 @@ export class KernelOperations {
    */
   private async executeTransition(
     orgId: string,
-    entityType: 'request' | 'agreement' | 'service_instance' | 'asset' | 'organization' | 'customer' | 'service',
+    entityType: EntityType,
     entityId: string,
     currentState: string,
     eventSuffix: string,
-    payload: any = {},
+    payload: Record<string, unknown> = {},
     actorId?: string
   ): Promise<boolean> {
     const eventType = `${entityType}.${eventSuffix}`;
-    const allowedEvents = LEGAL_TRANSITIONS[entityType + 's']?.[currentState] || [];
+    const allowedEvents = (LEGAL_TRANSITIONS[entityType + 's' as keyof typeof LEGAL_TRANSITIONS] as any)?.[currentState] || [];
     
-    // Bypass transition check for events that don't represent a status (like agreement.modified)
-    if (eventType !== 'agreement.modified' && !allowedEvents.includes(eventType)) {
+    const isNonStatus = NON_STATUS_EVENTS.has(eventType as NonStatusEvent);
+
+    if (!isNonStatus && !allowedEvents.includes(eventType)) {
       throw new Error(`ILLEGAL_TRANSITION: Cannot apply event ${eventType} to ${entityType} in state ${currentState}`);
     }
 
@@ -48,7 +47,7 @@ export class KernelOperations {
         entity_id: entityId,
         event_type: eventType,
         actor_id: actorId,
-        payload: payload
+        payload: payload as any
       });
 
     if (error) {
@@ -61,7 +60,7 @@ export class KernelOperations {
 
   // --- Customer Operations ---
   
-  async createCustomer(orgId: string, primaryIdentifier: string, profileData: any): Promise<string> {
+  async createCustomer(orgId: string, primaryIdentifier: string, profileData: Record<string, unknown>): Promise<string> {
     const { data: existing } = await this.supabase
       .from('customers')
       .select('id')
@@ -76,13 +75,17 @@ export class KernelOperations {
       .insert({
         organization_id: orgId,
         primary_identifier: primaryIdentifier,
-        profile_data: profileData,
+        profile_data: profileData as any,
         status: 'active'
       })
       .select('id')
       .single();
     
     if (error || !data) throw new Error('Failed to create customer');
+    
+    // Emit O5 customer.registered
+    await this.executeTransition(orgId, 'customer', data.id, 'active', 'registered', profileData);
+    
     return data.id;
   }
 
@@ -103,7 +106,7 @@ export class KernelOperations {
     if (error || !data) throw new Error('Failed to submit request');
 
     await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created', actor_id: actorId, payload: {} }
+      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created', actor_id: actorId, payload: {} as any }
     ]);
 
     return data.id;
@@ -122,7 +125,7 @@ export class KernelOperations {
       case 'expire': eventSuffix = 'expired'; break;
     }
 
-    return this.executeTransition(orgId, 'request', reqId, req.status, eventSuffix, {}, actorId);
+    return this.executeTransition(orgId, 'request', reqId, req.status, eventSuffix, {} as any, actorId);
   }
 
   // --- Agreement Operations ---
@@ -143,7 +146,7 @@ export class KernelOperations {
     if (error || !data) throw new Error('Failed to propose agreement');
 
     await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed', actor_id: actorId, payload: {} }
+      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed', actor_id: actorId, payload: {} as any }
     ]);
 
     return data.id;
@@ -170,7 +173,7 @@ export class KernelOperations {
           organization_id: orgId,
           agreement_id: agrId,
           service_id: s.serviceId,
-          fulfillment_data: s,
+          fulfillment_data: s as any,
           status: 'created'
         })
         .select('id')
@@ -183,7 +186,7 @@ export class KernelOperations {
           entity_id: instance.id,
           event_type: 'service_instance.created',
           actor_id: actorId,
-          payload: {}
+          payload: {} as any
         });
       }
     }
@@ -197,18 +200,56 @@ export class KernelOperations {
     return this.executeTransition(orgId, 'agreement', agrId, agr.status, 'completed', {}, actorId);
   }
 
-  async modifyAgreement(orgId: string, agrId: string, changes: Record<string, any>, actorId?: string): Promise<boolean> {
+  async modifyAgreement(orgId: string, agrId: string, changes: ModifyAgreementCommand, actorId?: string): Promise<boolean> {
     const agr = await this.repo.getAgreementWithGraph(agrId);
     if (!agr) throw new Error('Agreement not found');
     
-    // agreement.modified is an event, but doesn't change status. 
-    // It captures the version history.
-    await this.executeTransition(orgId, 'agreement', agrId, agr.status, 'modified', { changes }, actorId);
+    // agreement.modified is a non-status event. 
+    await this.executeTransition(orgId, 'agreement', agrId, agr.status, 'modified', { changes } as any, actorId);
     
-    // Apply changes to terms
-    await this.supabase.from('agreements').update({
-      terms: { ...agr.terms, ...changes }
-    }).eq('id', agrId);
+    // Apply changes to terms if any
+    if (changes.termChanges) {
+      await this.supabase.from('agreements').update({
+        terms: { ...(agr.terms as any), ...changes.termChanges }
+      }).eq('id', agrId);
+    }
+
+    // Halt removed services natively
+    if (changes.removeServices && changes.removeServices.length > 0 && agr.instances) {
+      for (const inst of agr.instances) {
+        if (changes.removeServices.includes(inst.id) && ['created', 'scheduled', 'in_progress', 'waiting'].includes(inst.status)) {
+          await this.executeTransition(orgId, 'service_instance', inst.id, inst.status, 'halted', { reason: 'Service removed from agreement' } as any, actorId);
+        }
+      }
+    }
+
+    // Spawn added services natively
+    if (changes.addServices && changes.addServices.length > 0) {
+      for (const s of changes.addServices) {
+        const { data: instance, error } = await this.supabase
+          .from('service_instances')
+          .insert({
+            organization_id: orgId,
+            agreement_id: agrId,
+            service_id: s.serviceId,
+            fulfillment_data: s as any,
+            status: 'created'
+          })
+          .select('id')
+          .single();
+          
+        if (!error && instance) {
+          await this.supabase.from('events').insert({
+            organization_id: orgId,
+            entity_type: 'service_instance',
+            entity_id: instance.id,
+            event_type: 'service_instance.created',
+            actor_id: actorId,
+            payload: {} as any
+          });
+        }
+      }
+    }
 
     return true;
   }
@@ -223,7 +264,8 @@ export class KernelOperations {
     if (agr.instances) {
       for (const inst of agr.instances) {
         if (['created', 'scheduled', 'in_progress', 'waiting'].includes(inst.status)) {
-          await this.executeTransition(orgId, 'service_instance', inst.id, inst.status, 'cancelled', { reason: 'Agreement cancelled' }, actorId);
+          // A2 Fix: Passed 'halted' instead of 'cancelled'
+          await this.executeTransition(orgId, 'service_instance', inst.id, inst.status, 'halted', { reason: 'Agreement cancelled' }, actorId);
         }
       }
     }
@@ -232,33 +274,29 @@ export class KernelOperations {
 
   // --- Service Operations ---
 
-  async defineService(orgId: string, data: { name: string, description?: string, pricingRules?: any, requiredFields?: any }): Promise<string> {
+  async defineService(orgId: string, data: { name: string, description?: string, pricingRules?: Record<string, unknown>, requiredFields?: Record<string, unknown> }): Promise<string> {
     const { data: service, error } = await this.supabase
       .from('services')
       .insert({
         organization_id: orgId,
         name: data.name,
         description: data.description,
-        pricing_rules: data.pricingRules || {},
-        required_fields: data.requiredFields || {},
+        pricing_rules: data.pricingRules as any,
+        required_fields: data.requiredFields as any,
         status: 'active'
       })
       .select('id')
       .single();
 
     if (error || !service) throw new Error('Failed to define service');
+    
+    await this.executeTransition(orgId, 'service', service.id, 'active', 'defined', data as any);
     return service.id;
   }
 
-  async retireService(orgId: string, serviceId: string): Promise<boolean> {
-    const { error } = await this.supabase
-      .from('services')
-      .update({ status: 'retired' })
-      .eq('id', serviceId)
-      .eq('organization_id', orgId);
-
-    if (error) throw new Error('Failed to retire service');
-    return true;
+  async retireService(orgId: string, serviceId: string, actorId?: string): Promise<boolean> {
+    // Route through executeTransition as required by A4
+    return this.executeTransition(orgId, 'service', serviceId, 'active', 'retired', {} as any, actorId);
   }
 
   // --- Asset & Outcome Operations ---
@@ -283,7 +321,7 @@ export class KernelOperations {
       entity_type: 'asset',
       entity_id: asset.id,
       event_type: 'asset.registered',
-      payload: {}
+      payload: {} as any
     });
 
     return asset.id;
@@ -309,19 +347,18 @@ export class KernelOperations {
       entity_type: 'asset',
       entity_id: asset.id,
       event_type: 'outcome.produced', // Using outcome semantics for produced assets
-      payload: {}
+      payload: {} as any
     });
 
     return asset.id;
   }
 
-  async deliverOutcome(orgId: string, assetId: string, actorId?: string): Promise<boolean> {
-    // Deliver outcome is essentially releasing it to the customer. We will transition to 'released'.
+  async deliverOutcome(orgId: string, assetId: string, rightsPayload: Record<string, unknown> = {}, actorId?: string): Promise<boolean> {
+    // A5 Fix: asset.delivered is a non-status event. Status remains what it was (e.g. retained or in_use).
     const { data: asset, error } = await this.supabase.from('assets').select('status').eq('id', assetId).single();
     if (error || !asset) throw new Error('Asset not found');
 
-    // Emit event, trigger changes status to released
-    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'released', {}, actorId);
+    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'delivered', rightsPayload as any, actorId);
     return true;
   }
 
@@ -329,11 +366,11 @@ export class KernelOperations {
     const { data: asset, error } = await this.supabase.from('assets').select('status').eq('id', assetId).single();
     if (error || !asset) throw new Error('Asset not found');
 
-    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'retained', { policy }, actorId);
+    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'retained', { policy } as any, actorId);
     return true;
   }
 
-  async transitionInstance(orgId: string, instanceId: string, eventSuffix: string, actorId?: string): Promise<boolean> {
+  async transitionInstance(orgId: string, instanceId: string, eventSuffix: string, payload: Record<string, unknown> = {}, actorId?: string): Promise<boolean> {
     const { data: instance, error } = await this.supabase
       .from('service_instances')
       .select('status')
@@ -342,12 +379,25 @@ export class KernelOperations {
       
     if (error || !instance) throw new Error('Instance not found');
     
-    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, eventSuffix, {}, actorId);
+    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, eventSuffix, payload as any, actorId);
+  }
+
+  async recordWorkstep(orgId: string, instanceId: string, stepName: string, actorId?: string): Promise<boolean> {
+    const { data: instance, error } = await this.supabase
+      .from('service_instances')
+      .select('status')
+      .eq('id', instanceId)
+      .single();
+      
+    if (error || !instance) throw new Error('Instance not found');
+    
+    // workstep is a non-status event, so we pass current status but the status won't change
+    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, 'workstep', { stepName } as any, actorId);
   }
 
   // --- Identity Operations ---
 
-  async enrichIdentity(orgId: string, data: { name?: string, logoUrl?: string, brandColors?: any, typography?: any, contactData?: any }): Promise<boolean> {
+  async enrichIdentity(orgId: string, data: { name?: string, logoUrl?: string, brandColors?: Record<string, unknown>, typography?: Record<string, unknown>, contactData?: Record<string, unknown> }, actorId?: string): Promise<boolean> {
     const updatePayload: any = {};
     if (data.name) updatePayload.name = data.name;
     if (data.logoUrl !== undefined) updatePayload.logo_url = data.logoUrl;
@@ -361,10 +411,12 @@ export class KernelOperations {
       .eq('organization_id', orgId);
 
     if (error) throw new Error('Failed to enrich identity');
+    
+    await this.executeTransition(orgId, 'identity', orgId, 'active', 'updated', updatePayload as any, actorId);
     return true;
   }
 
-  async mergeCustomers(orgId: string, primaryId: string, secondaryId: string): Promise<boolean> {
+  async mergeCustomers(orgId: string, primaryId: string, secondaryId: string, actorId?: string): Promise<boolean> {
     // Repoint requests
     await this.supabase.from('requests').update({ customer_id: primaryId }).eq('customer_id', secondaryId).eq('organization_id', orgId);
     // Repoint agreements
@@ -372,19 +424,16 @@ export class KernelOperations {
     // Repoint assets
     await this.supabase.from('assets').update({ origin_customer_id: primaryId }).eq('origin_customer_id', secondaryId).eq('organization_id', orgId);
     
-    // Mark secondary as merged
-    const { error } = await this.supabase.from('customers').update({ status: 'merged' }).eq('id', secondaryId).eq('organization_id', orgId);
-    if (error) throw new Error('Failed to merge customers');
+    // Mark secondary as merged via executeTransition
+    await this.executeTransition(orgId, 'customer', secondaryId, 'active', 'merged', { primaryId } as any, actorId);
     
     return true;
   }
 
   async createOrganization(data: { name: string, ownerId: string }): Promise<string> {
-    // We would need to create the org, the identity, and the membership.
-    // Assuming we do this as an admin client or bypass RLS if the user is creating it for themselves.
     const { data: org, error } = await this.supabase
       .from('organizations')
-      .insert({ name: data.name, status: 'active' })
+      .insert({ name: data.name, status: 'created' })
       .select('id')
       .single();
 
@@ -398,8 +447,9 @@ export class KernelOperations {
       contact_data: {}
     });
 
-    // Typically you'd also create a membership here in a real app:
-    // await this.supabase.from('memberships').insert({ organization_id: org.id, user_id: data.ownerId, role: 'owner' });
+    // Both are NON_STATUS_EVENTS according to our setup, but organization.created could also just be a non-status event on the 'created' state
+    await this.executeTransition(org.id, 'organization', org.id, 'created', 'created', data as any);
+    await this.executeTransition(org.id, 'identity', org.id, 'active', 'created', data as any);
 
     return org.id;
   }
