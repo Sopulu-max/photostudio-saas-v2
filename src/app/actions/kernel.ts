@@ -135,3 +135,28 @@ export async function deliverOutcomeAction(assetId: string, usageRights: Record<
     return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+export async function defineServiceAction(data: { name: string, description?: string, pricingRules?: Record<string, unknown>, requiredFields?: Record<string, unknown> }) {
+  try {
+    const { orgId, ops } = await getOps();
+    const serviceId = await ops.defineService(orgId, data);
+    revalidatePath('/catalog');
+    revalidatePath('/');
+    return { success: true, serviceId };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function enrichIdentityAction(data: { name?: string, logoUrl?: string, brandColors?: Record<string, unknown>, typography?: Record<string, unknown>, contactData?: Record<string, unknown> }) {
+  try {
+    const { orgId, ops } = await getOps();
+    await ops.enrichIdentity(orgId, data);
+    // Identity drives the shell, which means everything could change.
+    revalidatePath('/', 'layout');
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+

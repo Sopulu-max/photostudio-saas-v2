@@ -159,6 +159,17 @@ export class KernelRepository {
     return this.mapOrganization(data);
   }
 
+  async getIdentity(orgId: string): Promise<IdentityDTO | null> {
+    const { data, error } = await this.supabase
+      .from('identities')
+      .select('*')
+      .eq('organization_id', orgId)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapIdentity(data);
+  }
+
   async getCustomer(id: string): Promise<CustomerDTO | null> {
     const { data, error } = await this.supabase
       .from('customers')

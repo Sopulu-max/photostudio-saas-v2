@@ -3,9 +3,21 @@ import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { signOut } from '@/app/actions/auth';
 import { SyncStateIndicator } from '@/components/layout/SyncStateIndicator';
+import { createClient } from '@/lib/supabase/server';
+import { KernelRepository } from '@/lib/domains/kernel/repository';
 
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
+  
+  let studioName = 'Studio';
+  if (session?.orgId) {
+    const supabase = await createClient();
+    const repo = new KernelRepository(supabase);
+    const identity = await repo.getIdentity(session.orgId);
+    if (identity?.name) {
+      studioName = identity.name;
+    }
+  }
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -22,8 +34,8 @@ export default async function InternalLayout({ children }: { children: React.Rea
         flexShrink: 0,
       }}>
         <div style={{ paddingBottom: '32px', paddingLeft: '8px' }}>
-          <h2 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '1.4rem', margin: 0 }}>
-            Studio
+          <h2 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '1.4rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {studioName}
           </h2>
           {session?.orgId && (
             <p style={{
@@ -39,8 +51,10 @@ export default async function InternalLayout({ children }: { children: React.Rea
           )}
         </div>
 
+        <SidebarLink href="/identity" label="Identity Tending" />
         <SidebarLink href="/specimen" label="Ontology Specimen" />
         <SidebarLink href="/" label="Command Center" />
+        <SidebarLink href="/catalog" label="Service Catalog" />
         <SidebarLink href="/instances" label="Active Instances" />
         <SidebarLink href="/assets" label="Asset Vault" />
         <SidebarLink href="/finance" label="Ledger (Finance)" />

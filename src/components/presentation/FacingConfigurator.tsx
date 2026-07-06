@@ -1,6 +1,6 @@
 import React from 'react';
 import { FacingConfig } from '@/lib/domains/presentation/types';
-import { SchemaRegistry } from '@/lib/domains/presentation/schema-registry';
+import { globalSchemaRegistry } from '@/lib/domains/presentation/registry';
 
 interface FacingConfiguratorProps {
   config: FacingConfig;
@@ -9,11 +9,18 @@ interface FacingConfiguratorProps {
 
 export function FacingConfigurator({ config, onChange }: FacingConfiguratorProps) {
   // Extract all attributes that are configurable from the registry
-  const configurableKeys = Object.keys(SchemaRegistry).filter(
-    (key) => 
-      SchemaRegistry[key] === 'configurable_closed' || 
-      SchemaRegistry[key] === 'configurable_open'
-  );
+  const configurableKeys: {key: string, defaultOpen: boolean}[] = [];
+  
+  globalSchemaRegistry.getAllSchemas().forEach(schema => {
+    Object.values(schema.attributes).forEach(attr => {
+      if (attr.facingTier === 'configurable_closed' || attr.facingTier === 'configurable_open') {
+        configurableKeys.push({
+          key: `${schema.entityType}.${attr.key}`,
+          defaultOpen: attr.facingTier === 'configurable_open'
+        });
+      }
+    });
+  });
 
   const handleToggle = (key: string, defaultOpen: boolean) => {
     const currentValue = config[key] !== undefined ? config[key] : defaultOpen;
@@ -34,9 +41,7 @@ export function FacingConfigurator({ config, onChange }: FacingConfiguratorProps
         Presentation Config: Facing Exposure
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {configurableKeys.map((key) => {
-          const tier = SchemaRegistry[key];
-          const defaultOpen = tier === 'configurable_open';
+        {configurableKeys.map(({ key, defaultOpen }) => {
           const isExposed = config[key] !== undefined ? config[key] : defaultOpen;
 
           return (
