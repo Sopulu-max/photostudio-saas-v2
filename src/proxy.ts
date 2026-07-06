@@ -10,47 +10,54 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
+  try {
+    const supabase = createServerClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({ request })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            )
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
+      }
+    )
+
+    // Refresh the session — this must happen before any redirect logic
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { pathname } = request.nextUrl
+
+    // Protect all (internal) routes — redirect to login if unauthenticated
+    const isInternalRoute = !pathname.startsWith('/login') && !pathname.startsWith('/auth')
+
+    if (!user && isInternalRoute) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      return NextResponse.redirect(loginUrl)
     }
-  )
 
-  // Refresh the session — this must happen before any redirect logic
-  const { data: { user } } = await supabase.auth.getUser()
+    // If authenticated and heading to login, bounce to home
+    if (user && pathname === '/login') {
+      const homeUrl = request.nextUrl.clone()
+      homeUrl.pathname = '/'
+      return NextResponse.redirect(homeUrl)
+    }
 
-  const { pathname } = request.nextUrl
-
-  // Protect all (internal) routes — redirect to login if unauthenticated
-  const isInternalRoute = !pathname.startsWith('/login') && !pathname.startsWith('/auth')
-
-  if (!user && isInternalRoute) {
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/login'
-    return NextResponse.redirect(loginUrl)
+    return supabaseResponse
+  } catch (error) {
+    console.error("Proxy execution error:", error)
+    // Return the normal response so the page doesn't 500,
+    // though the user might be unauthenticated if this fails.
+    return supabaseResponse
   }
-
-  // If authenticated and heading to login, bounce to home
-  if (user && pathname === '/login') {
-    const homeUrl = request.nextUrl.clone()
-    homeUrl.pathname = '/'
-    return NextResponse.redirect(homeUrl)
-  }
-
-  return supabaseResponse
 }
 
 export const config = {
