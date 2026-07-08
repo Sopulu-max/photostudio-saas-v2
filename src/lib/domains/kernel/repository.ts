@@ -239,4 +239,51 @@ export class KernelRepository {
     return data.map(row => this.mapAgreement(row));
   }
 
+  // --- Mutations (Writers) ---
+
+  async createCustomer(orgId: string, primaryIdentifier: string, profileData: Record<string, any>): Promise<CustomerDTO> {
+    const { data, error } = await this.supabase
+      .from('customers')
+      .insert({
+        organization_id: orgId,
+        primary_identifier: primaryIdentifier,
+        profile_data: profileData,
+        status: 'active'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapCustomer(data);
+  }
+
+  async getCustomerByIdentifier(orgId: string, primaryIdentifier: string): Promise<CustomerDTO | null> {
+    const { data, error } = await this.supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('primary_identifier', primaryIdentifier)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) return null;
+    return this.mapCustomer(data);
+  }
+
+  async createRequest(orgId: string, customerId: string, requestedServices: any[]): Promise<RequestDTO> {
+    const { data, error } = await this.supabase
+      .from('requests')
+      .insert({
+        organization_id: orgId,
+        customer_id: customerId,
+        requested_services: requestedServices,
+        status: 'created'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapRequest(data);
+  }
+
 }

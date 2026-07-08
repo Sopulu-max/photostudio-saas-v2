@@ -18,6 +18,7 @@ import { ServiceInstanceDTO, AgreementDTO, ServiceDTO } from '@/lib/domains/kern
 import { getOrgId } from '@/lib/auth';
 import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
 import { QuickSaleTerminal } from '@/components/quick-sale/QuickSaleTerminal';
+import styles from './command-center.module.css';
 
 // Ensure this page is server-rendered on each request (not statically pre-rendered)
 export const dynamic = 'force-dynamic';
@@ -83,11 +84,11 @@ export default async function CommandCenterPage() {
   const currency = activeAgreements[0]?.terms?.currency || 'NGN';
 
   return (
-    <div className="p-[20px] md:p-[40px] max-w-[1100px] w-full mx-auto">
+    <div className={styles.container}>
       {dbOffline && <DatabaseOfflineFallback />}
 
       {/* Top Section: Greeting & Quick Sale */}
-      <div className="flex flex-col md:flex-row gap-8 mb-12 justify-between items-start">
+      <div className={styles.topSection}>
         {/* Greeting */}
         <div>
           <h1 style={{ 
@@ -109,18 +110,13 @@ export default async function CommandCenterPage() {
         </div>
 
         {/* Quick Sale Terminal */}
-        <div className="w-full md:w-auto">
+        <div className={styles.terminalWrapper}>
           <QuickSaleTerminal services={services} />
         </div>
       </div>
 
       {/* Metric Cards */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(4, 1fr)', 
-        gap: '16px', 
-        marginBottom: '48px' 
-      }}>
+      <div className={styles.metricsGrid}>
         <MetricCard 
           icon={<AlertTriangle size={18} />}
           label="Needs Attention" 
@@ -147,12 +143,7 @@ export default async function CommandCenterPage() {
       </div>
 
       {/* Two-column layout: Attention Queue + Ledger Summary */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '1fr 1fr', 
-        gap: '24px',
-        marginBottom: '48px',
-      }}>
+      <div className={styles.twoColumnLayout}>
 
         {/* LEFT: Attention Queue */}
         <section style={{

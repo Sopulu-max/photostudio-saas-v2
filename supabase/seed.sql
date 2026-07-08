@@ -6,6 +6,11 @@ INSERT INTO public.organizations (id, name, status)
 VALUES ('11111111-2222-3333-4444-555555555555', 'Lumiere Studios Lagos', 'active')
 ON CONFLICT (id) DO NOTHING;
 
+-- The Identity (The primal reality of the Org's presentation)
+INSERT INTO public.identities (organization_id, name, brand_colors)
+VALUES ('11111111-2222-3333-4444-555555555555', 'Lumiere Studios Lagos', '{"primary": "#d4af37", "secondary": "#ffffff"}')
+ON CONFLICT (organization_id) DO NOTHING;
+
 -- Service Definitions (The Catalog)
 -- Using actual Nigerian photography studio services with typical base prices (in Naira)
 INSERT INTO public.services (id, organization_id, name, description, pricing_rules) VALUES 

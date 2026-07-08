@@ -38,7 +38,25 @@ export async function executeQuickSale(formData: FormData) {
     // 4. Activate Agreement (Spawns the service instance automatically)
     await ops.activateAgreement(orgId, agreementId);
 
-    return { success: true, agreementId, customerId, requestId };
+    // Fetch the spawned instance to return for the receipt view
+    const { data: instanceRecord } = await supabase
+      .from('service_instances')
+      .select('*')
+      .eq('agreement_id', agreementId)
+      .single();
+
+    const instance = instanceRecord ? {
+      id: instanceRecord.id,
+      organizationId: instanceRecord.organization_id,
+      agreementId: instanceRecord.agreement_id,
+      serviceId: instanceRecord.service_id,
+      status: instanceRecord.status,
+      fulfillmentData: instanceRecord.fulfillment_data,
+      createdAt: instanceRecord.created_at,
+      updatedAt: instanceRecord.updated_at
+    } : null;
+
+    return { success: true, agreementId, customerId, requestId, instance };
   } catch (error) {
     console.error('Quick Sale Error:', error);
     return {

@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { executeQuickSale } from '@/app/actions/quick-sale';
-import { ServiceDTO } from '@/lib/domains/kernel/types';
-import { ArrowRight, CheckCircle2, Phone, Briefcase, Camera } from 'lucide-react';
+import { EntitySignature } from '@/components/ontology/EntitySignature';
+import { ServiceInstanceDTO, ServiceDTO } from '@/lib/domains/kernel/types';
+import { ArrowRight, Phone, Briefcase, Camera } from 'lucide-react';
 
 interface QuickSaleTerminalProps {
   services: ServiceDTO[];
@@ -13,12 +14,8 @@ export function QuickSaleTerminal({ services }: QuickSaleTerminalProps) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
   const [error, setError] = useState<string | null>(null);
   
-  // For the success view
-  const [receipt, setReceipt] = useState<{
-    customerName: string;
-    serviceName: string;
-    amount: number;
-  } | null>(null);
+  // Hold the spawned instance for the receipt view
+  const [spawnedInstance, setSpawnedInstance] = useState<ServiceInstanceDTO | null>(null);
 
   async function handleSubmit(formData: FormData) {
     setStatus('submitting');
@@ -38,102 +35,149 @@ export function QuickSaleTerminal({ services }: QuickSaleTerminalProps) {
       formData.set('customerName', 'Walk-in Customer');
     }
 
-    const { success, error, agreementId, customerId } = await executeQuickSale(formData);
+    const { success, error, instance } = await executeQuickSale(formData);
 
     if (!success) {
       setError(error || 'Quick sale failed.');
       setStatus('idle');
     } else {
-      setReceipt({
-        customerName: (formData.get('customerName') as string) || 'Walk-in Customer',
-        serviceName: service?.name || 'Service',
-        amount: Number((service?.pricingRules as any)?.base_price) || 0,
-      });
+      setSpawnedInstance(instance as ServiceInstanceDTO);
       setStatus('success');
     }
   }
 
-  if (status === 'success' && receipt) {
+  const containerStyle: React.CSSProperties = {
+    background: 'var(--color-surface-elevated)',
+    border: '1px solid var(--color-border-subtle)',
+    padding: '24px',
+    borderRadius: '12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+    width: '100%',
+    maxWidth: '360px',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px 12px 40px',
+    background: 'var(--color-surface-base)',
+    border: '1px solid var(--color-border-subtle)',
+    borderRadius: '8px',
+    outline: 'none',
+    fontSize: '1rem',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'var(--font-family-sans)',
+    transition: 'border-color var(--transition-fast)',
+    WebkitAppearance: 'none',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '6px',
+    display: 'block',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    marginTop: '12px',
+    width: '100%',
+    padding: '14px 16px',
+    background: 'var(--color-text-primary)',
+    color: 'var(--color-surface-elevated)',
+    border: 'none',
+    borderRadius: '8px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    cursor: status === 'submitting' ? 'not-allowed' : 'pointer',
+    opacity: status === 'submitting' ? 0.7 : 1,
+    transition: 'transform var(--transition-fast), background var(--transition-fast)',
+  };
+
+  if (status === 'success' && spawnedInstance) {
     return (
-      <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-xl w-full max-w-[360px] mx-auto flex flex-col items-center justify-center min-h-[300px]">
-        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
-          <CheckCircle2 className="w-8 h-8 text-green-400" />
+      <div style={containerStyle}>
+        <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+          <h3 style={{ fontSize: '1.2rem', fontFamily: 'var(--font-family-serif)', marginBottom: '4px', margin: 0 }}>Sale Recorded</h3>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+            Instance added to the pipeline.
+          </p>
         </div>
-        <h3 className="text-xl font-serif mb-1">Sale Recorded</h3>
-        <p className="text-gray-400 mb-6 text-sm text-center">
-          Instance added to the pipeline.
-        </p>
         
-        <div className="w-full bg-gray-800 rounded-lg p-4 mb-6 text-sm font-mono flex flex-col gap-2">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Client:</span>
-            <span>{receipt.customerName}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Service:</span>
-            <span>{receipt.serviceName}</span>
-          </div>
-          <div className="flex justify-between border-t border-gray-700 pt-2 mt-2">
-            <span className="text-gray-400">Total:</span>
-            <span className="text-green-400 font-bold">₦{receipt.amount.toLocaleString()}</span>
-          </div>
+        {/* Render the actual Kernel entity signature */}
+        <div style={{ marginBottom: '24px' }}>
+          <EntitySignature type="service_instance" data={spawnedInstance} scale="card" />
         </div>
 
         <button 
           onClick={() => {
             setStatus('idle');
-            setReceipt(null);
+            setSpawnedInstance(null);
           }}
-          className="w-full py-3 bg-white text-gray-900 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+          style={{
+            width: '100%', padding: '12px', background: 'var(--color-surface-base)', color: 'var(--color-text-primary)',
+            border: `1px solid var(--color-border-subtle)`, borderRadius: '8px', fontWeight: 600, cursor: 'pointer', transition: 'background var(--transition-fast)'
+          }}
         >
-          New Sale
+          New Quick Sale
         </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm w-full max-w-[360px] mx-auto">
-      <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
-        <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center">
-          <Camera className="w-4 h-4 text-white" />
+    <div style={containerStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+        <div style={{ width: '32px', height: '32px', background: 'var(--color-text-primary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Camera size={16} color="var(--color-surface-elevated)" />
         </div>
         <div>
-          <h3 className="font-serif font-medium text-gray-900 leading-tight">Quick Sale</h3>
-          <p className="text-xs text-gray-500">Record a walk-in</p>
+          <h3 style={{ margin: 0, fontFamily: 'var(--font-family-serif)', fontWeight: 600, fontSize: '1.2rem', color: 'var(--color-text-primary)' }}>Quick Sale</h3>
+          <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Record a walk-in</p>
         </div>
       </div>
 
-      <form action={handleSubmit} className="flex flex-col gap-4">
+      <form action={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-100">
+          <div style={{ padding: '12px', background: 'rgba(217, 4, 41, 0.05)', color: 'var(--color-state-halted)', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid rgba(217, 4, 41, 0.2)' }}>
             {error}
           </div>
         )}
         
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Phone Number</label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div>
+          <label style={labelStyle}>Phone Number</label>
+          <div style={{ position: 'relative' }}>
+            <Phone size={16} color="var(--color-text-tertiary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input 
               type="tel" 
               name="customerPhone" 
               required
               placeholder="080..." 
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all text-base"
+              style={inputStyle}
+              onFocus={(e) => e.target.style.borderColor = 'var(--color-border-focus)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--color-border-subtle)'}
             />
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Service</label>
-          <div className="relative">
-            <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div>
+          <label style={labelStyle}>Service</label>
+          <div style={{ position: 'relative' }}>
+            <Briefcase size={16} color="var(--color-text-tertiary)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <select 
               name="serviceId" 
               required
               defaultValue=""
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all text-base appearance-none"
+              style={inputStyle}
+              onFocus={(e) => e.target.style.borderColor = 'var(--color-border-focus)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--color-border-subtle)'}
             >
               <option value="" disabled>Select a service</option>
               {services.map(s => (
@@ -145,17 +189,13 @@ export function QuickSaleTerminal({ services }: QuickSaleTerminalProps) {
           </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={status === 'submitting'}
-          className="mt-2 w-full py-3 px-4 bg-gray-900 text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-gray-800 disabled:bg-gray-400 transition-all active:scale-[0.98]"
-        >
+        <button type="submit" disabled={status === 'submitting'} style={buttonStyle}>
           {status === 'submitting' ? (
-            <span className="animate-pulse">Recording...</span>
+            <span style={{ opacity: 0.8 }}>Recording...</span>
           ) : (
             <>
               Confirm Sale
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight size={16} />
             </>
           )}
         </button>
