@@ -8,6 +8,7 @@ import {
   EntityType,
   RequestedService,
   ModifyAgreementCommand,
+  Json,
   ServiceInstanceDTO
 } from './types';
 
@@ -31,7 +32,7 @@ export class KernelOperations {
     actorId?: string
   ): Promise<boolean> {
     const eventType = `${entityType}.${eventSuffix}`;
-    const allowedEvents = (LEGAL_TRANSITIONS[entityType + 's' as keyof typeof LEGAL_TRANSITIONS] as any)?.[currentState] || [];
+    const allowedEvents = (LEGAL_TRANSITIONS[entityType + 's' as keyof typeof LEGAL_TRANSITIONS] as Record<string, string[]>)?.[currentState] || [];
     
     const isNonStatus = NON_STATUS_EVENTS.has(eventType as NonStatusEvent);
 
@@ -47,7 +48,7 @@ export class KernelOperations {
         entity_id: entityId,
         event_type: eventType,
         actor_id: actorId,
-        payload: payload as any
+        payload: payload as unknown as Json
       });
 
     if (error) {
@@ -75,7 +76,7 @@ export class KernelOperations {
       .insert({
         organization_id: orgId,
         primary_identifier: primaryIdentifier,
-        profile_data: profileData as any,
+        profile_data: profileData as unknown as Json,
         status: 'active'
       })
       .select('id')
@@ -91,13 +92,13 @@ export class KernelOperations {
 
   // --- Request Operations ---
 
-  async submitRequest(orgId: string, customerId: string, requestedServices: any, actorId?: string): Promise<string> {
+  async submitRequest(orgId: string, customerId: string, requestedServices: RequestedService[], actorId?: string): Promise<string> {
     const { data, error } = await this.supabase
       .from('requests')
       .insert({
         organization_id: orgId,
         customer_id: customerId,
-        requested_services: requestedServices,
+        requested_services: requestedServices as unknown as Json,
         status: 'created'
       })
       .select('id')
@@ -106,7 +107,7 @@ export class KernelOperations {
     if (error || !data) throw new Error('Failed to submit request');
 
     await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created', actor_id: actorId, payload: {} as any }
+      { organization_id: orgId, entity_type: 'request', entity_id: data.id, event_type: 'request.created', actor_id: actorId, payload: {} }
     ]);
 
     return data.id;
@@ -125,19 +126,19 @@ export class KernelOperations {
       case 'expire': eventSuffix = 'expired'; break;
     }
 
-    return this.executeTransition(orgId, 'request', reqId, req.status, eventSuffix, {} as any, actorId);
+    return this.executeTransition(orgId, 'request', reqId, req.status, eventSuffix, {}, actorId);
   }
 
   // --- Agreement Operations ---
 
-  async proposeAgreement(orgId: string, customerId: string, requestId: string | null, terms: any, actorId?: string): Promise<string> {
+  async proposeAgreement(orgId: string, customerId: string, requestId: string | null, terms: Record<string, unknown>, actorId?: string): Promise<string> {
     const { data, error } = await this.supabase
       .from('agreements')
       .insert({
         organization_id: orgId,
         customer_id: customerId,
         request_id: requestId,
-        terms: terms,
+        terms: terms as unknown as Json,
         status: 'proposed'
       })
       .select('id')
@@ -146,7 +147,7 @@ export class KernelOperations {
     if (error || !data) throw new Error('Failed to propose agreement');
 
     await this.supabase.from('events').insert([
-      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed', actor_id: actorId, payload: {} as any }
+      { organization_id: orgId, entity_type: 'agreement', entity_id: data.id, event_type: 'agreement.proposed', actor_id: actorId, payload: {} }
     ]);
 
     return data.id;
@@ -164,7 +165,7 @@ export class KernelOperations {
     // The amendment dictates: "instance-creation authority via Agreement".
     // We look at agr.request.requestedServices or agr.terms.services to spawn instances.
     const servicesToSpawn: Array<{ serviceId: string, [key: string]: unknown }> = 
-      (agr.terms.services as any) || (agr.request?.requestedServices) || [];
+      (agr.terms.services as RequestedService[]) || (agr.request?.requestedServices) || [];
 
     for (const s of servicesToSpawn) {
       const { data: instance, error } = await this.supabase
@@ -173,7 +174,7 @@ export class KernelOperations {
           organization_id: orgId,
           agreement_id: agrId,
           service_id: s.serviceId,
-          fulfillment_data: s as any,
+          fulfillment_data: s as unknown as Json,
           status: 'created'
         })
         .select('id')
@@ -186,7 +187,7 @@ export class KernelOperations {
           entity_id: instance.id,
           event_type: 'service_instance.created',
           actor_id: actorId,
-          payload: {} as any
+          payload: {}
         });
       }
     }
@@ -205,12 +206,12 @@ export class KernelOperations {
     if (!agr) throw new Error('Agreement not found');
     
     // agreement.modified is a non-status event. 
-    await this.executeTransition(orgId, 'agreement', agrId, agr.status, 'modified', { changes } as any, actorId);
+    await this.executeTransition(orgId, 'agreement', agrId, agr.status, 'modified', { changes }, actorId);
     
     // Apply changes to terms if any
     if (changes.termChanges) {
       await this.supabase.from('agreements').update({
-        terms: { ...(agr.terms as any), ...changes.termChanges }
+        terms: { ...(agr.terms as Record<string, unknown>), ...changes.termChanges } as unknown as Json
       }).eq('id', agrId);
     }
 
@@ -232,7 +233,7 @@ export class KernelOperations {
             organization_id: orgId,
             agreement_id: agrId,
             service_id: s.serviceId,
-            fulfillment_data: s as any,
+            fulfillment_data: s as unknown as Json,
             status: 'created'
           })
           .select('id')
@@ -245,7 +246,7 @@ export class KernelOperations {
             entity_id: instance.id,
             event_type: 'service_instance.created',
             actor_id: actorId,
-            payload: {} as any
+            payload: {}
           });
         }
       }
@@ -281,8 +282,8 @@ export class KernelOperations {
         organization_id: orgId,
         name: data.name,
         description: data.description,
-        pricing_rules: data.pricingRules as any,
-        required_fields: data.requiredFields as any,
+        pricing_rules: data.pricingRules as unknown as Json,
+        required_fields: data.requiredFields as unknown as Json,
         status: 'active'
       })
       .select('id')
@@ -290,13 +291,13 @@ export class KernelOperations {
 
     if (error || !service) throw new Error('Failed to define service');
     
-    await this.executeTransition(orgId, 'service', service.id, 'active', 'defined', data as any);
+    await this.executeTransition(orgId, 'service', service.id, 'active', 'defined', data);
     return service.id;
   }
 
   async retireService(orgId: string, serviceId: string, actorId?: string): Promise<boolean> {
     // Route through executeTransition as required by A4
-    return this.executeTransition(orgId, 'service', serviceId, 'active', 'retired', {} as any, actorId);
+    return this.executeTransition(orgId, 'service', serviceId, 'active', 'retired', {}, actorId);
   }
 
   // --- Asset & Outcome Operations ---
@@ -321,7 +322,7 @@ export class KernelOperations {
       entity_type: 'asset',
       entity_id: asset.id,
       event_type: 'asset.registered',
-      payload: {} as any
+      payload: {}
     });
 
     return asset.id;
@@ -347,7 +348,7 @@ export class KernelOperations {
       entity_type: 'asset',
       entity_id: asset.id,
       event_type: 'outcome.produced', // Using outcome semantics for produced assets
-      payload: {} as any
+      payload: {}
     });
 
     return asset.id;
@@ -358,7 +359,7 @@ export class KernelOperations {
     const { data: asset, error } = await this.supabase.from('assets').select('status').eq('id', assetId).single();
     if (error || !asset) throw new Error('Asset not found');
 
-    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'delivered', rightsPayload as any, actorId);
+    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'delivered', rightsPayload, actorId);
     return true;
   }
 
@@ -366,7 +367,7 @@ export class KernelOperations {
     const { data: asset, error } = await this.supabase.from('assets').select('status').eq('id', assetId).single();
     if (error || !asset) throw new Error('Asset not found');
 
-    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'retained', { policy } as any, actorId);
+    await this.executeTransition(orgId, 'asset', assetId, asset.status, 'retained', { policy }, actorId);
     return true;
   }
 
@@ -379,7 +380,7 @@ export class KernelOperations {
       
     if (error || !instance) throw new Error('Instance not found');
     
-    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, eventSuffix, payload as any, actorId);
+    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, eventSuffix, payload, actorId);
   }
 
   async recordWorkstep(orgId: string, instanceId: string, stepName: string, actorId?: string): Promise<boolean> {
@@ -392,18 +393,18 @@ export class KernelOperations {
     if (error || !instance) throw new Error('Instance not found');
     
     // workstep is a non-status event, so we pass current status but the status won't change
-    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, 'workstep', { stepName } as any, actorId);
+    return this.executeTransition(orgId, 'service_instance', instanceId, instance.status, 'workstep', { stepName }, actorId);
   }
 
   // --- Identity Operations ---
 
   async enrichIdentity(orgId: string, data: { name?: string, logoUrl?: string, brandColors?: Record<string, unknown>, typography?: Record<string, unknown>, contactData?: Record<string, unknown> }, actorId?: string): Promise<boolean> {
-    const updatePayload: any = {};
+    const updatePayload: import('@/lib/database.types').Database['public']['Tables']['identities']['Update'] = {};
     if (data.name) updatePayload.name = data.name;
     if (data.logoUrl !== undefined) updatePayload.logo_url = data.logoUrl;
-    if (data.brandColors) updatePayload.brand_colors = data.brandColors;
-    if (data.typography) updatePayload.typography = data.typography;
-    if (data.contactData) updatePayload.contact_data = data.contactData;
+    if (data.brandColors) updatePayload.brand_colors = data.brandColors as unknown as Json;
+    if (data.typography) updatePayload.typography = data.typography as unknown as Json;
+    if (data.contactData) updatePayload.contact_data = data.contactData as unknown as Json;
 
     const { error } = await this.supabase
       .from('identities')
@@ -412,7 +413,7 @@ export class KernelOperations {
 
     if (error) throw new Error('Failed to enrich identity');
     
-    await this.executeTransition(orgId, 'identity', orgId, 'active', 'updated', updatePayload as any, actorId);
+    await this.executeTransition(orgId, 'identity', orgId, 'active', 'updated', updatePayload, actorId);
     return true;
   }
 
@@ -425,7 +426,7 @@ export class KernelOperations {
     await this.supabase.from('assets').update({ origin_customer_id: primaryId }).eq('origin_customer_id', secondaryId).eq('organization_id', orgId);
     
     // Mark secondary as merged via executeTransition
-    await this.executeTransition(orgId, 'customer', secondaryId, 'active', 'merged', { primaryId } as any, actorId);
+    await this.executeTransition(orgId, 'customer', secondaryId, 'active', 'merged', { primaryId }, actorId);
     
     return true;
   }
@@ -448,8 +449,8 @@ export class KernelOperations {
     });
 
     // Both are NON_STATUS_EVENTS according to our setup, but organization.created could also just be a non-status event on the 'created' state
-    await this.executeTransition(org.id, 'organization', org.id, 'created', 'created', data as any);
-    await this.executeTransition(org.id, 'identity', org.id, 'active', 'created', data as any);
+    await this.executeTransition(org.id, 'organization', org.id, 'created', 'created', data);
+    await this.executeTransition(org.id, 'identity', org.id, 'active', 'created', data);
 
     return org.id;
   }

@@ -15,6 +15,7 @@ export type EntityType = 'request' | 'agreement' | 'service_instance' | 'asset' 
 export interface RequestedService {
   serviceId: string;
   assetId?: string;
+  [key: string]: unknown;
 }
 
 export interface ModifyAgreementCommand {
