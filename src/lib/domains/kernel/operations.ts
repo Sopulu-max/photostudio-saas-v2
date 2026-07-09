@@ -295,6 +295,26 @@ export class KernelOperations {
     return service.id;
   }
 
+  async modifyService(orgId: string, serviceId: string, data: { name?: string, description?: string, pricingRules?: Record<string, unknown>, requiredFields?: Record<string, unknown> }, actorId?: string): Promise<boolean> {
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.pricingRules !== undefined) updates.pricing_rules = data.pricingRules;
+    if (data.requiredFields !== undefined) updates.required_fields = data.requiredFields;
+
+    const { error } = await this.supabase
+      .from('services')
+      .update(updates)
+      .eq('id', serviceId)
+      .eq('organization_id', orgId);
+
+    if (error) throw new Error(`Failed to modify service: ${error.message}`);
+
+    // Log event. Service modifications aren't typically a state transition, but we log the modification.
+    await this.executeTransition(orgId, 'service', serviceId, 'active', 'modified', data, actorId);
+    return true;
+  }
+
   async retireService(orgId: string, serviceId: string, actorId?: string): Promise<boolean> {
     // Route through executeTransition as required by A4
     return this.executeTransition(orgId, 'service', serviceId, 'active', 'retired', {}, actorId);

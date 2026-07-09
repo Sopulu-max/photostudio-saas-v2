@@ -22,7 +22,7 @@ export default async function BookPage({ params }: BookPageProps) {
 
   // 1. Resolve Identity & Config
   const rawIdentity = await repo.getIdentity(orgId);
-  const facingConfig = await getFacingConfig(orgId).catch(() => ({}));
+  const facingConfig = await getFacingConfig(orgId).catch(() => ({} as any));
 
   if (!rawIdentity) {
     notFound();

@@ -148,6 +148,18 @@ export async function defineServiceAction(data: { name: string, description?: st
   }
 }
 
+export async function modifyServiceAction(serviceId: string, data: { name?: string, description?: string, pricingRules?: Record<string, unknown>, requiredFields?: Record<string, unknown> }) {
+  try {
+    const { orgId, ops } = await getOps();
+    await ops.modifyService(orgId, serviceId, data);
+    revalidatePath('/catalog');
+    revalidatePath(`/catalog/${serviceId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function enrichIdentityAction(data: { name?: string, logoUrl?: string, brandColors?: Record<string, unknown>, typography?: Record<string, unknown>, contactData?: Record<string, unknown> }) {
   try {
     const { orgId, ops } = await getOps();

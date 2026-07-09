@@ -1,5 +1,6 @@
 import { globalSchemaRegistry, AttributeSchema, EntitySchema } from './registry';
 import { AudienceContext, FacingTier, FacingConfig } from './types';
+import { getCustomerFacingStateName } from './register-mapping';
 
 function resolveTier(attr: AttributeSchema, schema: EntitySchema, audience: AudienceContext, entity: any, isConfiguredToExpose: boolean = false): boolean {
   if (audience.role === 'staff') return true;
@@ -54,6 +55,12 @@ export function resolveEntityForAudience(entity: any, entityType: string, audien
         delete current[parts[parts.length - 1]];
       }
     }
+  }
+
+  // Register Mapping for customers and public audience
+  if ((audience.role === 'customer' || audience.role === 'public') && resolved.status) {
+    // Only map if it's a known state, otherwise we might accidentally overwrite a non-state status string
+    resolved.status = getCustomerFacingStateName(resolved.status, facingConfig);
   }
 
   return resolved;

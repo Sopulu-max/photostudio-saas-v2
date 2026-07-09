@@ -135,20 +135,23 @@
 }
 
 .card {
-  background-color: var(--color-surface-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 12px;
+  background-color: var(--color-surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-surface-glass-border);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   transition: transform var(--transition-snappy), box-shadow var(--transition-snappy), border-color var(--transition-snappy);
   display: flex;
   flex-direction: column;
   height: 100%;
+  box-shadow: var(--shadow-md);
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.05);
-  border-color: var(--color-border-focus);
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-brand-primary);
 }
 
 .cardImagePlaceholder {
@@ -221,12 +224,13 @@
   height: 48px;
   width: 48px;
   border-radius: 50%;
-  background-color: var(--color-brand-primary);
+  background: var(--color-brand-gradient);
   color: var(--color-brand-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--transition-fast);
+  transition: transform var(--transition-snappy), box-shadow var(--transition-snappy);
+  box-shadow: var(--shadow-glow);
 }
 
 .card:hover .cardAction {
@@ -237,11 +241,12 @@
 .formContainer {
   max-width: 600px;
   margin: 0 auto;
-  background-color: var(--color-surface-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 16px;
+  background-color: var(--color-surface-glass);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-surface-glass-border);
+  border-radius: var(--radius-xl);
   padding: 3rem;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.03);
+  box-shadow: var(--shadow-lg);
 }
 
 .formHeader {

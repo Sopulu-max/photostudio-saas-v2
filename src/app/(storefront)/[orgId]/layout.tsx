@@ -22,7 +22,7 @@ export default async function StorefrontLayout({
   
   // 1. Fetch Identity and Config
   const identityRaw = await repo.getIdentity(orgId);
-  const facingConfig = await getFacingConfig(orgId).catch(() => ({}));
+  const facingConfig = await getFacingConfig(orgId).catch(() => ({} as any));
 
   if (!identityRaw) {
     notFound();
@@ -31,9 +31,24 @@ export default async function StorefrontLayout({
   // 2. Resolve for Public Audience with Config
   const identity = PresentationEngine.resolve(identityRaw, 'IdentityDTO', { role: 'public', id: 'anonymous' }, facingConfig);
 
+  // Helper to determine readable contrast color (black or white)
+  const getContrastColor = (hexcolor: string) => {
+    // If it's not a hex code (e.g. named color), fallback to white
+    if (!hexcolor || !hexcolor.startsWith('#')) return '#ffffff';
+    const hex = hexcolor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return yiq >= 128 ? '#1c1a18' : '#ffffff';
+  };
+
   // 3. Extract Design Tokens from DB config into the CSS variables required by globals.css
   const primaryColor = identity.brandColors?.primary || '#d4af37';
-  const onPrimaryColor = identity.brandColors?.secondary || '#ffffff';
+  
+  // Contrast guard overrides manual secondary if it's not provided or we want to enforce it.
+  // The studio can still define `secondary`, but for text ON the primary color, we use the contrast guard.
+  const onPrimaryColor = getContrastColor(primaryColor);
   
   return (
     <div 
@@ -41,6 +56,8 @@ export default async function StorefrontLayout({
       style={{
         '--color-brand-primary': primaryColor,
         '--color-brand-on-primary': onPrimaryColor,
+        '--color-brand-gradient': `linear-gradient(135deg, ${primaryColor} 0%, color-mix(in srgb, ${primaryColor} 80%, black) 100%)`,
+        '--shadow-glow': `0 0 20px color-mix(in srgb, ${primaryColor} 15%, transparent)`,
       } as React.CSSProperties}
     >
       <header className={styles.header}>

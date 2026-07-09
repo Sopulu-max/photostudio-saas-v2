@@ -18,8 +18,11 @@ export default async function StorefrontPage({ params }: StorefrontPageProps) {
   // 1. Fetch raw data
   const rawServices = await repo.getServicesByOrganization(orgId);
   const rawIdentity = await repo.getIdentity(orgId);
-  const facingConfig = await getFacingConfig(orgId).catch(() => ({}));
+  const facingConfig = await getFacingConfig(orgId).catch(() => ({} as any));
   
+  // Conditionally fetch portfolio if the studio enabled it (First lock)
+  const portfolio = facingConfig.portfolioEnabled === true ? await repo.getPublicPortfolio(orgId) : [];
+
   if (!rawIdentity) {
     return (
       <div style={{ display: 'flex', height: '50vh', alignItems: 'center', justifyContent: 'center' }}>
@@ -101,6 +104,37 @@ export default async function StorefrontPage({ params }: StorefrontPageProps) {
           </div>
         )}
       </section>
+
+      {/* PORTFOLIO SECTION (TWO-KEY LOCK) */}
+      {facingConfig.portfolioEnabled === true && (
+        <section className={styles.portfolioSection} style={{ marginTop: '4rem' }}>
+          <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-family-serif)', marginBottom: '2rem' }}>Portfolio</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+            {portfolio.map(asset => (
+              <div key={asset.id} style={{ 
+                aspectRatio: '1', 
+                backgroundColor: 'var(--color-surface-elevated)', 
+                borderRadius: '8px', 
+                overflow: 'hidden',
+                border: '1px solid var(--color-border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundImage: asset.contentReference ? `url(${asset.contentReference})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}>
+                {!asset.contentReference && <span style={{ color: 'var(--color-text-tertiary)' }}>No Image Data</span>}
+              </div>
+            ))}
+            {portfolio.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', padding: '3rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                No portfolio items available.
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </>
   );
 }

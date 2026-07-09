@@ -47,7 +47,48 @@ export type FacingTier =
 // --- Facing Configuration ---
 /**
  * Represents the studio's choices for the configurable tiers on specific entity properties.
- * Key: dot-notation path (e.g., 'ServiceDTO.pricingRules')
- * Value: boolean (true = exposed, false = hidden)
  */
-export type FacingConfig = Record<string, boolean>;
+export interface FacingConfig {
+  /**
+   * Keys match AttributeSchema.key (e.g., "pricingRules.basePrice").
+   * Values: true (exposed), false (hidden).
+   */
+  [attributePath: string]: boolean | any;
+  
+  /**
+   * Configurable overrides for mapping internal state names to customer-facing copy.
+   */
+  stateOverrides?: Record<string, string>;
+  
+  /**
+   * Whether the studio has enabled their public portfolio.
+   */
+  portfolioEnabled?: boolean;
+
+  /**
+   * Vocabulary Register: mapping of canonical terms to studio terms.
+   * e.g., { "ServiceInstance": "Booking", "Customer": "Client" }
+   */
+  vocabulary?: Record<string, string>;
+
+  /**
+   * Layout/Arrangement (Stage 3): semantic composition overrides.
+   * e.g., { "service_page": { sections: [{ id: "hero", variant: "bold" }, ...] } }
+   */
+  layout?: Record<string, any>;
+}
+
+// --- Builder Engine (Component Contracts) ---
+export interface ComponentContract {
+  /** The id/name of the component, e.g., 'PricingBlock' */
+  id: string;
+  
+  /** The entity or relationships this component can bind to, e.g., ['Service.Pricing'] */
+  bindsTo: string[];
+  
+  /** The visual variants supported by this component, e.g., ['list', 'cards'] */
+  variants?: string[];
+  
+  /** Descriptive name for the palette UI */
+  label: string;
+}

@@ -3,6 +3,12 @@ import { CustomerDTO, RequestDTO, AgreementDTO, ServiceInstanceDTO } from './typ
 // The hardcoded org used before auth integration (still used by mock fixtures)
 const ORG_ID = '11111111-2222-3333-4444-555555555555';
 
+// Deterministic Dates for Stable Rendering
+const NOW = '2026-07-08T12:00:00.000Z';
+const MINUS_7 = '2026-07-01T12:00:00.000Z';
+const MINUS_28 = '2026-06-10T12:00:00.000Z';
+const MINUS_30 = '2026-06-08T12:00:00.000Z';
+
 // Realistic Studio Services
 const SERVICES = {
   PASSPORT: '00000000-0000-0000-0000-000000000001',
@@ -22,8 +28,8 @@ const customerSopulu: CustomerDTO = {
   primaryIdentifier: '+2348030000001',
   profileData: { name: 'Sopulu' },
   status: 'active',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: NOW,
+  updatedAt: NOW,
 };
 
 const reqPassport: RequestDTO = {
@@ -34,8 +40,8 @@ const reqPassport: RequestDTO = {
     { serviceId: SERVICES.PASSPORT }
   ] as any,
   status: 'accepted',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: NOW,
+  updatedAt: NOW,
 };
 
 const agrPassport: AgreementDTO = {
@@ -45,8 +51,8 @@ const agrPassport: AgreementDTO = {
   requestId: reqPassport.id,
   status: 'active',
   terms: { price: 5000, currency: 'NGN' },
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: NOW,
+  updatedAt: NOW,
   request: reqPassport
 };
 
@@ -57,8 +63,8 @@ const instPassport: ServiceInstanceDTO = {
   serviceId: SERVICES.PASSPORT,
   status: 'completed',
   fulfillmentData: { origin: 'Walk-in' },
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: NOW,
+  updatedAt: NOW,
 };
 
 // ---------------------------------------------------------
@@ -70,8 +76,8 @@ const customerWedding: CustomerDTO = {
   primaryIdentifier: '+2348050000002',
   profileData: { name: 'Chidinma & Obi' },
   status: 'active',
-  createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+  createdAt: MINUS_30,
+  updatedAt: MINUS_30,
 };
 
 const reqWedding: RequestDTO = {
@@ -82,8 +88,8 @@ const reqWedding: RequestDTO = {
     { serviceId: SERVICES.WEDDING_WHITE }
   ] as any,
   status: 'accepted',
-  createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+  createdAt: MINUS_30,
+  updatedAt: MINUS_30,
 };
 
 const agrWedding: AgreementDTO = {
@@ -93,8 +99,8 @@ const agrWedding: AgreementDTO = {
   requestId: reqWedding.id,
   status: 'active',
   terms: { price: 735000, currency: 'NGN', note: 'Wedding + Photobook + Frame Package' },
-  createdAt: new Date(Date.now() - 86400000 * 28).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 28).toISOString(),
+  createdAt: MINUS_28,
+  updatedAt: MINUS_28,
   request: reqWedding
 };
 
@@ -104,9 +110,9 @@ const instWeddingEvent: ServiceInstanceDTO = {
   agreementId: agrWedding.id,
   serviceId: SERVICES.WEDDING_WHITE,
   status: 'delivered',
-  fulfillmentData: { location: 'Lagos Island', date: new Date(Date.now() - 86400000 * 7).toISOString() },
-  createdAt: new Date(Date.now() - 86400000 * 28).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 28).toISOString(),
+  fulfillmentData: { location: 'Lagos Island', date: MINUS_7 },
+  createdAt: MINUS_28,
+  updatedAt: MINUS_28,
 };
 
 const instPhotobook: ServiceInstanceDTO = {
@@ -116,8 +122,8 @@ const instPhotobook: ServiceInstanceDTO = {
   serviceId: SERVICES.PHOTOBOOK,
   status: 'in_progress',
   fulfillmentData: { pages: 40, cover: 'Synthetic', note: 'Awaiting design approval' },
-  createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+  createdAt: MINUS_7,
+  updatedAt: MINUS_7,
 };
 
 const instFrame: ServiceInstanceDTO = {
@@ -127,8 +133,8 @@ const instFrame: ServiceInstanceDTO = {
   serviceId: SERVICES.FRAME,
   status: 'waiting', // Waiting for client to select the picture
   fulfillmentData: { size: '24x36', type: 'Canvas', note: 'Client to pick favorite shot' },
-  createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+  createdAt: MINUS_7,
+  updatedAt: MINUS_7,
 };
 
 export const MockScenarios = {

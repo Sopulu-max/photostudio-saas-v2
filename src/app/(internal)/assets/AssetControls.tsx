@@ -2,21 +2,29 @@
 
 import React, { useState, useTransition } from 'react';
 import { registerAssetAction, produceOutcomeAction, deliverOutcomeAction } from '@/app/actions/kernel';
+import { createClient } from '@/lib/supabase/client';
 
 interface AssetControlsProps {
+  orgId: string;
   activeInstances?: any[];
   deliverOnly?: boolean;
   assetId?: string;
 }
 
-export function AssetControls({ activeInstances = [], deliverOnly = false, assetId }: AssetControlsProps) {
+export function AssetControls({ orgId, activeInstances = [], deliverOnly = false, assetId }: AssetControlsProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<'provided' | 'produced'>('produced');
   const [contentRef, setContentRef] = useState('');
   const [instanceId, setInstanceId] = useState('');
   const [customerId, setCustomerId] = useState('');
+  
+  // File upload state
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [usageRights, setUsageRights] = useState('Personal Use');
+
+  const supabase = createClient();
 
   if (deliverOnly && assetId) {
     return (
@@ -52,15 +60,46 @@ export function AssetControls({ activeInstances = [], deliverOnly = false, asset
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let finalContentRef = contentRef;
+
+    // Handle File Upload
+    if (file) {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `${orgId}/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('studio_assets')
+        .upload(filePath, file);
+
+      setIsUploading(false);
+
+      if (error) {
+        alert(`Upload failed: ${error.message}`);
+        return;
+      }
+      
+      finalContentRef = `storage:studio_assets/${filePath}`;
+    }
+
     startTransition(async () => {
       if (type === 'provided') {
-        await registerAssetAction({ customerId, instanceId, contentReference: contentRef });
+        await registerAssetAction({ customerId, instanceId, contentReference: finalContentRef });
       } else {
-        await produceOutcomeAction(instanceId, contentRef);
+        await produceOutcomeAction(instanceId, finalContentRef);
       }
       setContentRef('');
+      setFile(null);
     });
   };
 
@@ -78,13 +117,29 @@ export function AssetControls({ activeInstances = [], deliverOnly = false, asset
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Content Reference</label>
+        <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Upload File</label>
         <input 
-          required
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-base)', color: 'var(--color-text-primary)' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ flex: 1, height: '1px', background: 'var(--color-border-subtle)' }} />
+        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>OR</span>
+        <div style={{ flex: 1, height: '1px', background: 'var(--color-border-subtle)' }} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>Manual Content Reference</label>
+        <input 
           value={contentRef}
           onChange={(e) => setContentRef(e.target.value)}
           placeholder={type === 'provided' ? "e.g., usb:sandra_photos" : "e.g., gdrive:wedding_album_01"}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-base)', color: 'var(--color-text-primary)' }}
+          disabled={!!file}
+          style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', opacity: file ? 0.5 : 1 }}
         />
       </div>
 
@@ -120,21 +175,21 @@ export function AssetControls({ activeInstances = [], deliverOnly = false, asset
 
       <button 
         type="submit" 
-        disabled={isPending || !contentRef || (type === 'produced' && !instanceId) || (type === 'provided' && !customerId)}
+        disabled={isPending || isUploading || (!contentRef && !file) || (type === 'produced' && !instanceId) || (type === 'provided' && !customerId)}
         style={{
           background: 'var(--color-text-primary)',
           color: 'var(--color-surface-base)',
           border: 'none',
           padding: '10px 16px',
           borderRadius: '4px',
-          cursor: isPending ? 'wait' : 'pointer',
-          opacity: isPending ? 0.6 : 1,
+          cursor: (isPending || isUploading) ? 'wait' : 'pointer',
+          opacity: (isPending || isUploading) ? 0.6 : 1,
           fontSize: '0.85rem',
           fontWeight: 600,
           marginTop: '8px'
         }}
       >
-        {isPending ? 'Processing...' : (type === 'provided' ? 'Register Asset' : 'Produce Outcome')}
+        {isUploading ? 'Uploading...' : isPending ? 'Processing...' : (type === 'provided' ? 'Register Asset' : 'Produce Outcome')}
       </button>
     </form>
   );

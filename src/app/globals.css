@@ -7,28 +7,48 @@
 :root {
   /* THE PROJECTION THEME (Tokens) */
   /* Platform Chrome (Warm-Editorial Light Mode Default: Paper & Ink) */
-  --color-surface-base: #f7f6f3;     /* Warm parchment / physical desk */
-  --color-surface-elevated: #ffffff; /* White paper */
-  --color-surface-glass: rgba(255, 255, 255, 0.85); /* Minimal use, if any */
+  --color-surface-base: #fdfcfb;     /* Warmer, brighter parchment */
+  --color-surface-elevated: #ffffff; /* Pure white */
+  --color-surface-glass: rgba(255, 255, 255, 0.7); /* Frosted glass */
+  --color-surface-glass-border: rgba(255, 255, 255, 0.4);
   
-  --color-border-subtle: #e6e3df;    /* Hairline faint ink */
+  --color-border-subtle: #eae5e0;    /* Hairline faint ink */
   --color-border-focus: #1c1a18;     /* Deep ink focus */
   
-  --color-text-primary: #1c1a18;     /* Deep ink (near black) */
-  --color-text-secondary: #7a7369;   /* Muted ink */
+  --color-text-primary: #1a1816;     /* Deep ink (near black) */
+  --color-text-secondary: #736d65;   /* Muted ink */
   --color-text-tertiary: #a19a91;    /* Very faded ink */
+  
+  /* Premium Aesthetic Extensions */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.05), 0 4px 10px -4px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 20px rgba(212, 175, 55, 0.15); /* Brand glow */
+  
+  --glass-blur: blur(16px);
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   
   /* Identity Tokens (Studio configurable - defaulted to a warm gold here) */
   --color-brand-primary: #d4af37;
   --color-brand-on-primary: #ffffff;
+  --color-brand-gradient: linear-gradient(135deg, #d4af37 0%, #b8962b 100%);
   
   /* THE UNIVERSAL STATE GRAMMAR */
   /* These are fixed by the platform and map to Kernel lifecycle states. */
   --color-state-waiting: #e85d04;    /* Loudest signal in the room - safety orange */
+  --color-state-waiting-bg: rgba(232, 93, 4, 0.08);
   --color-state-active: #3a86ff;     /* Active work - bright blue */
+  --color-state-active-bg: rgba(58, 134, 255, 0.08);
   --color-state-halted: #d90429;     /* Blocked - red */
-  --color-state-neutral: #7a7369;    /* Muted ink for proposed/created/scheduled */
+  --color-state-halted-bg: rgba(217, 4, 41, 0.08);
+  --color-state-neutral: #736d65;    /* Muted ink for proposed/created/scheduled */
+  --color-state-neutral-bg: rgba(115, 109, 101, 0.08);
   --color-state-success: #38b000;    /* Success - green */
+  --color-state-success-bg: rgba(56, 176, 0, 0.08);
 
   /* THE MOTION PROFILES */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);

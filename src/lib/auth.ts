@@ -68,12 +68,18 @@ export async function getSession() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
 
-  const claims = JSON.parse(atob(session.access_token.split('.')[1])) as Record<string, string>
+  const claims = session.access_token 
+    ? (JSON.parse(atob(session.access_token.split('.')[1])) as Record<string, any>)
+    : {}
+
+  const orgId = (session.user.user_metadata?.org_id as string | undefined)
+    ?? claims.org_id 
+    ?? null
 
   return {
     userId: session.user.id,
     email: session.user.email ?? null,
-    orgId: claims.org_id ?? null,
+    orgId,
     role: claims.user_role ?? 'staff',
   }
 }

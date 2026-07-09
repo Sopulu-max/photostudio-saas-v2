@@ -1,66 +1,126 @@
 import React from 'react';
 import Link from 'next/link';
+import { Layers, Box, CheckSquare, Briefcase, User, CalendarDays, Compass, Zap, DollarSign } from 'lucide-react';
+import { SyncStateIndicator } from '@/components/layout/SyncStateIndicator';
 import { getSession } from '@/lib/auth';
 import { signOut } from '@/app/actions/auth';
-import { SyncStateIndicator } from '@/components/layout/SyncStateIndicator';
-import { createClient } from '@/lib/supabase/server';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
+import { createClient } from '@/lib/supabase/server';
+import { SandboxLauncher } from '@/components/sandbox/SandboxLauncher';
 
 export default async function InternalLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   
-  let studioName = 'Studio';
-  if (session?.orgId) {
+  if (!session?.orgId) {
+    return <SandboxLauncher />;
+  }
+
+  let studioName = 'Studio OS';
+  let primaryColor = '';
+  
+  try {
     const supabase = await createClient();
     const repo = new KernelRepository(supabase);
     const identity = await repo.getIdentity(session.orgId);
     if (identity?.name) {
       studioName = identity.name;
     }
+    if (identity?.brandColors && typeof identity.brandColors === 'object' && 'primary' in identity.brandColors) {
+      primaryColor = identity.brandColors.primary as string;
+    }
+  } catch (e) {
+    // ignore
   }
 
-  return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+  const backgroundStyle = {
+    flex: 1, 
+    overflowY: 'auto' as 'auto',
+    backgroundColor: 'var(--color-surface-base)',
+    backgroundImage: `
+      radial-gradient(at 100% 0%, rgba(212, 175, 55, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(212, 175, 55, 0.03) 0px, transparent 50%)
+    `,
+    position: 'relative' as 'relative',
+  };
 
-      {/* SIDEBAR */}
+  return (
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      
+      {primaryColor && (
+        <style dangerouslySetInnerHTML={{__html: `
+          :root {
+            --color-brand-primary: ${primaryColor};
+            --color-brand-gradient: linear-gradient(135deg, ${primaryColor} 0%, color-mix(in srgb, ${primaryColor} 80%, black) 100%);
+            --shadow-glow: 0 0 20px color-mix(in srgb, ${primaryColor} 15%, transparent);
+          }
+        `}} />
+      )}
+
+      {/* PREMIUM SIDEBAR */}
       <nav style={{
         width: '260px',
         background: 'var(--color-surface-elevated)',
         borderRight: '1px solid var(--color-border-subtle)',
-        padding: '24px 16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        flexShrink: 0,
+        padding: '24px 16px',
+        zIndex: 10,
+        boxShadow: 'var(--shadow-md)',
       }}>
-        <div style={{ paddingBottom: '32px', paddingLeft: '8px' }}>
-          <h2 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '1.4rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {studioName}
-          </h2>
-          {session?.orgId && (
-            <p style={{
-              margin: '4px 0 0',
-              fontSize: '0.7rem',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--color-text-secondary)',
-              fontFamily: 'var(--font-family-mono, monospace)',
-            }}>
-              {session.orgId.slice(0, 8)}…
-            </p>
-          )}
+        {/* BRAND HEADER */}
+        <div style={{ 
+          marginBottom: '32px', 
+          padding: '0 8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--color-brand-gradient)',
+            boxShadow: 'var(--shadow-glow)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-brand-on-primary)'
+          }}>
+            <Zap size={16} strokeWidth={2.5} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>
+              {studioName}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Operating System
+            </div>
+          </div>
         </div>
 
-        <SidebarLink href="/identity" label="Identity Tending" />
-        <SidebarLink href="/specimen" label="Ontology Specimen" />
-        <SidebarLink href="/" label="Command Center" />
-        <SidebarLink href="/catalog" label="Service Catalog" />
-        <SidebarLink href="/instances" label="Active Instances" />
-        <SidebarLink href="/assets" label="Asset Vault" />
-        <SidebarLink href="/finance" label="Ledger (Finance)" />
-        <SidebarLink href="/quick-sale" label="Quick Sale" />
+        {/* NAVIGATION LINKS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 8px 8px' }}>
+            Overview
+          </div>
+          <NavItem href="/" icon={<Compass size={18} />} label="Command Center" />
+          <NavItem href="/requests" icon={<CheckSquare size={18} />} label="Inbox" />
+          
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '24px 0 8px 8px' }}>
+            Operations
+          </div>
+          <NavItem href="/instances" icon={<Layers size={18} />} label="Pipeline" />
+          <NavItem href="/schedule" icon={<CalendarDays size={18} />} label="Schedule" />
+          <NavItem href="/finance" icon={<DollarSign size={18} />} label="Ledger" />
+          
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '24px 0 8px 8px' }}>
+            Configuration
+          </div>
+          <NavItem href="/catalog" icon={<Box size={18} />} label="Service Catalog" />
+          <NavItem href="/identity" icon={<Briefcase size={18} />} label="Identity" />
+        </div>
 
-        {/* Foot: user info + sign out */}
+        {/* USER PROFILE FOOTER */}
         <div style={{
           marginTop: 'auto',
           paddingTop: '16px',
@@ -69,61 +129,86 @@ export default async function InternalLayout({ children }: { children: React.Rea
           flexDirection: 'column',
           gap: '8px',
         }}>
-          <SidebarLink href="/_scaffolding" label="Scaffolding" />
-
           {session && (
-            <div style={{ padding: '8px 12px' }}>
-              <p style={{
-                margin: '0 0 8px',
-                fontSize: '0.8rem',
-                color: 'var(--color-text-secondary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+            <div style={{ 
+              padding: '12px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-surface-base)',
+              border: '1px solid var(--color-border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}>
+              <div style={{ 
+                width: '32px', 
+                height: '32px', 
+                borderRadius: '50%', 
+                background: 'var(--color-text-tertiary)', 
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
-                {session.email}
-              </p>
-              <form action={signOut}>
-                <button type="submit" style={{
-                  padding: '6px 12px',
-                  fontSize: '0.8rem',
-                  fontFamily: 'var(--font-family-sans)',
-                  color: 'var(--color-text-secondary)',
-                  background: 'transparent',
-                  border: '1px solid var(--color-border-subtle)',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  width: '100%',
-                  textAlign: 'left',
-                }}>
-                  Sign out
-                </button>
-              </form>
+                <User size={16} />
+              </div>
+              <div style={{ overflow: 'hidden', flex: 1 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                  {session.email}
+                </div>
+                <form action={signOut} style={{ marginTop: '2px' }}>
+                  <button type="submit" style={{
+                    padding: 0,
+                    fontSize: '0.7rem',
+                    fontFamily: 'var(--font-family-sans)',
+                    color: 'var(--color-text-secondary)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}>
+                    Sign out
+                  </button>
+                </form>
+              </div>
             </div>
           )}
         </div>
       </nav>
 
-      {/* MAIN CONTENT */}
-      <main style={{ flex: 1, overflowY: 'auto' }}>
+      {/* MAIN CONTENT AREA */}
+      <main style={backgroundStyle}>
         <SyncStateIndicator />
-        {children}
+        <div style={{
+          minHeight: '100%',
+          width: '100%',
+          position: 'relative'
+        }}>
+          {children}
+        </div>
       </main>
     </div>
   );
 }
 
-function SidebarLink({ href, label }: { href: string; label: string }) {
+function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
-    <Link href={href} style={{
-      padding: '8px 12px',
-      borderRadius: '6px',
-      color: 'var(--color-text-secondary)',
-      fontSize: '0.95rem',
-      fontWeight: 500,
-      transition: 'background var(--transition-fast), color var(--transition-fast)',
-      display: 'block',
-    }}>
+    <Link 
+      href={href} 
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '10px 12px',
+        borderRadius: 'var(--radius-md)',
+        color: 'var(--color-text-secondary)',
+        textDecoration: 'none',
+        fontSize: '0.9rem',
+        fontWeight: 500,
+        transition: 'all var(--transition-fast)',
+      }}
+      className="nav-item"
+    >
+      <div style={{ opacity: 0.8 }}>{icon}</div>
       {label}
     </Link>
   );

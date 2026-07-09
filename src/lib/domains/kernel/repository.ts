@@ -137,6 +137,54 @@ export class KernelRepository {
 
   // --- Queries (Fetchers) ---
 
+  async getRequestsByOrganization(orgId: string): Promise<RequestDTO[]> {
+    const { data, error } = await this.supabase
+      .from('requests')
+      .select('*')
+      .eq('organization_id', orgId);
+
+    if (error) {
+      console.error('Failed to fetch requests', error);
+      return [];
+    }
+    return data.map(this.mapRequest.bind(this));
+  }
+
+  async getPublicPortfolio(orgId: string): Promise<AssetDTO[]> {
+    // Portfolio consists of 'produced' assets that are 'available'
+    // where the parent agreement grants usageRights = true
+    const { data, error } = await this.supabase
+      .from('assets')
+      .select(`
+        *,
+        service_instances!inner (
+          id,
+          agreements!inner (
+            terms
+          )
+        )
+      `)
+      .eq('organization_id', orgId)
+      .eq('origin_type', 'produced')
+      .eq('status', 'available');
+
+    if (error) {
+      console.error('Failed to fetch public portfolio', error);
+      return [];
+    }
+
+    // Filter in JS since Supabase JS client doesn't easily support deep JSONB filtering on joined tables
+    const portfolio = data.filter((row: any) => {
+      const instance = Array.isArray(row.service_instances) ? row.service_instances[0] : row.service_instances;
+      if (!instance) return false;
+      const agreement = Array.isArray(instance.agreements) ? instance.agreements[0] : instance.agreements;
+      if (!agreement) return false;
+      return agreement.terms && agreement.terms.usageRights === true;
+    });
+
+    return portfolio.map(this.mapAsset);
+  }
+
   async getServicesByOrganization(orgId: string): Promise<ServiceDTO[]> {
     const { data, error } = await this.supabase
       .from('services')
@@ -233,6 +281,22 @@ export class KernelRepository {
         service_instances(*)
       `)
       .eq('organization_id', orgId)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data.map(row => this.mapAgreement(row));
+  }
+
+  async getAgreementsByCustomer(orgId: string, customerId: string): Promise<AgreementDTO[]> {
+    const { data, error } = await this.supabase
+      .from('agreements')
+      .select(`
+        *,
+        requests(*),
+        service_instances(*)
+      `)
+      .eq('organization_id', orgId)
+      .eq('customer_id', customerId)
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];

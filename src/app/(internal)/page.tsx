@@ -14,7 +14,8 @@ import { EntitySignature } from '@/components/ontology/EntitySignature';
 import { StateBadge, KernelState } from '@/components/ontology/StateBadge';
 import { Invitation } from '@/components/ontology/Invitation';
 import { KernelRepository } from '@/lib/domains/kernel/repository';
-import { ServiceInstanceDTO, AgreementDTO, ServiceDTO } from '@/lib/domains/kernel/types';
+import { FinanceRepository } from '@/lib/domains/finance/repository';
+import { ServiceInstanceDTO, AgreementDTO, ServiceDTO, RequestDTO } from '@/lib/domains/kernel/types';
 import { getOrgId } from '@/lib/auth';
 import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
 import { QuickSaleTerminal } from '@/components/quick-sale/QuickSaleTerminal';
@@ -27,35 +28,42 @@ async function getDashboardData(orgId: string | null) {
   let instances: ServiceInstanceDTO[] = [];
   let agreements: AgreementDTO[] = [];
   let services: ServiceDTO[] = [];
+  let requests: RequestDTO[] = [];
+  let invoices: any[] = [];
   let dbOffline = false;
 
   try {
     const { createClient } = await import('@/lib/supabase/server');
     const supabase = await createClient();
     const repo = new KernelRepository(supabase);
+    const financeRepo = new FinanceRepository(supabase);
     
     if (orgId) {
-      const [dbInstances, dbAgreements, dbServices] = await Promise.all([
+      const [dbInstances, dbAgreements, dbServices, dbRequests, dbInvoices] = await Promise.all([
         repo.getInstancesByOrganization(orgId),
         repo.getAgreementsByOrganization(orgId),
         repo.getServicesByOrganization(orgId),
+        repo.getRequestsByOrganization(orgId),
+        financeRepo.getInvoices(orgId).catch(() => []), // Catch since invoices table may not exist yet
       ]);
       
       if (dbInstances.length > 0) instances = dbInstances;
       if (dbAgreements.length > 0) agreements = dbAgreements;
       if (dbServices.length > 0) services = dbServices;
+      if (dbRequests.length > 0) requests = dbRequests;
+      if (dbInvoices.length > 0) invoices = dbInvoices;
     }
   } catch (error) {
     console.error("Database connection failed", error);
     dbOffline = true;
   }
 
-  return { instances, agreements, services, dbOffline };
+  return { instances, agreements, services, requests, invoices, dbOffline };
 }
 
 export default async function CommandCenterPage() {
   const orgId = await getOrgId();
-  const { instances, agreements, services, dbOffline } = await getDashboardData(orgId);
+  const { instances, agreements, services, requests, invoices, dbOffline } = await getDashboardData(orgId);
 
   // Derive metrics from the kernel data
   const now = new Date();
@@ -75,13 +83,13 @@ export default async function CommandCenterPage() {
     i.status === 'completed' || i.status === 'delivered' || i.status === 'archived'
   );
   const activeAgreements = agreements.filter(a => a.status === 'active');
+  const incomingRequests = requests.filter(r => r.status === 'created');
 
-  // Total revenue from active agreements
-  const totalRevenue = activeAgreements.reduce((sum, a) => {
-    const price = a.terms?.price;
-    return sum + (typeof price === 'number' ? price : 0);
+  // True Revenue: from settled invoices
+  const totalRevenue = invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => {
+    return sum + Number(inv.total_amount);
   }, 0);
-  const currency = activeAgreements[0]?.terms?.currency || 'NGN';
+  const currency = invoices[0]?.currency || 'NGN';
 
   return (
     <div className={styles.container}>
@@ -142,16 +150,58 @@ export default async function CommandCenterPage() {
         />
       </div>
 
+      {incomingRequests.length > 0 && (
+        <section className={styles.glassCard} style={{ marginBottom: '32px' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+          }}>
+            <h2 style={{ 
+              fontSize: '0.85rem', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.08em',
+              color: 'var(--color-text-secondary)',
+              fontWeight: 600,
+            }}>
+              Incoming Requests (Storefront)
+            </h2>
+            <Link href="/requests" style={{ 
+              fontSize: '0.8rem', 
+              color: 'var(--color-state-active)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              View Inbox <ArrowRight size={14} />
+            </Link>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {incomingRequests.map(req => (
+              <div key={req.id} style={{
+                padding: '12px',
+                background: 'rgba(59, 130, 246, 0.05)',
+                border: '1px solid var(--color-state-active)',
+                borderRadius: '6px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <EntitySignature type="request" data={req} scale="row" />
+                <StateBadge state={req.status as any} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Two-column layout: Attention Queue + Ledger Summary */}
       <div className={styles.twoColumnLayout}>
 
         {/* LEFT: Attention Queue */}
-        <section style={{
-          background: 'var(--color-surface-elevated)',
-          border: '1px solid var(--color-border-subtle)',
-          borderRadius: '8px',
-          padding: '24px',
-        }}>
+        <section className={styles.glassCard}>
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -180,12 +230,25 @@ export default async function CommandCenterPage() {
 
           {needsAttention.length === 0 ? (
             <div style={{ 
-              padding: '24px', 
+              padding: '48px 24px', 
               textAlign: 'center', 
-              color: 'var(--color-text-tertiary)',
-              fontSize: '0.9rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px'
             }}>
-              All clear. Nothing waiting or halted.
+              <div style={{ 
+                width: '48px', height: '48px', borderRadius: '50%', 
+                background: 'var(--color-state-success-bg)', color: 'var(--color-state-success)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>Inbox Zero</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>All workflows are flowing smoothly.</div>
+              </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -209,12 +272,7 @@ export default async function CommandCenterPage() {
         </section>
 
         {/* RIGHT: Ledger Summary */}
-        <section style={{
-          background: 'var(--color-surface-elevated)',
-          border: '1px solid var(--color-border-subtle)',
-          borderRadius: '8px',
-          padding: '24px',
-        }}>
+        <section className={styles.glassCard}>
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -302,12 +360,7 @@ export default async function CommandCenterPage() {
       </div>
 
       {/* Pipeline Distribution — compact horizontal bar */}
-      <section style={{
-        background: 'var(--color-surface-elevated)',
-        border: '1px solid var(--color-border-subtle)',
-        borderRadius: '8px',
-        padding: '24px',
-      }}>
+      <section className={styles.glassCard}>
         <h2 style={{ 
           fontSize: '0.85rem', 
           textTransform: 'uppercase', 
@@ -336,15 +389,7 @@ function MetricCard({
   accent?: string;
 }) {
   return (
-    <div style={{
-      background: 'var(--color-surface-elevated)',
-      border: '1px solid var(--color-border-subtle)',
-      borderRadius: '8px',
-      padding: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-    }}>
+    <div className={styles.metricCard}>
       <div style={{ 
         color: accent || 'var(--color-text-secondary)', 
         display: 'flex', 
