@@ -3,6 +3,8 @@ import { getOrgId } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { StaffRepository } from '@/lib/domains/staff/repository';
 import { DatabaseOfflineFallback } from '@/components/layout/DatabaseOfflineFallback';
+import { Invitation } from '@/components/ontology/Invitation';
+import { AddStaffForm, AddCapabilityForm, AssignCapabilityControl } from './StaffControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,57 +36,125 @@ export default async function StaffPage() {
   const { staff, capabilities, dbOffline } = await getStaffData(orgId);
 
   return (
-    <div style={{ padding: '40px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ padding: '48px', maxWidth: '1100px', margin: '0 auto' }}>
       {dbOffline && <DatabaseOfflineFallback />}
       
-      <div style={{ marginBottom: '40px' }}>
-        <h1 style={{ fontFamily: 'var(--font-family-serif)', fontSize: '2rem', marginBottom: '8px' }}>
-          Staff & Capabilities
+      {/* Page Header */}
+      <header style={{
+        marginBottom: '48px',
+        paddingBottom: '24px',
+        borderBottom: '1px solid var(--color-border-subtle)',
+      }}>
+        <h1 style={{
+          fontFamily: 'var(--font-family-serif)',
+          fontSize: '2.5rem',
+          fontWeight: 700,
+          margin: '0 0 8px 0',
+          letterSpacing: '-0.02em',
+        }}>
+          Staff &amp; Capabilities
         </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
+        <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '1rem' }}>
           Manage your team and assign operational capabilities.
         </p>
-      </div>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '48px', alignItems: 'start' }}>
         {/* Staff List */}
-        <div>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Team Members</h2>
+        <section>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+          }}>
+            <h2 style={{
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-tertiary)',
+              margin: 0,
+            }}>
+              Team Members ({staff.length})
+            </h2>
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <AddStaffForm />
+          </div>
+
           {staff.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-tertiary)', border: '1px dashed var(--color-border-subtle)', borderRadius: '8px' }}>
-              No staff members found.
-            </div>
+            <Invitation label="No staff members found" actionLabel="Add your first team member above" />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {staff.map(member => (
                 <div key={member.id} style={{ 
                   background: 'var(--color-surface-elevated)', 
-                  borderRadius: '8px', 
+                  borderRadius: '0', 
                   border: '1px solid var(--color-border-subtle)',
-                  padding: '20px'
+                  borderTop: '3px solid var(--color-border-focus)',
+                  padding: '24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{member.name}</div>
-                      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{member.email}</div>
+                      <div style={{
+                        fontFamily: 'var(--font-family-serif)',
+                        fontWeight: 600,
+                        fontSize: '1.4rem',
+                        color: 'var(--color-text-primary)',
+                        marginBottom: '4px'
+                      }}>
+                        {member.name}
+                      </div>
+                      <div style={{ 
+                        color: 'var(--color-text-secondary)', 
+                        fontSize: '0.85rem',
+                        fontFamily: 'var(--font-family-mono)'
+                      }}>
+                        {member.email}
+                      </div>
                     </div>
-                    <div style={{ background: 'var(--color-surface-base)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <div style={{ 
+                      background: 'var(--color-surface-base)', 
+                      border: '1px solid var(--color-border-subtle)',
+                      padding: '4px 10px', 
+                      borderRadius: '9999px', 
+                      fontSize: '0.7rem', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '0.05em',
+                      fontWeight: 600,
+                      color: 'var(--color-text-secondary)'
+                    }}>
                       {member.role}
                     </div>
                   </div>
                   
-                  <div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-tertiary)', marginBottom: '8px' }}>Assigned Capabilities</div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ borderTop: '1px solid var(--color-border-subtle)', paddingTop: '16px' }}>
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: 'var(--color-text-tertiary)', 
+                      marginBottom: '12px',
+                      fontWeight: 600
+                    }}>
+                      Assigned Capabilities
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
                       {member.staff_capabilities?.length === 0 ? (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>None</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>None assigned</span>
                       ) : (
                         member.staff_capabilities?.map((sc: any) => (
                           <span key={sc.capabilities.id} style={{ 
-                            background: 'var(--color-state-active)', 
-                            color: 'white', 
-                            padding: '4px 8px', 
-                            borderRadius: '12px', 
+                            background: 'var(--color-surface-base)', 
+                            border: '1px solid var(--color-border-subtle)',
+                            color: 'var(--color-text-primary)', 
+                            padding: '4px 10px', 
+                            borderRadius: '4px', 
                             fontSize: '0.75rem',
                             fontWeight: 500
                           }}>
@@ -93,36 +163,64 @@ export default async function StaffPage() {
                         ))
                       )}
                     </div>
+                    <AssignCapabilityControl staffId={member.id} capabilities={capabilities} />
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
         {/* Global Capabilities */}
-        <div>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Available Capabilities</h2>
+        <section>
+          <div style={{
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-tertiary)',
+            marginBottom: '20px',
+          }}>
+            Available Capabilities ({capabilities.length})
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <AddCapabilityForm />
+          </div>
+
           {capabilities.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-tertiary)', border: '1px dashed var(--color-border-subtle)', borderRadius: '8px' }}>
-              No capabilities defined.
-            </div>
+            <Invitation label="No capabilities defined" actionLabel="Define studio capabilities above" />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {capabilities.map(cap => (
                 <div key={cap.id} style={{ 
-                  padding: '12px', 
-                  background: 'var(--color-surface-base)', 
+                  padding: '16px', 
+                  background: 'var(--color-surface-elevated)', 
                   border: '1px solid var(--color-border-subtle)', 
-                  borderRadius: '6px' 
+                  borderRadius: 'var(--radius-md)' 
                 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{cap.name}</div>
-                  {cap.description && <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{cap.description}</div>}
+                  <div style={{ 
+                    fontWeight: 600, 
+                    fontSize: '0.95rem',
+                    color: 'var(--color-text-primary)',
+                    marginBottom: cap.description ? '6px' : '0'
+                  }}>
+                    {cap.name}
+                  </div>
+                  {cap.description && (
+                    <div style={{ 
+                      fontSize: '0.85rem', 
+                      color: 'var(--color-text-secondary)',
+                      lineHeight: 1.5
+                    }}>
+                      {cap.description}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

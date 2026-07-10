@@ -112,6 +112,8 @@ export default async function InternalLayout({ children }: { children: React.Rea
           <NavItem href="/instances" icon={<Layers size={18} />} label="Pipeline" />
           <NavItem href="/schedule" icon={<CalendarDays size={18} />} label="Schedule" />
           <NavItem href="/finance" icon={<DollarSign size={18} />} label="Ledger" />
+          <NavItem href="/customers" icon={<User size={18} />} label="Customers" />
+          <NavItem href="/staff" icon={<User size={18} />} label="Staff" />
           
           <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '24px 0 8px 8px' }}>
             Configuration

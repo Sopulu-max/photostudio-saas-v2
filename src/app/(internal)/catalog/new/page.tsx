@@ -3,15 +3,25 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { defineServiceAction } from '@/app/actions/kernel';
-import BuilderCanvas from '@/components/builder/BuilderCanvas';
+import BuilderLayout from '@/components/builder/BuilderLayout';
 
 export default function ComposeServicePage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleCommit = async (data: any) => {
+  const handleCommit = async (instances: any[]) => {
     setIsSubmitting(true);
     
+    // Quick hack for demo purposes to extract data from instances
+    const heroBlock = instances.find(i => i.type === 'Hero');
+    const pricingBlock = instances.find(i => i.type === 'Pricing');
+    
+    const data = {
+      name: heroBlock?.data?.title || 'New Service',
+      description: heroBlock?.data?.subtitle || '',
+      basePrice: pricingBlock?.data?.basePrice || 0
+    };
+
     const pricingRules = data.basePrice ? { basePrice: Number(data.basePrice) } : undefined;
     
     // Creation as Composition: the builder's state translates directly into kernel operations
@@ -30,18 +40,12 @@ export default function ComposeServicePage() {
   };
 
   return (
-    <div style={{ padding: '40px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ marginBottom: '60px', maxWidth: '800px', margin: '0 auto 60px auto', width: '100%' }}>
-        <button onClick={() => router.back()} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: 0, fontSize: '0.9rem' }}>
-          ← Back to Catalog
-        </button>
-      </header>
-
-      <BuilderCanvas 
-        context="service:new" 
-        onCommit={handleCommit} 
-        isSubmitting={isSubmitting} 
-      />
-    </div>
+    <BuilderLayout 
+      context="service:new" 
+      title="Create New Service"
+      backHref="/catalog"
+      onCommit={handleCommit} 
+      isSubmitting={isSubmitting} 
+    />
   );
 }

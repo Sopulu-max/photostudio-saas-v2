@@ -1,78 +1,50 @@
-'use client';
-
 import React from 'react';
+import { DollarSign } from 'lucide-react';
+import { BlockDefinition } from '../types';
 
-interface PricingBlockProps {
-  basePrice: string | number;
-  onChange: (price: string) => void;
-}
-
-export default function PricingBlock({ basePrice, onChange }: PricingBlockProps) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <div style={{
-        position: 'absolute',
-        top: '-10px',
-        left: '-16px',
-        background: 'var(--color-surface-elevated)',
-        padding: '2px 8px',
-        borderRadius: '4px',
-        fontSize: '0.7rem',
-        color: 'var(--color-primary)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        border: '1px solid var(--color-border-subtle)',
-        opacity: 0.8
-      }}>
-        Pricing Renderer (Binds to Service.Pricing)
+export const PricingBlockDefinition: BlockDefinition = {
+  type: 'Pricing',
+  label: 'Pricing Details',
+  icon: <DollarSign size={18} />,
+  allowedContexts: ['service:new', 'service:edit'],
+  defaultData: {
+    basePrice: '',
+    currency: 'USD',
+  },
+  fields: [
+    {
+      name: 'basePrice',
+      label: 'Base Price',
+      type: 'number',
+      defaultValue: '',
+    },
+    {
+      name: 'currency',
+      label: 'Currency',
+      type: 'select',
+      options: [
+        { label: 'USD ($)', value: 'USD' },
+        { label: 'EUR (€)', value: 'EUR' },
+        { label: 'GBP (£)', value: 'GBP' },
+        { label: 'NGN (₦)', value: 'NGN' },
+      ],
+      defaultValue: 'USD',
+    },
+  ],
+  renderCanvas: ({ data }) => (
+    <div style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '12px 20px',
+      background: 'var(--color-surface-elevated)',
+      borderRadius: 'var(--radius-md)',
+      border: '1px solid var(--color-border-subtle)',
+    }}>
+      <DollarSign size={20} color="var(--color-text-secondary)" />
+      <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+        {data.basePrice ? `${data.currency} ${data.basePrice}` : 'Free / Custom Pricing'}
       </div>
-
-      <div style={{ 
-        background: 'var(--color-surface-elevated)', 
-        padding: '32px', 
-        borderRadius: '12px', 
-        border: '1px solid var(--color-border-subtle)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '8px'
-      }}>
-        <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          Starting Investment
-        </label>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '2rem', color: 'var(--color-text-secondary)' }}>₦</span>
-          <input
-            type="number"
-            placeholder="0.00"
-            value={basePrice}
-            onChange={e => onChange(e.target.value)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: '2px solid transparent',
-              fontSize: '3rem',
-              fontFamily: 'var(--font-family-mono, monospace)',
-              color: 'var(--color-text)',
-              outline: 'none',
-              width: '200px',
-              textAlign: 'center',
-              transition: 'border-color 0.2s'
-            }}
-            className="builder-input-price"
-          />
-        </div>
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        .builder-input-price:hover {
-          border-bottom-color: var(--color-border-subtle) !important;
-        }
-        .builder-input-price:focus {
-          border-bottom-color: var(--color-primary) !important;
-        }
-      `}} />
     </div>
-  );
-}
+  ),
+};

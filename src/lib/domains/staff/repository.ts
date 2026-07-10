@@ -5,7 +5,7 @@ export class StaffRepository {
 
   async getStaffMembers(orgId: string) {
     const { data, error } = await this.supabase
-      .from('staff')
+      .from('staff' as any)
       .select('*, staff_capabilities(capabilities(*))')
       .eq('organization_id', orgId);
 
@@ -15,7 +15,7 @@ export class StaffRepository {
 
   async getCapabilities(orgId: string) {
     const { data, error } = await this.supabase
-      .from('capabilities')
+      .from('capabilities' as any)
       .select('*')
       .eq('organization_id', orgId);
 
@@ -25,7 +25,7 @@ export class StaffRepository {
 
   async assignCapability(staffId: string, capabilityId: string) {
     const { data, error } = await this.supabase
-      .from('staff_capabilities')
+      .from('staff_capabilities' as any)
       .insert({ staff_id: staffId, capability_id: capabilityId })
       .select()
       .single();
@@ -36,7 +36,7 @@ export class StaffRepository {
 
   async removeCapability(staffId: string, capabilityId: string) {
     const { error } = await this.supabase
-      .from('staff_capabilities')
+      .from('staff_capabilities' as any)
       .delete()
       .eq('staff_id', staffId)
       .eq('capability_id', capabilityId);

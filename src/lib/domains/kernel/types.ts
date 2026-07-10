@@ -72,6 +72,7 @@ export interface RequestDTO {
   customerId: string;
   requestedServices: Array<{ serviceId: string, [key: string]: unknown }>;
   status: RequestState;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
 }

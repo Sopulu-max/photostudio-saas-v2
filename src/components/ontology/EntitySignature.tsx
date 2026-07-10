@@ -25,7 +25,7 @@ import {
 
 // We map Kernel concepts to standard props so the Signature renderer knows what to do
 type EntityType = 'organization' | 'identity' | 'customer' | 'request' | 'agreement' | 'service' | 'service_instance' | 'outcome' | 'asset';
-type Scale = 'card' | 'row' | 'chip';
+type Scale = 'card' | 'row' | 'chip' | 'hero';
 
 interface EntitySignatureProps {
   type: EntityType;

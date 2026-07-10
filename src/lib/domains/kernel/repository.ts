@@ -229,6 +229,18 @@ export class KernelRepository {
     return this.mapCustomer(data);
   }
 
+  async getCustomersByOrganization(orgId: string): Promise<CustomerDTO[]> {
+    const { data, error } = await this.supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+    return data.map(row => this.mapCustomer(row));
+  }
+
   async getRequest(id: string): Promise<RequestDTO | null> {
     const { data, error } = await this.supabase
       .from('requests')
