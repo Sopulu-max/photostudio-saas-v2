@@ -3,7 +3,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error('Missing Supabase environment variables for proxy');
+    if (!request.nextUrl.pathname.startsWith('/login')) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('error', 'FATAL: Missing NEXT_PUBLIC_SUPABASE_URL in Vercel');
+      return NextResponse.redirect(url);
+    }
+    // Allow the login page to render so the user can see the error, but don't init supabase!
+    return NextResponse.next();
   }
 
   let supabaseResponse = NextResponse.next({
@@ -35,8 +42,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect all /overview and other dashboard routes
-  // Redirect to /login if no user
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&

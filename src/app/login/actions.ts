@@ -8,18 +8,23 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) {
-    console.error('Login Error:', error);
-    return redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    if (error) {
+      console.error('Login Error:', error);
+      return redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath('/', 'layout');
+    redirect('/overview');
+  } catch (err: any) {
+    console.error('Action Crash:', err);
+    return redirect(`/login?error=${encodeURIComponent(err.message || 'Unknown Server Action Crash')}`);
   }
-
-  revalidatePath('/', 'layout');
-  redirect('/overview');
 }
