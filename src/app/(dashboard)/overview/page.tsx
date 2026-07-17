@@ -126,8 +126,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { e
         </p>
       </header>
       
-      {isOnboarding ? (
-        <div className="q-card" style={{ maxWidth: '600px' }}>
+      {isOnboarding && (
+        <div className="q-card" style={{ maxWidth: '600px', marginBottom: '48px' }}>
           <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '24px' }}>Setup Checklist</h2>
           
           <div style={{ display: 'grid', gap: '16px' }}>
@@ -174,22 +174,22 @@ export default async function OverviewPage({ searchParams }: { searchParams: { e
             </div>
           </div>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
-          <div className="q-card">
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>New Intents</h3>
-            <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.newIntents}</div>
-          </div>
-          <div className="q-card">
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>Active Agreements</h3>
-            <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.activeAgreements}</div>
-          </div>
-          <div className="q-card">
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>Workflows In Progress</h3>
-            <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.activeWorkflows}</div>
-          </div>
-        </div>
       )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+        <div className="q-card">
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>New Intents</h3>
+          <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.newIntents}</div>
+        </div>
+        <div className="q-card">
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>Active Agreements</h3>
+          <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.activeAgreements}</div>
+        </div>
+        <div className="q-card">
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>Workflows In Progress</h3>
+          <div style={{ fontSize: '2rem', fontWeight: 600 }}>{data.stats.activeWorkflows}</div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -43,7 +43,7 @@ export default function TopBar() {
               <rect x="14" y="14" width="7" height="7" rx="1"></rect>
               <rect x="3" y="14" width="7" height="7" rx="1"></rect>
             </svg>
-            <span style={{ fontWeight: 500 }}>App Grid</span>
+            <span style={{ fontWeight: 500 }}>Dashboard</span>
           </Link>
         </div>
 
