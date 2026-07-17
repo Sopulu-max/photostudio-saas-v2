@@ -11,8 +11,8 @@ export default async function AnalyticsPage() {
     supabaseAdmin.from('financial_transactions').select('amount').eq('organization_id', org?.id || '').eq('status', 'completed')
   ]);
 
-  const totalRevenue = txRes.data?.reduce((sum, tx) => sum + (tx.amount || 0), 0) || 0;
-  const activeWorkflows = workflowsRes.data?.filter(w => w.status === 'in_progress').length || 0;
+  const totalRevenue = txRes.data?.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0) || 0;
+  const activeWorkflows = workflowsRes.data?.filter((w: any) => w.status === 'in_progress').length || 0;
 
   return (
     <div>
