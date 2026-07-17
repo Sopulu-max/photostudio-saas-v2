@@ -1,103 +1,242 @@
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/cormorant-garamond/600.css";
-@import "@fontsource/cormorant-garamond/700.css";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+/* ==========================================================================
+   QUANTUM ELEVATION DESIGN SYSTEM (KERNEL)
+   ========================================================================== */
 
 :root {
-  /* THE PROJECTION THEME (Tokens) */
-  /* Platform Chrome (Warm-Editorial Light Mode Default: Paper & Ink) */
-  --color-surface-base: #fdfcfb;     /* Warmer, brighter parchment */
-  --color-surface-elevated: #ffffff; /* Pure white */
-  --color-surface-glass: rgba(255, 255, 255, 0.7); /* Frosted glass */
-  --color-surface-glass-border: rgba(255, 255, 255, 0.4);
+  /* The Premium Palette */
+  --q-color-ink-900: #0F172A; /* Deep Slate / Onyx */
+  --q-color-ink-700: #334155;
+  --q-color-ink-500: #64748B;
+  --q-color-ink-300: #CBD5E1;
+  --q-color-ink-100: #F1F5F9;
   
-  --color-border-subtle: #eae5e0;    /* Hairline faint ink */
-  --color-border-focus: #1c1a18;     /* Deep ink focus */
+  --q-color-paper-base: #FFFFFF;
+  --q-color-paper-subtle: #F8F9FA; /* Ultra-soft cool gray */
+  --q-color-paper-elevated: #FFFFFF;
   
-  --color-text-primary: #1a1816;     /* Deep ink (near black) */
-  --color-text-secondary: #736d65;   /* Muted ink */
-  --color-text-tertiary: #a19a91;    /* Very faded ink */
-  
-  /* Premium Aesthetic Extensions */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.05), 0 4px 10px -4px rgba(0, 0, 0, 0.03);
-  --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.05);
-  --shadow-glow: 0 0 20px rgba(212, 175, 55, 0.15); /* Brand glow */
-  
-  --glass-blur: blur(16px);
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  
-  /* Identity Tokens (Studio configurable - defaulted to a warm gold here) */
-  --color-brand-primary: #d4af37;
-  --color-brand-on-primary: #ffffff;
-  --color-brand-gradient: linear-gradient(135deg, #d4af37 0%, #b8962b 100%);
-  
-  /* THE UNIVERSAL STATE GRAMMAR */
-  /* These are fixed by the platform and map to Kernel lifecycle states. */
-  --color-state-waiting: #e85d04;    /* Loudest signal in the room - safety orange */
-  --color-state-waiting-bg: rgba(232, 93, 4, 0.08);
-  --color-state-active: #3a86ff;     /* Active work - bright blue */
-  --color-state-active-bg: rgba(58, 134, 255, 0.08);
-  --color-state-halted: #d90429;     /* Blocked - red */
-  --color-state-halted-bg: rgba(217, 4, 41, 0.08);
-  --color-state-neutral: #736d65;    /* Muted ink for proposed/created/scheduled */
-  --color-state-neutral-bg: rgba(115, 109, 101, 0.08);
-  --color-state-success: #38b000;    /* Success - green */
-  --color-state-success-bg: rgba(56, 176, 0, 0.08);
+  --q-color-accent: #4338CA; /* Cobalt / Indigo */
+  --q-color-accent-hover: #3730A3;
+  --q-color-accent-text: #FFFFFF;
 
-  /* THE MOTION PROFILES */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-snappy: 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  --transition-cinematic: 800ms cubic-bezier(0.25, 1, 0.5, 1);
+  --q-color-success: #10B981;
+  --q-color-warning: #F59E0B;
+  --q-color-danger: #EF4444;
 
-  /* TYPOGRAPHY */
-  --font-family-sans: "Inter", system-ui, sans-serif;
-  --font-family-serif: "Cormorant Garamond", Georgia, serif;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --transition-fast: 0ms;
-    --transition-snappy: 0ms;
-    --transition-cinematic: 0ms;
-  }
+  /* Typography */
+  --q-font-sans: 'Inter', system-ui, sans-serif;
   
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
+  /* Physical Light & Shadows */
+  --q-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --q-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --q-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+  --q-shadow-glass: 0 20px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+  
+  /* Jewel Gradients */
+  --q-jewel-indigo: linear-gradient(135deg, #4F46E5 0%, #3730A3 100%);
+  --q-jewel-emerald: linear-gradient(135deg, #10B981 0%, #047857 100%);
+  --q-jewel-rose: linear-gradient(135deg, #F43F5E 0%, #BE123C 100%);
+  --q-jewel-slate: linear-gradient(135deg, #64748B 0%, #334155 100%);
 
-html, body {
-  height: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
+  /* Animations */
+  --q-transition-snappy: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 body {
-  background-color: var(--color-surface-base);
-  color: var(--color-text-primary);
-  font-family: var(--font-family-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  font-family: var(--q-font-sans);
+  background-color: var(--q-color-paper-subtle);
+  color: var(--q-color-ink-900);
+  -webkit-font-smoothing: antialiased;
 }
 
-* {
-  box-sizing: border-box;
+/* Utilities */
+.q-text-body { color: var(--q-color-ink-900); }
+
+.q-page-header {
+  margin-bottom: 48px;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+.q-page-title {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--q-color-ink-900);
 }
+
+.q-page-subtitle {
+  margin: 8px 0 0 0;
+  color: var(--q-color-ink-500);
+  font-size: 1.125rem;
+}
+
+/* Glassmorphic Shells */
+.q-glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+/* Quantum Cards */
+.q-card {
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--q-shadow-md);
+  transition: var(--q-transition-snappy);
+}
+
+.q-card-interactive {
+  cursor: pointer;
+}
+
+.q-card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--q-shadow-glass);
+}
+
+/* Buttons */
+.q-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  transition: var(--q-transition-snappy);
+  box-shadow: var(--q-shadow-sm);
+}
+
+.q-btn-primary {
+  background: var(--q-jewel-indigo);
+  color: var(--q-color-accent-text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.q-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--q-shadow-md);
+  filter: brightness(1.1);
+}
+
+.q-btn-secondary {
+  background-color: var(--q-color-paper-base);
+  color: var(--q-color-ink-900);
+  border: 1px solid var(--q-color-ink-300);
+}
+
+.q-btn-secondary:hover {
+  background-color: var(--q-color-ink-100);
+  transform: translateY(-2px);
+}
+
+/* Visual States */
+.q-state-waiting {
+  background-color: #FEF3C7;
+  color: #92400E;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  border: 1px solid #FCD34D;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2); /* Loudest state in the room */
+}
+
+.q-state-inprogress {
+  background-color: #DBEAFE;
+  color: #1E40AF;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  border: 1px solid #BFDBFE;
+}
+
+.q-state-halted {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  border: 1px solid #FECACA;
+}
+
+.q-state-completed {
+  background-color: #D1FAE5;
+  color: #065F46;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-block;
+  border: 1px solid #A7F3D0;
+}
+
+/* Data Tables */
+.q-table-container {
+  padding: 0;
+  overflow: hidden;
+}
+
+.q-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.q-table-th {
+  padding: 16px;
+  font-weight: 500;
+  color: var(--q-color-ink-500);
+  background: var(--q-color-paper-subtle);
+  border-bottom: 1px solid var(--q-color-ink-100);
+}
+
+.q-table-tr {
+  border-bottom: 1px solid var(--q-color-ink-100);
+}
+
+.q-table-td {
+  padding: 16px;
+}
+
+/* Badges */
+.q-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  display: inline-block;
+}
+
+.q-badge-success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.q-badge-neutral {
+  background: #F3F4F6;
+  color: #374151;
+}
+
+.q-badge-warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+/* Grid Layouts */
+.q-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+}
+

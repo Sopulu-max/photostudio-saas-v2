@@ -1,18 +1,18 @@
 import Link from 'next/link';
-import { login } from './actions';
+import { signup } from './actions';
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
       <div className="q-card" style={{ width: '100%', maxWidth: '400px' }}>
         <h1 className="q-page-title" style={{ fontSize: '1.5rem', marginBottom: '8px', textAlign: 'center' }}>
-          Welcome back
+          Create an account
         </h1>
         <p className="q-page-subtitle" style={{ fontSize: '0.875rem', marginBottom: '32px', textAlign: 'center' }}>
-          Log in to your Weave account
+          Start running your studio with Weave
         </p>
 
-        <form action={login} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form action={signup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label htmlFor="email" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Email Address</label>
             <input
@@ -49,14 +49,14 @@ export default function LoginPage() {
           </div>
 
           <button type="submit" className="q-btn q-btn-primary" style={{ marginTop: '16px', padding: '12px', fontSize: '1rem' }}>
-            Log In
+            Sign Up
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
-          Don't have an account?{' '}
-          <Link href="/signup" style={{ color: 'var(--q-color-accent)', fontWeight: 500, textDecoration: 'none' }}>
-            Sign up
+          Already have an account?{' '}
+          <Link href="/login" style={{ color: 'var(--q-color-accent)', fontWeight: 500, textDecoration: 'none' }}>
+            Log in
           </Link>
         </div>
       </div>

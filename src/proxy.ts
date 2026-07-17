@@ -1,71 +1,63 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
-import { Database } from '@/lib/database.types'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  let supabaseResponse = NextResponse.next({
+    request,
+  });
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error("Missing Supabase Environment Variables in Edge Runtime")
-    return supabaseResponse
-  }
-
-  try {
-    const supabase = createServerClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-            supabaseResponse = NextResponse.next({ request })
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            )
-          },
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
         },
-      }
-    )
-
-    // Refresh the session — this must happen before any redirect logic
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const { pathname } = request.nextUrl
-
-    // Protect all (internal) routes — redirect to login if unauthenticated
-    const isInternalRoute = !pathname.startsWith('/login') && !pathname.startsWith('/auth')
-
-    if (!user && isInternalRoute) {
-      const loginUrl = request.nextUrl.clone()
-      loginUrl.pathname = '/login'
-      return NextResponse.redirect(loginUrl)
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
     }
+  );
 
-    // If authenticated and heading to login, bounce to home
-    if (user && pathname === '/login') {
-      const homeUrl = request.nextUrl.clone()
-      homeUrl.pathname = '/'
-      return NextResponse.redirect(homeUrl)
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    return supabaseResponse
-  } catch (error) {
-    console.error("Proxy execution error:", error)
-    // Return the normal response so the page doesn't 500,
-    // though the user might be unauthenticated if this fails.
-    return supabaseResponse
+  // Protect all /overview and other dashboard routes
+  // Redirect to /login if no user
+  if (
+    !user &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/signup') &&
+    !request.nextUrl.pathname.startsWith('/auth') &&
+    request.nextUrl.pathname !== '/' && // let landing page be public
+    !request.nextUrl.pathname.startsWith('/storefront') // storefronts are public
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
+
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static files and Next internals.
-     * This ensures the session is refreshed on every request.
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+};

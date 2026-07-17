@@ -1,9 +1,12 @@
-import { createBrowserClient } from '@supabase/ssr'
-import { Database } from '../database.types'
+import { createBrowserClient } from '@supabase/ssr';
 
-export function createClient() {
-  return createBrowserClient<Database>(
+/**
+ * Client-side Supabase client with anon key.
+ * Respects RLS policies — safe for browser use.
+ */
+export const createClient = () => {
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
+  );
+};
