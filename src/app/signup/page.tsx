@@ -1,16 +1,22 @@
 import Link from 'next/link';
 import { signup } from './actions';
 
-export default function SignupPage() {
+export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
       <div className="q-card" style={{ width: '100%', maxWidth: '400px' }}>
         <h1 className="q-page-title" style={{ fontSize: '1.5rem', marginBottom: '8px', textAlign: 'center' }}>
           Create an account
         </h1>
-        <p className="q-page-subtitle" style={{ fontSize: '0.875rem', marginBottom: '32px', textAlign: 'center' }}>
+        <p className="q-page-subtitle" style={{ fontSize: '0.875rem', marginBottom: '24px', textAlign: 'center' }}>
           Start running your studio with Weave
         </p>
+
+        {searchParams.error && (
+          <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
+            {searchParams.error}
+          </div>
+        )}
 
         <form action={signup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
