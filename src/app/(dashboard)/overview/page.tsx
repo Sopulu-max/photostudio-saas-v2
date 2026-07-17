@@ -44,14 +44,44 @@ export default async function OverviewPage() {
   const data = await getOverviewData();
 
   if (!data) {
+    async function handleCreateOrg(formData: FormData) {
+      'use server';
+      const { createOrganization } = await import('@/lib/actions/organizations');
+      const { revalidatePath } = await import('next/cache');
+      
+      const name = formData.get('orgName') as string || 'My Studio';
+      await createOrganization(name, name.toLowerCase().replace(/\s+/g, '-'));
+      revalidatePath('/', 'layout');
+    }
+
     return (
       <div>
         <header className="q-page-header">
           <h1 className="q-page-title">Welcome to Weave</h1>
           <p className="q-page-subtitle">Let's set up your first organization.</p>
         </header>
-        <div className="q-card">
-          <button className="q-btn q-btn-primary">Create Organization</button>
+        <div className="q-card" style={{ maxWidth: '400px' }}>
+          <form action={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label htmlFor="orgName" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Studio Name</label>
+              <input
+                id="orgName"
+                name="orgName"
+                required
+                defaultValue="My Studio"
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--q-color-ink-300)',
+                  fontSize: '1rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+            <button type="submit" className="q-btn q-btn-primary" style={{ padding: '12px' }}>
+              Create Organization
+            </button>
+          </form>
         </div>
       </div>
     );

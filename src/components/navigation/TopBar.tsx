@@ -21,7 +21,7 @@ export default function TopBar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <div style={{ fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>Weave</div>
           <Link 
-            href="/"
+            href="/overview"
             style={{ 
               background: 'transparent', 
               border: 'none', 
