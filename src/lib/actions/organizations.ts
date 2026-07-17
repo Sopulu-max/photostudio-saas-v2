@@ -14,7 +14,7 @@ export async function createOrganization(name: string, slug?: string) {
 
   if (orgError) {
     console.error('Failed to create organization:', orgError);
-    throw new Error('Failed to create organization');
+    throw new Error(orgError.message || 'Failed to create organization');
   }
 
   // 2. Log Event
