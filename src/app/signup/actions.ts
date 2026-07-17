@@ -16,7 +16,8 @@ export async function signup(formData: FormData) {
   });
 
   if (error) {
-    return redirect('/signup?error=Could not create user');
+    console.error('Signup Error:', error);
+    return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
 
   // Next steps: they will be redirected to the overview page.
