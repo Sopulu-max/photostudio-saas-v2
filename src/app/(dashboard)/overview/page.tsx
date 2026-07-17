@@ -40,7 +40,7 @@ async function getOverviewData() {
   };
 }
 
-export default async function OverviewPage() {
+export default async function OverviewPage({ searchParams }: { searchParams: { error?: string } }) {
   const data = await getOverviewData();
 
   if (!data) {
@@ -48,13 +48,18 @@ export default async function OverviewPage() {
       'use server';
       const { createOrganization } = await import('@/lib/actions/organizations');
       const { revalidatePath } = await import('next/cache');
+      const { redirect } = await import('next/navigation');
       
       const name = formData.get('orgName') as string || 'My Studio';
       const uniqueSuffix = Math.random().toString(36).substring(2, 8);
       const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${uniqueSuffix}`;
       
-      await createOrganization(name, slug);
-      revalidatePath('/', 'layout');
+      try {
+        await createOrganization(name, slug);
+        revalidatePath('/', 'layout');
+      } catch (e: any) {
+        redirect(`/overview?error=${encodeURIComponent(e.message || 'Unknown error')}`);
+      }
     }
 
     return (
@@ -64,6 +69,11 @@ export default async function OverviewPage() {
           <p className="q-page-subtitle">Let's set up your first studio.</p>
         </header>
         <div className="q-card" style={{ maxWidth: '400px' }}>
+          {searchParams.error && (
+            <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
+              {searchParams.error}
+            </div>
+          )}
           <form action={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label htmlFor="orgName" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Studio Name</label>
