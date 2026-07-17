@@ -114,7 +114,7 @@ export default async function PublicStorefrontPage({ params }: { params: { orgSl
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' }}>Service of Interest</label>
                     <select name="serviceId" style={{ width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' }}>
                       <option value="">Select a service...</option>
-                      {serviceTemplates.map(st => (
+                      {serviceTemplates.map((st: any) => (
                         <option key={st.id} value={st.id}>{st.name} (from ${st.pricing?.base_price || 0})</option>
                       ))}
                     </select>
