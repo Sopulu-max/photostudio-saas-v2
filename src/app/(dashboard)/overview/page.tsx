@@ -50,7 +50,10 @@ export default async function OverviewPage() {
       const { revalidatePath } = await import('next/cache');
       
       const name = formData.get('orgName') as string || 'My Studio';
-      await createOrganization(name, name.toLowerCase().replace(/\s+/g, '-'));
+      const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+      const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${uniqueSuffix}`;
+      
+      await createOrganization(name, slug);
       revalidatePath('/', 'layout');
     }
 
@@ -58,7 +61,7 @@ export default async function OverviewPage() {
       <div>
         <header className="q-page-header">
           <h1 className="q-page-title">Welcome to Weave</h1>
-          <p className="q-page-subtitle">Let's set up your first organization.</p>
+          <p className="q-page-subtitle">Let's set up your first studio.</p>
         </header>
         <div className="q-card" style={{ maxWidth: '400px' }}>
           <form action={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -79,7 +82,7 @@ export default async function OverviewPage() {
               />
             </div>
             <button type="submit" className="q-btn q-btn-primary" style={{ padding: '12px' }}>
-              Create Organization
+              Create Studio
             </button>
           </form>
         </div>
