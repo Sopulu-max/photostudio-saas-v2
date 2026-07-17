@@ -21,7 +21,7 @@ export default function TopBar({ studioName }: { studioName?: string }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <div style={{ fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>{studioName || 'Studio OS'}</div>
           <Link 
-            href="/overview"
+            href="/dashboard"
             style={{ 
               background: 'transparent', 
               border: 'none', 

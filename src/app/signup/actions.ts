@@ -22,7 +22,7 @@ export async function signup(formData: FormData) {
     redirectUrl = `/signup?error=${encodeURIComponent(error.message)}`;
   } else {
     revalidatePath('/', 'layout');
-    redirectUrl = '/';
+    redirectUrl = '/dashboard';
   }
 
   try {

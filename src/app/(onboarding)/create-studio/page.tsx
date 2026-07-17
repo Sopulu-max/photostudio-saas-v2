@@ -13,7 +13,7 @@ export default async function CreateStudioPage({ searchParams }: { searchParams:
 
   // If they already have an organization, redirect them to the app grid
   if (user.user_metadata?.organization_id) {
-    redirect('/');
+    redirect('/dashboard');
   }
 
   async function handleCreateOrg(formData: FormData) {
@@ -25,7 +25,7 @@ export default async function CreateStudioPage({ searchParams }: { searchParams:
     try {
       await createOrganization(name, slug);
       revalidatePath('/', 'layout');
-      redirect('/'); // Back to the App Grid
+      redirect('/dashboard'); // Back to the App Grid
     } catch (e: any) {
       if (e.message === 'NEXT_REDIRECT') {
         throw e;

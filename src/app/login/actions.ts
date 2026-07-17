@@ -23,7 +23,7 @@ export async function login(formData: FormData) {
       redirectUrl = `/login?error=${encodeURIComponent(error.message)}`;
     } else {
       revalidatePath('/', 'layout');
-      redirectUrl = '/';
+      redirectUrl = '/dashboard';
     }
   } catch (err: any) {
     console.error('Action Crash:', err);
