@@ -8,6 +8,8 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
+  let redirectUrl: string | null = null;
+
   try {
     const supabase = await createClient();
 
@@ -18,13 +20,17 @@ export async function login(formData: FormData) {
 
     if (error) {
       console.error('Login Error:', error);
-      return redirect(`/login?error=${encodeURIComponent(error.message)}`);
+      redirectUrl = `/login?error=${encodeURIComponent(error.message)}`;
+    } else {
+      revalidatePath('/', 'layout');
+      redirectUrl = '/overview';
     }
-
-    revalidatePath('/', 'layout');
-    redirect('/overview');
   } catch (err: any) {
     console.error('Action Crash:', err);
-    return redirect(`/login?error=${encodeURIComponent(err.message || 'Unknown Server Action Crash')}`);
+    redirectUrl = `/login?error=${encodeURIComponent(err.message || 'Unknown Server Action Crash')}`;
+  }
+
+  if (redirectUrl) {
+    redirect(redirectUrl);
   }
 }
