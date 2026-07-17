@@ -4,44 +4,58 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 // In a real app, we'd get the organization ID from the authenticated user's session.
 // For now, we'll fetch the first organization (or show empty state if none exist).
 async function getOverviewData() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id, name').limit(1);
-  const org = orgs?.[0];
+  try {
+    const { data: orgs } = await supabaseAdmin.from('organizations').select('id, name').limit(1);
+    const org = orgs?.[0];
 
-  if (!org) return null;
+    if (!org) return null;
 
-  const [
-    { count: intentsCount },
-    { count: agreementsCount },
-    { count: workflowsCount },
-    { count: workflowTemplatesCount },
-    { count: serviceTemplatesCount },
-    { count: storefrontLayoutsCount }
-  ] = await Promise.all([
-    supabaseAdmin.from('intents').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'created'),
-    supabaseAdmin.from('agreements').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'active'),
-    supabaseAdmin.from('workflows').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'in_progress'),
-    supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-    supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-    supabaseAdmin.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('context', 'storefront').eq('status', 'published'),
-  ]);
+    const [
+      { count: intentsCount },
+      { count: agreementsCount },
+      { count: workflowsCount },
+      { count: workflowTemplatesCount },
+      { count: serviceTemplatesCount },
+      { count: storefrontLayoutsCount }
+    ] = await Promise.all([
+      supabaseAdmin.from('intents').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'created'),
+      supabaseAdmin.from('agreements').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'active'),
+      supabaseAdmin.from('workflows').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'in_progress'),
+      supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
+      supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
+      supabaseAdmin.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('context', 'storefront').eq('status', 'published'),
+    ]);
 
-  return {
-    org,
-    stats: {
-      newIntents: intentsCount || 0,
-      activeAgreements: agreementsCount || 0,
-      activeWorkflows: workflowsCount || 0,
-    },
-    onboarding: {
-      hasWorkflow: (workflowTemplatesCount || 0) > 0,
-      hasService: (serviceTemplatesCount || 0) > 0,
-      hasStorefront: (storefrontLayoutsCount || 0) > 0,
-    }
-  };
+    return {
+      org,
+      stats: {
+        newIntents: intentsCount || 0,
+        activeAgreements: agreementsCount || 0,
+        activeWorkflows: workflowsCount || 0,
+      },
+      onboarding: {
+        hasWorkflow: (workflowTemplatesCount || 0) > 0,
+        hasService: (serviceTemplatesCount || 0) > 0,
+        hasStorefront: (storefrontLayoutsCount || 0) > 0,
+      }
+    };
+  } catch (err: any) {
+    return { fatalError: err.message || 'Unknown error getting overview data' };
+  }
 }
 
 export default async function OverviewPage({ searchParams }: { searchParams: { error?: string } }) {
   const data = await getOverviewData();
+
+  if (data && 'fatalError' in data) {
+    return (
+      <div style={{ padding: '48px', color: 'red' }}>
+        <h1>FATAL ERROR</h1>
+        <p>{data.fatalError}</p>
+        <p>Please fix your Vercel Environment Variables.</p>
+      </div>
+    );
+  }
 
   if (!data) {
     async function handleCreateOrg(formData: FormData) {
