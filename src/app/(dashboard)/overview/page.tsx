@@ -1,15 +1,22 @@
 import Link from 'next/link';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
-// In a real app, we'd get the organization ID from the authenticated user's session.
-// For now, we'll fetch the first organization (or show empty state if none exist).
 async function getOverviewData() {
   try {
-    const { data: orgs } = await supabaseAdmin.from('organizations').select('id, name').limit(1);
-    const org = orgs?.[0];
+    const supabase = await createClient();
+    
+    // 1. Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-    if (!org) return null;
+    const orgId = user.user_metadata?.organization_id;
+    if (!orgId) return null;
 
+    // 2. Fetch the Organization via RLS
+    const { data: org, error: orgError } = await supabase.from('organizations').select('id, name').single();
+    if (orgError || !org) return null;
+
+    // 3. Fetch Metrics via RLS
     const [
       { count: intentsCount },
       { count: agreementsCount },
@@ -18,12 +25,12 @@ async function getOverviewData() {
       { count: serviceTemplatesCount },
       { count: storefrontLayoutsCount }
     ] = await Promise.all([
-      supabaseAdmin.from('intents').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'created'),
-      supabaseAdmin.from('agreements').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'active'),
-      supabaseAdmin.from('workflows').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('status', 'in_progress'),
-      supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-      supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', org.id),
-      supabaseAdmin.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('organization_id', org.id).eq('context', 'storefront').eq('status', 'published'),
+      supabase.from('intents').select('*', { count: 'exact', head: true }).eq('status', 'created'),
+      supabase.from('agreements').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('workflows').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
+      supabase.from('workflow_templates').select('*', { count: 'exact', head: true }),
+      supabase.from('service_templates').select('*', { count: 'exact', head: true }),
+      supabase.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('context', 'storefront').eq('status', 'published'),
     ]);
 
     return {
@@ -58,60 +65,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { e
   }
 
   if (!data) {
-    async function handleCreateOrg(formData: FormData) {
-      'use server';
-      const { createOrganization } = await import('@/lib/actions/organizations');
-      const { revalidatePath } = await import('next/cache');
-      const { redirect } = await import('next/navigation');
-      
-      const name = formData.get('orgName') as string || 'My Studio';
-      const uniqueSuffix = Math.random().toString(36).substring(2, 8);
-      const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${uniqueSuffix}`;
-      
-      try {
-        await createOrganization(name, slug);
-        revalidatePath('/', 'layout');
-      } catch (e: any) {
-        redirect(`/overview?error=${encodeURIComponent(e.message || 'Unknown error')}`);
-      }
-    }
-
-    return (
-      <div>
-        <header className="q-page-header">
-          <h1 className="q-page-title">Welcome to Weave</h1>
-          <p className="q-page-subtitle">Let's set up your first studio.</p>
-        </header>
-        <div className="q-card" style={{ maxWidth: '400px' }}>
-          {searchParams.error && (
-            <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
-              {searchParams.error}
-            </div>
-          )}
-          <form action={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label htmlFor="orgName" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Studio Name</label>
-              <input
-                id="orgName"
-                name="orgName"
-                required
-                defaultValue="My Studio"
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--q-color-ink-300)',
-                  fontSize: '1rem',
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
-            <button type="submit" className="q-btn q-btn-primary" style={{ padding: '12px' }}>
-              Create Studio
-            </button>
-          </form>
-        </div>
-      </div>
-    );
+    return null; // The proxy middleware should have caught this and redirected to /create-studio
   }
 
   // Determine if we should show the Onboarding Checklist or the real dashboard

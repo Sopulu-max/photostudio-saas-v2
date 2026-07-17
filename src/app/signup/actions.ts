@@ -15,13 +15,23 @@ export async function signup(formData: FormData) {
     password,
   });
 
+  let redirectUrl: string;
+
   if (error) {
     console.error('Signup Error:', error);
-    return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    redirectUrl = `/signup?error=${encodeURIComponent(error.message)}`;
+  } else {
+    revalidatePath('/', 'layout');
+    redirectUrl = '/';
   }
 
-  // Next steps: they will be redirected to the overview page.
-  // The overview page will handle the "Create Organization" step if they have no org.
-  revalidatePath('/', 'layout');
-  redirect('/overview');
+  try {
+    redirect(redirectUrl);
+  } catch (err: any) {
+    if (err.message === 'NEXT_REDIRECT') {
+      throw err;
+    }
+    console.error('Action Crash:', err);
+    throw err;
+  }
 }

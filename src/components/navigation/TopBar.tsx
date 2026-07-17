@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 
-export default function TopBar() {
+export default function TopBar({ studioName }: { studioName?: string }) {
   return (
     <>
       <header style={{ 
@@ -19,7 +19,7 @@ export default function TopBar() {
         zIndex: 50
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <div style={{ fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>Weave</div>
+          <div style={{ fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>{studioName || 'Studio OS'}</div>
           <Link 
             href="/overview"
             style={{ 

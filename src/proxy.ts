@@ -55,6 +55,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (user) {
+    const hasOrg = user.user_metadata?.organization_id;
+    if (
+      !hasOrg &&
+      !request.nextUrl.pathname.startsWith('/create-studio') &&
+      !request.nextUrl.pathname.startsWith('/auth')
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/create-studio';
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }
 
