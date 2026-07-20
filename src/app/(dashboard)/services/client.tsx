@@ -17,7 +17,7 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
           <button className="q-btn" style={{ background: 'var(--q-color-paper-elevated)', border: '1px solid var(--q-color-ink-100)' }} onClick={() => openEngine('storefront')}>
             Design Storefront
           </button>
-          <button className="q-btn q-btn-primary">Create Service</button>
+          <a href="/services/new" className="q-btn q-btn-primary">Create Service</a>
         </div>
       </header>
 
