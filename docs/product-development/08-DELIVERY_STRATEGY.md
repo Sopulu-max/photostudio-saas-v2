@@ -113,7 +113,7 @@ Vision (Intent)
     → Next Capability (back to Intent)
 ```
 
-This cycle repeats continuously. The Production OS builds itself using the same principles it teaches its users.
+This cycle repeats continuously. The Studio OS builds itself using the same principles it teaches its users.
 
 ---
 

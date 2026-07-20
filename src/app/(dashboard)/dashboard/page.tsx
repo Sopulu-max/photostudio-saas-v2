@@ -18,7 +18,7 @@ export default function LaunchpadPage() {
   return (
     <div style={{ padding: '64px 0' }}>
       <header style={{ textAlign: 'center', marginBottom: '64px' }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 600, margin: '0 0 16px 0', letterSpacing: '-0.02em' }}>Production OS</h1>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 600, margin: '0 0 16px 0', letterSpacing: '-0.02em' }}>Studio OS</h1>
         <p style={{ fontSize: '1.25rem', color: 'var(--q-color-ink-500)', margin: 0 }}>Select an application to begin.</p>
       </header>
 

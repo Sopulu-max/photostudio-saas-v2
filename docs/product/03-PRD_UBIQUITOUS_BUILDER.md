@@ -2,7 +2,7 @@
 
 ## Objective
 
-The single most important frontend interface in the Production OS. A heavy, Framer/Webflow-grade visual design engine that allows the studio to design any outward-facing touchpoint by binding visual components to data from the Production Engine.
+The single most important frontend interface in the Studio OS. A heavy, Framer/Webflow-grade visual design engine that allows the studio to design any outward-facing touchpoint by binding visual components to data from the Production Engine.
 
 It replaces static forms, hardcoded templates, and third-party design tools.
 

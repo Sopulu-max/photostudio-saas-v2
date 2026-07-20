@@ -1,6 +1,6 @@
-# The Production Operating System: A Product Development Synthesis
+# The Studio Operating System: A Product Development Synthesis
 
-This document synthesizes the foundational ideas for the Production OS from a product development perspective. It is written independently and does not yet integrate with existing architecture or product documentation.
+This document synthesizes the foundational ideas for the Studio OS from a product development perspective. It is written independently and does not yet integrate with existing architecture or product documentation.
 
 ---
 
@@ -8,7 +8,7 @@ This document synthesizes the foundational ideas for the Production OS from a pr
 
 We are not building studio management software. We are not building a photography app. We are not even building a "Studio Operating System."
 
-We are building a **Production Operating System**.
+We are building a **Studio Operating System**.
 
 A production system is any organization that repeatedly transforms intent into value through coordinated resources, configurable workflows, and organizational learning. A photography studio is one configuration. A film production house is another. A music label, an architecture firm, a game studio, a publishing house — all are configurations of the same underlying engine.
 
@@ -205,5 +205,4 @@ Studios choose when to migrate. This gives us innovation without fragmentation. 
 
 ### The One-Sentence Product Definition
 
-> **The Production OS is a universal production engine that any creative organization configures to model, execute, and evolve its unique way of transforming intent into value.**
-
+> **The Studio OS is a universal production engine that any creative organization configures to model, execute, and evolve its unique way of transforming intent into value.**

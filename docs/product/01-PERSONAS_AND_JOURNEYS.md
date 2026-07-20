@@ -1,12 +1,12 @@
 # Product Specification: Personas & Journeys
 
-This document defines *who* uses the Production OS and *how* they use it. This is Level 3 — the specific implementation for creative studios.
+This document defines *who* uses the Studio OS and *how* they use it. This is Level 3 — the specific implementation for creative studios.
 
 ## The Paradigm Shift
 
 Traditional studio software hardcodes "sessions" and "shoots" into the system. If the studio wants to add videography or change their workflow, the system breaks.
 
-The Production OS places the universal production lifecycle at the center. Studios configure their own services, workflows, and vocabulary. The OS does not dictate *how* a studio operates — it provides the universal engine and lets each studio configure their own identity.
+The Studio OS places the universal production lifecycle at the center. Studios configure their own services, workflows, and vocabulary. The OS does not dictate *how* a studio operates — it provides the universal engine and lets each studio configure their own identity.
 
 ---
 
