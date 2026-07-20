@@ -139,7 +139,7 @@ export async function createWorkflowTemplate(
     throw new Error('Not authenticated or no organization context');
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('workflow_templates')
     .insert([
       {

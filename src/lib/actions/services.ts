@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import type { ServiceTemplate } from '../types/engine';
 
@@ -37,7 +38,7 @@ export async function createServiceTemplate(
     throw new Error('Not authenticated or no organization context');
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('service_templates')
     .insert([
       {
