@@ -84,7 +84,7 @@ create policy "Tenant Isolation" on visual_layouts for all using (organization_i
 
 export async function GET() {
   try {
-    const connectionString = \`postgresql://postgres:\${process.env.SUPABASE_PASSWORD}@db.\${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}.supabase.co:5432/postgres\`;
+    const connectionString = `postgresql://postgres:${process.env.SUPABASE_PASSWORD}@db.${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}.supabase.co:5432/postgres`;
     
     const client = new Client({
       connectionString,
