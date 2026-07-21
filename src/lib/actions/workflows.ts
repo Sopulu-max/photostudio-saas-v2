@@ -3,8 +3,8 @@
 import { supabaseAdmin } from '../supabase/admin';
 import { logEvent } from './events';
 import type { Workflow, Task, TaskStatus, WorkflowStatus, WorkflowTemplate, WorkflowStageDefinition } from '../types/engine';
-import { createClient } from '../supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getAuthOrgId } from '../supabase/getOrgId';
 
 // Valid state machine transitions for Task
 const TASK_TRANSITIONS: Record<string, TaskStatus[]> = {
@@ -194,16 +194,12 @@ export async function updateWorkflowStatus(
 }
 
 export async function getWorkflowTemplates(): Promise<WorkflowTemplate[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { orgId } = await getAuthOrgId();
 
-  if (!user || !user.user_metadata?.organization_id) {
-    throw new Error('Not authenticated or no organization context');
-  }
-
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('workflow_templates')
     .select('*')
+    .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -218,29 +214,22 @@ export async function createWorkflowTemplate(
   name: string,
   stages: WorkflowStageDefinition[]
 ): Promise<WorkflowTemplate> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user || !user.user_metadata?.organization_id) {
-    throw new Error('Not authenticated or no organization context');
-  }
+  const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
     .from('workflow_templates')
-    .insert([
-      {
-        organization_id: user.user_metadata.organization_id,
-        name,
-        stages,
-        status: 'active',
-      }
-    ])
+    .insert([{
+      organization_id: orgId,
+      name,
+      stages,
+      status: 'active',
+    }])
     .select()
     .single();
 
   if (error) {
-    console.error('Error creating workflow template:', error);
-    throw new Error('Failed to create workflow template');
+    console.error('Error creating workflow template:', error, { orgId, name });
+    throw new Error(`Failed to create workflow template: ${error.message}`);
   }
 
   revalidatePath('/workflows');
