@@ -3,6 +3,26 @@ import { Client } from 'pg';
 
 const sql = `
 -- ============================================================
+-- HELPER FUNCTION: auth_org_id
+-- Required for RLS policies. Safe to re-run.
+-- ============================================================
+create or replace function auth_org_id() returns uuid as $$
+  select (nullif(current_setting('request.jwt.claims', true)::json->'user_metadata'->>'organization_id', ''))::uuid;
+$$ language sql stable;
+
+-- ============================================================
+-- HELPER FUNCTION: update_updated_at
+-- Required for triggers. Safe to re-run.
+-- ============================================================
+create or replace function update_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- ============================================================
 -- LEVEL 3: WORKFLOW TEMPLATES
 -- ============================================================
 create table if not exists workflow_templates (
@@ -54,7 +74,7 @@ create table if not exists visual_layouts (
 create index if not exists idx_vl_org on visual_layouts(organization_id);
 
 -- ============================================================
--- UPDATED_AT TRIGGER
+-- TRIGGERS
 -- ============================================================
 drop trigger if exists trg_wt_updated on workflow_templates;
 create trigger trg_wt_updated before update on workflow_templates for each row execute function update_updated_at();
@@ -84,8 +104,12 @@ create policy "Tenant Isolation" on visual_layouts for all using (organization_i
 
 export async function GET() {
   try {
-    const connectionString = `postgresql://postgres:${process.env.SUPABASE_PASSWORD}@db.${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}.supabase.co:5432/postgres`;
-    
+    const projectId = process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
+    const password = process.env.SUPABASE_PASSWORD;
+
+    // Use the confirmed-working eu-west-1 pooler region
+    const connectionString = `postgresql://postgres.${projectId}:${password}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres`;
+
     const client = new Client({
       connectionString,
       ssl: { rejectUnauthorized: false }
@@ -95,7 +119,7 @@ export async function GET() {
     await client.query(sql);
     await client.end();
 
-    return NextResponse.json({ success: true, message: 'Migration executed successfully.' });
+    return NextResponse.json({ success: true, message: 'Migration executed successfully. Tables created.' });
   } catch (error: any) {
     console.error('Migration error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
