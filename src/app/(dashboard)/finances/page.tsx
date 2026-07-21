@@ -2,12 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 
-export default async function FinancesPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
-  if (!orgId) redirect('/login');
+export default async function FinancesPage() {
+  const { orgId } = await getAuthOrgId();
 
   const { data: transactions } = await supabaseAdmin
     .from('financial_transactions')

@@ -4,13 +4,14 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { Uploader } from '@/components/Uploader';
 import { CopyLinkButton } from '@/app/(dashboard)/intents/[id]/CopyLinkButton';
 
+import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+
 export default async function WorkflowDetailsPage(props: {
   params: Promise<{ id: string }>
 }) {
   const params = await props.params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const authOrg = await getOptionalAuthOrgId();
+  const orgId = authOrg?.orgId;
 
   const { data: workflow } = await supabaseAdmin
     .from('workflows')

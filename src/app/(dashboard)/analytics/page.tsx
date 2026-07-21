@@ -2,12 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 
-export default async function AnalyticsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
-  if (!orgId) redirect('/login');
+export default async function AnalyticsPage() {
+  const { orgId } = await getAuthOrgId();
 
   const [workflowsRes, intentsRes, txRes, eventsRes] = await Promise.all([
     supabaseAdmin.from('workflows').select('id, status, created_at').eq('organization_id', orgId),

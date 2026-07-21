@@ -4,15 +4,16 @@ import { VisualEngineOverlay } from '@/components/visual-engine/VisualEngineOver
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
+import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
   let studioName = 'Studio OS';
   let orgSlug: string | undefined;
-  const orgId = user?.user_metadata?.organization_id;
+  
+  const authOrg = await getOptionalAuthOrgId();
+  const orgId = authOrg?.orgId;
 
   if (orgId) {
     const { data: org } = await supabaseAdmin

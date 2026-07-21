@@ -14,12 +14,12 @@ import { supabaseAdmin } from './admin';
  *
  * Throws if the user is not authenticated or has no organization.
  */
-export async function getAuthOrgId(): Promise<{ userId: string; orgId: string }> {
+export async function getOptionalAuthOrgId(): Promise<{ userId: string; orgId: string } | null> {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
-    throw new Error('Not authenticated');
+    return null;
   }
 
   // Fast path: org id already in JWT metadata
@@ -50,5 +50,13 @@ export async function getAuthOrgId(): Promise<{ userId: string; orgId: string }>
     return { userId: user.id, orgId: personByEmail.organization_id };
   }
 
-  throw new Error('No organization found. Please complete studio setup at /create-studio');
+  return null;
+}
+
+export async function getAuthOrgId(): Promise<{ userId: string; orgId: string }> {
+  const result = await getOptionalAuthOrgId();
+  if (!result) {
+    throw new Error('No organization found. Please complete studio setup at /create-studio');
+  }
+  return result;
 }

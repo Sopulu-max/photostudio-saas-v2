@@ -3,12 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 
-export default async function PeopleDirectoryPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
-  if (!orgId) redirect('/login');
+export default async function PeopleDirectoryPage() {
+  const { orgId } = await getAuthOrgId();
 
   const { data: persons } = await supabaseAdmin
     .from('persons')

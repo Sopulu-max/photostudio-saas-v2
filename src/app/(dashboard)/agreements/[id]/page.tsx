@@ -3,13 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { AgreementForm } from './form';
 
+import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+
 export default async function AgreementEditorPage(props: {
   params: Promise<{ id: string }>
 }) {
   const params = await props.params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const authOrg = await getOptionalAuthOrgId();
+  const orgId = authOrg?.orgId;
 
   const { data: agreement } = await supabaseAdmin
     .from('agreements')

@@ -3,12 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
-export default async function WorkflowsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
-  if (!orgId) redirect('/login');
+export default async function WorkflowsPage() {
+  const { orgId } = await getAuthOrgId();
 
   const [workflowsResult, templatesResult] = await Promise.all([
     supabaseAdmin

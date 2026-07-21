@@ -1,16 +1,15 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+
 async function getOverviewData() {
   try {
     const supabase = await createClient();
     
-    // 1. Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const orgId = user.user_metadata?.organization_id;
-    if (!orgId) return null;
+    const authOrg = await getOptionalAuthOrgId();
+    if (!authOrg) return null;
+    const orgId = authOrg.orgId;
 
     // 2. Fetch the Organization via RLS
     const { data: org, error: orgError } = await supabase.from('organizations').select('id, name').single();

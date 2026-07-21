@@ -5,13 +5,14 @@ import { createAgreement } from '@/lib/actions/agreements';
 import { updateIntentStatus } from '@/lib/actions/intents';
 import { CopyLinkButton } from './CopyLinkButton';
 
+import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+
 export default async function IntentDetailsPage(props: {
   params: Promise<{ id: string }>
 }) {
   const params = await props.params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const orgId = user?.user_metadata?.organization_id;
+  const authOrg = await getOptionalAuthOrgId();
+  const orgId = authOrg?.orgId;
 
   const { data: intent } = await supabaseAdmin
     .from('intents')

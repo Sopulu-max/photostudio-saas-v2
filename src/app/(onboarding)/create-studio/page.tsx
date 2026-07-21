@@ -24,6 +24,12 @@ export default async function CreateStudioPage({ searchParams }: { searchParams:
     
     try {
       await createOrganization(name, slug);
+      
+      // Force refresh the session so the new JWT claims (organization_id) are picked up by the cookie immediately.
+      // This ensures the middleware (proxy.ts) doesn't redirect us right back to /create-studio!
+      const supabase = await createClient();
+      await supabase.auth.refreshSession();
+      
       revalidatePath('/', 'layout');
       redirect('/dashboard'); // Back to the App Grid
     } catch (e: any) {

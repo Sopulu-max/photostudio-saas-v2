@@ -5,17 +5,15 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import type { ServiceTemplate } from '../types/engine';
 
+import { getAuthOrgId } from '../supabase/getOrgId';
+
 export async function getServiceTemplates(): Promise<ServiceTemplate[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { orgId } = await getAuthOrgId();
 
-  if (!user || !user.user_metadata?.organization_id) {
-    throw new Error('Not authenticated or no organization context');
-  }
-
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('service_templates')
     .select('*')
+    .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -32,18 +30,13 @@ export async function createServiceTemplate(
   pricing: any,
   formSchema: any[] = []
 ): Promise<ServiceTemplate> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user || !user.user_metadata?.organization_id) {
-    throw new Error('Not authenticated or no organization context');
-  }
+  const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
     .from('service_templates')
     .insert([
       {
-        organization_id: user.user_metadata.organization_id,
+        organization_id: orgId,
         name,
         default_workflow_template_id: defaultWorkflowTemplateId,
         pricing,
