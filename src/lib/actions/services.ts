@@ -29,7 +29,8 @@ export async function getServiceTemplates(): Promise<ServiceTemplate[]> {
 export async function createServiceTemplate(
   name: string,
   defaultWorkflowTemplateId: string | null,
-  pricing: any
+  pricing: any,
+  formSchema: any[] = []
 ): Promise<ServiceTemplate> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -49,6 +50,7 @@ export async function createServiceTemplate(
         resource_requirements: {},
         role_requirements: {},
         deliverable_spec: {},
+        form_schema: formSchema,
         status: 'active',
       }
     ])

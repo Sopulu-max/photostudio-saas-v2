@@ -1,68 +1,49 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 
 export default function TopBar({ studioName }: { studioName?: string }) {
   return (
-    <>
-      <header style={{ 
-        height: '64px', 
-        borderBottom: '1px solid var(--q-color-ink-100)', 
-        background: 'var(--q-color-paper-elevated)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50
+    <header style={{
+      height: '52px',
+      borderBottom: '1px solid var(--q-color-ink-100)',
+      background: 'var(--q-color-paper)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      padding: '0 24px',
+      gap: '16px',
+      position: 'sticky',
+      top: 0,
+      zIndex: 30,
+    }}>
+      <div style={{
+        padding: '6px 14px',
+        background: 'var(--q-color-paper-subtle)',
+        border: '1px solid var(--q-color-ink-100)',
+        borderRadius: '20px',
+        fontSize: '0.8rem',
+        color: 'var(--q-color-ink-400)',
+        width: '220px',
+        cursor: 'text',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <div style={{ fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.02em' }}>{studioName || 'Studio OS'}</div>
-          <Link 
-            href="/dashboard"
-            style={{ 
-              background: 'transparent', 
-              border: 'none', 
-              color: 'var(--q-color-ink-500)', 
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px',
-              borderRadius: '6px',
-              textDecoration: 'none'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'var(--q-color-ink-100)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-            </svg>
-            <span style={{ fontWeight: 500 }}>Dashboard</span>
-          </Link>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ 
-            padding: '8px 16px', 
-            background: 'var(--q-color-paper-subtle)', 
-            border: '1px solid var(--q-color-ink-100)', 
-            borderRadius: '20px',
-            fontSize: '0.875rem',
-            color: 'var(--q-color-ink-500)',
-            width: '250px'
-          }}>
-            Search (Command Palette) ⌘K
-          </div>
-          <div style={{ width: '32px', height: '32px', background: 'var(--q-color-ink-100)', borderRadius: '50%' }}></div>
-        </div>
-      </header>
-
-    </>
+        Search ⌘K
+      </div>
+      <div style={{
+        width: '30px',
+        height: '30px',
+        background: 'var(--q-color-ink-900)',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '0.7rem',
+        color: 'white',
+        fontWeight: 600,
+        flexShrink: 0,
+      }}>
+        {studioName?.charAt(0)?.toUpperCase() || 'S'}
+      </div>
+    </header>
   );
 }

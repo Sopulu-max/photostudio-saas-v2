@@ -11,7 +11,26 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
   const [basePrice, setBasePrice] = useState(0);
   const [currency, setCurrency] = useState('USD');
   const [depositPercentage, setDepositPercentage] = useState(50);
+  
+  // Intake Form Schema State
+  const [formSchema, setFormSchema] = useState<any[]>([]);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const addField = () => {
+    setFormSchema([
+      ...formSchema,
+      { id: crypto.randomUUID(), type: 'text', label: '', required: false }
+    ]);
+  };
+
+  const updateField = (id: string, updates: any) => {
+    setFormSchema(formSchema.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
+  const removeField = (id: string) => {
+    setFormSchema(formSchema.filter(f => f.id !== id));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +43,8 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
         currency,
         deposit_percentage: depositPercentage,
       };
-      await createServiceTemplate(name, workflowId || null, pricing);
+      // Pass the form schema to the server action
+      await createServiceTemplate(name, workflowId || null, pricing, formSchema);
       router.push('/services');
     } catch (error) {
       console.error(error);
@@ -108,6 +128,53 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
               />
             </div>
           </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem' }}>Intake Form Builder</h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', margin: '0 0 16px 0' }}>
+            Define the custom information you need to collect from the client when they book this service. (Name, Email, and Phone are always collected).
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+            {formSchema.map((field, index) => (
+              <div key={field.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', background: 'var(--q-color-ink-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
+                <input
+                  type="text"
+                  value={field.label}
+                  onChange={(e) => updateField(field.id, { label: e.target.value })}
+                  placeholder="Question Label (e.g. Event Date)"
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--q-color-ink-200)' }}
+                  required
+                />
+                <select
+                  value={field.type}
+                  onChange={(e) => updateField(field.id, { type: e.target.value })}
+                  style={{ width: '150px', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--q-color-ink-200)', background: 'white' }}
+                >
+                  <option value="text">Short Text</option>
+                  <option value="textarea">Long Text</option>
+                  <option value="date">Date</option>
+                  <option value="number">Number</option>
+                </select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={field.required}
+                    onChange={(e) => updateField(field.id, { required: e.target.checked })}
+                  />
+                  Required
+                </label>
+                <button type="button" onClick={() => removeField(field.id)} style={{ padding: '6px 10px', color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 500 }}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button type="button" onClick={addField} className="q-btn q-btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
+            + Add Question
+          </button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>

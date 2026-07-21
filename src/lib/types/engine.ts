@@ -202,6 +202,7 @@ export interface ServiceTemplate {
   resource_requirements: Record<string, unknown>;
   role_requirements: Record<string, unknown>;
   deliverable_spec: Record<string, unknown>;
+  form_schema: any[];
   status: ServiceTemplateStatus;
   created_at: string;
   updated_at: string;

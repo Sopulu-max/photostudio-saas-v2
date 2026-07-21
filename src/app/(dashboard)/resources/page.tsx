@@ -19,7 +19,7 @@ export default async function ResourcesPage() {
           <h1 className="q-page-title">Resource Inventory</h1>
           <p className="q-page-subtitle">Equipment, spaces, and software licenses.</p>
         </div>
-        <button className="q-btn q-btn-primary">Add Resource</button>
+        <a href="/resources/new" className="q-btn q-btn-primary">Add Resource</a>
       </header>
 
       <div className="q-card" style={{ padding: 0, overflow: 'hidden' }}>

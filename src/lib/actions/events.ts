@@ -13,7 +13,8 @@ export interface LogEventParams {
 
 /**
  * Logs an event to the organizational memory (events table).
- * Must be called from other server actions after any successful state mutation.
+ * This is not a soft operation. Organizational memory MUST be maintained.
+ * Throws on failure so callers are aware the audit trail is broken.
  */
 export async function logEvent(params: LogEventParams) {
   const { error } = await supabaseAdmin
@@ -28,8 +29,9 @@ export async function logEvent(params: LogEventParams) {
     });
 
   if (error) {
-    // We log the error but don't throw, so we don't break the main transaction.
-    // In a production system we'd pipe this to a robust error tracking tool (Sentry etc).
-    console.error('Failed to log event:', error);
+    // Organizational memory is non-negotiable. We throw so callers
+    // know the event log is compromised and can surface the error.
+    console.error('[EventLog] CRITICAL: Failed to persist event to organizational memory:', error);
+    throw new Error(`[EventLog] Failed to log event '${params.action}' for entity '${params.entityType}:${params.entityId}'`);
   }
 }
