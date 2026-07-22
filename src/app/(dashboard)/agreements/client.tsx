@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useVisualEngine } from '@/components/visual-engine/VisualEngineOverlay';
 
 export function AgreementsClient({ initialAgreements }: { initialAgreements: any[] }) {
@@ -41,9 +42,9 @@ export function AgreementsClient({ initialAgreements }: { initialAgreements: any
                     </span>
                   </td>
                   <td className="q-table-td">
-                    <button className="q-btn q-btn-secondary" onClick={() => openEngine(`proposal-${agr.id}`)}>
-                      Design Proposal
-                    </button>
+                    <Link href={`/agreements/${agr.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem', textDecoration: 'none' }}>
+                      View Agreement
+                    </Link>
                   </td>
                 </tr>
               ))

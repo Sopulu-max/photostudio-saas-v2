@@ -74,10 +74,10 @@ alter table service_templates enable row level security;
 alter table visual_layouts enable row level security;
 
 drop policy if exists "Tenant Isolation" on workflow_templates;
-create policy "Tenant Isolation" on workflow_templates for all using (organization_id = auth_org_id());
+create policy "Tenant Isolation" on workflow_templates for all using (organization_id IN (SELECT auth_org_ids()));
 
 drop policy if exists "Tenant Isolation" on service_templates;
-create policy "Tenant Isolation" on service_templates for all using (organization_id = auth_org_id());
+create policy "Tenant Isolation" on service_templates for all using (organization_id IN (SELECT auth_org_ids()));
 
 drop policy if exists "Tenant Isolation" on visual_layouts;
-create policy "Tenant Isolation" on visual_layouts for all using (organization_id = auth_org_id());
+create policy "Tenant Isolation" on visual_layouts for all using (organization_id IN (SELECT auth_org_ids()));

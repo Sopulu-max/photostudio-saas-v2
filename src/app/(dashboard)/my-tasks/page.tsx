@@ -1,20 +1,21 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { CheckCircle2, Play } from 'lucide-react';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export default async function MyTasksPage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-  const org = orgs?.[0];
+  const { orgId } = await getAuthOrgId();
 
-  // In a real app, we get the logged in user. We'll fetch all tasks for demo purposes.
-  const { data: tasks } = org 
-    ? await supabaseAdmin
+  const { data: tasks } = await supabaseAdmin
         .from('tasks')
         .select(`
           *,
           workflow:workflows(id, status, template:service_templates(name))
         `)
-        .order('created_at', { ascending: false })
-    : { data: [] };
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
 
   return (
     <div>
@@ -42,10 +43,10 @@ export default async function MyTasksPage() {
                 <span className={`q-badge ${task.status === 'completed' ? 'q-badge-success' : 'q-badge-neutral'}`}>
                   {task.status}
                 </span>
-                <button className="q-btn q-btn-primary">
+                <Link href={`/workflows/${task.workflow_id}`} className="q-btn q-btn-primary" style={{ textDecoration: 'none' }}>
                   <Play size={16} style={{ marginRight: '8px' }} />
                   Open Workspace
-                </button>
+                </Link>
               </div>
             </div>
           ))

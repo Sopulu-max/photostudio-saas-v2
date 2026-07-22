@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { findOrCreateClient } from '@/lib/actions/persons';
 import { createIntent } from '@/lib/actions/intents';
+import { Renderer, VisualNode } from '@/components/VisualEngine/Renderer';
 
-export default async function PublicStorefrontPage({ params }: { params: { orgSlug: string } }) {
+export default async function PublicStorefrontPage({ params, searchParams }: { params: { orgSlug: string }, searchParams: { success?: string } }) {
   // 1. Fetch Org
   const { data: org } = await supabaseAdmin
     .from('organizations')
@@ -37,14 +38,12 @@ export default async function PublicStorefrontPage({ params }: { params: { orgSl
 
     if (!email || !name) return;
 
-    // Phase 1: Intake Person
     const person = await findOrCreateClient({
       organizationId: org!.id,
       email,
       displayName: name,
     });
 
-    // Phase 2: Create Intent
     await createIntent({
       organizationId: org!.id,
       personId: person.id,
@@ -53,12 +52,10 @@ export default async function PublicStorefrontPage({ params }: { params: { orgSl
       serviceTemplateId: serviceId || undefined,
     });
 
-    // Note: In a real app we'd redirect to a success page or show a toast.
-    // For now, redirect to clear the form.
     redirect(`/storefront/${params.orgSlug}?success=true`);
   }
 
-  // 4. Fetch layout (dummy or real)
+  // 4. Fetch layout
   const { data: layoutData } = await supabaseAdmin
     .from('visual_layouts')
     .select('layout_data')
@@ -67,74 +64,120 @@ export default async function PublicStorefrontPage({ params }: { params: { orgSl
     .eq('status', 'published')
     .single();
 
-  const blocks = layoutData?.layout_data?.blocks || [
-    { id: '1', type: 'heading', content: { text: `Welcome to ${org.name}` } },
-    { id: '2', type: 'text', content: { text: 'Book your session below. We will respond with a formal proposal.' } },
-    { id: '3', type: 'form', content: { formId: 'booking-intent-form' } },
-  ];
+  // 5. Construct Default Fallback Tree if layoutData is empty
+  const defaultLayout: VisualNode = layoutData?.layout_data?.root || {
+    id: 'root',
+    type: 'Container',
+    props: { style: { maxWidth: '800px', margin: '0 auto', padding: '48px 24px', fontFamily: 'var(--q-font-family)' } },
+    children: [
+      {
+        id: 'header-container',
+        type: 'Container',
+        props: { style: { marginBottom: '32px' } },
+        children: [
+          {
+            id: 'h1',
+            type: 'Heading',
+            props: { level: 1, text: `Welcome to ${org.name}`, style: { fontSize: '2.5rem', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)', margin: '0 0 16px 0' } }
+          },
+          {
+            id: 'subtitle',
+            type: 'Text',
+            props: { text: 'Book your session below. We will respond with a formal proposal.', style: { display: 'block', fontSize: '1.125rem', color: 'var(--q-color-ink-600)', lineHeight: 1.6 } }
+          }
+        ]
+      },
+      searchParams?.success ? {
+        id: 'success-msg',
+        type: 'Container',
+        props: { style: { padding: '24px', background: '#D1FAE5', color: '#065F46', borderRadius: '8px', border: '1px solid #34D399', textAlign: 'center' } },
+        children: [
+          { id: 'success-txt', type: 'Heading', props: { level: 3, text: 'Inquiry Submitted Successfully!', style: { margin: '0 0 8px 0' } } },
+          { id: 'success-subtxt', type: 'Text', props: { text: 'We will review your details and send a formal proposal shortly.' } }
+        ]
+      } : {
+        id: 'form-card',
+        type: 'Container',
+        props: { className: 'q-card', style: { marginTop: '48px', background: 'var(--q-color-paper-elevated)', padding: '32px' } },
+        children: [
+          {
+            id: 'form-title',
+            type: 'Heading',
+            props: { level: 3, text: 'Start a Booking Inquiry', style: { marginTop: 0, marginBottom: '24px', fontSize: '1.25rem', color: 'var(--q-color-ink-900)' } }
+          },
+          {
+            id: 'inquiry-form',
+            type: 'Form',
+            props: { style: { display: 'grid', gap: '20px' } },
+            children: [
+              {
+                id: 'row-1',
+                type: 'Grid',
+                props: { style: { gridTemplateColumns: '1fr 1fr', gap: '16px' } },
+                children: [
+                  {
+                    id: 'name-col',
+                    type: 'Container',
+                    props: {},
+                    children: [
+                      { id: 'name-label', type: 'Text', props: { text: 'Full Name', style: { display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' } } },
+                      { id: 'name-input', type: 'Input', props: { name: 'name', type: 'text', required: true, style: { width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' } } }
+                    ]
+                  },
+                  {
+                    id: 'email-col',
+                    type: 'Container',
+                    props: {},
+                    children: [
+                      { id: 'email-label', type: 'Text', props: { text: 'Email Address', style: { display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' } } },
+                      { id: 'email-input', type: 'Input', props: { name: 'email', type: 'email', required: true, style: { width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' } } }
+                    ]
+                  }
+                ]
+              },
+              {
+                id: 'service-col',
+                type: 'Container',
+                props: {},
+                children: [
+                  { id: 'service-label', type: 'Text', props: { text: 'Service of Interest', style: { display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' } } },
+                  { 
+                    id: 'service-select', 
+                    type: 'Select', 
+                    props: { name: 'serviceId', style: { width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' } },
+                    children: [
+                      { id: 'opt-def', type: 'Option', props: { value: '', text: 'Select a service...' } },
+                      ...(serviceTemplates || []).map((st: any) => ({
+                        id: `opt-${st.id}`,
+                        type: 'Option',
+                        props: { value: st.id, text: `${st.name} (from $${st.pricing?.base_price || 0})` }
+                      }))
+                    ]
+                  }
+                ]
+              },
+              {
+                id: 'desc-col',
+                type: 'Container',
+                props: {},
+                children: [
+                  { id: 'desc-label', type: 'Text', props: { text: 'Project Details / Description', style: { display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' } } },
+                  { id: 'desc-textarea', type: 'TextArea', props: { name: 'description', required: true, style: { width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', minHeight: '120px', background: 'transparent', resize: 'vertical' } } }
+                ]
+              },
+              {
+                id: 'submit-btn',
+                type: 'Button',
+                props: { type: 'submit', className: 'q-btn q-btn-primary', style: { justifySelf: 'start', padding: '12px 32px' }, text: 'Submit Inquiry' }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '48px 24px', fontFamily: 'var(--q-font-family)' }}>
-      {blocks.map((block: any) => (
-        <div key={block.id} style={{ marginBottom: '32px' }}>
-          
-          {block.type === 'heading' && (
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)', margin: '0 0 16px 0' }}>
-              {block.content.text}
-            </h1>
-          )}
-          
-          {block.type === 'text' && (
-            <p style={{ fontSize: '1.125rem', color: 'var(--q-color-ink-600)', lineHeight: 1.6 }}>
-              {block.content.text}
-            </p>
-          )}
-          
-          {block.type === 'form' && (
-            <div className="q-card" style={{ marginTop: '48px', background: 'var(--q-color-paper-elevated)' }}>
-              <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.25rem', color: 'var(--q-color-ink-900)' }}>
-                Start a Booking Inquiry
-              </h3>
-              
-              <form action={submitInquiry} style={{ display: 'grid', gap: '20px' }}>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' }}>Full Name</label>
-                    <input name="name" type="text" required style={{ width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' }}>Email Address</label>
-                    <input name="email" type="email" required style={{ width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' }} />
-                  </div>
-                </div>
-
-                {serviceTemplates && serviceTemplates.length > 0 && (
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' }}>Service of Interest</label>
-                    <select name="serviceId" style={{ width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', background: 'transparent' }}>
-                      <option value="">Select a service...</option>
-                      {serviceTemplates.map((st: any) => (
-                        <option key={st.id} value={st.id}>{st.name} (from ${st.pricing?.base_price || 0})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, fontSize: '0.875rem' }}>Project Details / Description</label>
-                  <textarea name="description" required style={{ width: '100%', padding: '12px', border: '1px solid var(--q-color-ink-200)', borderRadius: '6px', minHeight: '120px', background: 'transparent', resize: 'vertical' }} />
-                </div>
-                
-                <button type="submit" className="q-btn q-btn-primary" style={{ justifySelf: 'start', padding: '12px 32px' }}>
-                  Submit Inquiry
-                </button>
-              </form>
-            </div>
-          )}
-
-        </div>
-      ))}
-    </div>
+    <Renderer node={defaultLayout} formAction={submitInquiry} />
   );
 }

@@ -1,17 +1,17 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import Link from 'next/link';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+
+export const dynamic = 'force-dynamic';
 
 export default async function VisualLayoutsPage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-  const org = orgs?.[0];
+  const { orgId } = await getAuthOrgId();
 
-  const { data: layouts } = org 
-    ? await supabaseAdmin
+  const { data: layouts } = await supabaseAdmin
         .from('visual_layouts')
         .select('*')
-        .eq('organization_id', org.id)
-        .order('created_at', { ascending: false })
-    : { data: [] };
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
 
   return (
     <div>

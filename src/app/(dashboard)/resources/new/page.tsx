@@ -1,10 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createResource } from '@/lib/actions/resources';
 import { redirect } from 'next/navigation';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+
+export const dynamic = 'force-dynamic';
 
 export default async function NewResourcePage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-  const org = orgs?.[0];
+  const { orgId } = await getAuthOrgId();
 
   async function handleAction(formData: FormData) {
     'use server';

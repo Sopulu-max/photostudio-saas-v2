@@ -2,7 +2,7 @@ import React from 'react';
 
 export type VisualNode = {
   id: string;
-  type: 'Container' | 'Text' | 'Button' | 'Image' | 'Grid';
+  type: 'Container' | 'Text' | 'Button' | 'Image' | 'Grid' | 'Form' | 'Input' | 'Select' | 'Option' | 'TextArea' | 'Heading';
   props: Record<string, any>;
   children?: VisualNode[];
   bind?: string;
@@ -11,6 +11,7 @@ export type VisualNode = {
 interface RendererProps {
   node: VisualNode;
   dataContext?: Record<string, any>;
+  formAction?: any;
 }
 
 function resolveBinding(path: string, obj: any) {
@@ -49,6 +50,17 @@ export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {} }) =>
           ))}
         </div>
       );
+    case 'Heading': {
+      const Tag = (node.props.level ? `h${node.props.level}` : 'h2') as keyof JSX.IntrinsicElements;
+      return (
+        <Tag style={style} className={className} {...otherProps}>
+          {resolvedText}
+          {node.children?.map(child => (
+            <Renderer key={child.id} node={child} dataContext={dataContext} formAction={formAction} />
+          ))}
+        </Tag>
+      );
+    }
     case 'Text':
       return (
         <span style={style} className={className} {...otherProps}>
@@ -70,6 +82,32 @@ export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {} }) =>
           className={className} 
           {...otherProps} 
         />
+      );
+    case 'Form':
+      return (
+        <form action={node.props.action || formAction} style={style} className={className} {...otherProps}>
+          {node.children?.map(child => (
+            <Renderer key={child.id} node={child} dataContext={dataContext} formAction={formAction} />
+          ))}
+        </form>
+      );
+    case 'Input':
+      return <input style={style} className={className} {...otherProps} />;
+    case 'TextArea':
+      return <textarea style={style} className={className} {...otherProps} />;
+    case 'Select':
+      return (
+        <select style={style} className={className} {...otherProps}>
+          {node.children?.map(child => (
+            <Renderer key={child.id} node={child} dataContext={dataContext} formAction={formAction} />
+          ))}
+        </select>
+      );
+    case 'Option':
+      return (
+        <option style={style} className={className} {...otherProps}>
+          {resolvedText}
+        </option>
       );
     default:
       return null;

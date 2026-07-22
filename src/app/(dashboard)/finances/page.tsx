@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
-
+import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { CreateTransactionClient } from './client';
+
+export const dynamic = 'force-dynamic';
 
 export default async function FinancesPage() {
   const { orgId } = await getAuthOrgId();
@@ -12,6 +15,14 @@ export default async function FinancesPage() {
     .select(`*, person:persons(display_name)`)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
+
+  // Get a fallback actor for logging
+  const { data: actors } = await supabaseAdmin
+    .from('persons')
+    .select('id')
+    .eq('organization_id', orgId)
+    .limit(1);
+  const fallbackActorId = actors?.[0]?.id || orgId;
 
   const totalSettled = transactions
     ?.filter((t: any) => t.status === 'settled')
@@ -23,9 +34,12 @@ export default async function FinancesPage() {
 
   return (
     <div>
-      <header className="q-page-header">
-        <h1 className="q-page-title">Financial Ledger</h1>
-        <p className="q-page-subtitle">The unified record of every money movement for this organization.</p>
+      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 className="q-page-title">Financial Ledger</h1>
+          <p className="q-page-subtitle">The unified record of every money movement for this organization.</p>
+        </div>
+        <CreateTransactionClient orgId={orgId} actorId={fallbackActorId} />
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '32px' }}>
@@ -53,12 +67,13 @@ export default async function FinancesPage() {
               <th className="q-table-th">Direction</th>
               <th className="q-table-th">Amount</th>
               <th className="q-table-th">Status</th>
+              <th className="q-table-th"></th>
             </tr>
           </thead>
           <tbody>
             {!transactions || transactions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                <td colSpan={7} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
                   No transactions recorded.
                 </td>
               </tr>
@@ -82,6 +97,11 @@ export default async function FinancesPage() {
                     }`}>
                       {tx.status}
                     </span>
+                  </td>
+                  <td className="q-table-td" style={{ textAlign: 'right' }}>
+                    <Link href={`/finances/${tx.id}`} className="q-btn q-btn-outline" style={{ padding: '4px 8px', fontSize: '0.75rem', textDecoration: 'none' }}>
+                      View
+                    </Link>
                   </td>
                 </tr>
               ))

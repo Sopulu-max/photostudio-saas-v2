@@ -6,8 +6,13 @@
 ALTER TABLE service_templates ADD COLUMN IF NOT EXISTS form_schema JSONB DEFAULT '[]';
 
 -- 2. Enforce FK on workflows.template_id to point to workflow_templates, not service_templates.
--- The original column had no FK constraint. This aligns with the Kernel Spec which says
--- services ATTACH workflow templates; the workflow instance references the template.
+-- First, null out any existing template_ids that don't exist in workflow_templates (caused by old bug)
+UPDATE workflows 
+SET template_id = NULL 
+WHERE template_id IS NOT NULL 
+  AND template_id NOT IN (SELECT id FROM workflow_templates);
+
+-- Now it is safe to add the constraint
 ALTER TABLE workflows DROP CONSTRAINT IF EXISTS workflows_template_id_fkey;
 ALTER TABLE workflows
   ADD CONSTRAINT workflows_template_id_fkey

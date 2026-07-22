@@ -5,6 +5,8 @@ import Link from 'next/link';
 
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
+export const dynamic = 'force-dynamic';
+
 export default async function WorkflowsPage() {
   const { orgId } = await getAuthOrgId();
 
@@ -53,7 +55,9 @@ export default async function WorkflowsPage() {
               {templates.map((tpl: any) => (
                 <div key={tpl.id} className="q-card" style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{tpl.name}</h3>
+                    <Link href={`/workflows/templates/${tpl.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}>{tpl.name}</h3>
+                    </Link>
                     <span className="q-badge q-badge-success">ACTIVE</span>
                   </div>
                   <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '12px' }}>

@@ -1,21 +1,22 @@
 import React from 'react';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-export default async function IntentsPage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-  const org = orgs?.[0];
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
-  const { data: intents } = org 
-    ? await supabaseAdmin
+export const dynamic = 'force-dynamic';
+
+export default async function IntentsPage() {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: intents } = await supabaseAdmin
         .from('intents')
         .select(`
           *,
           person:persons(display_name, email),
           template:service_templates(name)
         `)
-        .eq('organization_id', org.id)
-        .order('created_at', { ascending: false })
-    : { data: [] };
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
 
   return (
     <div>

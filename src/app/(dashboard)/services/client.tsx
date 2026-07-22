@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useVisualEngine } from '@/components/visual-engine/VisualEngineOverlay';
 
 export function ServiceTemplatesClient({ initialServices }: { initialServices: any[] }) {
@@ -31,7 +32,9 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
             <div key={svc.id} className="q-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem' }}>{svc.name}</h3>
+                  <Link href={`/services/${svc.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', cursor: 'pointer' }}>{svc.name}</h3>
+                  </Link>
                   <div style={{ fontWeight: 600, color: 'var(--q-color-ink-700)' }}>
                     ${svc.pricing?.base_price || 0} {svc.pricing?.currency || 'USD'}
                   </div>

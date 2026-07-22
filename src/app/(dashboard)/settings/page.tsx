@@ -1,12 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+
+export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('*').limit(1);
-  const org = orgs?.[0];
+  const { orgId } = await getAuthOrgId();
+  const { data: org } = await supabaseAdmin.from('organizations').select('*').eq('id', orgId).single();
 
-  const { data: persons } = org 
-    ? await supabaseAdmin.from('persons').select('*').eq('organization_id', org.id)
-    : { data: [] };
+  const { data: persons } = await supabaseAdmin.from('persons').select('*').eq('organization_id', orgId);
 
   return (
     <div>

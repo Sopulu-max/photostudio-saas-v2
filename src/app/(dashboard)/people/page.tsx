@@ -54,12 +54,13 @@ export default async function PeopleDirectoryPage() {
               <th className="q-table-th">Email</th>
               <th className="q-table-th">Phone</th>
               <th className="q-table-th">Status</th>
+              <th className="q-table-th">Action</th>
             </tr>
           </thead>
           <tbody>
             {!persons || persons.length === 0 ? (
               <tr>
-                <td colSpan={5} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                <td colSpan={6} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
                   No persons found.
                 </td>
               </tr>
@@ -81,6 +82,11 @@ export default async function PeopleDirectoryPage() {
                     <span className={`q-badge ${p.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
                       {p.status}
                     </span>
+                  </td>
+                  <td className="q-table-td">
+                    <a href={`/people/${p.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem', textDecoration: 'none' }}>
+                      View Profile
+                    </a>
                   </td>
                 </tr>
               ))

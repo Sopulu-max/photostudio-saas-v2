@@ -1,209 +1,93 @@
 import { notFound, redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { createAgreement } from '@/lib/actions/agreements';
-import { updateIntentStatus } from '@/lib/actions/intents';
-import { CopyLinkButton } from './CopyLinkButton';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { createClient } from '@/lib/supabase/server';
+import Link from 'next/link';
+import { IntentActionsClient } from './client';
 
-import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+export const dynamic = 'force-dynamic';
 
-export default async function IntentDetailsPage(props: {
-  params: Promise<{ id: string }>
-}) {
-  const params = await props.params;
-  const authOrg = await getOptionalAuthOrgId();
-  const orgId = authOrg?.orgId;
+export default async function IntentDetailsPage({ params }: { params: { id: string } }) {
+  const { orgId } = await getAuthOrgId();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) redirect('/login');
 
   const { data: intent } = await supabaseAdmin
     .from('intents')
     .select(`
       *,
-      person:persons(*),
-      template:service_templates(*)
+      person:persons(id, display_name, email),
+      template:service_templates(id, name, pricing)
     `)
     .eq('id', params.id)
+    .eq('organization_id', orgId)
     .single();
 
   if (!intent) notFound();
 
-  // Fetch org slug for portal links
-  let orgSlug = 'studio';
-  if (orgId) {
-    const { data: org } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
-    if (org?.slug) orgSlug = org.slug;
-  }
-
-  // Check if agreement already exists for this intent
-  const { data: existingAgreement } = await supabaseAdmin
-    .from('agreements')
-    .select('id')
-    .eq('intent_id', intent.id)
-    .maybeSingle();
-
-  const responses = intent.metadata?.form_responses || {};
-  const hasResponses = Object.keys(responses).length > 0;
-
-  const handleMarkReviewed = async () => {
-    'use server';
-    await updateIntentStatus(intent.id, intent.organization_id, 'reviewed', intent.person_id);
-    redirect(`/intents/${intent.id}`);
-  };
-
-  const handleApprove = async () => {
-    'use server';
-    try {
-      // If agreement already exists, just redirect to it
-      if (existingAgreement) {
-        redirect(`/agreements/${existingAgreement.id}`);
-      }
-
-      // Mark intent reviewed first if needed (so transition is legal: reviewed -> accepted)
-      if (intent.status === 'created') {
-        await updateIntentStatus(intent.id, intent.organization_id, 'reviewed', intent.person_id);
-      }
-
-      const agreement = await createAgreement({
-        organizationId: intent.organization_id,
-        intentId: intent.id,
-        personId: intent.person_id,
-        terms: {
-          base_price: intent.template?.pricing?.base_price || 0,
-          currency: intent.template?.pricing?.currency || 'USD',
-          deposit_percentage: intent.template?.pricing?.deposit_percentage || 50,
-        },
-        actorId: intent.person_id,
-      });
-
-      redirect(`/agreements/${agreement.id}`);
-    } catch (e: any) {
-      if (e.message === 'NEXT_REDIRECT') throw e;
-      console.error(e);
-      throw new Error('Failed to create agreement');
-    }
-  };
-
-  const handleDecline = async () => {
-    'use server';
-    await updateIntentStatus(intent.id, intent.organization_id, 'declined', intent.person_id);
-    redirect('/intents');
-  };
-
-  const proposalUrl = `/portal/${orgSlug}/proposal/${intent.id}`;
-
-  const statusBadgeColor: Record<string, string> = {
-    created: 'q-badge-neutral',
-    reviewed: 'q-badge-warning',
-    accepted: 'q-badge-success',
-    declined: 'q-badge-error',
-    withdrawn: 'q-badge-neutral',
-    expired: 'q-badge-neutral',
-  };
+  const responses = intent.metadata?.form_responses;
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="q-page-title">Intent Review</h1>
-          <p className="q-page-subtitle">Submitted by {intent.person?.display_name}</p>
+      <header className="q-page-header">
+        <div style={{ marginBottom: '16px' }}>
+          <Link href="/intents" style={{ color: 'var(--q-color-ink-500)', textDecoration: 'none', fontSize: '0.875rem' }}>
+            &larr; Back to Intents
+          </Link>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span className={`q-badge ${statusBadgeColor[intent.status] || 'q-badge-neutral'}`}>
-            {intent.status}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1 className="q-page-title">Booking Inquiry</h1>
+            <p className="q-page-subtitle">Submitted by {intent.person?.display_name}</p>
+          </div>
+          <span className={`q-badge ${intent.status === 'approved' ? 'q-badge-success' : intent.status === 'pending' ? 'q-badge-warning' : 'q-badge-neutral'}`}>
+            {intent.status.toUpperCase()}
           </span>
-          {intent.status !== 'declined' && intent.status !== 'accepted' && intent.status !== 'withdrawn' && (
-            <>
-              <form action={handleDecline}>
-                <button className="q-btn q-btn-secondary" style={{ color: '#dc2626', borderColor: '#fecaca' }}>Decline</button>
-              </form>
-              {intent.status === 'created' && (
-                <form action={handleMarkReviewed}>
-                  <button className="q-btn q-btn-secondary">Mark Reviewed</button>
-                </form>
-              )}
-              <form action={handleApprove}>
-                <button className="q-btn q-btn-primary">
-                  {existingAgreement ? 'View Agreement →' : 'Approve & Draft Agreement'}
-                </button>
-              </form>
-            </>
-          )}
-          {existingAgreement && (
-            <a href={`/agreements/${existingAgreement.id}`} className="q-btn q-btn-primary">View Agreement →</a>
-          )}
         </div>
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        
+        <IntentActionsClient intent={intent} orgId={orgId} actorId={user.id} />
 
-        {/* Client Portal Link */}
-        <section className="q-card">
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>Client Proposal Link</h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '12px' }}>
-            Share this link with the client so they can view the proposal and accept.
-          </p>
-          <CopyLinkButton url={proposalUrl} />
-        </section>
-
-        {/* Client Details */}
-        <section className="q-card">
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px' }}>Client Details</h2>
+        <div className="q-card" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Client & Service Details</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Name</span>
-              <span style={{ fontWeight: 500 }}>{intent.person?.display_name}</span>
+              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>Client Name</div>
+              <div style={{ fontSize: '1.125rem', fontWeight: 500 }}>{intent.person?.display_name}</div>
+              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px' }}>{intent.person?.email}</div>
             </div>
             <div>
-              <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Email</span>
-              <span style={{ fontWeight: 500 }}>{intent.person?.email || 'N/A'}</span>
+              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>Requested Service</div>
+              <div style={{ fontSize: '1.125rem', fontWeight: 500 }}>{intent.template?.name || 'Custom Setup'}</div>
             </div>
-            <div>
-              <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Phone</span>
-              <span style={{ fontWeight: 500 }}>{intent.person?.phone || 'N/A'}</span>
-            </div>
-            <div>
-              <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Source</span>
-              <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{intent.source || 'Direct'}</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Service Requested */}
-        <section className="q-card">
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px' }}>Service Requested</h2>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Service Template</span>
-              <span style={{ fontWeight: 500, fontSize: '1.125rem' }}>{intent.template?.name || 'Custom Setup'}</span>
-            </div>
-            {intent.template?.pricing?.base_price && (
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Base Price</span>
-                <span style={{ fontWeight: 600, fontSize: '1.25rem' }}>
-                  {intent.template.pricing.currency || 'USD'} {intent.template.pricing.base_price.toFixed(2)}
-                </span>
+            <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>Project Description</div>
+              <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)', whiteSpace: 'pre-wrap' }}>
+                {intent.description}
               </div>
-            )}
+            </div>
           </div>
-        </section>
+        </div>
 
-        {/* Form Responses */}
-        {hasResponses && (
-          <section className="q-card">
-            <h2 style={{ fontSize: '1.125rem', marginBottom: '16px' }}>Intake Responses</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {responses && Object.keys(responses).length > 0 && (
+          <div className="q-card" style={{ padding: '24px' }}>
+            <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Intake Form Responses</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px' }}>
               {Object.entries(responses).map(([key, value]) => (
-                <div key={key}>
-                  <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>{key}</span>
-                  <div style={{ background: 'var(--q-color-ink-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
-                    {String(value)}
-                  </div>
+                <div key={key} style={{ padding: '12px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{key}</div>
+                  <div style={{ fontWeight: 500 }}>{String(value)}</div>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
         )}
+
       </div>
     </div>
   );
 }
-

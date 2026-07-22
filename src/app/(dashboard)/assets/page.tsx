@@ -1,17 +1,27 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { UploadCloud, FileImage } from 'lucide-react';
+import { FileImage } from 'lucide-react';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { AssetUploadClient } from './client';
+import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export default async function AssetsPage() {
-  const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-  const org = orgs?.[0];
+  const { orgId } = await getAuthOrgId();
 
-  const { data: assets } = org 
-    ? await supabaseAdmin
+  const { data: assets } = await supabaseAdmin
         .from('assets')
         .select('*')
-        .eq('organization_id', org.id)
-        .order('created_at', { ascending: false })
-    : { data: [] };
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false });
+
+  // Get a fallback actor for logging
+  const { data: actors } = await supabaseAdmin
+    .from('persons')
+    .select('id')
+    .eq('organization_id', orgId)
+    .limit(1);
+  const fallbackActorId = actors?.[0]?.id || orgId;
 
   return (
     <div>
@@ -20,10 +30,7 @@ export default async function AssetsPage() {
           <h1 className="q-page-title">Assets</h1>
           <p className="q-page-subtitle">All produced and provided artifacts across workflows.</p>
         </div>
-        <button className="q-btn q-btn-primary">
-          <UploadCloud size={18} style={{ marginRight: '8px' }} />
-          Upload Asset
-        </button>
+        <AssetUploadClient orgId={orgId} actorId={fallbackActorId} />
       </header>
 
       <div className="q-grid-cards">
@@ -33,17 +40,20 @@ export default async function AssetsPage() {
           </div>
         ) : (
           assets.map((asset: any) => (
-            <div key={asset.id} className="q-card" style={{ padding: '16px' }}>
-              <div style={{ width: '100%', aspectRatio: '1', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--q-color-ink-500)' }}>
-                <FileImage size={48} color="var(--q-color-ink-300)" />
+            <Link key={asset.id} href={`/assets/${asset.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <div className="q-card" style={{ padding: '16px', height: '100%' }}>
+                <div style={{ width: '100%', aspectRatio: '1', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--q-color-ink-500)' }}>
+                  <FileImage size={48} color="var(--q-color-ink-300)" />
+                </div>
+                <div style={{ fontWeight: 500, fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {asset.file_reference || 'Unnamed Asset'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{asset.origin}</span>
+                  <span style={{ textTransform: 'capitalize' }}>{asset.status}</span>
+                </div>
               </div>
-              <div style={{ fontWeight: 500, fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {asset.file_reference || 'Unnamed Asset'}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', marginTop: '4px' }}>
-                {asset.origin} • {asset.status}
-              </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
