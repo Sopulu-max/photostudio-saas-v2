@@ -3,11 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { activateAgreement } from '@/lib/actions/agreements';
 import { redirect } from 'next/navigation';
 
-export default async function ClientAgreementPortalPage({
-  params
-}: {
-  params: { orgSlug: string, id: string }
+export default async function ClientAgreementPortalPage(props: {
+  params: Promise<{ orgSlug: string, id: string }>
 }) {
+  const params = await props.params;
   const { data: agreement } = await supabaseAdmin
     .from('agreements')
     .select(`

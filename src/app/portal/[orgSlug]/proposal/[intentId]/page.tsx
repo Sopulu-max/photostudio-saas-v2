@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { createAgreement } from '@/lib/actions/agreements';
 import { updateIntentStatus } from '@/lib/actions/intents';
 
-export default async function ClientProposalPage({ params }: { params: { orgSlug: string, intentId: string } }) {
+export default async function ClientProposalPage(props: { params: Promise<{ orgSlug: string, intentId: string }> }) {
+  const params = await props.params;
   const { data: org } = await supabaseAdmin
     .from('organizations')
     .select('id, name')

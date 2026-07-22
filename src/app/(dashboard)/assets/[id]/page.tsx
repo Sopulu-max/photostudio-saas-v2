@@ -6,7 +6,8 @@ import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AssetDetailPage({ params }: { params: { id: string } }) {
+export default async function AssetDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { orgId } = await getAuthOrgId();
 
   const { data: asset } = await supabaseAdmin

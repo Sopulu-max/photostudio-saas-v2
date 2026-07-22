@@ -6,7 +6,8 @@ import { FileText, Play } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AgreementDetailsPage({ params }: { params: { id: string } }) {
+export default async function AgreementDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { orgId } = await getAuthOrgId();
 
   const { data: agreement } = await supabaseAdmin

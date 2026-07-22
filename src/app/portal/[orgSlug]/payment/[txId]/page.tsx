@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
-export default async function ClientPaymentPage({ params }: { params: { orgSlug: string, txId: string } }) {
+export default async function ClientPaymentPage(props: { params: Promise<{ orgSlug: string, txId: string }> }) {
+  const params = await props.params;
   // Fetch org by slug
   const { data: org } = await supabaseAdmin
     .from('organizations')
@@ -41,7 +42,7 @@ export default async function ClientPaymentPage({ params }: { params: { orgSlug:
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
           <span style={{ color: '#4b5563' }}>Status</span>
-          <span style={{ fontWeight: 500, textTransform: 'uppercase', color: tx.status === 'completed' ? '#059669' : '#d97706' }}>
+          <span style={{ fontWeight: 500, textTransform: 'uppercase', color: tx.status === 'settled' ? '#059669' : '#d97706' }}>
             {tx.status}
           </span>
         </div>
@@ -52,15 +53,19 @@ export default async function ClientPaymentPage({ params }: { params: { orgSlug:
         </div>
       </div>
 
-      {tx.status !== 'completed' && (
-        <form action={async () => { 'use server'; console.log('Process payment action'); }}>
+      {tx.status !== 'settled' && (
+        <form action={async () => {
+          'use server';
+          const { processPayment } = await import('@/lib/actions/payments');
+          await processPayment(tx.id);
+        }}>
           <button type="submit" style={{ padding: '16px 32px', width: '100%', background: '#000', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '1.125rem', fontWeight: 600, cursor: 'pointer' }}>
             Pay Securely with Stripe
           </button>
         </form>
       )}
 
-      {tx.status === 'completed' && (
+      {tx.status === 'settled' && (
         <div style={{ textAlign: 'center', padding: '16px', background: '#d1fae5', color: '#065f46', borderRadius: '8px', fontWeight: 500 }}>
           This invoice has been paid.
         </div>

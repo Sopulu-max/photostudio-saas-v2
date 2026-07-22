@@ -5,7 +5,8 @@ import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
-export default async function WorkflowTemplateDetailsPage({ params }: { params: { id: string } }) {
+export default async function WorkflowTemplateDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   let orgId: string;
   try {
     const auth = await getAuthOrgId();
