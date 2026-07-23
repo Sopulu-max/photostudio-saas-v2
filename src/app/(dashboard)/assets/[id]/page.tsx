@@ -106,7 +106,7 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
                 This asset has not been delivered to any clients.
               </div>
             ) : (
-              deliverables.map(del => (
+              deliverables.map((del: any) => (
                 <div key={del.id} style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid var(--q-color-ink-200)' }}>
                   <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>
                     Recipient

@@ -22,7 +22,7 @@ export default async function NewResourcePage() {
       </header>
 
       <form action={handleAction} className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <input type="hidden" name="orgId" value={org?.id || ''} />
+        <input type="hidden" name="orgId" value={orgId} />
         
         <div>
           <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', fontWeight: 500 }}>Resource Name</label>

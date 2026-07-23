@@ -21,22 +21,20 @@ import {
 
 const NAV_SECTIONS = [
   {
-    label: 'Operations',
+    label: 'Studio Desk',
     items: [
-      { label: 'Overview', href: '/overview', icon: LayoutDashboard },
-      { label: 'Intents', href: '/intents', icon: Activity },
-      { label: 'Agreements', href: '/agreements', icon: FileSignature },
-      { label: 'Workflows', href: '/workflows', icon: GitMerge },
+      { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
+      { label: 'Productions', href: '/productions', icon: Layers }, // Renamed from Bookings/Workflows
+      { label: 'Finances', href: '/finances', icon: DollarSign },
       { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
     ]
   },
   {
-    label: 'Studio',
+    label: 'Configuration',
     items: [
-      { label: 'People', href: '/people', icon: Users },
-      { label: 'Resources', href: '/resources', icon: Package },
-      { label: 'Services', href: '/services', icon: Layers },
-      { label: 'Finances', href: '/finances', icon: DollarSign },
+      { label: 'Services Catalog', href: '/services', icon: Package },
+      { label: 'Workflow Blueprints', href: '/workflows/templates', icon: GitMerge },
+      { label: 'Roster & Roles', href: '/people', icon: Users },
     ]
   },
   {

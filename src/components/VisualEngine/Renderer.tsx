@@ -20,7 +20,7 @@ function resolveBinding(path: string, obj: any) {
   }, obj);
 }
 
-export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {} }) => {
+export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {}, formAction }) => {
   // If this node binds to data, we try to resolve it. 
   // Mostly used for text content, or specific props (like image URLs)
   let resolvedText = node.props?.text;
@@ -38,7 +38,7 @@ export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {} }) =>
       return (
         <div style={style} className={className} {...otherProps}>
           {node.children?.map(child => (
-            <Renderer key={child.id} node={child} dataContext={dataContext} />
+            <Renderer key={child.id} node={child} dataContext={dataContext} formAction={formAction} />
           ))}
         </div>
       );
@@ -46,12 +46,12 @@ export const Renderer: React.FC<RendererProps> = ({ node, dataContext = {} }) =>
       return (
         <div style={{ display: 'grid', ...style }} className={className} {...otherProps}>
           {node.children?.map(child => (
-            <Renderer key={child.id} node={child} dataContext={dataContext} />
+            <Renderer key={child.id} node={child} dataContext={dataContext} formAction={formAction} />
           ))}
         </div>
       );
     case 'Heading': {
-      const Tag = (node.props.level ? `h${node.props.level}` : 'h2') as keyof JSX.IntrinsicElements;
+      const Tag = (node.props.level ? `h${node.props.level}` : 'h2') as any;
       return (
         <Tag style={style} className={className} {...otherProps}>
           {resolvedText}

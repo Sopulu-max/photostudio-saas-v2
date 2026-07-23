@@ -108,3 +108,104 @@ export async function updateIntentStatus(
 
   return intent as Intent;
 }
+
+import { createAgreement, activateAgreement } from './agreements';
+
+export async function autoBookService(input: {
+  organizationId: string;
+  serviceTemplateId?: string;
+  clientInfo: {
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  formData: any;
+  basePrice?: number;
+  depositPercentage?: number;
+  currency?: string;
+}) {
+  const { organizationId, serviceTemplateId, clientInfo, formData } = input;
+
+  // 1. Find or Create Person
+  let personId;
+  const { data: existingPerson } = await supabaseAdmin
+    .from('persons')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('email', clientInfo.email)
+    .maybeSingle();
+
+  if (existingPerson) {
+    personId = existingPerson.id;
+  } else {
+    const { data: newPerson, error: personError } = await supabaseAdmin
+      .from('persons')
+      .insert({
+        organization_id: organizationId,
+        display_name: clientInfo.name,
+        email: clientInfo.email,
+        phone: clientInfo.phone || null,
+        role: 'client',
+      })
+      .select()
+      .single();
+
+    if (personError) throw new Error('Failed to create person record');
+    personId = newPerson.id;
+    
+    await logEvent({
+      organizationId,
+      entityType: 'person',
+      entityId: personId,
+      action: 'created',
+      payload: { source: 'auto_booking' }
+    });
+  }
+
+  // 2. Create Intent (The Inquiry)
+  const intent = await createIntent({
+    organizationId,
+    personId,
+    source: 'storefront_booking',
+    serviceTemplateId: serviceTemplateId || undefined,
+    metadata: { form_data: formData, autoBooked: true },
+    actorId: personId,
+  });
+
+  // 3. Programmatically advance the Intent state machine
+  await updateIntentStatus(intent.id, organizationId, 'reviewed', personId);
+  await updateIntentStatus(intent.id, organizationId, 'accepted', personId);
+
+  // 4. Create Agreement
+  const terms = {
+    base_price: input.basePrice || 0,
+    deposit_percentage: input.depositPercentage || 0,
+    currency: input.currency || 'USD',
+  };
+
+  const agreement = await createAgreement({
+    organizationId,
+    intentId: intent.id,
+    personId,
+    terms,
+    actorId: personId, // System/Client acting
+  });
+
+  // 5. Programmatically advance the Agreement state machine
+  // (createAgreement naturally creates it in a state that activateAgreement accepts, e.g. 'proposed')
+  // We do not need the hack anymore. We just call activateAgreement.
+  await activateAgreement({
+    agreementId: agreement.id,
+    organizationId,
+    actorId: personId,
+  });
+
+  // Return the spawned workflow id (if any) so the frontend can redirect
+  const { data: workflow } = await supabaseAdmin
+    .from('workflows')
+    .select('id')
+    .eq('agreement_id', agreement.id)
+    .maybeSingle();
+
+  return { intentId: intent.id, agreementId: agreement.id, personId, workflowId: workflow?.id };
+}
