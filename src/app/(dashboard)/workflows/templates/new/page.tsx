@@ -37,7 +37,7 @@ export default function NewWorkflowTemplatePage() {
         order: i + 1,
       }));
       await createWorkflowTemplate(name, formattedStages);
-      router.push('/workflows');
+      router.push('/workflows/templates');
     } catch (error: any) {
       console.error(error);
       alert('Failed to create workflow template: ' + (error.message || JSON.stringify(error)));

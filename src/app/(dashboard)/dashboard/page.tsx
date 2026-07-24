@@ -8,7 +8,7 @@ export default function LaunchpadPage() {
     { label: 'Overview', href: '/overview', desc: 'Command center. Operational state at a glance.', icon: <LayoutDashboard size={28} color="white" /> },
     { label: 'Intents', href: '/intents', desc: 'Incoming inquiries from potential clients.', icon: <Activity size={28} color="white" /> },
     { label: 'Agreements', href: '/agreements', desc: 'Contracts, proposals, and signed commitments.', icon: <FileSignature size={28} color="white" /> },
-    { label: 'Workflows', href: '/workflows', desc: 'Active production pipelines and templates.', icon: <GitMerge size={28} color="white" /> },
+    { label: 'Workflow Blueprints', href: '/workflows/templates', desc: 'Reusable production pipelines you attach to services.', icon: <GitMerge size={28} color="white" /> },
     { label: 'My Tasks', href: '/my-tasks', desc: 'Your assigned production stages.', icon: <CheckSquare size={28} color="white" /> },
     { label: 'People', href: '/people', desc: 'Clients, staff, and vendors.', icon: <Users size={28} color="white" /> },
     { label: 'Resources', href: '/resources', desc: 'Inventory, gear, and spaces.', icon: <Package size={28} color="white" /> },
