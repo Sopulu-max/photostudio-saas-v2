@@ -102,7 +102,20 @@ drop policy if exists "Tenant Isolation" on visual_layouts;
 create policy "Tenant Isolation" on visual_layouts for all using (organization_id = auth_org_id());
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
+  // This endpoint runs DDL. It must never be publicly triggerable.
+  // Set MIGRATE_SECRET in the environment and call /api/migrate?secret=<value>.
+  const secret = process.env.MIGRATE_SECRET;
+  if (!secret) {
+    return NextResponse.json(
+      { success: false, error: 'Migration endpoint is disabled: MIGRATE_SECRET is not set.' },
+      { status: 503 }
+    );
+  }
+  if (new URL(request.url).searchParams.get('secret') !== secret) {
+    return NextResponse.json({ success: false, error: 'Unauthorized.' }, { status: 401 });
+  }
+
   try {
     const projectId = process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0];
     const password = process.env.SUPABASE_PASSWORD;
