@@ -1,28 +1,10 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
 import type { ServiceTemplate } from '../types/engine';
 
 import { getAuthOrgId } from '../supabase/getOrgId';
-
-export async function getServiceTemplates(): Promise<ServiceTemplate[]> {
-  const { orgId } = await getAuthOrgId();
-
-  const { data, error } = await supabaseAdmin
-    .from('service_templates')
-    .select('*')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching service templates:', error);
-    throw new Error('Failed to fetch service templates');
-  }
-
-  return data as ServiceTemplate[];
-}
 
 export async function createServiceTemplate(
   name: string,

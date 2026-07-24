@@ -28,6 +28,7 @@ export async function createWorkflow(params: {
   agreementId: string;
   templateId?: string;
   actorId: string;
+  meta?: Record<string, unknown>;
 }) {
   const { data: workflow, error } = await supabaseAdmin
     .from('workflows')
@@ -50,7 +51,7 @@ export async function createWorkflow(params: {
     entityId: workflow.id,
     action: 'created',
     actorId: params.actorId,
-    payload: { agreementId: params.agreementId, templateId: params.templateId }
+    payload: { agreementId: params.agreementId, templateId: params.templateId, ...(params.meta || {}) }
   });
 
   return workflow as Workflow;
@@ -64,6 +65,7 @@ export async function createTask(params: {
   assignedPersonId?: string;
   dueDate?: string;
   actorId: string;
+  meta?: Record<string, unknown>;
 }) {
   const { data: task, error } = await supabaseAdmin
     .from('tasks')
@@ -89,7 +91,7 @@ export async function createTask(params: {
     entityId: task.id,
     action: 'created',
     actorId: params.actorId,
-    payload: { stageName: params.stageName, workflowId: params.workflowId }
+    payload: { stageName: params.stageName, stageOrder: params.stageOrder, workflowId: params.workflowId, ...(params.meta || {}) }
   });
 
   return task as Task;
@@ -193,23 +195,6 @@ export async function updateWorkflowStatus(
   return workflow as Workflow;
 }
 
-export async function getWorkflowTemplates(): Promise<WorkflowTemplate[]> {
-  const { orgId } = await getAuthOrgId();
-
-  const { data, error } = await supabaseAdmin
-    .from('workflow_templates')
-    .select('*')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching workflow templates:', error);
-    throw new Error('Failed to fetch workflow templates');
-  }
-
-  return data as WorkflowTemplate[];
-}
-
 export async function createWorkflowTemplate(
   name: string,
   stages: WorkflowStageDefinition[]
@@ -232,6 +217,6 @@ export async function createWorkflowTemplate(
     throw new Error(`Failed to create workflow template: ${error.message}`);
   }
 
-  revalidatePath('/workflows');
+  revalidatePath('/workflows/templates');
   return data as WorkflowTemplate;
 }

@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { supabaseAdmin } from '../supabase/admin';
 import { logEvent } from './events';
+import { createWorkflow, createTask } from './workflows';
 import type { Agreement } from '../types/engine';
 
 const CreateAgreementSchema = z.object({
@@ -121,30 +122,20 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
   const templateId = (intent?.template as any)?.default_workflow_template_id;
 
   if (templateId) {
-    const { data: workflow, error: wfError } = await supabaseAdmin
-      .from('workflows')
-      .insert({
-        organization_id: params.organizationId,
-        agreement_id: agreement.id,
-        template_id: templateId,
-      })
-      .select()
-      .single();
-
-    if (wfError) {
-      console.error('Failed to spawn workflow during activation:', wfError);
-    } else if (workflow) {
-      // FIX: Emit event for the spawned workflow (was missing before)
-      await logEvent({
+    // Spawn the workflow and seed its tasks through the canonical kernel
+    // operations (single source of truth for inserts + event emission).
+    // A failed spawn must not roll back the already-committed activation,
+    // so we log and continue rather than throw.
+    try {
+      const workflow = await createWorkflow({
         organizationId: params.organizationId,
-        entityType: 'workflow',
-        entityId: workflow.id,
-        action: 'created',
+        agreementId: agreement.id,
+        templateId,
         actorId: params.actorId,
-        payload: { agreementId: agreement.id, templateId, trigger: 'agreement_activation' }
+        meta: { trigger: 'agreement_activation' },
       });
 
-      // Also seed tasks from the workflow template's stage definitions
+      // Seed tasks from the workflow template's stage definitions
       const { data: wfTemplate } = await supabaseAdmin
         .from('workflow_templates')
         .select('stages')
@@ -153,28 +144,17 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
 
       const stages: any[] = (wfTemplate?.stages as any[]) || [];
       for (const [i, stage] of stages.entries()) {
-        const { data: task, error: taskError } = await supabaseAdmin
-          .from('tasks')
-          .insert({
-            organization_id: params.organizationId,
-            workflow_id: workflow.id,
-            stage_name: stage.name,
-            stage_order: i,
-          })
-          .select()
-          .single();
-
-        if (!taskError && task) {
-          await logEvent({
-            organizationId: params.organizationId,
-            entityType: 'task',
-            entityId: task.id,
-            action: 'created',
-            actorId: params.actorId,
-            payload: { stageName: stage.name, stageOrder: i, trigger: 'workflow_spawn' }
-          });
-        }
+        await createTask({
+          organizationId: params.organizationId,
+          workflowId: workflow.id,
+          stageName: stage.name,
+          stageOrder: i,
+          actorId: params.actorId,
+          meta: { trigger: 'workflow_spawn' },
+        });
       }
+    } catch (spawnError) {
+      console.error('Failed to spawn workflow/tasks during activation:', spawnError);
     }
   }
 
@@ -215,54 +195,4 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
   }
 
   return agreement as Agreement;
-}
-
-export async function updateIntentStatus(
-  intentId: string,
-  organizationId: string,
-  status: 'accepted' | 'declined' | 'reviewed',
-  actorId: string
-) {
-  const VALID_INTENT_TRANSITIONS: Record<string, string[]> = {
-    created:   ['reviewed', 'declined', 'withdrawn', 'expired'],
-    reviewed:  ['accepted', 'declined', 'withdrawn'],
-    accepted:  [], // Terminal — now an Agreement
-    declined:  [],
-    withdrawn: [],
-    expired:   [],
-  };
-
-  const { data: current } = await supabaseAdmin
-    .from('intents')
-    .select('status')
-    .eq('id', intentId)
-    .single();
-
-  if (!current) throw new Error('Intent not found');
-
-  const allowed = VALID_INTENT_TRANSITIONS[current.status] || [];
-  if (!allowed.includes(status)) {
-    throw new Error(`Illegal intent state transition: '${current.status}' → '${status}'`);
-  }
-
-  const { data: intent, error } = await supabaseAdmin
-    .from('intents')
-    .update({ status })
-    .eq('id', intentId)
-    .eq('organization_id', organizationId)
-    .select()
-    .single();
-
-  if (error) throw new Error('Failed to update intent status');
-
-  await logEvent({
-    organizationId,
-    entityType: 'intent',
-    entityId: intent.id,
-    action: 'status_updated',
-    actorId,
-    payload: { from: current.status, to: status }
-  });
-
-  return intent;
 }
