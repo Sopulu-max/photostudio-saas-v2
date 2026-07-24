@@ -24,10 +24,10 @@ export default async function PeopleDirectoryPage() {
           <h1 className="q-page-title">Person Directory</h1>
           <p className="q-page-subtitle">Complete record of every person — clients, staff, and vendors.</p>
         </div>
-        <button className="q-btn q-btn-primary">
+        <a href="/people/new" className="q-btn q-btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
           <UserPlus size={18} style={{ marginRight: '8px' }} />
           Add Person
-        </button>
+        </a>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px', marginBottom: '32px' }}>

@@ -35,7 +35,7 @@ export default async function SettingsPage() {
           <div className="q-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Team Members (Persons)</h3>
-              <button className="q-btn q-btn-primary" style={{ fontSize: '0.875rem' }}>+ Invite</button>
+              <a href="/people/new?role=operator" className="q-btn q-btn-primary" style={{ fontSize: '0.875rem', textDecoration: 'none' }}>+ Add Member</a>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
