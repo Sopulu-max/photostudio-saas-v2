@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { CreateDeliverableClient } from './client';
+import { AssetActions } from './AssetActions';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,12 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
             <div>
               <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Status</div>
               <div style={{ textTransform: 'capitalize' }}>{asset.status}</div>
+              <AssetActions
+                assetId={asset.id}
+                currentStatus={asset.status}
+                organizationId={orgId}
+                actorId={fallbackActorId}
+              />
             </div>
             <div>
               <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Workflow</div>

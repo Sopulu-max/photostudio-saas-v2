@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { Uploader } from '@/components/Uploader';
 import { CopyLinkButton } from '@/app/(dashboard)/intents/[id]/CopyLinkButton';
 import { MessageThread } from '@/components/communications/MessageThread';
+import { WorkflowActions } from './WorkflowActions';
+import { TaskActions } from '@/app/(dashboard)/productions/[id]/TaskActions';
 
 import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
 
@@ -90,9 +92,17 @@ export default async function WorkflowDetailsPage(props: {
             <h1 className="q-page-title">{workflow.agreement?.person?.display_name} — {workflow.template?.name || 'Custom Workflow'}</h1>
             <p className="q-page-subtitle">Production Pipeline · Status: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{workflow.status.replace('_', ' ')}</span></p>
           </div>
-          <a href={`/agreements/${workflow.agreement?.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem' }}>
-            View Agreement
-          </a>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <WorkflowActions
+              workflowId={workflow.id}
+              currentStatus={workflow.status}
+              organizationId={orgId!}
+              actorId={personId}
+            />
+            <a href={`/agreements/${workflow.agreement?.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem' }}>
+              View Agreement
+            </a>
+          </div>
         </div>
       </header>
 
@@ -150,12 +160,12 @@ export default async function WorkflowDetailsPage(props: {
                 </div>
 
                 <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {task.status === 'created' && (
-                    <button className="q-btn q-btn-secondary" style={{ width: '100%', fontSize: '0.875rem' }}>Start Task</button>
-                  )}
-                  {task.status === 'in_progress' && (
-                    <button className="q-btn q-btn-primary" style={{ width: '100%', fontSize: '0.875rem' }}>Mark Completed</button>
-                  )}
+                  <TaskActions
+                    taskId={task.id}
+                    currentStatus={task.status}
+                    organizationId={orgId!}
+                    actorId={personId}
+                  />
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '12px' }}>
