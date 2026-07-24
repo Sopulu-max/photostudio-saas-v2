@@ -20,7 +20,7 @@ Before writing any code or making structural changes, you MUST read the `docs/ar
 Before executing a change, you must explicitly warn the user of any cascading effects it will have on the rest of the system's relationships. Do not blindly modify database schemas or core types without assessing the graph of relationships defined in `02-ONTOLOGY.md`.
 
 ## 4. No Hallucinations
-Do not invent random libraries, design systems, or aesthetic choices. The UI aesthetic is strictly "Warm-Editorial (Paper & Ink)". Do not introduce standard SaaS elements, generic Tailwind themes, or dark modes unless explicitly commanded and cross-verified against the brand identity.
+Do not invent random libraries, design systems, or aesthetic choices. The UI aesthetic is the **Quantum Elevation** design system defined in `docs/architecture/08-DESIGN_SYSTEM.md` — an original, ultra-premium look built on a cool-gray surface (`#F8F9FA`), deep-slate text (`#0F172A`), a cobalt/indigo accent (`#4338CA`), multi-layered physical shadows, glassmorphism, and "jewel" gradient app launchers. Obey its **Absolute Law of Centralization**: no `.module.css` files, no inline `style={{...}}` for structural layout/color/shadow — every element uses the `.q-` utility classes defined in `src/app/globals.css`, so any visual fix happens in one place. Do not introduce generic SaaS elements, ad-hoc Tailwind themes, or dark mode unless explicitly commanded and cross-verified against the design system.
 
 ## 5. The "Vertical Slice" Execution Rule
 You must finish whatever you start across time and space. It goes both ways: you must NEVER build backend logic without the UI, and you must NEVER build UI without the backend logic.
