@@ -138,6 +138,47 @@ body {
   transform: translateY(-2px);
 }
 
+/* Form Controls */
+.q-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--q-color-ink-700);
+  margin-bottom: 8px;
+}
+
+.q-input,
+.q-select,
+.q-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--q-color-ink-300);
+  background: var(--q-color-paper-base);
+  color: var(--q-color-ink-900);
+  font-size: 0.875rem;
+  font-family: var(--q-font-sans);
+  transition: var(--q-transition-snappy);
+}
+
+.q-input::placeholder,
+.q-textarea::placeholder {
+  color: var(--q-color-ink-500);
+}
+
+.q-input:focus,
+.q-select:focus,
+.q-textarea:focus {
+  outline: none;
+  border-color: var(--q-color-accent);
+  box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.15);
+}
+
+.q-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
 /* Visual States */
 .q-state-waiting {
   background-color: #FEF3C7;
