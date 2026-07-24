@@ -7,8 +7,10 @@ import {
   LayoutDashboard,
   Activity,
   FileSignature,
+  FolderOpen,
   GitMerge,
   Users,
+  Boxes,
   Package,
   DollarSign,
   Layers,
@@ -25,8 +27,16 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Productions', href: '/productions', icon: Layers }, // Renamed from Bookings/Workflows
-      { label: 'Finances', href: '/finances', icon: DollarSign },
       { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
+      { label: 'Finances', href: '/finances', icon: DollarSign },
+    ]
+  },
+  {
+    label: 'Pipeline',
+    items: [
+      { label: 'Intents', href: '/intents', icon: Activity },
+      { label: 'Agreements', href: '/agreements', icon: FileSignature },
+      { label: 'Assets', href: '/assets', icon: FolderOpen },
     ]
   },
   {
@@ -35,6 +45,7 @@ const NAV_SECTIONS = [
       { label: 'Services Catalog', href: '/services', icon: Package },
       { label: 'Workflow Blueprints', href: '/workflows/templates', icon: GitMerge },
       { label: 'Roster & Roles', href: '/people', icon: Users },
+      { label: 'Resources', href: '/resources', icon: Boxes },
     ]
   },
   {
