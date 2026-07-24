@@ -29,12 +29,14 @@ export default function NewProductionPage() {
         const id = user.user_metadata.organization_id;
         setOrgId(id);
         
-        // Fetch Service Templates to populate the dropdown
+        // Fetch Service Templates to populate the dropdown.
+        // Pricing is stored as a JSONB `pricing` object ({ base_price, deposit_percentage, currency }),
+        // not as top-level columns.
         const { data: svcs } = await supabase
           .from('service_templates')
-          .select('id, name, base_price, default_deposit_percentage')
+          .select('id, name, pricing')
           .eq('organization_id', id);
-          
+
         if (svcs) setTemplates(svcs);
       }
     };
@@ -48,8 +50,9 @@ export default function NewProductionPage() {
     if (tId) {
       const tmpl = templates.find(t => t.id === tId);
       if (tmpl) {
-        setBasePrice((tmpl.base_price / 100).toString());
-        setDeposit(tmpl.default_deposit_percentage?.toString() || '0');
+        // pricing.base_price is stored in whole currency units (dollars), not cents.
+        setBasePrice(String(tmpl.pricing?.base_price ?? 0));
+        setDeposit(String(tmpl.pricing?.deposit_percentage ?? 0));
       }
     } else {
       setBasePrice('0');
@@ -80,9 +83,9 @@ export default function NewProductionPage() {
       });
 
       if (result.workflowId) {
-        router.push(`/productions/${result.workflowId}`);
+        router.push(`/workflows/${result.workflowId}`);
       } else {
-        router.push('/productions');
+        router.push('/workflows');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create booking.');
@@ -93,7 +96,7 @@ export default function NewProductionPage() {
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto' }}>
       <header className="q-page-header">
-        <h1 className="q-page-title">New Production (Booking)</h1>
+        <h1 className="q-page-title">New Workflow (Booking)</h1>
         <p className="q-page-subtitle">Manually enter a booking to spawn a workspace and invoice.</p>
       </header>
 
@@ -148,11 +151,11 @@ export default function NewProductionPage() {
         {error && <div style={{ color: 'red', fontSize: '0.875rem' }}>{error}</div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--q-color-ink-200)', paddingTop: '24px' }}>
-          <button type="button" onClick={() => router.push('/productions')} className="q-btn q-btn-secondary" disabled={isLoading}>
+          <button type="button" onClick={() => router.push('/workflows')} className="q-btn q-btn-secondary" disabled={isLoading}>
             Cancel
           </button>
           <button type="submit" className="q-btn q-btn-primary" disabled={isLoading}>
-            {isLoading ? 'Creating...' : 'Create Production'}
+            {isLoading ? 'Creating...' : 'Create Workflow'}
           </button>
         </div>
       </form>

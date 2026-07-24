@@ -71,7 +71,7 @@ export default async function OverviewPage() {
           <h1 className="q-page-title">Command Center</h1>
           <p className="q-page-subtitle">Good morning. Here is what needs your attention.</p>
         </div>
-        <Link href="/productions/new" className="q-btn q-btn-primary">
+        <Link href="/workflows/new" className="q-btn q-btn-primary">
           + Manual Booking
         </Link>
       </header>
@@ -129,13 +129,13 @@ export default async function OverviewPage() {
           </div>
 
           <div className="q-card">
-            <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Active Productions</h2>
+            <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Active Workflows</h2>
             {data.activeProductions.length === 0 ? (
-              <div style={{ color: 'var(--q-color-ink-500)' }}>No active productions.</div>
+              <div style={{ color: 'var(--q-color-ink-500)' }}>No active workflows.</div>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {data.activeProductions.map((prod: any) => (
-                  <Link href={`/productions/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link href={`/workflows/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{prod.agreement?.person?.display_name || 'Production'}</div>
                       <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px', textTransform: 'capitalize' }}>Status: {prod.status.replace('_', ' ')}</div>

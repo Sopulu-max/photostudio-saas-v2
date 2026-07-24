@@ -26,7 +26,7 @@ const NAV_SECTIONS = [
     label: 'Studio Desk',
     items: [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
-      { label: 'Productions', href: '/productions', icon: Layers }, // Renamed from Bookings/Workflows
+      { label: 'Workflows', href: '/workflows', icon: Layers },
       { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
       { label: 'Finances', href: '/finances', icon: DollarSign },
     ]
