@@ -203,9 +203,18 @@ export interface ServiceTemplate {
   role_requirements: Record<string, unknown>;
   deliverable_spec: Record<string, unknown>;
   form_schema: any[];
+  // Page content, held as data on the Service (Decision A — one body of truth).
+  description: string | null;
+  media: MediaItem[];
   status: ServiceTemplateStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface MediaItem {
+  url: string;
+  alt?: string;
+  kind: 'image' | 'video';
 }
 
 export interface VisualLayout {
@@ -214,6 +223,10 @@ export interface VisualLayout {
   context: string;
   name: string | null;
   layout_data: Record<string, unknown>;
+  // A layout may belong to a specific subject (e.g. a service). Null for
+  // org-level layouts like the storefront. First step toward view_defs.
+  subject_type: string | null;
+  subject_id: string | null;
   status: VisualLayoutStatus;
   created_at: string;
   updated_at: string;
