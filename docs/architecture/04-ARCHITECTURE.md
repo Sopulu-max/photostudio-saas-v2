@@ -1,5 +1,11 @@
 # 04. System Architecture
 
+> **Superseded by [00-FRAMEWORK](00-FRAMEWORK.md).** This doc's two-layer sketch
+> (Production Engine + Visual Engine) is correct but incomplete — it names the
+> data core and the view engine but not the module system, metadata registry, or
+> automation engine that make it a real framework. Read 00 first; the layers below
+> map to 00's Layer 1 (Production Engine) and Layer 3 (Visual Engine).
+
 The system is a two-layer stack.
 
 ## Layer 1: The Production Engine
