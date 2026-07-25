@@ -1,46 +1,74 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;680&display=swap');
 
 /* ==========================================================================
-   QUANTUM ELEVATION DESIGN SYSTEM (KERNEL)
+   LUMEN — the Studio OS design language
+   Motion-first, consistent, premium. This one file drives the whole app: it
+   bridges the legacy `.q-*` class + token API so every screen adopts Lumen
+   from a single place (the Law of Centralization). Light-only for now — dark
+   arrives once pages stop hardcoding light colours inline.
    ========================================================================== */
 
 :root {
-  /* The Premium Palette */
-  --q-color-ink-900: #0F172A; /* Deep Slate / Onyx */
-  --q-color-ink-700: #334155;
-  --q-color-ink-500: #64748B;
-  --q-color-ink-300: #CBD5E1;
-  --q-color-ink-100: #F1F5F9;
-  
-  --q-color-paper-base: #FFFFFF;
-  --q-color-paper-subtle: #F8F9FA; /* Ultra-soft cool gray */
-  --q-color-paper-elevated: #FFFFFF;
-  
-  --q-color-accent: #4338CA; /* Cobalt / Indigo */
-  --q-color-accent-hover: #3730A3;
-  --q-color-accent-text: #FFFFFF;
+  /* Neutrals — a warm, gallery-paper ramp (near-black → near-white) */
+  --q-color-ink-900: #1A1A1D;
+  --q-color-ink-800: #2C2C31;
+  --q-color-ink-700: #3E3E45;
+  --q-color-ink-600: #59595F;
+  --q-color-ink-500: #78777D;
+  --q-color-ink-400: #9C9B95;
+  --q-color-ink-300: #C9C7C0;
+  --q-color-ink-200: #E1DFD8;
+  --q-color-ink-100: #ECEAE3;
+  --q-color-ink-50:  #F5F4F0;
 
-  --q-color-success: #10B981;
-  --q-color-warning: #F59E0B;
-  --q-color-danger: #EF4444;
+  --q-color-paper-subtle:  #F4F3F0; /* the app ground */
+  --q-color-paper-base:    #FFFFFF;
+  --q-color-paper-elevated:#FFFFFF;
+  --q-color-paper:         #FFFFFF;
+  --q-color-paper-default: #FFFFFF;
 
-  /* Typography */
-  --q-font-sans: 'Inter', system-ui, sans-serif;
-  
-  /* Physical Light & Shadows */
-  --q-shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --q-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --q-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
-  --q-shadow-glass: 0 20px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
-  
-  /* Jewel Gradients */
-  --q-jewel-indigo: linear-gradient(135deg, #4F46E5 0%, #3730A3 100%);
-  --q-jewel-emerald: linear-gradient(135deg, #10B981 0%, #047857 100%);
-  --q-jewel-rose: linear-gradient(135deg, #F43F5E 0%, #BE123C 100%);
-  --q-jewel-slate: linear-gradient(135deg, #64748B 0%, #334155 100%);
+  /* Accent — ultramarine, with a warm amber counterpoint */
+  --q-color-accent:       #3B47D6;
+  --q-color-accent-hover: #2E39BE;
+  --q-color-accent-hi:    #5561F0;
+  --q-color-accent-text:  #FFFFFF;
+  --q-color-accent-soft:  rgba(59, 71, 214, 0.10);
+  --q-color-brand-600:    #3B47D6;
+  --q-color-primary:      #3B47D6;
+  --q-color-warm:         #EE9B3D;
+  --q-color-warm-soft:    rgba(238, 155, 61, 0.16);
 
-  /* Animations */
-  --q-transition-snappy: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Semantic (separate from the accent) */
+  --q-color-success: #2E9E68;
+  --q-color-warning: #DDA033;
+  --q-color-danger:  #E14F38;
+
+  /* Type */
+  --q-font-sans:   'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --q-font-body:   var(--q-font-sans);
+  --q-font-family: var(--q-font-sans);
+  --q-font-mono:   ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
+
+  /* Physical light */
+  --q-shadow-sm:    0 1px 2px rgba(26, 26, 29, 0.05);
+  --q-shadow-md:    0 6px 16px -6px rgba(26, 26, 29, 0.14), 0 2px 5px -3px rgba(26, 26, 29, 0.10);
+  --q-shadow-lg:    0 16px 32px -10px rgba(26, 26, 29, 0.18), 0 4px 10px -6px rgba(26, 26, 29, 0.12);
+  --q-shadow-glass: 0 20px 40px -12px rgba(26, 26, 29, 0.22), 0 6px 14px -8px rgba(26, 26, 29, 0.14);
+
+  /* Jewel gradients (the app launcher) */
+  --q-jewel-indigo:  linear-gradient(150deg, #4B57E6, #2A2F9E);
+  --q-jewel-emerald: linear-gradient(150deg, #2FAE7A, #137A50);
+  --q-jewel-rose:    linear-gradient(150deg, #F0567A, #BE123C);
+  --q-jewel-slate:   linear-gradient(150deg, #63708A, #333A4B);
+  --q-jewel-amber:   linear-gradient(150deg, #F0A94B, #D97A1F);
+
+  /* Motion — one language for the whole app */
+  --q-ease:   cubic-bezier(0.22, 0.8, 0.28, 1);
+  --q-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
+  --q-dur-1: 130ms;
+  --q-dur-2: 240ms;
+  --q-dur-3: 440ms;
+  --q-transition-snappy: all var(--q-dur-2) var(--q-ease);
 }
 
 body {
@@ -52,97 +80,118 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Utilities */
-.q-text-body { color: var(--q-color-ink-900); }
+::selection { background: var(--q-color-accent-soft); }
 
-.q-page-header {
-  margin-bottom: 48px;
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---- Utilities ---- */
+.q-text-body { color: var(--q-color-ink-900); }
+.q-bg-surface-base { background: var(--q-color-paper-base); }
+
+.q-page-header { margin-bottom: 40px; }
 
 .q-page-title {
   margin: 0;
-  font-size: 2.25rem;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-size: clamp(1.9rem, 3.4vw, 2.35rem);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
   color: var(--q-color-ink-900);
+  text-wrap: balance;
 }
 
 .q-page-subtitle {
-  margin: 8px 0 0 0;
+  margin: 10px 0 0 0;
   color: var(--q-color-ink-500);
-  font-size: 1.125rem;
+  font-size: 1.075rem;
+  line-height: 1.5;
 }
 
-/* Glassmorphic Shells */
+/* ---- Glassmorphic shells ---- */
 .q-glass-panel {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  background: color-mix(in srgb, var(--q-color-paper-subtle) 72%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--q-color-ink-100);
 }
 
-/* Quantum Cards */
+/* ---- Cards ---- */
 .q-card {
   background: var(--q-color-paper-elevated);
   border: 1px solid var(--q-color-ink-100);
   border-radius: 16px;
-  padding: 32px;
-  box-shadow: var(--q-shadow-md);
-  transition: var(--q-transition-snappy);
+  padding: 28px;
+  box-shadow: var(--q-shadow-sm);
+  transition: transform var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
 }
 
-.q-card-interactive {
-  cursor: pointer;
-}
-
+.q-card-interactive { cursor: pointer; }
 .q-card-interactive:hover {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   box-shadow: var(--q-shadow-glass);
+  border-color: var(--q-color-ink-200);
 }
 
-/* Buttons */
+/* ---- Buttons ---- */
 .q-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 500;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-family: var(--q-font-sans);
+  font-weight: 550;
   font-size: 0.875rem;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: var(--q-transition-snappy);
-  box-shadow: var(--q-shadow-sm);
+  transition: transform var(--q-dur-1) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), filter var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
+  will-change: transform;
 }
+.q-btn:active { transform: scale(0.97); }
+.q-btn:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
 
 .q-btn-primary {
-  background: var(--q-jewel-indigo);
+  background: var(--q-color-accent);
   color: var(--q-color-accent-text);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 16px -6px var(--q-color-accent-soft), var(--q-shadow-sm);
 }
-
 .q-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: var(--q-shadow-md);
-  filter: brightness(1.1);
+  filter: brightness(1.07);
+  box-shadow: 0 12px 24px -8px var(--q-color-accent-soft), var(--q-shadow-md);
 }
 
 .q-btn-secondary {
   background-color: var(--q-color-paper-base);
   color: var(--q-color-ink-900);
-  border: 1px solid var(--q-color-ink-300);
+  border-color: var(--q-color-ink-300);
+  box-shadow: var(--q-shadow-sm);
 }
-
 .q-btn-secondary:hover {
-  background-color: var(--q-color-ink-100);
+  background-color: var(--q-color-ink-50);
+  border-color: var(--q-color-ink-400);
   transform: translateY(-2px);
 }
 
-/* Form Controls */
+.q-btn-outline {
+  background: transparent;
+  color: var(--q-color-ink-900);
+  border-color: var(--q-color-ink-300);
+}
+.q-btn-outline:hover {
+  background: var(--q-color-ink-50);
+  border-color: var(--q-color-ink-400);
+  transform: translateY(-2px);
+}
+
+/* ---- Form controls ---- */
 .q-label {
   display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 550;
   color: var(--q-color-ink-700);
   margin-bottom: 8px;
 }
@@ -151,133 +200,105 @@ body {
 .q-select,
 .q-textarea {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 11px 13px;
+  border-radius: 10px;
   border: 1px solid var(--q-color-ink-300);
   background: var(--q-color-paper-base);
   color: var(--q-color-ink-900);
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   font-family: var(--q-font-sans);
-  transition: var(--q-transition-snappy);
+  transition: border-color var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease);
 }
-
 .q-input::placeholder,
-.q-textarea::placeholder {
-  color: var(--q-color-ink-500);
-}
-
+.q-textarea::placeholder { color: var(--q-color-ink-400); }
 .q-input:focus,
 .q-select:focus,
 .q-textarea:focus {
   outline: none;
   border-color: var(--q-color-accent);
-  box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.15);
+  box-shadow: 0 0 0 3px var(--q-color-accent-soft);
 }
+.q-textarea { resize: vertical; min-height: 96px; }
 
-.q-textarea {
-  resize: vertical;
-  min-height: 96px;
-}
-
-/* Visual States */
+/* ---- Visual states (the state grammar) ---- */
 .q-state-waiting {
-  background-color: #FEF3C7;
-  color: #92400E;
+  background-color: var(--q-color-warm-soft);
+  color: #8A5A12;
   font-weight: 600;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: inline-block;
-  border: 1px solid #FCD34D;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2); /* Loudest state in the room */
+  border: 1px solid color-mix(in srgb, var(--q-color-warm) 40%, transparent);
+  box-shadow: 0 0 14px var(--q-color-warm-soft); /* the loudest state in the room */
 }
-
 .q-state-inprogress {
-  background-color: #DBEAFE;
-  color: #1E40AF;
-  font-weight: 500;
+  background-color: var(--q-color-accent-soft);
+  color: var(--q-color-accent-hover);
+  font-weight: 550;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: inline-block;
-  border: 1px solid #BFDBFE;
+  border: 1px solid color-mix(in srgb, var(--q-color-accent) 26%, transparent);
 }
-
 .q-state-halted {
-  background-color: #FEE2E2;
-  color: #991B1B;
-  font-weight: 500;
+  background-color: color-mix(in srgb, var(--q-color-danger) 12%, transparent);
+  color: #A2331F;
+  font-weight: 550;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: inline-block;
-  border: 1px solid #FECACA;
+  border: 1px solid color-mix(in srgb, var(--q-color-danger) 30%, transparent);
 }
-
 .q-state-completed {
-  background-color: #D1FAE5;
-  color: #065F46;
-  font-weight: 500;
+  background-color: color-mix(in srgb, var(--q-color-success) 14%, transparent);
+  color: #1B6E48;
+  font-weight: 550;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: inline-block;
-  border: 1px solid #A7F3D0;
+  border: 1px solid color-mix(in srgb, var(--q-color-success) 30%, transparent);
 }
 
-/* Data Tables */
-.q-table-container {
-  padding: 0;
-  overflow: hidden;
-}
-
-.q-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
+/* ---- Data tables ---- */
+.q-table-container { padding: 0; overflow: hidden; border-radius: 16px; }
+.q-table { width: 100%; border-collapse: collapse; text-align: left; }
 .q-table-th {
-  padding: 16px;
-  font-weight: 500;
-  color: var(--q-color-ink-500);
-  background: var(--q-color-paper-subtle);
-  border-bottom: 1px solid var(--q-color-ink-100);
-}
-
-.q-table-tr {
-  border-bottom: 1px solid var(--q-color-ink-100);
-}
-
-.q-table-td {
-  padding: 16px;
-}
-
-/* Badges */
-.q-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  padding: 14px 16px;
+  font-family: var(--q-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  display: inline-block;
+  color: var(--q-color-ink-500);
+  background: var(--q-color-ink-50);
+  border-bottom: 1px solid var(--q-color-ink-100);
 }
+.q-table-tr { border-bottom: 1px solid var(--q-color-ink-100); transition: background var(--q-dur-1) var(--q-ease); }
+.q-table-tr:hover { background: var(--q-color-ink-50); }
+.q-table-td { padding: 15px 16px; }
 
-.q-badge-success {
-  background: #D1FAE5;
-  color: #065F46;
+/* ---- Badges (pills) ---- */
+.q-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-family: var(--q-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
+.q-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.q-badge-success { color: #1B6E48; background: color-mix(in srgb, var(--q-color-success) 14%, transparent); }
+.q-badge-warning { color: #8A5A12; background: var(--q-color-warm-soft); }
+.q-badge-error   { color: #A2331F; background: color-mix(in srgb, var(--q-color-danger) 12%, transparent); }
+.q-badge-neutral { color: var(--q-color-ink-600); background: var(--q-color-ink-100); }
 
-.q-badge-neutral {
-  background: #F3F4F6;
-  color: #374151;
-}
-
-.q-badge-warning {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-/* Grid Layouts */
+/* ---- Grid ---- */
 .q-grid-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 24px;
 }
-
