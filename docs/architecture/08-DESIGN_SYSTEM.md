@@ -1,66 +1,65 @@
-# The Quantum Design System (v2 Architecture)
+# 08. The Design System — Lumen
 
-The Studio Operating System utilizes a world-class, mathematically centralized design architecture known as **Quantum Elevation**. 
+The Studio OS design language is **Lumen**: modern, motion-first, and consistent
+everywhere. It replaces the earlier "Quantum Elevation" system. Lumen's job is to
+make the app feel *alive and premium by default* — so that building a studio feels
+like a tool you'd love, not a form you tolerate — while staying one coherent system
+(the framework's usability law, [00-FRAMEWORK](00-FRAMEWORK.md) §1).
 
-A conventional design system is often a fragmented catalog of CSS modules or inline styles. For a system of this scale, that is a category error. Because every element on screen is a binding to the Kernel, the design system must be an unshakeable, centralized engine. 
+## The Absolute Law of Centralization (unchanged)
 
-## The Absolute Law of Centralization
+Every visual decision lives in **`src/app/globals.css`**. Because of this, the whole
+app was moved onto Lumen from that single file.
 
-The cardinal rule of UI development in the Studio OS is **Centralization**:
+1. **No `.module.css` files.**
+2. **No inline `style={{…}}` for structural layout, colour, or shadow.** (Legacy
+   pages still do this; removing it is an ongoing cleanup and is what unlocks dark
+   mode.)
+3. **The `.q-` namespace.** Every element uses the `.q-` utility/component classes
+   (`.q-card`, `.q-btn`, `.q-input`, `.q-badge`, `.q-table`, …). The `.q-*` class and
+   `--q-*` token names are kept as the stable API; Lumen redefines what they *mean*.
 
-1. **NO CSS Modules**: The use of `.module.css` files is strictly forbidden. 
-2. **NO Inline Overrides**: Do not use `style={{...}}` to define structural layout, padding, margins, colors, or shadows.
-3. **The `.q-` Namespace**: Every UI element must be styled using the `.q-` utility classes defined exclusively in `src/app/globals.css`. 
-   - Examples: `.q-card`, `.q-btn`, `.q-container`, `.q-stack`, `.q-grid`.
-   - By enforcing this, any visual bugs or design tweaks can be resolved in a single, centralized file without causing cascading fragmentation.
+## Aesthetic
 
----
+- **Neutrals:** a warm, gallery-paper ramp — ground `#F4F3F0`, white surfaces, a
+  near-black ink `#1A1A1D`. Chosen, not defaulted.
+- **Accent:** a confident **ultramarine `#3B47D6`**, answered by a warm **amber
+  `#EE9B3D`** counterpoint. Energy comes from the cool/warm interplay, not volume.
+- **Semantic colours** (success/warning/danger) are separate from the accent.
 
-## Quantum Elevation: Aesthetic Character
+## Type
 
-The design system is fundamentally built upon the **Quantum Elevation** aesthetic—a paradigm that extracts the absolute best principles of modern SaaS design (whitespace, depth, and vibrant legibility) to create an original, ultra-premium interface.
+- **Sans:** Inter, set large and tight for display (`-0.03em`, weight 680), calm and
+  readable for body.
+- **Mono:** `--q-font-mono` for labels, eyebrows, table headers, and data — a modern
+  "tool" voice suited to a builder. Use `tabular-nums` wherever digits align.
 
-### 1. The Premium Palette
-- **Surface**: Ultra-soft cool gray (`#F8F9FA`).
-- **Text**: Deep Slate / Onyx (`#0F172A`) for maximum contrast without the harshness of pure black.
-- **Brand Accent**: A striking Cobalt / Indigo (`#4338CA`) representing primary interactive elements.
+## Motion — the point, not the garnish
 
-### 2. Physical Light & Glassmorphism
-- **Shadows**: Flat drop-shadows are banned. The system relies on highly complex, multi-layered CSS `box-shadow` definitions (e.g., `--q-shadow-md`, `--q-shadow-glass`) to accurately simulate physical, diffused light hitting elevated white surfaces.
-- **Glassmorphism**: Primary navigational shells (like the TopBar) utilize `backdrop-filter: blur(16px)` to float above the content weightlessly.
+One motion language, applied everywhere, so the app moves like a single object:
 
-### 3. The "Jewel" Paradigm
-App launchers and major module representations must not use flat, solid backgrounds. They utilize custom, highly-polished multi-stop CSS gradients (like jewels) containing crisp white graphics, encased inside soft white squircle cards.
+- `--q-ease: cubic-bezier(.22,.8,.28,1)` — the standard curve.
+- `--q-spring: cubic-bezier(.34,1.42,.5,1)` — physical settle for toggles, indicators.
+- `--q-dur-1/2/3` = 130 / 240 / 440 ms.
 
----
+Everything interactive **lifts on hover, presses on `:active`, and settles with a
+spring.** Nothing is inert. Honour `prefers-reduced-motion` (globals.css already does).
 
-## The Six Semantic Primitives
+## Components
 
-While the aesthetic has evolved to Quantum Elevation, the philosophical bindings to the Kernel remain intact. The design system derives entirely from the architecture, built upon these six primitives:
+Defined in globals.css: `.q-btn` (`-primary` = ultramarine, `-secondary`, `-outline`),
+`.q-card` (+ `-interactive` lift), `.q-input/.q-select/.q-textarea/.q-label`,
+`.q-badge` (`-success/-warning/-error/-neutral`), `.q-table` (mono headers, hover
+rows), `.q-state-*` (the state grammar), `.q-glass-panel`, jewel gradients for the
+launcher tiles. All carry Lumen motion.
 
-**1. Entity Signatures (Recognition over Reading)**
-The 9 Kernel Entities have consistent visual identities. A `Service` must be recognizably a `Service` whether it appears as a storefront card or a catalog row. Signatures are encoded via **shape and distinct jewel colorways**.
+## Theming
 
-**2. A Universal State Grammar**
-The kernel state machine demands a visual twin: one consistent treatment for `Waiting`, one for `In Progress`, one for `Halted`—identical across every entity. The **Waiting** state is always the loudest state in the room, as that is where studios bleed time.
+Light-only for now. The token architecture is dark-ready, but the app still has
+hardcoded light colours in inline styles; **dark mode ships once those are removed.**
 
-**3. Two Interaction Signatures**
-The system must visibly distinguish the two edit kinds:
-- **Structure Edits (changing truth):** Carry visible weight, a versioning cue, and an affordance that signals "this ripples everywhere."
-- **Presentation Edits (changing arrangement):** Feel weightless and instant.
+## Status
 
-**4. Lineage as a First-Class Pattern**
-The relationship graph must be visible. Every entity view renders its edges: what it fulfills, consumes, produces, or descends from. These are breadcrumbs of the kernel chain.
-
-**5. Memory as a Universal Affordance**
-Because nothing is deleted and everything emits events, every entity gets the same history drawer/version treatment. Organizational memory is always one gesture away.
-
-**6. Invitation as the Only Empty State**
-There are no dead ends. The absence of data always renders as an invitation to enrich (the Awareness Model reverse loop), functioning as a door into a structure edit.
-
----
-
-## Environmental Convictions
-
-1. **Mobile-and-Touch-First:** Operational management often happens on phones and tablets passed hand to hand. The `.q-container` and `.q-grid` systems are mathematically fluid and responsive by default using CSS Container Queries and Clamp math.
-2. **Micro-Interactions**: The UI must feel tactile. Hovering over primary cards or buttons must trigger fluid lift and scale animations (using our highly tuned `--q-transition-snappy` cubic-bezier), affirming to the user that the system is alive and responsive.
+Foundation is live (`globals.css`). Rollout is progressive: legacy inline styles are
+being replaced with `.q-` classes screen by screen, starting with the visual builder
+(the showcase surface). See the approved living preview ("Lumen") for the target feel.
