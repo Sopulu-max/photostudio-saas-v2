@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { saveLayout } from '@/lib/actions/layouts';
 import { VisualNode } from '@/components/VisualEngine/Renderer';
+import { makeBlock, BlockType } from '@/components/VisualEngine/blocks';
 import { BuilderCanvas } from '@/components/VisualEngine/BuilderCanvas';
 import { Sidebar } from '@/components/VisualEngine/Sidebar';
 
@@ -33,6 +34,14 @@ function replaceNode(root: VisualNode, newNode: VisualNode): VisualNode {
   return root;
 }
 
+function removeNode(root: VisualNode, id: string): VisualNode {
+  if (!root.children) return root;
+  return {
+    ...root,
+    children: root.children.filter(c => c.id !== id).map(c => removeNode(c, id)),
+  };
+}
+
 export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
   const [layoutData, setLayoutData] = useState<VisualNode>(
     initialLayout.layout_data?.root || {
@@ -55,18 +64,12 @@ export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
     if (!over) return;
 
     if (active.id.toString().startsWith('tool-')) {
-      // Adding a new component
-      const type = active.data.current?.type as 'Text' | 'Button' | 'Container' | 'Image';
-      const newNode: VisualNode = {
-        id: `node-${generateId()}`,
-        type,
-        props: type === 'Text' ? { text: 'New Text' } : 
-               type === 'Button' ? { text: 'New Button' } : 
-               type === 'Container' ? { style: { minHeight: '50px', border: '1px solid #ccc' } } : {},
-        children: type === 'Container' ? [] : undefined
-      };
+      // Adding a new block, with its premium Lumen defaults from the registry.
+      const base = makeBlock(active.data.current?.type as BlockType);
+      if (!base) return;
+      const newNode: VisualNode = { id: `node-${generateId()}`, ...base };
 
-      // Simplistic drop logic: always append to root for this MVP
+      // Append to the page root for now; drop-into-container is a later brick.
       setLayoutData(prev => ({
         ...prev,
         children: [...(prev.children || []), newNode]
@@ -86,6 +89,11 @@ export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const deleteNode = (id: string) => {
+    setLayoutData(prev => removeNode(prev, id));
+    setActiveId(null);
   };
 
   const activeNode = activeId ? findNode(layoutData, activeId) : null;
@@ -108,9 +116,10 @@ export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
           <BuilderCanvas rootNode={layoutData} activeId={activeId} onSelectNode={setActiveId} />
           
           {/* Properties & Toolbox Sidebar */}
-          <Sidebar 
-            activeNode={activeNode} 
-            onUpdateNode={(updated) => setLayoutData(replaceNode(layoutData, updated))} 
+          <Sidebar
+            activeNode={activeNode}
+            onUpdateNode={(updated) => setLayoutData(replaceNode(layoutData, updated))}
+            onDelete={deleteNode}
           />
         </DndContext>
       </div>

@@ -2,92 +2,131 @@
 
 import React from 'react';
 import { VisualNode } from './Renderer';
+import { BLOCKS, BlockDef } from './blocks';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
-const COMPONENTS = ['Text', 'Button', 'Container', 'Image'];
-
-function DraggableTool({ type }: { type: string }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: `tool-${type}`,
-    data: { type }
+function DraggableTool({ def }: { def: BlockDef }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `tool-${def.type}`,
+    data: { type: def.type },
   });
 
-  const style = transform ? {
-    transform: CSS.Translate.toString(transform),
-  } : undefined;
-
   return (
-    <div 
-      ref={setNodeRef} 
-      style={{ 
-        padding: '12px', 
-        border: '1px solid var(--q-color-ink-200)', 
-        borderRadius: '6px', 
-        marginBottom: '8px', 
-        cursor: 'grab', 
-        backgroundColor: 'white',
-        ...style 
-      }} 
-      {...listeners} 
+    <div
+      ref={setNodeRef}
+      {...listeners}
       {...attributes}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        padding: '12px',
+        border: '1px solid var(--q-color-ink-200)',
+        borderRadius: '10px',
+        background: 'var(--q-color-paper-base)',
+        cursor: 'grab',
+        boxShadow: 'var(--q-shadow-sm)',
+        transition: 'var(--q-transition-snappy)',
+        opacity: isDragging ? 0.5 : 1,
+        transform: transform ? CSS.Translate.toString(transform) : undefined,
+      }}
     >
-      {type}
+      <span style={{ fontSize: '0.85rem', fontWeight: 560, color: 'var(--q-color-ink-900)' }}>{def.label}</span>
+      <span style={{ fontSize: '0.7rem', color: 'var(--q-color-ink-500)' }}>{def.hint}</span>
     </div>
   );
 }
 
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontFamily: 'var(--q-font-mono)',
+  fontSize: '0.64rem',
+  fontWeight: 600,
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: 'var(--q-color-ink-500)',
+  marginBottom: '8px',
+};
+
 interface SidebarProps {
   activeNode: VisualNode | null;
   onUpdateNode: (node: VisualNode) => void;
+  onDelete: (id: string) => void;
 }
 
-export function Sidebar({ activeNode, onUpdateNode }: SidebarProps) {
+export function Sidebar({ activeNode, onUpdateNode, onDelete }: SidebarProps) {
+  const canEditText = activeNode && ['Text', 'Button', 'Heading'].includes(activeNode.type);
+
   return (
-    <div style={{ width: '300px', borderLeft: '1px solid var(--q-color-ink-200)', backgroundColor: 'var(--q-color-paper)', display: 'flex', flexDirection: 'column' }}>
-      
-      {/* Toolbox */}
-      <div style={{ padding: '16px', borderBottom: '1px solid var(--q-color-ink-200)' }}>
-        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Components</h3>
-        {COMPONENTS.map(c => <DraggableTool key={c} type={c} />)}
+    <div
+      style={{
+        width: '300px',
+        flexShrink: 0,
+        borderLeft: '1px solid var(--q-color-ink-200)',
+        background: 'var(--q-color-paper-subtle)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto',
+      }}
+    >
+      {/* Palette */}
+      <div style={{ padding: '18px', borderBottom: '1px solid var(--q-color-ink-200)' }}>
+        <div style={labelStyle}>Blocks</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          {BLOCKS.map((def) => (
+            <DraggableTool key={def.type} def={def} />
+          ))}
+        </div>
       </div>
 
-      {/* Properties Editor */}
-      <div style={{ padding: '16px', flex: 1, overflowY: 'auto' }}>
-        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Properties</h3>
-        
+      {/* Properties */}
+      <div style={{ padding: '18px', flex: 1 }}>
+        <div style={labelStyle}>Properties</div>
+
         {!activeNode ? (
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Select a node to edit properties.</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)', lineHeight: 1.5 }}>
+            Select a block on the canvas to edit it.
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '4px' }}>Type</label>
-              <input disabled value={activeNode.type} style={{ width: '100%', padding: '6px', fontSize: '0.875rem', borderRadius: '4px', border: '1px solid var(--q-color-ink-200)', background: '#f5f5f5' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ fontFamily: 'var(--q-font-mono)', fontSize: '0.72rem', color: 'var(--q-color-ink-600)' }}>
+              {activeNode.type}
             </div>
 
-            {['Text', 'Button'].includes(activeNode.type) && (
+            {canEditText && (
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '4px' }}>Text Content</label>
-                <input 
-                  value={activeNode.props.text || ''} 
-                  onChange={e => onUpdateNode({ ...activeNode, props: { ...activeNode.props, text: e.target.value } })}
-                  style={{ width: '100%', padding: '6px', fontSize: '0.875rem', borderRadius: '4px', border: '1px solid var(--q-color-ink-300)' }} 
+                <label className="q-label">Text</label>
+                <input
+                  className="q-input"
+                  value={activeNode.props.text || ''}
+                  onChange={(e) => onUpdateNode({ ...activeNode, props: { ...activeNode.props, text: e.target.value } })}
                 />
               </div>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', marginBottom: '4px' }}>Data Binding Path</label>
-              <input 
-                value={activeNode.bind || ''} 
-                onChange={e => onUpdateNode({ ...activeNode, bind: e.target.value })}
-                placeholder="e.g. agreement.terms.base_price"
-                style={{ width: '100%', padding: '6px', fontSize: '0.875rem', borderRadius: '4px', border: '1px solid var(--q-color-ink-300)', fontFamily: 'monospace' }} 
+              <label className="q-label">
+                Bind to data <span style={{ color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(advanced)</span>
+              </label>
+              <input
+                className="q-input"
+                style={{ fontFamily: 'var(--q-font-mono)', fontSize: '0.8rem' }}
+                value={activeNode.bind || ''}
+                onChange={(e) => onUpdateNode({ ...activeNode, bind: e.target.value })}
+                placeholder="service.pricing.base_price"
               />
+              <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--q-color-ink-500)' }}>
+                Show real data here. A pick-a-field version is coming.
+              </p>
             </div>
-            
-            <button className="q-btn q-btn-secondary" style={{ color: 'red', marginTop: '16px' }}>
-              Delete Node
+
+            <button
+              onClick={() => onDelete(activeNode.id)}
+              className="q-btn q-btn-outline"
+              style={{ color: 'var(--q-color-danger)', borderColor: 'color-mix(in srgb, var(--q-color-danger) 40%, transparent)' }}
+            >
+              Delete block
             </button>
           </div>
         )}
