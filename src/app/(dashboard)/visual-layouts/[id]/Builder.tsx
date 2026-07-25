@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { supabaseAdmin } from '@/lib/supabase/admin'; 
+import { saveLayout } from '@/lib/actions/layouts';
 import { VisualNode } from '@/components/VisualEngine/Renderer';
 import { BuilderCanvas } from '@/components/VisualEngine/BuilderCanvas';
 import { Sidebar } from '@/components/VisualEngine/Sidebar';
@@ -78,10 +78,7 @@ export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await supabaseAdmin
-        .from('visual_layouts')
-        .update({ layout_data: { root: layoutData } })
-        .eq('id', initialLayout.id);
+      await saveLayout(initialLayout.id, layoutData);
       alert('Saved successfully!');
     } catch (err) {
       console.error(err);
