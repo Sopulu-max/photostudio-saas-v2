@@ -1,21 +1,17 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
-import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
 export const dynamic = 'force-dynamic';
 
 async function getOverviewData() {
   try {
-    const supabase = await createClient();
-    
-    const authOrg = await getOptionalAuthOrgId();
-    if (!authOrg) return null;
-    const orgId = authOrg.orgId;
+    const { orgId } = await getAuthOrgId();
 
-    const { data: org, error: orgError } = await supabase.from('organizations').select('id, name').eq('id', orgId).single();
-    if (orgError || !org) return null;
+    const { data: org } = await supabaseAdmin.from('organizations').select('id, name').eq('id', orgId).single();
+    if (!org) return null;
 
-    // Fetch actionable data
+    // Fetch actionable data (admin client, scoped by org — same as every other page)
     const [
       { data: recentEvents },
       { data: activeProductions },
@@ -24,12 +20,12 @@ async function getOverviewData() {
       { count: serviceTemplatesCount },
       { count: storefrontLayoutsCount }
     ] = await Promise.all([
-      supabase.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabase.from('workflows').select('*, agreement:agreements(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
-      supabase.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
-      supabase.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-      supabase.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-      supabase.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('context', 'storefront').eq('status', 'published').eq('organization_id', orgId),
+      supabaseAdmin.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
+      supabaseAdmin.from('workflows').select('*, agreement:agreements(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
+      supabaseAdmin.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
+      supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
+      supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
+      supabaseAdmin.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('context', 'storefront').eq('status', 'published').eq('organization_id', orgId),
     ]);
 
     return {
