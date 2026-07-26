@@ -145,6 +145,7 @@ body {
   font-family: var(--q-font-sans);
   font-weight: 550;
   font-size: 0.875rem;
+  text-decoration: none; /* buttons are often <Link> anchors — never underline */
   border: 1px solid transparent;
   cursor: pointer;
   transition: transform var(--q-dur-1) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), filter var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
