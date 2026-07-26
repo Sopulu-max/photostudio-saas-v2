@@ -42,7 +42,7 @@ function removeNode(root: VisualNode, id: string): VisualNode {
   };
 }
 
-export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
+export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayout: any; sampleData?: Record<string, any> }) {
   const [layoutData, setLayoutData] = useState<VisualNode>(
     initialLayout.layout_data?.root || {
       id: 'root',
@@ -113,7 +113,7 @@ export function LayoutBuilder({ initialLayout }: { initialLayout: any }) {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           {/* Main Canvas Area */}
-          <BuilderCanvas rootNode={layoutData} activeId={activeId} onSelectNode={setActiveId} />
+          <BuilderCanvas rootNode={layoutData} activeId={activeId} onSelectNode={setActiveId} dataContext={sampleData} />
           
           {/* Properties & Toolbox Sidebar */}
           <Sidebar
