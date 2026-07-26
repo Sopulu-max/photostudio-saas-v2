@@ -113,11 +113,20 @@ export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayou
   const activeNode = activeId ? findNode(layoutData, activeId) : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--q-color-ink-200)', marginBottom: 0 }}>
-        <div>
-          <h1 className="q-page-title" style={{ fontSize: '1.25rem', marginBottom: 0 }}>Canvas Editor</h1>
-          <p className="q-page-subtitle" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Editing: {initialLayout.name || 'Untitled Layout'}</p>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', background: 'var(--q-color-paper-base)' }}>
+      <header className="q-page-header" style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', padding: '13px 20px', borderBottom: '1px solid var(--q-color-ink-200)', marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <a
+            href={initialLayout.subject_type === 'service' && initialLayout.subject_id ? `/services/${initialLayout.subject_id}` : '/visual-layouts'}
+            className="q-btn q-btn-secondary"
+            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+          >
+            ← Exit
+          </a>
+          <div>
+            <h1 className="q-page-title" style={{ fontSize: '1.1rem', marginBottom: 0 }}>Page Designer</h1>
+            <p className="q-page-subtitle" style={{ fontSize: '0.72rem', marginBottom: 0 }}>Editing: {initialLayout.name || 'Untitled Layout'}</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
           <button onClick={handleSave} disabled={isSaving || isPublishing} className="q-btn q-btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
