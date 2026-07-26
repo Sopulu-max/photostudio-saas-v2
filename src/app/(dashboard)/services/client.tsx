@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Package } from 'lucide-react';
 import { useVisualEngine } from '@/components/visual-engine/VisualEngineOverlay';
 
 export function ServiceTemplatesClient({ initialServices }: { initialServices: any[] }) {
@@ -9,66 +10,54 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
 
   return (
     <div>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 className="q-page-title">Service Templates</h1>
-          <p className="q-page-subtitle">Configure your offerings, workflows, and pricing.</p>
+          <h1 className="q-page-title">Services</h1>
+          <p className="q-page-subtitle">Your offerings — design each one as a page clients can book.</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="q-btn" style={{ background: 'var(--q-color-paper-elevated)', border: '1px solid var(--q-color-ink-100)' }} onClick={() => openEngine('storefront')}>
-            Design Storefront
-          </button>
-          <a href="/services/new" className="q-btn q-btn-primary">Create Service</a>
+        <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+          <button className="q-btn q-btn-secondary" onClick={() => openEngine('storefront')}>Design storefront</button>
+          <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>
       </header>
 
-      <div style={{ display: 'grid', gap: '24px' }}>
-        {initialServices.length === 0 ? (
-          <div className="q-card" style={{ textAlign: 'center', padding: '48px', color: 'var(--q-color-ink-500)' }}>
-            No service templates configured.
+      {initialServices.length === 0 ? (
+        <div className="q-card" style={{ textAlign: 'center', padding: 'clamp(44px, 7vw, 76px) 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ width: '54px', height: '54px', borderRadius: '15px', background: 'var(--q-color-accent-soft)', color: 'var(--q-color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
+            <Package size={24} />
           </div>
-        ) : (
-          initialServices.map((svc: any) => (
-            <div key={svc.id} className="q-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '1.3rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>Create your first service</h3>
+          <p style={{ margin: '0 0 24px', color: 'var(--q-color-ink-500)', maxWidth: '44ch', lineHeight: 1.55 }}>
+            A service is something you sell — a shoot, a package, a session. Create one, then
+            design its page and share a link clients can book from.
+          </p>
+          <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          {initialServices.map((svc: any) => (
+            <Link
+              key={svc.id}
+              href={`/services/${svc.id}`}
+              className="q-card q-card-interactive"
+              style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
                 <div>
-                  <Link href={`/services/${svc.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', cursor: 'pointer' }}>{svc.name}</h3>
-                  </Link>
-                  <div style={{ fontWeight: 600, color: 'var(--q-color-ink-700)' }}>
+                  <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>{svc.name}</h3>
+                  <div style={{ fontFamily: 'var(--q-font-mono)', fontWeight: 600, color: 'var(--q-color-ink-700)', fontVariantNumeric: 'tabular-nums' }}>
                     ${svc.pricing?.base_price || 0} {svc.pricing?.currency || 'USD'}
                   </div>
                 </div>
-                <span style={{ 
-                  padding: '4px 8px', 
-                  borderRadius: '4px', 
-                  fontSize: '0.75rem', 
-                  fontWeight: 500,
-                  background: svc.status === 'active' ? '#D1FAE5' : '#F3F4F6',
-                  color: svc.status === 'active' ? '#065F46' : '#374151'
-                }}>
-                  {svc.status.toUpperCase()}
-                </span>
+                <span className={`q-badge ${svc.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{svc.status}</span>
               </div>
-
-              <div>
-                <h4 style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Workflow Pipeline</h4>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {svc.default_workflow_template_id ? (
-                    <div style={{ padding: '4px 12px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '16px', fontSize: '0.875rem' }}>
-                      Standard Workflow Attached
-                    </div>
-                  ) : (
-                    <div style={{ padding: '4px 12px', background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: '16px', fontSize: '0.875rem' }}>
-                      No Workflow Attached
-                    </div>
-                  )}
-                </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+                {svc.default_workflow_template_id ? 'Workflow attached' : 'No workflow attached'}
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
