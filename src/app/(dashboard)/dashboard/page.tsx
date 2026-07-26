@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
   Activity, FileSignature, FolderOpen,
   Package, GitMerge, Users, Boxes,
-  LayoutTemplate, PieChart, Settings,
+  PieChart, Settings,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,7 @@ const SECTIONS = [
     label: 'Configuration',
     jewel: 'var(--q-jewel-amber)',
     apps: [
-      { label: 'Services', href: '/services', desc: 'Your offerings and pages', icon: Package },
+      { label: 'Services', href: '/services', desc: 'Your offerings and pricing', icon: Package },
       { label: 'Workflow Blueprints', href: '/workflows/templates', desc: 'Reusable pipelines', icon: GitMerge },
       { label: 'Roster & Roles', href: '/people', desc: 'Clients, staff, vendors', icon: Users },
       { label: 'Resources', href: '/resources', desc: 'Gear and spaces', icon: Boxes },
@@ -45,7 +45,6 @@ const SECTIONS = [
     label: 'Platform',
     jewel: 'var(--q-jewel-slate)',
     apps: [
-      { label: 'Visual Engine', href: '/visual-layouts', desc: 'Storefront and pages', icon: LayoutTemplate },
       { label: 'Analytics', href: '/analytics', desc: 'Insights and metrics', icon: PieChart },
       { label: 'Settings', href: '/settings', desc: 'Studio configuration', icon: Settings },
     ],

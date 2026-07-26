@@ -1,6 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getOrCreateServiceLayout } from '@/lib/actions/layouts';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 
@@ -27,16 +26,6 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
     notFound();
   }
 
-  const { data: org } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
-  const publicUrl = org?.slug ? `/storefront/${org.slug}/service/${service.id}` : null;
-
-  const serviceId = service.id;
-  async function openDesigner() {
-    'use server';
-    const layoutId = await getOrCreateServiceLayout(serviceId);
-    redirect(`/visual-layouts/${layoutId}`);
-  }
-
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
       <header className="q-page-header">
@@ -50,17 +39,9 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             <h1 className="q-page-title">{service.name}</h1>
             <p className="q-page-subtitle">Service Template Details</p>
           </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <span className={`q-badge ${service.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
-              {service.status}
-            </span>
-            {publicUrl && (
-              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="q-btn q-btn-secondary">View page</a>
-            )}
-            <form action={openDesigner}>
-              <button type="submit" className="q-btn q-btn-primary">Design page</button>
-            </form>
-          </div>
+          <span className={`q-badge ${service.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
+            {service.status}
+          </span>
         </div>
       </header>
 

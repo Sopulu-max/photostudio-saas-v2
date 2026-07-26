@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
-import { openStorefrontDesigner, openServiceDesigner } from './actions';
 
 export function ServiceTemplatesClient({ initialServices }: { initialServices: any[] }) {
 
@@ -12,14 +11,9 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
       <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 className="q-page-title">Services</h1>
-          <p className="q-page-subtitle">Your offerings — design each one as a page clients can book.</p>
+          <p className="q-page-subtitle">Define what your studio sells — the offerings clients can book.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
-          <form action={openStorefrontDesigner}>
-            <button type="submit" className="q-btn q-btn-secondary">Design storefront</button>
-          </form>
-          <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
-        </div>
+        <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
       </header>
 
       {initialServices.length === 0 ? (
@@ -29,8 +23,8 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
           </div>
           <h3 style={{ margin: '0 0 8px', fontSize: '1.3rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>Create your first service</h3>
           <p style={{ margin: '0 0 24px', color: 'var(--q-color-ink-500)', maxWidth: '44ch', lineHeight: 1.55 }}>
-            A service is something you sell — a shoot, a package, a session. Create one, then
-            design its page and share a link clients can book from.
+            A service is something you sell — a shoot, a package, a session. Create one,
+            attach a workflow, and it's ready to take bookings.
           </p>
           <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>
@@ -56,13 +50,8 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', gap: '8px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
                 <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary" style={{ flex: 1, textAlign: 'center', fontSize: '0.875rem' }}>
-                  Edit Details
+                  Manage service
                 </Link>
-                <form action={openServiceDesigner.bind(null, svc.id)} style={{ flex: 1 }}>
-                  <button type="submit" className="q-btn q-btn-secondary" style={{ width: '100%', fontSize: '0.875rem' }}>
-                    Design Page
-                  </button>
-                </form>
               </div>
             </div>
           ))}

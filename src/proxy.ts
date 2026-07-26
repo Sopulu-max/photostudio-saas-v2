@@ -48,7 +48,7 @@ export async function proxy(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/signup') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     request.nextUrl.pathname !== '/' && // let landing page be public
-    !request.nextUrl.pathname.startsWith('/storefront') // storefronts are public
+    !request.nextUrl.pathname.startsWith('/book') // public booking pages
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

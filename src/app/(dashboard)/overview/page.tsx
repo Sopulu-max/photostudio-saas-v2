@@ -17,15 +17,13 @@ async function getOverviewData() {
       { data: activeProductions },
       { data: pendingPayments },
       { count: workflowTemplatesCount },
-      { count: serviceTemplatesCount },
-      { count: storefrontLayoutsCount }
+      { count: serviceTemplatesCount }
     ] = await Promise.all([
       supabaseAdmin.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('workflows').select('*, agreement:agreements(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-      supabaseAdmin.from('visual_layouts').select('*', { count: 'exact', head: true }).eq('context', 'storefront').eq('status', 'published').eq('organization_id', orgId),
     ]);
 
     return {
@@ -36,7 +34,6 @@ async function getOverviewData() {
       onboarding: {
         hasWorkflow: (workflowTemplatesCount || 0) > 0,
         hasService: (serviceTemplatesCount || 0) > 0,
-        hasStorefront: (storefrontLayoutsCount || 0) > 0,
       }
     };
   } catch (err: any) {
@@ -58,7 +55,7 @@ export default async function OverviewPage() {
 
   if (!data) return null;
 
-  const isOnboarding = !data.onboarding.hasWorkflow || !data.onboarding.hasService || !data.onboarding.hasStorefront;
+  const isOnboarding = !data.onboarding.hasWorkflow || !data.onboarding.hasService;
 
   return (
     <div>

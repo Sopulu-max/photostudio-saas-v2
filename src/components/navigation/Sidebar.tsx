@@ -15,10 +15,8 @@ import {
   DollarSign,
   Layers,
   PieChart,
-  LayoutTemplate,
   CheckSquare,
   Settings,
-  ExternalLink,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -51,14 +49,13 @@ const NAV_SECTIONS = [
   {
     label: 'Platform',
     items: [
-      { label: 'Visual Engine', href: '/visual-layouts', icon: LayoutTemplate },
       { label: 'Analytics', href: '/analytics', icon: PieChart },
       { label: 'Settings', href: '/settings', icon: Settings },
     ]
   },
 ];
 
-export function Sidebar({ studioName, orgSlug }: { studioName?: string; orgSlug?: string }) {
+export function Sidebar({ studioName }: { studioName?: string; orgSlug?: string }) {
   const pathname = usePathname();
 
   return (
@@ -134,31 +131,6 @@ export function Sidebar({ studioName, orgSlug }: { studioName?: string; orgSlug?
           </div>
         ))}
       </nav>
-
-      {/* Footer: Storefront Link */}
-      {orgSlug && (
-        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--q-color-ink-100)' }}>
-          <a
-            href={`/storefront/${orgSlug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 10px',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontSize: '0.8rem',
-              color: 'var(--q-color-ink-500)',
-              border: '1px solid var(--q-color-ink-200)',
-            }}
-          >
-            <ExternalLink size={14} />
-            View Storefront
-          </a>
-        </div>
-      )}
     </aside>
   );
 }
