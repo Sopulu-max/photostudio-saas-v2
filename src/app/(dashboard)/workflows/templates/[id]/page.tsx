@@ -44,8 +44,8 @@ export default async function WorkflowTemplateDetailsPage(props: { params: Promi
             borderRadius: '6px', 
             fontSize: '0.875rem', 
             fontWeight: 600,
-            background: template.status === 'active' ? '#D1FAE5' : '#F3F4F6',
-            color: template.status === 'active' ? '#065F46' : '#374151'
+            background: template.status === 'active' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'var(--q-color-ink-100)',
+            color: template.status === 'active' ? 'var(--q-color-success)' : 'var(--q-color-ink-600)'
           }}>
             {template.status.toUpperCase()}
           </span>
@@ -79,7 +79,7 @@ export default async function WorkflowTemplateDetailsPage(props: { params: Promi
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{stage.name}</h3>
                       {stage.requires_approval && (
-                        <span style={{ fontSize: '0.75rem', background: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '12px', fontWeight: 500 }}>
+                        <span style={{ fontSize: '0.75rem', background: 'var(--q-color-warm-soft)', color: 'var(--q-color-warm)', padding: '2px 8px', borderRadius: '12px', fontWeight: 500 }}>
                           Requires Approval
                         </span>
                       )}

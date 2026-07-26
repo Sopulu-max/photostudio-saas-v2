@@ -135,7 +135,7 @@ export default async function UnifiedProductionWorkspace(props: {
           {/* Section: Inquiry & Agreement */}
           <section>
             <h2 style={{ fontSize: '1.25rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'white', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>1</span> 
+              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'var(--q-color-paper-base)', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>1</span> 
               Booking & Contract
             </h2>
             <div className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -160,7 +160,7 @@ export default async function UnifiedProductionWorkspace(props: {
           {/* Section: Production Pipeline (Kanban) */}
           <section>
             <h2 style={{ fontSize: '1.25rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'white', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>2</span> 
+              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'var(--q-color-paper-base)', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>2</span> 
               Production Pipeline
             </h2>
             <div style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '16px' }}>
@@ -197,7 +197,7 @@ export default async function UnifiedProductionWorkspace(props: {
           {/* Section: Asset Pool */}
           <section>
             <h2 style={{ fontSize: '1.25rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'white', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>3</span> 
+              <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'var(--q-color-paper-base)', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>3</span> 
               Asset Pool & Delivery
             </h2>
             <div className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -242,7 +242,7 @@ export default async function UnifiedProductionWorkspace(props: {
                   <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid var(--q-color-ink-100)' }}>
                     <div>
                       <div style={{ fontWeight: 500, textTransform: 'capitalize' }}>{tx.type.replace('_', ' ')}</div>
-                      <div style={{ fontSize: '0.75rem', color: tx.status === 'settled' ? '#059669' : '#d97706' }}>{tx.status.toUpperCase()}</div>
+                      <div style={{ fontSize: '0.75rem', color: tx.status === 'settled' ? 'var(--q-color-success)' : 'var(--q-color-warm)' }}>{tx.status.toUpperCase()}</div>
                     </div>
                     <div style={{ fontWeight: 600 }}>${(tx.amount / 100).toFixed(2)}</div>
                   </div>

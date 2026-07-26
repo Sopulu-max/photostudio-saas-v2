@@ -49,8 +49,8 @@ export default async function ResourcesPage() {
                       borderRadius: '4px', 
                       fontSize: '0.75rem', 
                       fontWeight: 500,
-                      background: resource.status === 'active' ? '#D1FAE5' : '#FEE2E2',
-                      color: resource.status === 'active' ? '#065F46' : '#991B1B'
+                      background: resource.status === 'active' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)',
+                      color: resource.status === 'active' ? 'var(--q-color-success)' : 'var(--q-color-danger)'
                     }}>
                       {resource.status.toUpperCase()}
                     </span>

@@ -43,7 +43,7 @@ export default async function AnalyticsPage() {
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Outstanding</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: '#d97706' }}>${totalPending.toFixed(2)}</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--q-color-warm)' }}>${totalPending.toFixed(2)}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Active Projects</div>

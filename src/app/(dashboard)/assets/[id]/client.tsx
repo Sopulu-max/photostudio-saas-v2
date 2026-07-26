@@ -62,7 +62,7 @@ export function CreateDeliverableClient({ assetId, orgId, actorId, agreements }:
               <div>
                 <label className="q-label">Select Target Agreement</label>
                 {agreements.length === 0 ? (
-                  <div style={{ padding: '8px', background: '#FEE2E2', color: '#991B1B', borderRadius: '4px', fontSize: '0.875rem' }}>
+                  <div style={{ padding: '8px', background: 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)', color: 'var(--q-color-danger)', borderRadius: '4px', fontSize: '0.875rem' }}>
                     No active agreements found.
                   </div>
                 ) : (

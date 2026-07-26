@@ -78,7 +78,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
             <div>
               <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Direction</div>
               <div>
-                <span style={{ fontSize: '0.875rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: transaction.direction === 'inbound' ? '#D1FAE5' : '#FEE2E2', color: transaction.direction === 'inbound' ? '#065F46' : '#991B1B', fontWeight: 500 }}>
+                <span style={{ fontSize: '0.875rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: transaction.direction === 'inbound' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)', color: transaction.direction === 'inbound' ? 'var(--q-color-success)' : 'var(--q-color-danger)', fontWeight: 500 }}>
                   {transaction.direction}
                 </span>
               </div>

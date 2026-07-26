@@ -31,7 +31,7 @@ export function IntentActionsClient({ intent, orgId, actorId }: { intent: any, o
 
   if (intent.status === 'approved') {
     return (
-      <div style={{ padding: '16px', background: '#D1FAE5', color: '#065F46', borderRadius: '8px', border: '1px solid #34D399', textAlign: 'center' }}>
+      <div style={{ padding: '16px', background: 'color-mix(in srgb, var(--q-color-success) 15%, transparent)', color: 'var(--q-color-success)', borderRadius: '8px', border: '1px solid color-mix(in srgb, var(--q-color-success) 35%, transparent)', textAlign: 'center' }}>
         This intent has already been converted into an Agreement.
       </div>
     );

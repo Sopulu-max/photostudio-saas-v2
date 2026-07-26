@@ -49,11 +49,11 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
   };
 
   const statusColors: Record<string, string> = {
-    proposed: '#d97706',
-    active: '#059669',
-    modified: '#7c3aed',
-    completed: '#059669',
-    cancelled: '#dc2626',
+    proposed: 'var(--q-color-warm)',
+    active: 'var(--q-color-success)',
+    modified: 'var(--q-color-accent)',
+    completed: 'var(--q-color-success)',
+    cancelled: 'var(--q-color-danger)',
   };
 
   return (
@@ -71,8 +71,8 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           border: '1px solid',
-          borderColor: statusColors[agreement.status] || '#94a3b8',
-          color: statusColors[agreement.status] || '#94a3b8',
+          borderColor: statusColors[agreement.status] || 'var(--q-color-ink-400)',
+          color: statusColors[agreement.status] || 'var(--q-color-ink-400)',
         }}>
           {agreement.status}
         </span>
@@ -122,7 +122,7 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            {saved && <span style={{ color: '#059669', fontWeight: 500, alignSelf: 'center', fontSize: '0.875rem' }}>✓ Saved</span>}
+            {saved && <span style={{ color: 'var(--q-color-success)', fontWeight: 500, alignSelf: 'center', fontSize: '0.875rem' }}>✓ Saved</span>}
             {agreement.status !== 'active' && agreement.status !== 'completed' && (
               <button type="submit" disabled={isSaving} className="q-btn q-btn-primary">
                 {isSaving ? 'Saving...' : 'Save Terms'}

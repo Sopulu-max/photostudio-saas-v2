@@ -49,7 +49,7 @@ export default async function FinancesPage() {
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Pending / Outstanding</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: '#d97706' }}>${totalPending.toFixed(2)}</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--q-color-warm)' }}>${totalPending.toFixed(2)}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Transactions</div>
@@ -84,7 +84,7 @@ export default async function FinancesPage() {
                   <td className="q-table-td" style={{ textTransform: 'capitalize' }}>{tx.type.replace(/_/g, ' ')}</td>
                   <td className="q-table-td" style={{ fontWeight: 500 }}>{tx.person?.display_name || 'System'}</td>
                   <td className="q-table-td">
-                    <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: tx.direction === 'inbound' ? '#D1FAE5' : '#FEE2E2', color: tx.direction === 'inbound' ? '#065F46' : '#991B1B', fontWeight: 500 }}>
+                    <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: tx.direction === 'inbound' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)', color: tx.direction === 'inbound' ? 'var(--q-color-success)' : 'var(--q-color-danger)', fontWeight: 500 }}>
                       {tx.direction}
                     </span>
                   </td>

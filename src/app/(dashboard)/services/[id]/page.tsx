@@ -112,7 +112,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
                     <strong>{field.label}</strong>
                     <span style={{ fontSize: '0.75rem', background: 'var(--q-color-paper-subtle)', padding: '2px 6px', borderRadius: '4px' }}>{field.type}</span>
                   </div>
-                  {field.required && <div style={{ fontSize: '0.75rem', color: '#B91C1C', marginTop: '4px' }}>Required</div>}
+                  {field.required && <div style={{ fontSize: '0.75rem', color: 'var(--q-color-danger)', marginTop: '4px' }}>Required</div>}
                 </div>
               ))}
             </div>
