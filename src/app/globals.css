@@ -90,7 +90,16 @@ body {
 .q-text-body { color: var(--q-color-ink-900); }
 .q-bg-surface-base { background: var(--q-color-paper-base); }
 
-.q-page-header { margin-bottom: 40px; }
+.q-page-header {
+  margin-bottom: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+/* the title block gets priority; actions wrap below rather than squeezing it */
+.q-page-header > :first-child { flex: 1 1 20rem; min-width: 0; }
 
 .q-page-title {
   margin: 0;
