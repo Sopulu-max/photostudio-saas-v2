@@ -3,10 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
-import { useVisualEngine } from '@/components/visual-engine/VisualEngineOverlay';
+import { openStorefrontDesigner, openServiceDesigner } from './actions';
 
 export function ServiceTemplatesClient({ initialServices }: { initialServices: any[] }) {
-  const { openEngine } = useVisualEngine();
 
   return (
     <div>
@@ -16,7 +15,9 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
           <p className="q-page-subtitle">Your offerings — design each one as a page clients can book.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
-          <button className="q-btn q-btn-secondary" onClick={() => openEngine('storefront')}>Design storefront</button>
+          <form action={openStorefrontDesigner}>
+            <button type="submit" className="q-btn q-btn-secondary">Design storefront</button>
+          </form>
           <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>
       </header>
@@ -36,11 +37,10 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
           {initialServices.map((svc: any) => (
-            <Link
+            <div
               key={svc.id}
-              href={`/services/${svc.id}`}
-              className="q-card q-card-interactive"
-              style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+              className="q-card"
+              style={{ display: 'flex', flexDirection: 'column' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
                 <div>
@@ -51,10 +51,20 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
                 </div>
                 <span className={`q-badge ${svc.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{svc.status}</span>
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)', marginBottom: '16px' }}>
                 {svc.default_workflow_template_id ? 'Workflow attached' : 'No workflow attached'}
               </div>
-            </Link>
+              <div style={{ marginTop: 'auto', display: 'flex', gap: '8px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
+                <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary" style={{ flex: 1, textAlign: 'center', fontSize: '0.875rem' }}>
+                  Edit Details
+                </Link>
+                <form action={openServiceDesigner.bind(null, svc.id)} style={{ flex: 1 }}>
+                  <button type="submit" className="q-btn q-btn-secondary" style={{ width: '100%', fontSize: '0.875rem' }}>
+                    Design Page
+                  </button>
+                </form>
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -2,10 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useVisualEngine } from '@/components/visual-engine/VisualEngineOverlay';
 
 export function AgreementsClient({ initialAgreements }: { initialAgreements: any[] }) {
-  const { openEngine } = useVisualEngine();
 
   return (
     <div>

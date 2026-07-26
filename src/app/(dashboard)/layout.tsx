@@ -1,6 +1,5 @@
 import { Sidebar } from '@/components/navigation/Sidebar';
 import TopBar from '@/components/navigation/TopBar';
-import { VisualEngineOverlay } from '@/components/visual-engine/VisualEngineOverlay';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -37,7 +36,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </main>
       </div>
-      <VisualEngineOverlay />
     </div>
   );
 }

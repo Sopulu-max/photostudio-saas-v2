@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { openStorefrontDesigner } from '../services/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,9 @@ export default async function VisualLayoutsPage() {
           <h1 className="q-page-title">Visual Engine</h1>
           <p className="q-page-subtitle">Manage your storefront layouts and client portals.</p>
         </div>
-        <button className="q-btn q-btn-primary">Create Layout</button>
+        <form action={openStorefrontDesigner}>
+          <button type="submit" className="q-btn q-btn-primary">Design Storefront</button>
+        </form>
       </header>
 
       <div className="q-card" style={{ padding: 0, overflow: 'hidden' }}>
