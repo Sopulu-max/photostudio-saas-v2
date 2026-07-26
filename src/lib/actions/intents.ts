@@ -209,3 +209,69 @@ export async function autoBookService(input: {
 
   return { intentId: intent.id, agreementId: agreement.id, personId, workflowId: workflow?.id };
 }
+
+/**
+ * Manual (operator-driven) conversion of an existing inquiry into an Agreement.
+ *
+ * This is the by-hand counterpart to autoBookService's public path: an operator
+ * looking at an intent in the dashboard turns it into a formal proposal. It
+ * advances the intent state machine to 'accepted' and creates the agreement
+ * carrying the service's real pricing into terms — so a later activation can
+ * compute the deposit correctly (the previous flow wrote malformed terms and
+ * the deposit always came out zero).
+ *
+ * The agreement is created in its 'proposed' state; activation (which fires the
+ * workflow + deposit cascade) is a deliberate second step on the agreement page.
+ */
+export async function convertIntentToAgreement(input: {
+  intentId: string;
+  organizationId: string;
+  actorId: string;
+}) {
+  const { intentId, organizationId, actorId } = input;
+
+  const { data: intent, error } = await supabaseAdmin
+    .from('intents')
+    .select('id, person_id, status, service_template_id, template:service_templates(pricing)')
+    .eq('id', intentId)
+    .eq('organization_id', organizationId)
+    .single();
+
+  if (error || !intent) throw new Error('Intent not found');
+
+  // Idempotency: never create a second agreement for the same inquiry.
+  const { data: existing } = await supabaseAdmin
+    .from('agreements')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('intent_id', intentId)
+    .maybeSingle();
+
+  if (existing) return { agreementId: existing.id };
+
+  // Walk the state machine to its terminal 'accepted' from wherever it is.
+  if (intent.status === 'created') {
+    await updateIntentStatus(intentId, organizationId, 'reviewed', actorId);
+    await updateIntentStatus(intentId, organizationId, 'accepted', actorId);
+  } else if (intent.status === 'reviewed') {
+    await updateIntentStatus(intentId, organizationId, 'accepted', actorId);
+  }
+
+  const pricing = (intent.template as any)?.pricing || {};
+  const terms = {
+    base_price: pricing.base_price || 0,
+    deposit_percentage: pricing.deposit_percentage || 0,
+    currency: pricing.currency || 'USD',
+    service_template_id: intent.service_template_id || null,
+  };
+
+  const agreement = await createAgreement({
+    organizationId,
+    intentId,
+    personId: intent.person_id,
+    terms,
+    actorId,
+  });
+
+  return { agreementId: agreement.id };
+}
