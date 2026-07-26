@@ -42,7 +42,19 @@ function removeNode(root: VisualNode, id: string): VisualNode {
   };
 }
 
+// The fields a studio can bind blocks to, per subject type. Friendly labels
+// map to the dot-paths the Renderer resolves against the live record.
+const BINDABLE_FIELDS: Record<string, { label: string; path: string }[]> = {
+  service: [
+    { label: 'Service name', path: 'service.name' },
+    { label: 'Description', path: 'service.description' },
+    { label: 'Price', path: 'service.pricing.base_price' },
+    { label: 'Currency', path: 'service.pricing.currency' },
+  ],
+};
+
 export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayout: any; sampleData?: Record<string, any> }) {
+  const fields = BINDABLE_FIELDS[initialLayout.subject_type as string] || [];
   const [layoutData, setLayoutData] = useState<VisualNode>(
     initialLayout.layout_data?.root || {
       id: 'root',
@@ -148,6 +160,7 @@ export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayou
             activeNode={activeNode}
             onUpdateNode={(updated) => setLayoutData(replaceNode(layoutData, updated))}
             onDelete={deleteNode}
+            fields={fields}
           />
         </DndContext>
       </div>

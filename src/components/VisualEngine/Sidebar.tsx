@@ -49,14 +49,21 @@ const labelStyle: React.CSSProperties = {
   marginBottom: '8px',
 };
 
+export interface BindableField {
+  label: string;
+  path: string;
+}
+
 interface SidebarProps {
   activeNode: VisualNode | null;
   onUpdateNode: (node: VisualNode) => void;
   onDelete: (id: string) => void;
+  fields?: BindableField[];
 }
 
-export function Sidebar({ activeNode, onUpdateNode, onDelete }: SidebarProps) {
+export function Sidebar({ activeNode, onUpdateNode, onDelete, fields = [] }: SidebarProps) {
   const canEditText = activeNode && ['Text', 'Button', 'Heading'].includes(activeNode.type);
+  const canBind = activeNode && ['Text', 'Button', 'Heading', 'Image'].includes(activeNode.type);
 
   return (
     <div
@@ -105,21 +112,27 @@ export function Sidebar({ activeNode, onUpdateNode, onDelete }: SidebarProps) {
               </div>
             )}
 
-            <div>
-              <label className="q-label">
-                Bind to data <span style={{ color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(advanced)</span>
-              </label>
-              <input
-                className="q-input"
-                style={{ fontFamily: 'var(--q-font-mono)', fontSize: '0.8rem' }}
-                value={activeNode.bind || ''}
-                onChange={(e) => onUpdateNode({ ...activeNode, bind: e.target.value })}
-                placeholder="service.pricing.base_price"
-              />
-              <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--q-color-ink-500)' }}>
-                Show real data here. A pick-a-field version is coming.
-              </p>
-            </div>
+            {canBind && fields.length > 0 && (
+              <div>
+                <label className="q-label">Show my data</label>
+                <select
+                  className="q-select"
+                  value={activeNode.bind || ''}
+                  onChange={(e) => {
+                    const path = e.target.value;
+                    onUpdateNode({ ...activeNode, bind: path || undefined });
+                  }}
+                >
+                  <option value="">— None (type your own) —</option>
+                  {fields.map((f) => (
+                    <option key={f.path} value={f.path}>{f.label}</option>
+                  ))}
+                </select>
+                <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--q-color-ink-500)' }}>
+                  Fill this block with real data — it updates live as your data changes.
+                </p>
+              </div>
+            )}
 
             <button
               onClick={() => onDelete(activeNode.id)}
