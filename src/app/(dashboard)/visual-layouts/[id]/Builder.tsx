@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { saveLayout } from '@/lib/actions/layouts';
+import { saveLayout, publishLayout } from '@/lib/actions/layouts';
 import { VisualNode } from '@/components/VisualEngine/Renderer';
 import { makeBlock, BlockType } from '@/components/VisualEngine/blocks';
 import { BuilderCanvas } from '@/components/VisualEngine/BuilderCanvas';
@@ -54,6 +54,7 @@ export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayou
   
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -91,6 +92,19 @@ export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayou
     }
   };
 
+  const handlePublish = async () => {
+    setIsPublishing(true);
+    try {
+      await publishLayout(initialLayout.id, layoutData);
+      alert('Published! Your page is now live.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to publish.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const deleteNode = (id: string) => {
     setLayoutData(prev => removeNode(prev, id));
     setActiveId(null);
@@ -105,9 +119,14 @@ export function LayoutBuilder({ initialLayout, sampleData = {} }: { initialLayou
           <h1 className="q-page-title" style={{ fontSize: '1.25rem', marginBottom: 0 }}>Canvas Editor</h1>
           <p className="q-page-subtitle" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Editing: {initialLayout.name || 'Untitled Layout'}</p>
         </div>
-        <button onClick={handleSave} disabled={isSaving} className="q-btn q-btn-primary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
-          {isSaving ? 'Saving...' : 'Save Layout'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+          <button onClick={handleSave} disabled={isSaving || isPublishing} className="q-btn q-btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
+            {isSaving ? 'Saving…' : 'Save draft'}
+          </button>
+          <button onClick={handlePublish} disabled={isSaving || isPublishing} className="q-btn q-btn-primary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
+            {isPublishing ? 'Publishing…' : 'Publish'}
+          </button>
+        </div>
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

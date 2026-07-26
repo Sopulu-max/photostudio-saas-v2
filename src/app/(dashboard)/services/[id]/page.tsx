@@ -27,6 +27,9 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
     notFound();
   }
 
+  const { data: org } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
+  const publicUrl = org?.slug ? `/storefront/${org.slug}/service/${service.id}` : null;
+
   const serviceId = service.id;
   async function openDesigner() {
     'use server';
@@ -51,6 +54,9 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             <span className={`q-badge ${service.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
               {service.status}
             </span>
+            {publicUrl && (
+              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="q-btn q-btn-secondary">View page</a>
+            )}
             <form action={openDesigner}>
               <button type="submit" className="q-btn q-btn-primary">Design page</button>
             </form>

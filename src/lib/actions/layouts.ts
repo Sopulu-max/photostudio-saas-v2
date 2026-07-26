@@ -30,6 +30,26 @@ export async function saveLayout(layoutId: string, root: VisualNode) {
 }
 
 /**
+ * Save the layout AND mark it published, so the public page renders it.
+ */
+export async function publishLayout(layoutId: string, root: VisualNode) {
+  const { orgId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('visual_layouts')
+    .update({ layout_data: { root }, status: 'published', published_at: new Date().toISOString() })
+    .eq('id', layoutId)
+    .eq('organization_id', orgId);
+
+  if (error) {
+    console.error('Failed to publish layout:', error);
+    throw new Error('Failed to publish layout');
+  }
+
+  revalidatePath(`/visual-layouts/${layoutId}`);
+}
+
+/**
  * Find (or create) the page layout for a given service, and return its id.
  * A service's page is a visual_layout with context 'service' pointing at the
  * service via subject_id — so the builder can open on it bound to real data.
