@@ -67,6 +67,20 @@ export async function getOrCreateServiceLayout(serviceId: string): Promise<strin
 
   if (existing) return existing.id;
 
+  // Scaffold a sensible starting page bound to the service's own data, so the
+  // designer opens on something good instead of a blank canvas (works out of
+  // the box; the studio edits from there).
+  const scaffold = {
+    id: 'root',
+    type: 'Container',
+    props: { style: { minHeight: '100%' } },
+    children: [
+      { id: 'sc-title', type: 'Heading', bind: 'service.name', props: { level: 1, text: 'Service name', style: { fontSize: '2.6rem', fontWeight: 680, letterSpacing: '-0.03em', lineHeight: 1.05, color: 'var(--q-color-ink-900)', margin: 0, padding: '48px 40px 10px' } } },
+      { id: 'sc-desc', type: 'Text', bind: 'service.description', props: { text: 'Describe this service in a sentence or two.', style: { display: 'block', fontSize: '1.1rem', lineHeight: 1.6, color: 'var(--q-color-ink-600)', margin: 0, padding: '0 40px 28px' } } },
+      { id: 'sc-book', type: 'Button', props: { text: 'Book this service', className: 'q-btn-primary', style: { margin: '0 40px 48px' } } },
+    ],
+  };
+
   const { data: created, error } = await supabaseAdmin
     .from('visual_layouts')
     .insert({
@@ -75,7 +89,7 @@ export async function getOrCreateServiceLayout(serviceId: string): Promise<strin
       subject_type: 'service',
       subject_id: serviceId,
       name: 'Service page',
-      layout_data: { root: { id: 'root', type: 'Container', props: { style: { minHeight: '100%' } }, children: [] } },
+      layout_data: { root: scaffold },
       status: 'draft',
     })
     .select('id')
