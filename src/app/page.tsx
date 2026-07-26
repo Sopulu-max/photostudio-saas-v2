@@ -38,18 +38,6 @@ export default async function LandingPage() {
               <Link href="#how" className="q-btn q-btn-outline" style={{ padding: '13px 26px', fontSize: '1rem' }}>See how it works</Link>
             </div>
           </Reveal>
-
-          <Reveal delay={240}>
-            <div className="q-lp-mock" aria-hidden="true">
-              <div className="q-lp-mock-bar"><span /><span /><span /></div>
-              <div className="q-lp-mock-tiles">
-                <div className="q-lp-mock-tile" style={{ background: 'var(--q-jewel-indigo)' }} />
-                <div className="q-lp-mock-tile" style={{ background: 'var(--q-jewel-amber)' }} />
-                <div className="q-lp-mock-tile" style={{ background: 'var(--q-jewel-emerald)' }} />
-                <div className="q-lp-mock-tile" style={{ background: 'var(--q-jewel-slate)' }} />
-              </div>
-            </div>
-          </Reveal>
         </div>
       </header>
 
