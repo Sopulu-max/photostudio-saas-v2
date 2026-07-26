@@ -77,19 +77,19 @@ export default async function OverviewPage() {
           <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '24px' }}>Setup Checklist</h2>
           <div style={{ display: 'grid', gap: '16px' }}>
             {/* Step 1 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasWorkflow ? '#F0FDF4' : '#F9FAFB', border: `1px solid ${data.onboarding.hasWorkflow ? '#BBF7D0' : '#E5E7EB'}`, borderRadius: '8px' }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: data.onboarding.hasWorkflow ? '#22C55E' : '#D1D5DB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasWorkflow ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>Create a Workflow Blueprint</h3>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Workflow Blueprint</h3>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define the pipeline of tasks that happen after booking.</p>
               </div>
               {!data.onboarding.hasWorkflow && <Link href="/workflows/templates" className="q-btn q-btn-secondary">Go →</Link>}
             </div>
             {/* Step 2 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasService ? '#F0FDF4' : '#F9FAFB', border: `1px solid ${data.onboarding.hasService ? '#BBF7D0' : '#E5E7EB'}`, borderRadius: '8px', opacity: data.onboarding.hasWorkflow ? 1 : 0.5 }}>
-              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: data.onboarding.hasService ? '#22C55E' : '#D1D5DB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px', opacity: data.onboarding.hasWorkflow ? 1 : 0.5 }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasService ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem' }}>Create a Service Catalog Item</h3>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Service Catalog Item</h3>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define what you sell and attach your workflow blueprint.</p>
               </div>
               {data.onboarding.hasWorkflow && !data.onboarding.hasService && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}

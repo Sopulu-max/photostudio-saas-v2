@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ThemeToggle } from './ThemeToggle';
 
 export default function TopBar({ studioName }: { studioName?: string }) {
   return (
@@ -29,6 +30,7 @@ export default function TopBar({ studioName }: { studioName?: string }) {
       }}>
         Search ⌘K
       </div>
+      <ThemeToggle />
       <div style={{
         width: '30px',
         height: '30px',
@@ -38,7 +40,7 @@ export default function TopBar({ studioName }: { studioName?: string }) {
         alignItems: 'center',
         justifyContent: 'center',
         fontSize: '0.7rem',
-        color: 'white',
+        color: 'var(--q-color-paper-base)',
         fontWeight: 600,
         flexShrink: 0,
       }}>
