@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { login } from './actions';
 
-export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const params = await searchParams;
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
       <div className="q-card" style={{ width: '100%', maxWidth: '400px' }}>
@@ -12,9 +13,9 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
           Log in to your Weave account
         </p>
 
-        {searchParams.error && (
+        {params.error && (
           <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
-            {searchParams.error}
+            {params.error}
           </div>
         )}
 
