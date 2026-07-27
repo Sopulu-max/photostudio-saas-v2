@@ -15,6 +15,7 @@ export type PersonStatus = 'active' | 'archived';
 export type ResourceStatus = 'available' | 'reserved' | 'in_use' | 'maintenance' | 'retired';
 export type IntentStatus = 'created' | 'reviewed' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
+export type BookingStatus = 'draft' | 'active' | 'closed' | 'cancelled';
 export type WorkflowStatus = 'created' | 'in_progress' | 'completed' | 'halted';
 export type TaskStatus = 'created' | 'assigned' | 'in_progress' | 'blocked' | 'completed';
 export type AssetOrigin = 'produced' | 'provided';
@@ -80,12 +81,43 @@ export interface Intent {
 export interface Contract {
   id: string;
   organization_id: string;
-  intent_id: string;
+  intent_id: string | null;
+  booking_id: string | null;
   person_id: string;
   version: number;
   terms: Record<string, unknown>;
   status: ContractStatus;
   signed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A booking is the spine: one piece of work for a client. It can exist from a
+ * title alone and grow; it bundles service lines and everything else (contract,
+ * money, work, deliverables) associates to it freely, in any order.
+ */
+export interface Booking {
+  id: string;
+  organization_id: string;
+  person_id: string | null;
+  title: string;
+  status: BookingStatus;
+  scheduled_for: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingLine {
+  id: string;
+  organization_id: string;
+  booking_id: string;
+  service_template_id: string | null;
+  title: string;
+  price: Record<string, unknown>;
+  status: string;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
