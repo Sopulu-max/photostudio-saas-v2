@@ -38,7 +38,7 @@ export function ActivateContractButton({
   return (
     <button className="q-btn q-btn-primary" onClick={handleActivate} disabled={isPending}>
       <Zap size={16} style={{ marginRight: '8px' }} />
-      {isPending ? 'Activating…' : 'Activate & start production'}
+      {isPending ? 'Activating…' : 'Activate contract'}
     </button>
   );
 }

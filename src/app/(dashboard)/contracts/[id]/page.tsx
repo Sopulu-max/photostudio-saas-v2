@@ -72,9 +72,9 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
         {isProposed && (
           <div className="q-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px', borderColor: 'color-mix(in srgb, var(--q-color-accent) 40%, transparent)' }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.125rem' }}>Ready to start</h3>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.125rem' }}>Activate this contract</h3>
               <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
-                Activating spawns the production workflow and raises the {money(depositAmount, currency)} deposit invoice.
+                Marks the contract active and signed. Nothing else is created automatically — add work or an invoice from the booking whenever you're ready.
               </p>
             </div>
             <ActivateContractButton contractId={contract.id} orgId={orgId} actorId={personId ?? ''} />
@@ -139,9 +139,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Associated Workflows</h2>
           {!contract.workflows || contract.workflows.length === 0 ? (
             <div style={{ color: 'var(--q-color-ink-500)' }}>
-              {isProposed
-                ? 'None yet — activating this contract will spawn the production pipeline.'
-                : 'No active workflows attached to this contract yet.'}
+              No workflows attached to this contract.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -3,7 +3,6 @@
 import { z } from 'zod';
 import { supabaseAdmin } from '../supabase/admin';
 import { logEvent } from './events';
-import { createWorkflow, createTask } from './workflows';
 import type { Contract } from '../types/engine';
 
 const CreateContractSchema = z.object({
@@ -112,87 +111,9 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
     payload: { signed_at: contract.signed_at, previous_status: currentContract.status }
   });
 
-  // KERNEL TRIGGER: Spawn Workflow
-  const { data: intent } = await supabaseAdmin
-    .from('intents')
-    .select('service_template_id, template:service_templates(default_workflow_template_id)')
-    .eq('id', contract.intent_id)
-    .single();
-
-  const templateId = (intent?.template as any)?.default_workflow_template_id;
-
-  if (templateId) {
-    // Spawn the workflow and seed its tasks through the canonical kernel
-    // operations (single source of truth for inserts + event emission).
-    // A failed spawn must not roll back the already-committed activation,
-    // so we log and continue rather than throw.
-    try {
-      const workflow = await createWorkflow({
-        organizationId: params.organizationId,
-        contractId: contract.id,
-        templateId,
-        actorId: params.actorId,
-        meta: { trigger: 'contract_activation' },
-      });
-
-      // Seed tasks from the workflow template's stage definitions
-      const { data: wfTemplate } = await supabaseAdmin
-        .from('workflow_templates')
-        .select('stages')
-        .eq('id', templateId)
-        .single();
-
-      const stages: any[] = (wfTemplate?.stages as any[]) || [];
-      for (const [i, stage] of stages.entries()) {
-        await createTask({
-          organizationId: params.organizationId,
-          workflowId: workflow.id,
-          stageName: stage.name,
-          stageOrder: i,
-          actorId: params.actorId,
-          meta: { trigger: 'workflow_spawn' },
-        });
-      }
-    } catch (spawnError) {
-      console.error('Failed to spawn workflow/tasks during activation:', spawnError);
-    }
-  }
-
-  // KERNEL TRIGGER: Spawn Deposit Invoice
-  const basePrice = contract.terms?.base_price || 0;
-  const depositPercent = contract.terms?.deposit_percentage || 0;
-  const depositAmount = (basePrice * depositPercent) / 100;
-
-  if (depositAmount > 0) {
-    const { data: tx, error: txError } = await supabaseAdmin
-      .from('financial_transactions')
-      .insert({
-        organization_id: params.organizationId,
-        contract_id: contract.id,
-        person_id: contract.person_id,
-        direction: 'inbound',
-        type: 'deposit_invoice',
-        amount: depositAmount,
-        currency: contract.terms?.currency || 'USD',
-        status: 'pending'
-      })
-      .select()
-      .single();
-
-    if (txError) {
-      console.error('Failed to create deposit invoice:', txError);
-    } else if (tx) {
-      // FIX: Emit event for the spawned transaction (was missing before)
-      await logEvent({
-        organizationId: params.organizationId,
-        entityType: 'financial_transaction',
-        entityId: tx.id,
-        action: 'created',
-        actorId: params.actorId,
-        payload: { type: 'deposit_invoice', amount: depositAmount, trigger: 'contract_activation' }
-      });
-    }
-  }
-
+  // No automatic spawning. Activating a contract only marks it active and
+  // signed — it does not conjure a workflow, tasks, or an invoice. Not every
+  // studio wants the "next thing" created for them; they add work or money from
+  // the booking when and if they choose. (Composition, not orchestration.)
   return contract as Contract;
 }
