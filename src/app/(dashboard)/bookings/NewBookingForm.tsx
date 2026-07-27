@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBooking } from '@/lib/actions/bookings';
+import { createBooking } from '@/modules/bookings/interface';
 
 export function NewBookingForm() {
   const [title, setTitle] = useState('');

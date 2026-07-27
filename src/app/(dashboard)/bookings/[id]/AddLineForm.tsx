@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { addBookingLine } from '@/lib/actions/bookings';
+import { addBookingLine } from '@/modules/bookings/interface';
 
 export function AddLineForm({ bookingId, services }: { bookingId: string; services: { id: string; name: string }[] }) {
   const [serviceId, setServiceId] = useState('');

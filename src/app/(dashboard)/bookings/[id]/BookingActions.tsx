@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createContractForBooking, addInvoiceToBooking, startWorkForLine } from '@/lib/actions/bookings';
+import { createContractForBooking, addInvoiceToBooking, startWorkForLine } from '@/modules/bookings/interface';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();

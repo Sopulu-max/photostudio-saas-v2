@@ -1,8 +1,8 @@
 'use server';
 
-import { supabaseAdmin } from '../supabase/admin';
-import { getAuthOrgId } from '../supabase/getOrgId';
-import { logEvent } from './events';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { logEvent } from '@/lib/actions/events';
 import { revalidatePath } from 'next/cache';
 
 /**
