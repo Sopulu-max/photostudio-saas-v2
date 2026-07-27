@@ -77,7 +77,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
         <div>
           <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>Workflow Pipeline (Optional)</label>
           <p style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', margin: '0 0 12px 0' }}>
-            When a client books this service, which workflow should the system automatically spawn?
+            Which blueprint should its work start from when you begin production on a booking?
           </p>
           <select
             value={workflowId}

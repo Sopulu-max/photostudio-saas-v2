@@ -33,8 +33,8 @@ export default async function ProductionsPage() {
           <h1 className="q-page-title">Workflows</h1>
           <p className="q-page-subtitle">All active client bookings and jobs.</p>
         </div>
-        <Link href="/workflows/new" className="q-btn q-btn-primary">
-          + Manual Booking
+        <Link href="/bookings" className="q-btn q-btn-primary">
+          + New booking
         </Link>
       </header>
 

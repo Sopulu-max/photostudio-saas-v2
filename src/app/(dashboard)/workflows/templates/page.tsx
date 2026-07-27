@@ -20,7 +20,7 @@ export default async function WorkflowBlueprintsPage() {
       <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className="q-page-title">Workflow Blueprints</h1>
-          <p className="q-page-subtitle">Reusable production pipelines. Attach a blueprint to a service so every booking runs the same stages.</p>
+          <p className="q-page-subtitle">Reusable production pipelines. Attach a blueprint to a service so its work can start in one click.</p>
         </div>
         <a href="/workflows/templates/new" className="q-btn q-btn-primary">Create Blueprint</a>
       </header>

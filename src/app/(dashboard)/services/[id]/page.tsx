@@ -71,7 +71,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             <div>
               <div style={{ padding: '12px 16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
                 <strong style={{ display: 'block', marginBottom: '4px' }}>{service.workflow?.name || 'Attached Workflow'}</strong>
-                <span style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>This workflow will be automatically spawned when a client books this service.</span>
+                <span style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>This blueprint is used when you start work on this service from a booking.</span>
               </div>
             </div>
           ) : (

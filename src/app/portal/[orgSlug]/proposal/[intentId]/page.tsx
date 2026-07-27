@@ -101,7 +101,7 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
           </div>
 
           <p style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-500)', marginBottom: '24px', lineHeight: 1.6 }}>
-            By accepting this proposal, you agree to the project scope and terms above. A deposit invoice will be generated immediately, and production will commence upon receipt of payment.
+            By accepting this proposal, you agree to the project scope and terms above. We'll prepare your contract for signing.
           </p>
 
           <form action={handleAccept}>

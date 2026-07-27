@@ -6,10 +6,8 @@ import { activateContract } from '@/lib/actions/contracts';
 import { Zap } from 'lucide-react';
 
 /**
- * The ignition. Activating a proposed contract fires the kernel cascade:
- * it spawns the production workflow (with its tasks) and raises the deposit
- * invoice. Until this existed in the UI, only public storefront bookings
- * could trigger it — a deal handled by hand dead-ended here.
+ * Activating a proposed contract marks it active and signed. It does not spawn
+ * work or invoices — the studio adds those from the booking when they choose.
  */
 export function ActivateContractButton({
   contractId,

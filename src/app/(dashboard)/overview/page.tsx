@@ -64,8 +64,8 @@ export default async function OverviewPage() {
           <h1 className="q-page-title">Command Center</h1>
           <p className="q-page-subtitle">Good morning. Here is what needs your attention.</p>
         </div>
-        <Link href="/workflows/new" className="q-btn q-btn-primary">
-          + Manual Booking
+        <Link href="/bookings" className="q-btn q-btn-primary">
+          + New booking
         </Link>
       </header>
       
