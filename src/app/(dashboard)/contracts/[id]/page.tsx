@@ -16,7 +16,7 @@ function money(amount: number, currency: string) {
 
 export default async function ContractDetailsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const { orgId, userId } = await getAuthOrgId();
+  const { orgId, personId } = await getAuthOrgId();
 
   const { data: contract } = await supabaseAdmin
     .from('contracts')
@@ -77,7 +77,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
                 Activating spawns the production workflow and raises the {money(depositAmount, currency)} deposit invoice.
               </p>
             </div>
-            <ActivateContractButton contractId={contract.id} orgId={orgId} actorId={userId} />
+            <ActivateContractButton contractId={contract.id} orgId={orgId} actorId={personId ?? ''} />
           </div>
         )}
 

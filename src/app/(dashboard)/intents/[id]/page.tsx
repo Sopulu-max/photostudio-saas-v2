@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function IntentDetailsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const { orgId } = await getAuthOrgId();
+  const { orgId, personId } = await getAuthOrgId();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -51,7 +51,7 @@ export default async function IntentDetailsPage(props: { params: Promise<{ id: s
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         
-        <IntentActionsClient intent={intent} orgId={orgId} actorId={user.id} />
+        <IntentActionsClient intent={intent} orgId={orgId} actorId={personId ?? ''} />
 
         <div className="q-card" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Client & Service Details</h2>
