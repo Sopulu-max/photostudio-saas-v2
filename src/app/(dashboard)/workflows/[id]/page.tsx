@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { Uploader } from '@/components/Uploader';
@@ -15,7 +15,8 @@ export default async function UnifiedProductionWorkspace(props: {
 }) {
   const params = await props.params;
   const authOrg = await getOptionalAuthOrgId();
-  const orgId = authOrg?.orgId;
+  if (!authOrg) redirect('/login');
+  const orgId = authOrg.orgId;
 
   // 1. Fetch the master record (Workflow acts as the Production container)
   const { data: workflow } = await supabaseAdmin
@@ -28,7 +29,7 @@ export default async function UnifiedProductionWorkspace(props: {
         status,
         terms,
         person:persons(id, display_name, email, phone),
-        intent:intents(id, form_data, status)
+        intent:intents(id, metadata, status)
       ),
       tasks(
         id,
@@ -40,6 +41,7 @@ export default async function UnifiedProductionWorkspace(props: {
       )
     `)
     .eq('id', params.id)
+    .eq('organization_id', orgId)
     .single();
 
   if (!workflow) notFound();
@@ -143,7 +145,7 @@ export default async function UnifiedProductionWorkspace(props: {
                 <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--q-color-ink-600)', marginBottom: '8px' }}>Original Inquiry Data</div>
                   <pre style={{ margin: 0, fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(workflow.contract.intent.form_data, null, 2)}
+                    {JSON.stringify(workflow.contract.intent.metadata, null, 2)}
                   </pre>
                 </div>
               )}

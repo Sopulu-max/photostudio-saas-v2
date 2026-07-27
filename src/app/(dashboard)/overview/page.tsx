@@ -112,9 +112,9 @@ export default async function OverviewPage() {
                   <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--q-color-warm-soft)', border: '1px solid color-mix(in srgb, var(--q-color-warm) 35%, transparent)', borderRadius: '8px' }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{tx.person?.display_name || 'Client'}</div>
-                      <div style={{ fontSize: '0.875rem', color: 'var(--q-color-warm)' }}>Awaiting deposit for booking</div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--q-color-warm)' }}>Awaiting payment</div>
                     </div>
-                    <div style={{ fontWeight: 600 }}>${(tx.amount / 100).toFixed(2)}</div>
+                    <div style={{ fontWeight: 600 }}>${Number(tx.amount || 0).toLocaleString()}</div>
                   </div>
                 ))}
               </div>
