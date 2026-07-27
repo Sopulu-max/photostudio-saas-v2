@@ -19,6 +19,7 @@ export default async function ClientDeliveryPage(props: { params: Promise<{ orgS
     .from('workflows')
     .select('*, template:service_templates(name)')
     .eq('id', params.workflowId)
+    .eq('organization_id', org.id)
     .single();
 
   // Fetch assets produced during this workflow

@@ -7,6 +7,16 @@ export default async function ClientContractPortalPage(props: {
   params: Promise<{ orgSlug: string, id: string }>
 }) {
   const params = await props.params;
+
+  // Resolve the studio from the slug and require the contract to belong to it —
+  // the orgSlug in the URL must actually own this contract.
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('id')
+    .eq('slug', params.orgSlug)
+    .maybeSingle();
+  if (!org) notFound();
+
   const { data: contract } = await supabaseAdmin
     .from('contracts')
     .select(`
@@ -16,6 +26,7 @@ export default async function ClientContractPortalPage(props: {
       person:persons(display_name, email)
     `)
     .eq('id', params.id)
+    .eq('organization_id', org.id)
     .single();
 
   if (!contract || contract.status === 'completed' || contract.status === 'cancelled') {
@@ -57,7 +68,7 @@ export default async function ClientContractPortalPage(props: {
           </div>
 
           <div style={{ marginBottom: '32px', fontSize: '0.875rem', color: 'var(--q-color-ink-600)', lineHeight: 1.6 }}>
-            <p>By signing below, you agree to the terms and conditions outlined in this document. Upon signing, a deposit invoice will be generated and the production workflow will commence.</p>
+            <p>By signing below, you agree to the terms and conditions outlined in this document.</p>
           </div>
 
           {contract.status === 'active' ? (

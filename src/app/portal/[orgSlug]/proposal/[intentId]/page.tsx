@@ -19,6 +19,7 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
     .from('intents')
     .select('*, person:persons(display_name, id), template:service_templates(name, pricing, default_workflow_template_id)')
     .eq('id', params.intentId)
+    .eq('organization_id', org.id)
     .single();
 
   if (!intent) {

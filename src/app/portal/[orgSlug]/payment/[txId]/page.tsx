@@ -18,6 +18,7 @@ export default async function ClientPaymentPage(props: { params: Promise<{ orgSl
     .from('financial_transactions')
     .select('*, person:persons(display_name)')
     .eq('id', params.txId)
+    .eq('organization_id', org.id)
     .single();
 
   if (!tx) {
