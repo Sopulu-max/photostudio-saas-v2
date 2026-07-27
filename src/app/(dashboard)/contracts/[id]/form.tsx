@@ -3,16 +3,16 @@
 import React, { useState } from 'react';
 import { Copy, Check, ExternalLink } from 'lucide-react';
 
-export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug: string }) {
-  const [basePrice, setBasePrice] = useState(agreement.terms?.base_price || 0);
-  const [depositPercent, setDepositPercent] = useState(agreement.terms?.deposit_percentage || 50);
+export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: string }) {
+  const [basePrice, setBasePrice] = useState(contract.terms?.base_price || 0);
+  const [depositPercent, setDepositPercent] = useState(contract.terms?.deposit_percentage || 50);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const portalUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/portal/${orgSlug}/agreement/${agreement.id}`
-    : `/portal/${orgSlug}/agreement/${agreement.id}`;
+    ? `${window.location.origin}/portal/${orgSlug}/contract/${contract.id}`
+    : `/portal/${orgSlug}/contract/${contract.id}`;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,12 +20,12 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
     setSaved(false);
 
     try {
-      const res = await fetch(`/api/agreements/${agreement.id}`, {
+      const res = await fetch(`/api/contracts/${contract.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           terms: {
-            ...agreement.terms,
+            ...contract.terms,
             base_price: basePrice,
             deposit_percentage: depositPercent,
           },
@@ -36,7 +36,7 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
       console.error(error);
-      alert('Failed to save agreement terms.');
+      alert('Failed to save contract terms.');
     } finally {
       setIsSaving(false);
     }
@@ -60,8 +60,8 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
     <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
       <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="q-page-title">Agreement</h1>
-          <p className="q-page-subtitle">For {agreement.person?.display_name} — {agreement.intent?.template?.name || 'Custom Service'}</p>
+          <h1 className="q-page-title">Contract</h1>
+          <p className="q-page-subtitle">For {contract.person?.display_name} — {contract.intent?.template?.name || 'Custom Service'}</p>
         </div>
         <span style={{
           padding: '6px 14px',
@@ -71,10 +71,10 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           border: '1px solid',
-          borderColor: statusColors[agreement.status] || 'var(--q-color-ink-400)',
-          color: statusColors[agreement.status] || 'var(--q-color-ink-400)',
+          borderColor: statusColors[contract.status] || 'var(--q-color-ink-400)',
+          color: statusColors[contract.status] || 'var(--q-color-ink-400)',
         }}>
-          {agreement.status}
+          {contract.status}
         </span>
       </header>
 
@@ -86,13 +86,13 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>
-                Total Price ({agreement.terms?.currency || 'USD'})
+                Total Price ({contract.terms?.currency || 'USD'})
               </label>
               <input
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(parseFloat(e.target.value) || 0)}
-                disabled={agreement.status === 'active' || agreement.status === 'completed'}
+                disabled={contract.status === 'active' || contract.status === 'completed'}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)', boxSizing: 'border-box' }}
               />
             </div>
@@ -104,7 +104,7 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
                 type="number"
                 value={depositPercent}
                 onChange={(e) => setDepositPercent(parseInt(e.target.value) || 0)}
-                disabled={agreement.status === 'active' || agreement.status === 'completed'}
+                disabled={contract.status === 'active' || contract.status === 'completed'}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)', boxSizing: 'border-box' }}
               />
             </div>
@@ -113,17 +113,17 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
           <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
               <span style={{ color: 'var(--q-color-ink-600)' }}>Total Value</span>
-              <span style={{ fontWeight: 600 }}>{agreement.terms?.currency || 'USD'} {basePrice.toFixed(2)}</span>
+              <span style={{ fontWeight: 600 }}>{contract.terms?.currency || 'USD'} {basePrice.toFixed(2)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
               <span style={{ color: 'var(--q-color-ink-600)' }}>Deposit Required</span>
-              <span style={{ fontWeight: 600 }}>{agreement.terms?.currency || 'USD'} {(basePrice * depositPercent / 100).toFixed(2)}</span>
+              <span style={{ fontWeight: 600 }}>{contract.terms?.currency || 'USD'} {(basePrice * depositPercent / 100).toFixed(2)}</span>
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
             {saved && <span style={{ color: 'var(--q-color-success)', fontWeight: 500, alignSelf: 'center', fontSize: '0.875rem' }}>✓ Saved</span>}
-            {agreement.status !== 'active' && agreement.status !== 'completed' && (
+            {contract.status !== 'active' && contract.status !== 'completed' && (
               <button type="submit" disabled={isSaving} className="q-btn q-btn-primary">
                 {isSaving ? 'Saving...' : 'Save Terms'}
               </button>
@@ -138,9 +138,9 @@ export function AgreementForm({ agreement, orgSlug }: { agreement: any; orgSlug:
             Share these links with the client at the appropriate stage of the project.
           </p>
 
-          {/* Agreement Signing Link */}
+          {/* Contract Signing Link */}
           <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--q-color-ink-600)', marginBottom: '6px' }}>Agreement Signing</div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--q-color-ink-600)', marginBottom: '6px' }}>Contract Signing</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"

@@ -23,9 +23,9 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
 
   if (!asset) return notFound();
 
-  // Get active agreements to list in the delivery modal
-  const { data: agreements } = await supabaseAdmin
-    .from('agreements')
+  // Get active contracts to list in the delivery modal
+  const { data: contracts } = await supabaseAdmin
+    .from('contracts')
     .select('id, person_id, created_at, person:persons(display_name)')
     .eq('organization_id', orgId)
     .in('status', ['active', 'proposed'])
@@ -42,7 +42,7 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
   // Check if this asset has already been delivered
   const { data: deliverables } = await supabaseAdmin
     .from('deliverables')
-    .select('*, agreement:agreements(id, version), person:persons(display_name)')
+    .select('*, contract:contracts(id, version), person:persons(display_name)')
     .eq('asset_id', asset.id)
     .eq('organization_id', orgId);
 
@@ -61,7 +61,7 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
           assetId={asset.id} 
           orgId={orgId} 
           actorId={fallbackActorId} 
-          agreements={agreements || []} 
+          contracts={contracts || []} 
         />
       </header>
 

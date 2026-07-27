@@ -111,7 +111,7 @@ export async function updateAssetStatus(
 export async function createDeliverable(params: {
   organizationId: string;
   assetId: string;
-  agreementId: string;
+  contractId: string;
   personId: string;
   actorId: string;
 }) {
@@ -120,7 +120,7 @@ export async function createDeliverable(params: {
     .insert({
       organization_id: params.organizationId, // FIX: was missing
       asset_id: params.assetId,
-      agreement_id: params.agreementId,
+      contract_id: params.contractId,
       person_id: params.personId,
     })
     .select()
@@ -137,7 +137,7 @@ export async function createDeliverable(params: {
     entityId: deliverable.id,
     action: 'created',
     actorId: params.actorId,
-    payload: { assetId: params.assetId, agreementId: params.agreementId }
+    payload: { assetId: params.assetId, contractId: params.contractId }
   });
 
   return deliverable as Deliverable;

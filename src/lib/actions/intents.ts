@@ -9,7 +9,7 @@ import type { Intent, IntentStatus } from '../types/engine';
 const INTENT_TRANSITIONS: Record<string, IntentStatus[]> = {
   created:   ['reviewed', 'declined', 'withdrawn', 'expired'],
   reviewed:  ['accepted', 'declined', 'withdrawn'],
-  accepted:  [], // Terminal — an Agreement exists
+  accepted:  [], // Terminal — an Contract exists
   declined:  [],
   withdrawn: [],
   expired:   [],
@@ -109,7 +109,7 @@ export async function updateIntentStatus(
   return intent as Intent;
 }
 
-import { createAgreement, activateAgreement } from './agreements';
+import { createContract, activateContract } from './contracts';
 
 export async function autoBookService(input: {
   organizationId: string;
@@ -176,14 +176,14 @@ export async function autoBookService(input: {
   await updateIntentStatus(intent.id, organizationId, 'reviewed', personId);
   await updateIntentStatus(intent.id, organizationId, 'accepted', personId);
 
-  // 4. Create Agreement
+  // 4. Create Contract
   const terms = {
     base_price: input.basePrice || 0,
     deposit_percentage: input.depositPercentage || 0,
     currency: input.currency || 'USD',
   };
 
-  const agreement = await createAgreement({
+  const contract = await createContract({
     organizationId,
     intentId: intent.id,
     personId,
@@ -191,11 +191,11 @@ export async function autoBookService(input: {
     actorId: personId, // System/Client acting
   });
 
-  // 5. Programmatically advance the Agreement state machine
-  // (createAgreement naturally creates it in a state that activateAgreement accepts, e.g. 'proposed')
-  // We do not need the hack anymore. We just call activateAgreement.
-  await activateAgreement({
-    agreementId: agreement.id,
+  // 5. Programmatically advance the Contract state machine
+  // (createContract naturally creates it in a state that activateContract accepts, e.g. 'proposed')
+  // We do not need the hack anymore. We just call activateContract.
+  await activateContract({
+    contractId: contract.id,
     organizationId,
     actorId: personId,
   });
@@ -204,26 +204,26 @@ export async function autoBookService(input: {
   const { data: workflow } = await supabaseAdmin
     .from('workflows')
     .select('id')
-    .eq('agreement_id', agreement.id)
+    .eq('contract_id', contract.id)
     .maybeSingle();
 
-  return { intentId: intent.id, agreementId: agreement.id, personId, workflowId: workflow?.id };
+  return { intentId: intent.id, contractId: contract.id, personId, workflowId: workflow?.id };
 }
 
 /**
- * Manual (operator-driven) conversion of an existing inquiry into an Agreement.
+ * Manual (operator-driven) conversion of an existing inquiry into an Contract.
  *
  * This is the by-hand counterpart to autoBookService's public path: an operator
  * looking at an intent in the dashboard turns it into a formal proposal. It
- * advances the intent state machine to 'accepted' and creates the agreement
+ * advances the intent state machine to 'accepted' and creates the contract
  * carrying the service's real pricing into terms — so a later activation can
  * compute the deposit correctly (the previous flow wrote malformed terms and
  * the deposit always came out zero).
  *
- * The agreement is created in its 'proposed' state; activation (which fires the
- * workflow + deposit cascade) is a deliberate second step on the agreement page.
+ * The contract is created in its 'proposed' state; activation (which fires the
+ * workflow + deposit cascade) is a deliberate second step on the contract page.
  */
-export async function convertIntentToAgreement(input: {
+export async function convertIntentToContract(input: {
   intentId: string;
   organizationId: string;
   actorId: string;
@@ -239,15 +239,15 @@ export async function convertIntentToAgreement(input: {
 
   if (error || !intent) throw new Error('Intent not found');
 
-  // Idempotency: never create a second agreement for the same inquiry.
+  // Idempotency: never create a second contract for the same inquiry.
   const { data: existing } = await supabaseAdmin
-    .from('agreements')
+    .from('contracts')
     .select('id')
     .eq('organization_id', organizationId)
     .eq('intent_id', intentId)
     .maybeSingle();
 
-  if (existing) return { agreementId: existing.id };
+  if (existing) return { contractId: existing.id };
 
   // Walk the state machine to its terminal 'accepted' from wherever it is.
   if (intent.status === 'created') {
@@ -265,7 +265,7 @@ export async function convertIntentToAgreement(input: {
     service_template_id: intent.service_template_id || null,
   };
 
-  const agreement = await createAgreement({
+  const contract = await createContract({
     organizationId,
     intentId,
     personId: intent.person_id,
@@ -273,5 +273,5 @@ export async function convertIntentToAgreement(input: {
     actorId,
   });
 
-  return { agreementId: agreement.id };
+  return { contractId: contract.id };
 }

@@ -2,21 +2,21 @@
 
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { activateAgreement } from '@/lib/actions/agreements';
+import { activateContract } from '@/lib/actions/contracts';
 import { Zap } from 'lucide-react';
 
 /**
- * The ignition. Activating a proposed agreement fires the kernel cascade:
+ * The ignition. Activating a proposed contract fires the kernel cascade:
  * it spawns the production workflow (with its tasks) and raises the deposit
  * invoice. Until this existed in the UI, only public storefront bookings
  * could trigger it — a deal handled by hand dead-ended here.
  */
-export function ActivateAgreementButton({
-  agreementId,
+export function ActivateContractButton({
+  contractId,
   orgId,
   actorId,
 }: {
-  agreementId: string;
+  contractId: string;
   orgId: string;
   actorId: string;
 }) {
@@ -26,11 +26,11 @@ export function ActivateAgreementButton({
   const handleActivate = () => {
     startTransition(async () => {
       try {
-        await activateAgreement({ agreementId, organizationId: orgId, actorId });
+        await activateContract({ contractId, organizationId: orgId, actorId });
         router.refresh();
       } catch (e) {
-        console.error('Failed to activate agreement', e);
-        alert('Failed to activate agreement.');
+        console.error('Failed to activate contract', e);
+        alert('Failed to activate contract.');
       }
     });
   };

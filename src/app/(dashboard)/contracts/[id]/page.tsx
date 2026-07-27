@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { FileText, Play } from 'lucide-react';
-import { ActivateAgreementButton } from './AgreementActions';
+import { ActivateContractButton } from './ContractActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +14,12 @@ function money(amount: number, currency: string) {
   return `${sym}${Number(amount || 0).toLocaleString()} ${currency}`;
 }
 
-export default async function AgreementDetailsPage(props: { params: Promise<{ id: string }> }) {
+export default async function ContractDetailsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const { orgId, userId } = await getAuthOrgId();
 
-  const { data: agreement } = await supabaseAdmin
-    .from('agreements')
+  const { data: contract } = await supabaseAdmin
+    .from('contracts')
     .select(`
       *,
       person:persons(display_name, email),
@@ -29,39 +29,39 @@ export default async function AgreementDetailsPage(props: { params: Promise<{ id
     .eq('organization_id', orgId)
     .single();
 
-  if (!agreement) notFound();
+  if (!contract) notFound();
 
   const { data: transactions } = await supabaseAdmin
     .from('financial_transactions')
     .select('id, type, direction, amount, currency, status')
     .eq('organization_id', orgId)
-    .eq('agreement_id', agreement.id)
+    .eq('contract_id', contract.id)
     .order('created_at', { ascending: true });
 
-  const terms = agreement.terms || {};
+  const terms = contract.terms || {};
   const basePrice = terms.base_price || 0;
   const depositPercent = terms.deposit_percentage || 0;
   const currency = terms.currency || 'USD';
   const depositAmount = (basePrice * depositPercent) / 100;
 
-  const isProposed = ['proposed', 'modified'].includes(agreement.status);
-  const isActive = agreement.status === 'active';
+  const isProposed = ['proposed', 'modified'].includes(contract.status);
+  const isActive = contract.status === 'active';
 
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
       <header className="q-page-header">
         <div style={{ marginBottom: '16px' }}>
-          <Link href="/agreements" style={{ color: 'var(--q-color-ink-500)', textDecoration: 'none', fontSize: '0.875rem' }}>
-            &larr; Back to Agreements
+          <Link href="/contracts" style={{ color: 'var(--q-color-ink-500)', textDecoration: 'none', fontSize: '0.875rem' }}>
+            &larr; Back to Contracts
           </Link>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1 className="q-page-title">Agreement v{agreement.version}</h1>
-            <p className="q-page-subtitle">Client: {agreement.person?.display_name}</p>
+            <h1 className="q-page-title">Contract v{contract.version}</h1>
+            <p className="q-page-subtitle">Client: {contract.person?.display_name}</p>
           </div>
           <span className={`q-badge ${isActive ? 'q-badge-success' : 'q-badge-neutral'}`}>
-            {agreement.status.toUpperCase()}
+            {contract.status.toUpperCase()}
           </span>
         </div>
       </header>
@@ -77,7 +77,7 @@ export default async function AgreementDetailsPage(props: { params: Promise<{ id
                 Activating spawns the production workflow and raises the {money(depositAmount, currency)} deposit invoice.
               </p>
             </div>
-            <ActivateAgreementButton agreementId={agreement.id} orgId={orgId} actorId={userId} />
+            <ActivateContractButton contractId={contract.id} orgId={orgId} actorId={userId} />
           </div>
         )}
 
@@ -137,15 +137,15 @@ export default async function AgreementDetailsPage(props: { params: Promise<{ id
         {/* Workflows */}
         <div className="q-card" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Associated Workflows</h2>
-          {!agreement.workflows || agreement.workflows.length === 0 ? (
+          {!contract.workflows || contract.workflows.length === 0 ? (
             <div style={{ color: 'var(--q-color-ink-500)' }}>
               {isProposed
-                ? 'None yet — activating this agreement will spawn the production pipeline.'
-                : 'No active workflows attached to this agreement yet.'}
+                ? 'None yet — activating this contract will spawn the production pipeline.'
+                : 'No active workflows attached to this contract yet.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {agreement.workflows.map((wf: any) => (
+              {contract.workflows.map((wf: any) => (
                 <div key={wf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
                   <div>
                     <strong style={{ display: 'block', marginBottom: '4px' }}>Production Pipeline</strong>

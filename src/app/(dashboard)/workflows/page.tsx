@@ -14,7 +14,7 @@ export default async function ProductionsPage() {
     .select(`
       *,
       template:workflow_templates(name),
-      agreement:agreements(
+      contract:contracts(
         id,
         person:persons(display_name, email, phone)
       )
@@ -58,9 +58,9 @@ export default async function ProductionsPage() {
               {workflows.map((prod: any) => (
                 <tr key={prod.id} style={{ borderBottom: '1px solid var(--q-color-ink-100)' }}>
                   <td style={{ padding: '16px', fontWeight: 500 }}>
-                    {prod.agreement?.person?.display_name || 'Unknown Client'}
+                    {prod.contract?.person?.display_name || 'Unknown Client'}
                     <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', fontWeight: 400 }}>
-                      {prod.agreement?.person?.email}
+                      {prod.contract?.person?.email}
                     </div>
                   </td>
                   <td style={{ padding: '16px', color: 'var(--q-color-ink-600)' }}>

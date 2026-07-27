@@ -20,7 +20,7 @@ async function getOverviewData() {
       { count: serviceTemplatesCount }
     ] = await Promise.all([
       supabaseAdmin.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabaseAdmin.from('workflows').select('*, agreement:agreements(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
+      supabaseAdmin.from('workflows').select('*, contract:contracts(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
@@ -130,7 +130,7 @@ export default async function OverviewPage() {
                 {data.activeProductions.map((prod: any) => (
                   <Link href={`/workflows/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{prod.agreement?.person?.display_name || 'Production'}</div>
+                      <div style={{ fontWeight: 600 }}>{prod.contract?.person?.display_name || 'Production'}</div>
                       <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px', textTransform: 'capitalize' }}>Status: {prod.status.replace('_', ' ')}</div>
                     </div>
                     <div>

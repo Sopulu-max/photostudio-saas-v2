@@ -25,7 +25,7 @@ const WORKFLOW_TRANSITIONS: Record<string, WorkflowStatus[]> = {
 
 export async function createWorkflow(params: {
   organizationId: string;
-  agreementId: string;
+  contractId: string;
   templateId?: string;
   actorId: string;
   meta?: Record<string, unknown>;
@@ -34,7 +34,7 @@ export async function createWorkflow(params: {
     .from('workflows')
     .insert({
       organization_id: params.organizationId,
-      agreement_id: params.agreementId,
+      contract_id: params.contractId,
       template_id: params.templateId || null,
     })
     .select()
@@ -51,7 +51,7 @@ export async function createWorkflow(params: {
     entityId: workflow.id,
     action: 'created',
     actorId: params.actorId,
-    payload: { agreementId: params.agreementId, templateId: params.templateId, ...(params.meta || {}) }
+    payload: { contractId: params.contractId, templateId: params.templateId, ...(params.meta || {}) }
   });
 
   return workflow as Workflow;

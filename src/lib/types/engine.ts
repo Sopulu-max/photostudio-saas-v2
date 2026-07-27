@@ -14,7 +14,7 @@ export type PersonRole = 'configurator' | 'operator' | 'client' | 'vendor' | 'fr
 export type PersonStatus = 'active' | 'archived';
 export type ResourceStatus = 'available' | 'reserved' | 'in_use' | 'maintenance' | 'retired';
 export type IntentStatus = 'created' | 'reviewed' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
-export type AgreementStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
+export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
 export type WorkflowStatus = 'created' | 'in_progress' | 'completed' | 'halted';
 export type TaskStatus = 'created' | 'assigned' | 'in_progress' | 'blocked' | 'completed';
 export type AssetOrigin = 'produced' | 'provided';
@@ -77,14 +77,14 @@ export interface Intent {
   updated_at: string;
 }
 
-export interface Agreement {
+export interface Contract {
   id: string;
   organization_id: string;
   intent_id: string;
   person_id: string;
   version: number;
   terms: Record<string, unknown>;
-  status: AgreementStatus;
+  status: ContractStatus;
   signed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -93,7 +93,7 @@ export interface Agreement {
 export interface Workflow {
   id: string;
   organization_id: string;
-  agreement_id: string;
+  contract_id: string;
   template_id: string | null;
   status: WorkflowStatus;
   created_at: string;
@@ -129,7 +129,7 @@ export interface Asset {
 export interface Deliverable {
   id: string;
   asset_id: string;
-  agreement_id: string;
+  contract_id: string;
   person_id: string;
   status: DeliverableStatus;
   delivered_at: string | null;
@@ -139,7 +139,7 @@ export interface Deliverable {
 export interface FinancialTransaction {
   id: string;
   organization_id: string;
-  agreement_id: string | null;
+  contract_id: string | null;
   person_id: string | null;
   direction: TransactionDirection;
   type: string;

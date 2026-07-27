@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { supabaseAdmin } from '../supabase/admin';
 import { logEvent } from './events';
 import { createWorkflow, createTask } from './workflows';
-import type { Agreement } from '../types/engine';
+import type { Contract } from '../types/engine';
 
-const CreateAgreementSchema = z.object({
+const CreateContractSchema = z.object({
   organizationId: z.string().uuid(),
   intentId: z.string().uuid(),
   personId: z.string().uuid(),
@@ -14,17 +14,17 @@ const CreateAgreementSchema = z.object({
   actorId: z.string().uuid(),
 });
 
-const ActivateAgreementSchema = z.object({
-  agreementId: z.string().uuid(),
+const ActivateContractSchema = z.object({
+  contractId: z.string().uuid(),
   organizationId: z.string().uuid(),
   actorId: z.string().uuid(),
 });
 
-export async function createAgreement(input: z.infer<typeof CreateAgreementSchema>) {
-  const params = CreateAgreementSchema.parse(input);
+export async function createContract(input: z.infer<typeof CreateContractSchema>) {
+  const params = CreateContractSchema.parse(input);
 
-  const { data: agreement, error } = await supabaseAdmin
-    .from('agreements')
+  const { data: contract, error } = await supabaseAdmin
+    .from('contracts')
     .insert({
       organization_id: params.organizationId,
       intent_id: params.intentId,
@@ -35,88 +35,88 @@ export async function createAgreement(input: z.infer<typeof CreateAgreementSchem
     .single();
 
   if (error) {
-    console.error('Failed to create agreement:', error);
-    throw new Error('Failed to create agreement');
+    console.error('Failed to create contract:', error);
+    throw new Error('Failed to create contract');
   }
 
   await logEvent({
     organizationId: params.organizationId,
-    entityType: 'agreement',
-    entityId: agreement.id,
+    entityType: 'contract',
+    entityId: contract.id,
     action: 'created',
     actorId: params.actorId,
     payload: { intentId: params.intentId }
   });
 
-  return agreement as Agreement;
+  return contract as Contract;
 }
 
-export async function activateAgreement(input: z.infer<typeof ActivateAgreementSchema> | string) {
-  // Support both object and plain string (agreementId) for backward compat
+export async function activateContract(input: z.infer<typeof ActivateContractSchema> | string) {
+  // Support both object and plain string (contractId) for backward compat
   const rawInput = typeof input === 'string'
-    ? { agreementId: input, organizationId: '', actorId: '' }
+    ? { contractId: input, organizationId: '', actorId: '' }
     : input;
 
-  // If called with just a string ID (legacy), fetch org from agreement
-  let params: z.infer<typeof ActivateAgreementSchema>;
+  // If called with just a string ID (legacy), fetch org from contract
+  let params: z.infer<typeof ActivateContractSchema>;
   if (typeof input === 'string') {
     const { data: ag } = await supabaseAdmin
-      .from('agreements')
+      .from('contracts')
       .select('organization_id, person_id')
       .eq('id', input)
       .single();
-    if (!ag) throw new Error('Agreement not found');
-    params = { agreementId: input, organizationId: ag.organization_id, actorId: ag.person_id };
+    if (!ag) throw new Error('Contract not found');
+    params = { contractId: input, organizationId: ag.organization_id, actorId: ag.person_id };
   } else {
-    params = ActivateAgreementSchema.parse(input);
+    params = ActivateContractSchema.parse(input);
   }
 
   // STATE MACHINE GUARD
-  const { data: currentAgreement, error: fetchError } = await supabaseAdmin
-    .from('agreements')
+  const { data: currentContract, error: fetchError } = await supabaseAdmin
+    .from('contracts')
     .select('status, person_id, intent_id')
-    .eq('id', params.agreementId)
+    .eq('id', params.contractId)
     .single();
 
-  if (fetchError || !currentAgreement) {
-    throw new Error('Agreement not found');
+  if (fetchError || !currentContract) {
+    throw new Error('Contract not found');
   }
 
-  if (!['proposed', 'modified'].includes(currentAgreement.status)) {
-    throw new Error(`Illegal state transition. Cannot activate an agreement in '${currentAgreement.status}' state.`);
+  if (!['proposed', 'modified'].includes(currentContract.status)) {
+    throw new Error(`Illegal state transition. Cannot activate an contract in '${currentContract.status}' state.`);
   }
 
-  // Activate agreement
-  const { data: agreement, error: updateError } = await supabaseAdmin
-    .from('agreements')
+  // Activate contract
+  const { data: contract, error: updateError } = await supabaseAdmin
+    .from('contracts')
     .update({
       status: 'active',
       signed_at: new Date().toISOString()
     })
-    .eq('id', params.agreementId)
+    .eq('id', params.contractId)
     .select()
     .single();
 
   if (updateError) {
-    console.error('Failed to activate agreement:', updateError);
-    throw new Error('Failed to activate agreement');
+    console.error('Failed to activate contract:', updateError);
+    throw new Error('Failed to activate contract');
   }
 
-  // Emit event for the agreement activation itself
+  // Emit event for the contract activation itself
   await logEvent({
     organizationId: params.organizationId,
-    entityType: 'agreement',
-    entityId: agreement.id,
+    entityType: 'contract',
+    entityId: contract.id,
     action: 'activated',
     actorId: params.actorId,
-    payload: { signed_at: agreement.signed_at, previous_status: currentAgreement.status }
+    payload: { signed_at: contract.signed_at, previous_status: currentContract.status }
   });
 
   // KERNEL TRIGGER: Spawn Workflow
   const { data: intent } = await supabaseAdmin
     .from('intents')
     .select('service_template_id, template:service_templates(default_workflow_template_id)')
-    .eq('id', agreement.intent_id)
+    .eq('id', contract.intent_id)
     .single();
 
   const templateId = (intent?.template as any)?.default_workflow_template_id;
@@ -129,10 +129,10 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
     try {
       const workflow = await createWorkflow({
         organizationId: params.organizationId,
-        agreementId: agreement.id,
+        contractId: contract.id,
         templateId,
         actorId: params.actorId,
-        meta: { trigger: 'agreement_activation' },
+        meta: { trigger: 'contract_activation' },
       });
 
       // Seed tasks from the workflow template's stage definitions
@@ -159,8 +159,8 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
   }
 
   // KERNEL TRIGGER: Spawn Deposit Invoice
-  const basePrice = agreement.terms?.base_price || 0;
-  const depositPercent = agreement.terms?.deposit_percentage || 0;
+  const basePrice = contract.terms?.base_price || 0;
+  const depositPercent = contract.terms?.deposit_percentage || 0;
   const depositAmount = (basePrice * depositPercent) / 100;
 
   if (depositAmount > 0) {
@@ -168,12 +168,12 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
       .from('financial_transactions')
       .insert({
         organization_id: params.organizationId,
-        agreement_id: agreement.id,
-        person_id: agreement.person_id,
+        contract_id: contract.id,
+        person_id: contract.person_id,
         direction: 'inbound',
         type: 'deposit_invoice',
         amount: depositAmount,
-        currency: agreement.terms?.currency || 'USD',
+        currency: contract.terms?.currency || 'USD',
         status: 'pending'
       })
       .select()
@@ -189,10 +189,10 @@ export async function activateAgreement(input: z.infer<typeof ActivateAgreementS
         entityId: tx.id,
         action: 'created',
         actorId: params.actorId,
-        payload: { type: 'deposit_invoice', amount: depositAmount, trigger: 'agreement_activation' }
+        payload: { type: 'deposit_invoice', amount: depositAmount, trigger: 'contract_activation' }
       });
     }
   }
 
-  return agreement as Agreement;
+  return contract as Contract;
 }

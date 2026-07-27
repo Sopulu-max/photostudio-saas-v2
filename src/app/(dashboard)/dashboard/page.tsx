@@ -27,7 +27,7 @@ const SECTIONS = [
     jewel: 'var(--q-jewel-emerald)',
     apps: [
       { label: 'Intents', href: '/intents', desc: 'Incoming enquiries', icon: Activity },
-      { label: 'Agreements', href: '/agreements', desc: 'Proposals and contracts', icon: FileSignature },
+      { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', desc: 'Files and deliverables', icon: FolderOpen },
     ],
   },

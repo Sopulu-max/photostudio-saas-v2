@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
-import { createAgreement } from '@/lib/actions/agreements';
+import { createContract } from '@/lib/actions/contracts';
 import { updateIntentStatus } from '@/lib/actions/intents';
 
 export default async function ClientProposalPage(props: { params: Promise<{ orgSlug: string, intentId: string }> }) {
@@ -25,15 +25,15 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
     return <div style={{ padding: '48px', textAlign: 'center' }}><h1>Proposal Not Found</h1></div>;
   }
 
-  // If already accepted, there should be an existing agreement — redirect to it
+  // If already accepted, there should be an existing contract — redirect to it
   if (intent.status === 'accepted') {
-    const { data: existingAgreement } = await supabaseAdmin
-      .from('agreements')
+    const { data: existingContract } = await supabaseAdmin
+      .from('contracts')
       .select('id')
       .eq('intent_id', intent.id)
       .single();
-    if (existingAgreement) {
-      redirect(`/portal/${params.orgSlug}/agreement/${existingAgreement.id}`);
+    if (existingContract) {
+      redirect(`/portal/${params.orgSlug}/contract/${existingContract.id}`);
     }
   }
 
@@ -47,8 +47,8 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
     // 1. Mark intent as accepted (state machine guarded)
     await updateIntentStatus(intent.id, org!.id, 'accepted', intent.person_id);
 
-    // 2. Create the Agreement in 'proposed' state
-    const agreement = await createAgreement({
+    // 2. Create the Contract in 'proposed' state
+    const contract = await createContract({
       organizationId: org!.id,
       intentId: intent.id,
       personId: intent.person_id,
@@ -61,8 +61,8 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
       },
     });
 
-    // 3. Redirect to the agreement signing portal
-    redirect(`/portal/${params.orgSlug}/agreement/${agreement.id}`);
+    // 3. Redirect to the contract signing portal
+    redirect(`/portal/${params.orgSlug}/contract/${contract.id}`);
   }
 
   return (
@@ -106,7 +106,7 @@ export default async function ClientProposalPage(props: { params: Promise<{ orgS
 
           <form action={handleAccept}>
             <button type="submit" className="q-btn q-btn-primary" style={{ width: '100%', padding: '16px', fontSize: '1rem' }}>
-              Accept Proposal & Proceed to Agreement
+              Accept Proposal & Proceed to Contract
             </button>
           </form>
         </div>

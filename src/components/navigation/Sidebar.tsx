@@ -33,7 +33,7 @@ const NAV_SECTIONS = [
     label: 'Pipeline',
     items: [
       { label: 'Intents', href: '/intents', icon: Activity },
-      { label: 'Agreements', href: '/agreements', icon: FileSignature },
+      { label: 'Contracts', href: '/contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', icon: FolderOpen },
     ]
   },

@@ -6,7 +6,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
 
   const { data, error } = await supabaseAdmin
-    .from('agreements')
+    .from('contracts')
     .update({ terms: body.terms })
     .eq('id', id)
     .select()

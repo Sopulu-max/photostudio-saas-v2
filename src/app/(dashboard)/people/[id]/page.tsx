@@ -13,7 +13,7 @@ export default async function PersonDetailsPage(props: { params: Promise<{ id: s
     .from('persons')
     .select(`
       *,
-      agreements(id, version, status, created_at),
+      contracts(id, version, status, created_at),
       intents(id, status, created_at)
     `)
     .eq('id', params.id)
@@ -60,15 +60,15 @@ export default async function PersonDetailsPage(props: { params: Promise<{ id: s
         <div className="q-card" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>History</h2>
           
-          <h3 style={{ fontSize: '1rem', marginTop: '16px', marginBottom: '8px', color: 'var(--q-color-ink-600)' }}>Agreements</h3>
-          {!person.agreements || person.agreements.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem', marginBottom: '16px' }}>No agreements found.</div>
+          <h3 style={{ fontSize: '1rem', marginTop: '16px', marginBottom: '8px', color: 'var(--q-color-ink-600)' }}>Contracts</h3>
+          {!person.contracts || person.contracts.length === 0 ? (
+            <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem', marginBottom: '16px' }}>No contracts found.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-              {person.agreements.map((agr: any) => (
+              {person.contracts.map((agr: any) => (
                 <div key={agr.id} style={{ padding: '12px', border: '1px solid var(--q-color-ink-100)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Agreement v{agr.version}</span>
-                  <Link href={`/agreements/${agr.id}`} style={{ color: 'var(--q-color-primary)', textDecoration: 'none' }}>View</Link>
+                  <span>Contract v{agr.version}</span>
+                  <Link href={`/contracts/${agr.id}`} style={{ color: 'var(--q-color-primary)', textDecoration: 'none' }}>View</Link>
                 </div>
               ))}
             </div>

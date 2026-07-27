@@ -6,7 +6,7 @@ import type { FinancialTransaction, TransactionDirection, TransactionStatus } fr
 
 export async function createTransaction(params: {
   organizationId: string;
-  agreementId?: string;
+  contractId?: string;
   personId?: string;
   direction: TransactionDirection;
   type: string; // e.g., 'invoice', 'deposit', 'refund'
@@ -19,7 +19,7 @@ export async function createTransaction(params: {
     .from('financial_transactions')
     .insert({
       organization_id: params.organizationId,
-      agreement_id: params.agreementId || null,
+      contract_id: params.contractId || null,
       person_id: params.personId || null,
       direction: params.direction,
       type: params.type,

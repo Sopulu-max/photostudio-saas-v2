@@ -36,8 +36,8 @@ export async function sendMessage(params: SendMessageParams) {
   // Revalidate relevant pages based on entityType
   if (params.entityType === 'workflow') {
     revalidatePath(`/workflows/${params.entityId}`);
-  } else if (params.entityType === 'agreement') {
-    revalidatePath(`/agreements/${params.entityId}`);
+  } else if (params.entityType === 'contract') {
+    revalidatePath(`/contracts/${params.entityId}`);
   }
 }
 

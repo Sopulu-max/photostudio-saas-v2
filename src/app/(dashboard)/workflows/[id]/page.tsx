@@ -23,7 +23,7 @@ export default async function UnifiedProductionWorkspace(props: {
     .select(`
       *,
       template:workflow_templates(name),
-      agreement:agreements(
+      contract:contracts(
         id,
         status,
         terms,
@@ -52,11 +52,11 @@ export default async function UnifiedProductionWorkspace(props: {
   }
 
   // 3. Fetch Financials (Ledger)
-  const { data: transactions } = workflow.agreement?.id
+  const { data: transactions } = workflow.contract?.id
     ? await supabaseAdmin
         .from('financial_transactions')
         .select('*')
-        .eq('agreement_id', workflow.agreement.id)
+        .eq('contract_id', workflow.contract.id)
         .order('created_at', { ascending: true })
     : { data: [] };
 
@@ -88,7 +88,7 @@ export default async function UnifiedProductionWorkspace(props: {
   
   const deliveryUrl = `/portal/${orgSlug}/delivery/${workflow.id}`;
   const paymentUrl = pendingTx ? `/portal/${orgSlug}/payment/${pendingTx.id}` : null;
-  const agreementUrl = `/portal/${orgSlug}/agreement/${workflow.agreement?.id}`;
+  const contractUrl = `/portal/${orgSlug}/contract/${workflow.contract?.id}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', fontFamily: 'sans-serif' }}>
@@ -100,7 +100,7 @@ export default async function UnifiedProductionWorkspace(props: {
             Workflow Workspace
           </div>
           <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>
-            {workflow.agreement?.person?.display_name || 'Unnamed Client'}
+            {workflow.contract?.person?.display_name || 'Unnamed Client'}
           </h1>
           <p style={{ margin: '8px 0 0 0', fontSize: '1.125rem', color: 'var(--q-color-ink-600)' }}>
             {workflow.template?.name || 'Custom Booking'} • {workflow.status.replace('_', ' ')}
@@ -116,11 +116,11 @@ export default async function UnifiedProductionWorkspace(props: {
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ padding: '12px 16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-200)', borderRadius: '8px' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', fontWeight: 600 }}>Client Email</div>
-              <div>{workflow.agreement?.person?.email || 'N/A'}</div>
+              <div>{workflow.contract?.person?.email || 'N/A'}</div>
             </div>
             <div style={{ padding: '12px 16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-200)', borderRadius: '8px' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', fontWeight: 600 }}>Client Phone</div>
-              <div>{workflow.agreement?.person?.phone || 'N/A'}</div>
+              <div>{workflow.contract?.person?.phone || 'N/A'}</div>
             </div>
           </div>
         </div>
@@ -132,27 +132,27 @@ export default async function UnifiedProductionWorkspace(props: {
         {/* LEFT COLUMN: The Timeline & Work */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', minWidth: 0 }}>
           
-          {/* Section: Inquiry & Agreement */}
+          {/* Section: Inquiry & Contract */}
           <section>
             <h2 style={{ fontSize: '1.25rem', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ display: 'inline-block', width: '24px', height: '24px', background: 'var(--q-color-ink-900)', color: 'var(--q-color-paper-base)', borderRadius: '50%', textAlign: 'center', lineHeight: '24px', fontSize: '0.875rem' }}>1</span> 
               Booking & Contract
             </h2>
             <div className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {workflow.agreement?.intent && (
+              {workflow.contract?.intent && (
                 <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--q-color-ink-600)', marginBottom: '8px' }}>Original Inquiry Data</div>
                   <pre style={{ margin: 0, fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(workflow.agreement.intent.form_data, null, 2)}
+                    {JSON.stringify(workflow.contract.intent.form_data, null, 2)}
                   </pre>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--q-color-ink-200)', borderRadius: '8px' }}>
                 <div>
-                  <div style={{ fontWeight: 600 }}>Service Agreement</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Status: {workflow.agreement?.status}</div>
+                  <div style={{ fontWeight: 600 }}>Service Contract</div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Status: {workflow.contract?.status}</div>
                 </div>
-                <CopyLinkButton url={agreementUrl} />
+                <CopyLinkButton url={contractUrl} />
               </div>
             </div>
           </section>

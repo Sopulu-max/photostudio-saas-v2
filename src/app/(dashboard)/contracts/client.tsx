@@ -3,12 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 
-export function AgreementsClient({ initialAgreements }: { initialAgreements: any[] }) {
+export function ContractsClient({ initialContracts }: { initialContracts: any[] }) {
 
   return (
     <div>
       <header className="q-page-header">
-        <h1 className="q-page-title">Agreements</h1>
+        <h1 className="q-page-title">Contracts</h1>
         <p className="q-page-subtitle">Active commitments and signed contracts.</p>
       </header>
 
@@ -23,14 +23,14 @@ export function AgreementsClient({ initialAgreements }: { initialAgreements: any
             </tr>
           </thead>
           <tbody>
-            {initialAgreements.length === 0 ? (
+            {initialContracts.length === 0 ? (
               <tr>
                 <td colSpan={4} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
-                  No agreements found.
+                  No contracts found.
                 </td>
               </tr>
             ) : (
-              initialAgreements?.map((agr: any) => (
+              initialContracts?.map((agr: any) => (
                 <tr key={agr.id} className="q-table-tr">
                   <td className="q-table-td" style={{ fontWeight: 500 }}>{agr.person?.display_name}</td>
                   <td className="q-table-td">v{agr.version}</td>
@@ -40,8 +40,8 @@ export function AgreementsClient({ initialAgreements }: { initialAgreements: any
                     </span>
                   </td>
                   <td className="q-table-td">
-                    <Link href={`/agreements/${agr.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem', textDecoration: 'none' }}>
-                      View Agreement
+                    <Link href={`/contracts/${agr.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem', textDecoration: 'none' }}>
+                      View Contract
                     </Link>
                   </td>
                 </tr>

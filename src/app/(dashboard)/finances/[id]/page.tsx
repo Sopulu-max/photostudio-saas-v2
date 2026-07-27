@@ -15,7 +15,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
     .select(`
       *,
       person:persons(display_name, email),
-      agreement:agreements(id, version)
+      contract:contracts(id, version)
     `)
     .eq('id', params.id)
     .eq('organization_id', orgId)
@@ -95,11 +95,11 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
               <div>{transaction.person ? transaction.person.display_name : 'System Generated'}</div>
             </div>
             
-            {transaction.agreement && (
+            {transaction.contract && (
               <div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Agreement</div>
-                <Link href={`/agreements/${transaction.agreement.id}`} style={{ color: 'var(--q-color-brand-600)', textDecoration: 'none' }}>
-                  View Agreement (v{transaction.agreement.version})
+                <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Contract</div>
+                <Link href={`/contracts/${transaction.contract.id}`} style={{ color: 'var(--q-color-brand-600)', textDecoration: 'none' }}>
+                  View Contract (v{transaction.contract.version})
                 </Link>
               </div>
             )}
