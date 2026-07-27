@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { Uploader } from '@/components/Uploader';
-import { CopyLinkButton } from '@/app/(dashboard)/intents/[id]/CopyLinkButton';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { MessageThread } from '@/components/communications/MessageThread';
 import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
 import { TaskActions } from './TaskActions';

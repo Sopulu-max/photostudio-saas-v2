@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Activity,
   FileSignature,
   FolderOpen,
   GitMerge,
@@ -32,7 +31,6 @@ const NAV_SECTIONS = [
   {
     label: 'Pipeline',
     items: [
-      { label: 'Intents', href: '/intents', icon: Activity },
       { label: 'Contracts', href: '/contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', icon: FolderOpen },
     ]

@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
-  Activity, FileSignature, FolderOpen,
+  FileSignature, FolderOpen,
   Package, GitMerge, Users, Boxes,
   PieChart, Settings,
 } from 'lucide-react';
@@ -26,7 +26,6 @@ const SECTIONS = [
     label: 'Pipeline',
     jewel: 'var(--q-jewel-emerald)',
     apps: [
-      { label: 'Intents', href: '/intents', desc: 'Incoming enquiries', icon: Activity },
       { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', desc: 'Files and deliverables', icon: FolderOpen },
     ],

@@ -13,8 +13,7 @@ export default async function PersonDetailsPage(props: { params: Promise<{ id: s
     .from('persons')
     .select(`
       *,
-      contracts(id, version, status, created_at),
-      intents(id, status, created_at)
+      contracts(id, version, status, created_at)
     `)
     .eq('id', params.id)
     .eq('organization_id', orgId)
@@ -69,20 +68,6 @@ export default async function PersonDetailsPage(props: { params: Promise<{ id: s
                 <div key={agr.id} style={{ padding: '12px', border: '1px solid var(--q-color-ink-100)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between' }}>
                   <span>Contract v{agr.version}</span>
                   <Link href={`/contracts/${agr.id}`} style={{ color: 'var(--q-color-primary)', textDecoration: 'none' }}>View</Link>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <h3 style={{ fontSize: '1rem', marginTop: '16px', marginBottom: '8px', color: 'var(--q-color-ink-600)' }}>Intents</h3>
-          {!person.intents || person.intents.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>No intents found.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {person.intents.map((intent: any) => (
-                <div key={intent.id} style={{ padding: '12px', border: '1px solid var(--q-color-ink-100)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Intent ({new Date(intent.created_at).toLocaleDateString()})</span>
-                  <Link href={`/intents/${intent.id}`} style={{ color: 'var(--q-color-primary)', textDecoration: 'none' }}>View</Link>
                 </div>
               ))}
             </div>
