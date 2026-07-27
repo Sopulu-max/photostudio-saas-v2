@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from './NewBookingForm';
@@ -13,7 +14,12 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default async function BookingsPage() {
-  const { orgId } = await getAuthOrgId();
+  let orgId: string;
+  try {
+    orgId = (await getAuthOrgId()).orgId;
+  } catch {
+    redirect('/login');
+  }
 
   const { data: bookings } = await supabaseAdmin
     .from('bookings')

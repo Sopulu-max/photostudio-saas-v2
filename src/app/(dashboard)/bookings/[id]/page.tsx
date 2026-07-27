@@ -1,9 +1,10 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { Play } from 'lucide-react';
 import { AddLineForm } from './AddLineForm';
+import { CreateContractButton, StartWorkButton, AddInvoiceForm } from './BookingActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,12 @@ const STATUS_BADGE: Record<string, string> = { active: 'q-badge-success', draft:
 
 export default async function BookingDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const { orgId } = await getAuthOrgId();
+  let orgId: string;
+  try {
+    orgId = (await getAuthOrgId()).orgId;
+  } catch {
+    redirect('/login');
+  }
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
@@ -95,7 +101,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         <Play size={14} style={{ marginRight: '6px' }} /> {wf.status}
                       </Link>
                     ) : (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-400)' }}>no workflow</span>
+                      <StartWorkButton bookingId={booking.id} lineId={l.id} />
                     )}
                   </div>
                 );
@@ -108,7 +114,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* Contract */}
         <Section title="Contract">
           {contracts.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>No contract yet — this booking runs fine without one. Add terms whenever you're ready.</div>
+            <div>
+              <div style={{ color: 'var(--q-color-ink-500)', marginBottom: '12px' }}>No contract yet — this booking runs fine without one. Add terms whenever you're ready.</div>
+              <CreateContractButton bookingId={booking.id} />
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {contracts.map((c) => (
@@ -141,6 +150,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               ))}
             </div>
           )}
+          <AddInvoiceForm bookingId={booking.id} />
         </Section>
 
       </div>
