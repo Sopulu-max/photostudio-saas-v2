@@ -42,7 +42,7 @@ const NAV_SECTIONS = [
     label: 'Configuration',
     items: [
       { label: 'Services Catalog', href: '/services', icon: Package },
-      { label: 'Workflow Blueprints', href: '/workflows/templates', icon: GitMerge },
+      
       { label: 'Team', href: '/team', icon: Users },
       { label: 'Resources', href: '/resources', icon: Boxes },
     ]

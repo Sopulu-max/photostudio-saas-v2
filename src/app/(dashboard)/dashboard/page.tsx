@@ -37,7 +37,7 @@ const SECTIONS = [
     jewel: 'var(--q-jewel-amber)',
     apps: [
       { label: 'Services', href: '/services', desc: 'Your offerings and pricing', icon: Package },
-      { label: 'Workflow Blueprints', href: '/workflows/templates', desc: 'Reusable pipelines', icon: GitMerge },
+      
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
       { label: 'Resources', href: '/resources', desc: 'Gear and spaces', icon: Boxes },
     ],

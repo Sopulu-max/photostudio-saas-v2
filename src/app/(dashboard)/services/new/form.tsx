@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createServiceTemplate } from '@/lib/actions/services';
+import { createService } from '@/modules/services/interface';
 
 export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[] }) {
   const router = useRouter();
@@ -44,7 +44,14 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
         deposit_percentage: depositPercentage,
       };
       // Pass the form schema to the server action
-      await createServiceTemplate(name, workflowId || null, pricing, formSchema);
+      await createService({
+        name,
+        basePrice,
+        currency,
+        depositPercentage,
+        blueprintId: workflowId || null,
+        formSchema,
+      });
       router.push('/services');
     } catch (error) {
       console.error(error);

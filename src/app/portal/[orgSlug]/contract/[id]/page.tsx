@@ -22,7 +22,7 @@ export default async function ClientContractPortalPage(props: {
     .select(`
       *,
       organization:organizations(name),
-      intent:intents(service_template_id),
+      intent:intents(service_id),
       person:persons(display_name, email)
     `)
     .eq('id', params.id)

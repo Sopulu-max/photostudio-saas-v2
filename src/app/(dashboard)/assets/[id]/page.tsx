@@ -15,7 +15,7 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
     .from('assets')
     .select(`
       *,
-      workflow:workflows(id, status, template:service_templates(name))
+      workflow:workflows(id, status, template:services(name))
     `)
     .eq('id', params.id)
     .eq('organization_id', orgId)

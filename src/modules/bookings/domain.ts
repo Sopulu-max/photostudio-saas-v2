@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/lib/actions/events';
+import { getService, getProductionPlanForService } from '@/modules/services/interface';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -87,25 +88,21 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
  */
 export async function addBookingLine(input: {
   bookingId: string;
-  serviceTemplateId?: string | null;
+  serviceId?: string | null;
   title: string;
   price?: Record<string, unknown>;
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
-  // If seeded from a service, snapshot its pricing/title now.
+  // If seeded from a service, snapshot its pricing/title now — asked of the
+  // Services module, not read from its tables.
   let title = (input.title || '').trim();
   let price = input.price ?? {};
-  if (input.serviceTemplateId) {
-    const { data: svc } = await supabaseAdmin
-      .from('service_templates')
-      .select('name, pricing')
-      .eq('organization_id', orgId)
-      .eq('id', input.serviceTemplateId)
-      .maybeSingle();
+  if (input.serviceId) {
+    const svc = await getService(input.serviceId);
     if (svc) {
       if (!title) title = svc.name;
-      if (!input.price) price = svc.pricing || {};
+      if (!input.price) price = (svc.pricing as Record<string, unknown>) || {};
     }
   }
   if (!title) throw new Error('A line needs a name.');
@@ -115,7 +112,7 @@ export async function addBookingLine(input: {
     .insert({
       organization_id: orgId,
       booking_id: input.bookingId,
-      service_template_id: input.serviceTemplateId ?? null,
+      service_id: input.serviceId ?? null,
       title,
       price,
     })
@@ -240,25 +237,22 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
 
   const { data: line } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, service_template_id')
+    .select('id, service_id')
     .eq('id', input.lineId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!line) throw new Error('Line not found');
 
-  let templateId: string | null = null;
-  if (line.service_template_id) {
-    const { data: svc } = await supabaseAdmin
-      .from('service_templates')
-      .select('default_workflow_template_id')
-      .eq('id', line.service_template_id)
-      .maybeSingle();
-    templateId = svc?.default_workflow_template_id ?? null;
-  }
+  // Ask the Services module for this line's production plan — never read its
+  // services/blueprints tables from here (seam discipline).
+  const plan = line.service_id
+    ? await getProductionPlanForService(line.service_id)
+    : { blueprintId: null, stages: [] };
+  const stages = plan.stages;
 
   const { data: workflow, error } = await supabaseAdmin
     .from('workflows')
-    .insert({ organization_id: orgId, booking_id: input.bookingId, booking_line_id: input.lineId, contract_id: null, template_id: templateId, status: 'created' })
+    .insert({ organization_id: orgId, booking_id: input.bookingId, booking_line_id: input.lineId, contract_id: null, blueprint_id: plan.blueprintId, status: 'created' })
     .select('id')
     .single();
   if (error || !workflow) {
@@ -268,18 +262,14 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
 
   await logEvent({ organizationId: orgId, entityType: 'workflow', entityId: workflow.id, action: 'created', actorId: personId ?? undefined, payload: { bookingId: input.bookingId, lineId: input.lineId, trigger: 'manual_start' } });
 
-  if (templateId) {
-    const { data: tmpl } = await supabaseAdmin.from('workflow_templates').select('stages').eq('id', templateId).maybeSingle();
-    const stages: any[] = (tmpl?.stages as any[]) || [];
-    for (const [i, stage] of stages.entries()) {
-      const { data: task } = await supabaseAdmin
-        .from('tasks')
-        .insert({ organization_id: orgId, workflow_id: workflow.id, stage_name: stage.name, stage_order: i })
-        .select('id')
-        .single();
-      if (task) {
-        await logEvent({ organizationId: orgId, entityType: 'task', entityId: task.id, action: 'created', actorId: personId ?? undefined, payload: { workflowId: workflow.id, stageName: stage.name } });
-      }
+  for (const [i, stage] of stages.entries()) {
+    const { data: task } = await supabaseAdmin
+      .from('tasks')
+      .insert({ organization_id: orgId, workflow_id: workflow.id, stage_name: stage.name, stage_order: i })
+      .select('id')
+      .single();
+    if (task) {
+      await logEvent({ organizationId: orgId, entityType: 'task', entityId: task.id, action: 'created', actorId: personId ?? undefined, payload: { workflowId: workflow.id, stageName: stage.name } });
     }
   }
 

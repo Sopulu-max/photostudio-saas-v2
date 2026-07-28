@@ -202,7 +202,7 @@ export async function createWorkflowTemplate(
   const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
-    .from('workflow_templates')
+    .from('blueprints')
     .insert([{
       organization_id: orgId,
       name,
@@ -217,6 +217,6 @@ export async function createWorkflowTemplate(
     throw new Error(`Failed to create workflow template: ${error.message}`);
   }
 
-  revalidatePath('/workflows/templates');
+  revalidatePath('/services');
   return data as WorkflowTemplate;
 }

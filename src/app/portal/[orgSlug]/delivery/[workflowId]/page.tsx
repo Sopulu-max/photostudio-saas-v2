@@ -17,7 +17,7 @@ export default async function ClientDeliveryPage(props: { params: Promise<{ orgS
   // Using a mock query assuming Assets would be linked via Deliverables or direct Workflow association
   const { data: workflow } = await supabaseAdmin
     .from('workflows')
-    .select('*, template:service_templates(name)')
+    .select('*, template:services(name)')
     .eq('id', params.workflowId)
     .eq('organization_id', org.id)
     .single();

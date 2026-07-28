@@ -71,7 +71,7 @@ export interface Intent {
   person_id: string;
   source: string | null;
   description: string | null;
-  service_template_id: string | null;
+  service_id: string | null;
   status: IntentStatus;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -113,7 +113,7 @@ export interface BookingLine {
   id: string;
   organization_id: string;
   booking_id: string;
-  service_template_id: string | null;
+  service_id: string | null;
   title: string;
   price: Record<string, unknown>;
   status: string;
@@ -224,7 +224,7 @@ export interface ServiceTemplate {
   id: string;
   organization_id: string;
   name: string;
-  default_workflow_template_id: string | null;
+  default_blueprint_id: string | null;
   pricing: {
     base_price?: number;
     currency?: string;

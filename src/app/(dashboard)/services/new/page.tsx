@@ -1,24 +1,18 @@
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { NewServiceForm } from './form';
-import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { redirect } from 'next/navigation';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { listBlueprints } from '@/modules/services/interface';
+import { NewServiceForm } from './form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewServicePage() {
-  let orgId: string;
   try {
-    const auth = await getAuthOrgId();
-    orgId = auth.orgId;
-  } catch (error) {
+    await getAuthOrgId();
+  } catch {
     redirect('/login');
   }
 
-  const { data: workflows } = await supabaseAdmin
-        .from('workflow_templates')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('name', { ascending: true });
+  const blueprints = await listBlueprints();
 
-  return <NewServiceForm workflowTemplates={workflows || []} />;
+  return <NewServiceForm workflowTemplates={blueprints} />;
 }

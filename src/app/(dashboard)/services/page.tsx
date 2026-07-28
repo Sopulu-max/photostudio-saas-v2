@@ -1,24 +1,19 @@
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { ServiceTemplatesClient } from './client';
-import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { redirect } from 'next/navigation';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { listServices, listBlueprints } from '@/modules/services/interface';
+import { ServiceTemplatesClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ServicesPage() {
-  let orgId: string;
   try {
-    const auth = await getAuthOrgId();
-    orgId = auth.orgId;
-  } catch (error) {
+    await getAuthOrgId();
+  } catch {
     redirect('/login');
   }
 
-  const { data: services } = await supabaseAdmin
-        .from('service_templates')
-        .select('*')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false });
+  // Through the module's interface — the page never touches its tables.
+  const [services, blueprints] = await Promise.all([listServices(), listBlueprints()]);
 
-  return <ServiceTemplatesClient initialServices={services || []} />;
+  return <ServiceTemplatesClient initialServices={services} blueprints={blueprints} />;
 }

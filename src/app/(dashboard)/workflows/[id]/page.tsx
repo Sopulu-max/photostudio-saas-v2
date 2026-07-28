@@ -23,7 +23,7 @@ export default async function UnifiedProductionWorkspace(props: {
     .from('workflows')
     .select(`
       *,
-      template:workflow_templates(name),
+      template:blueprints(name),
       contract:contracts(
         id,
         status,

@@ -58,7 +58,7 @@ export async function submitBookingForm(
       person_id: personId,
       source: 'public_booking_page',
       description: `Booking request for service ${serviceId}`,
-      service_template_id: serviceId,
+      service_id: serviceId,
       status: 'created',
       // Store custom form responses in metadata
       metadata: { form_responses: formData.customFields },

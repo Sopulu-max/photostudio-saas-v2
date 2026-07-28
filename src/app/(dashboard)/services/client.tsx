@@ -3,8 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
+import { NewBlueprintForm } from './NewBlueprintForm';
 
-export function ServiceTemplatesClient({ initialServices }: { initialServices: any[] }) {
+export function ServiceTemplatesClient({ initialServices, blueprints = [] }: { initialServices: any[]; blueprints?: any[] }) {
 
   return (
     <div>
@@ -46,7 +47,7 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
                 <span className={`q-badge ${svc.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{svc.status}</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)', marginBottom: '16px' }}>
-                {svc.default_workflow_template_id ? 'Workflow attached' : 'No workflow attached'}
+                {svc.blueprint?.name ? `Blueprint: ${svc.blueprint.name}` : 'No blueprint attached'}
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', gap: '8px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
                 <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary" style={{ flex: 1, textAlign: 'center', fontSize: '0.875rem' }}>
@@ -57,6 +58,34 @@ export function ServiceTemplatesClient({ initialServices }: { initialServices: a
           ))}
         </div>
       )}
+
+      <section style={{ marginTop: '40px' }}>
+        <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: '0 0 6px' }}>Blueprints</h2>
+        <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
+          Reusable stage sets. Attach one to a service and its work starts from those stages.
+        </p>
+        <div className="q-card" style={{ padding: '20px 22px' }}>
+          {blueprints.length === 0 ? (
+            <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem', marginBottom: '16px' }}>
+              No blueprints yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+              {blueprints.map((bp: any) => (
+                <div key={bp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
+                  <strong style={{ fontSize: '0.92rem' }}>{bp.name}</strong>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end' }}>
+                    {((bp.stages as any[]) || []).map((s: any, i: number) => (
+                      <span key={i} className="q-badge q-badge-neutral">{s.name}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <NewBlueprintForm />
+        </div>
+      </section>
     </div>
   );
 }

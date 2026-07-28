@@ -16,7 +16,7 @@ export function AddLineForm({ bookingId, services }: { bookingId: string; servic
       try {
         await addBookingLine({
           bookingId,
-          serviceTemplateId: serviceId || null,
+          serviceId: serviceId || null,
           title: serviceId ? '' : custom.trim(),
         });
         setServiceId('');

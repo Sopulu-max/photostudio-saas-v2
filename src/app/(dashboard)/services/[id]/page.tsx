@@ -16,8 +16,8 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   }
 
   const { data: service } = await supabaseAdmin
-    .from('service_templates')
-    .select('*, workflow:workflow_templates(name)')
+    .from('services')
+    .select('*, workflow:blueprints(name)')
     .eq('id', params.id)
     .eq('organization_id', orgId)
     .single();
@@ -67,7 +67,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
         <div className="q-card" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Workflow Attachment</h2>
-          {service.default_workflow_template_id ? (
+          {service.default_blueprint_id ? (
             <div>
               <div style={{ padding: '12px 16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
                 <strong style={{ display: 'block', marginBottom: '4px' }}>{service.workflow?.name || 'Attached Workflow'}</strong>

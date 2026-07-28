@@ -13,7 +13,7 @@ export default async function ProductionsPage() {
     .from('workflows')
     .select(`
       *,
-      template:workflow_templates(name),
+      template:blueprints(name),
       contract:contracts(
         id,
         person:persons(display_name, email, phone)

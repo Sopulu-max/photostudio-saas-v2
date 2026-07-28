@@ -22,8 +22,8 @@ async function getOverviewData() {
       supabaseAdmin.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('workflows').select('*, contract:contracts(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
-      supabaseAdmin.from('workflow_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-      supabaseAdmin.from('service_templates').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
+      supabaseAdmin.from('blueprints').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
+      supabaseAdmin.from('services').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
     ]);
 
     return {
@@ -80,7 +80,7 @@ export default async function OverviewPage() {
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Workflow Blueprint</h3>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define the pipeline of tasks that happen after booking.</p>
               </div>
-              {!data.onboarding.hasWorkflow && <Link href="/workflows/templates" className="q-btn q-btn-secondary">Go →</Link>}
+              {!data.onboarding.hasWorkflow && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}
             </div>
             {/* Step 2 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px', opacity: data.onboarding.hasWorkflow ? 1 : 0.5 }}>

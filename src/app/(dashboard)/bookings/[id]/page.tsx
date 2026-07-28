@@ -37,7 +37,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
       id, title, status, scheduled_for, created_at,
       contact:contacts(id, display_name, email),
       person:persons(id, display_name, email),
-      booking_lines(id, title, price, service_template_id, status),
+      booking_lines(id, title, price, service_id, status),
       contracts(id, version, status),
       financial_transactions(id, type, amount, currency, status),
       workflows(id, status, booking_line_id)
@@ -49,7 +49,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   if (!booking) notFound();
 
   const { data: services } = await supabaseAdmin
-    .from('service_templates')
+    .from('services')
     .select('id, name')
     .eq('organization_id', orgId)
     .eq('status', 'active')

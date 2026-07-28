@@ -20,7 +20,7 @@ export default async function BookingPage({
 
   // 2. Fetch the Service Template
   const { data: service } = await supabaseAdmin
-    .from('service_templates')
+    .from('services')
     .select('id, name, form_schema')
     .eq('organization_id', org.id)
     .eq('id', params.serviceId)

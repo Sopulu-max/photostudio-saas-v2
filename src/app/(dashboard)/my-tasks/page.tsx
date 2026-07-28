@@ -12,7 +12,7 @@ export default async function MyTasksPage() {
         .from('tasks')
         .select(`
           *,
-          workflow:workflows(id, status, template:service_templates(name))
+          workflow:workflows(id, status, template:services(name))
         `)
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
