@@ -2,11 +2,11 @@ import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { BookingForm } from './BookingForm';
 
-export default async function BookingPage({
-  params
-}: {
-  params: { slug: string; serviceId: string }
+export default async function BookingPage(props: {
+  params: Promise<{ slug: string; serviceId: string }>
 }) {
+  const params = await props.params;
+
   // 1. Resolve Organization from slug
   const { data: org } = await supabaseAdmin
     .from('organizations')

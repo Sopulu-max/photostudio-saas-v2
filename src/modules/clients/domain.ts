@@ -8,27 +8,11 @@ import { revalidatePath } from 'next/cache';
 /**
  * Clients — who the studio sells to. A client specialises a kernel contact
  * (identity lives on the contact; CRM depth lives here).
- *
- * Migration bridge: while Contracts/Finances still FK the legacy persons table,
- * creating a client also creates the persons row and links it via the contact's
- * backfill metadata — one dual-write at the single creation seam, retired once
- * those modules are rebuilt onto contacts.
  */
 export async function createClient(input: { name: string; email?: string; phone?: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('A client needs a name.');
-
-  // Legacy bridge row (persons) first, so the contact can link to it.
-  const { data: legacyPerson, error: pErr } = await supabaseAdmin
-    .from('persons')
-    .insert({ organization_id: orgId, display_name: name, email: input.email || null, phone: input.phone || null, role: 'client' })
-    .select('id')
-    .single();
-  if (pErr || !legacyPerson) {
-    console.error('Failed to create client (legacy person):', pErr);
-    throw new Error('Failed to create client');
-  }
 
   const { data: contact, error: cErr } = await supabaseAdmin
     .from('contacts')
@@ -37,7 +21,6 @@ export async function createClient(input: { name: string; email?: string; phone?
       display_name: name,
       email: input.email || null,
       phone: input.phone || null,
-      metadata: { backfill_person_id: legacyPerson.id },
     })
     .select('id')
     .single();

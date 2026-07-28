@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from '../supabase/admin';
 import { logEvent } from './events';
-import type { Organization, PersonRole } from '../types/engine';
+import type { Organization } from '../types/engine';
 
 export async function createOrganization(name: string, slug?: string) {
   // 1. Get the current authenticated user
@@ -26,19 +26,31 @@ export async function createOrganization(name: string, slug?: string) {
     throw new Error(orgError.message || 'Failed to create organization');
   }
 
-  // 3. Create Person Record for the Configurator
-  const { error: personError } = await supabaseAdmin
-    .from('persons')
+  // 3. The owner's identity: a kernel contact (linked to their login) and an
+  //    employee record in the Team module.
+  const { data: contact, error: contactError } = await supabaseAdmin
+    .from('contacts')
     .insert({
       organization_id: org.id,
-      role: 'configurator',
       display_name: user.email?.split('@')[0] || 'Studio Owner',
-      email: user.email
-    });
+      email: user.email,
+      auth_user_id: user.id,
+    })
+    .select('id')
+    .single();
 
-  if (personError) {
-    console.error('Failed to create person record:', personError);
-    throw new Error(personError.message || 'Failed to create person record');
+  if (contactError || !contact) {
+    console.error('Failed to create owner contact:', contactError);
+    throw new Error(contactError?.message || 'Failed to create your studio identity');
+  }
+
+  const { error: employeeError } = await supabaseAdmin
+    .from('employees')
+    .insert({ organization_id: org.id, contact_id: contact.id, title: 'Owner' });
+
+  if (employeeError) {
+    console.error('Failed to create owner employee record:', employeeError);
+    throw new Error(employeeError.message || 'Failed to add you to the team');
   }
 
   // 4. Update the user's Auth metadata to link to the new Organization

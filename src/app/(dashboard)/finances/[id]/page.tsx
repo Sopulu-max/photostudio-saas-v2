@@ -14,7 +14,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
     .from('financial_transactions')
     .select(`
       *,
-      person:persons(display_name, email),
+      person:contacts(display_name, email),
       contract:contracts(id, version)
     `)
     .eq('id', params.id)
@@ -25,7 +25,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
 
   // Get a fallback actor for logging
   const { data: actors } = await supabaseAdmin
-    .from('persons')
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .limit(1);

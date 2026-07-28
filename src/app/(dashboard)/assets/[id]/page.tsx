@@ -26,14 +26,14 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
   // Get active contracts to list in the delivery modal
   const { data: contracts } = await supabaseAdmin
     .from('contracts')
-    .select('id, person_id, created_at, person:persons(display_name)')
+    .select('id, contact_id, created_at, person:contacts(display_name)')
     .eq('organization_id', orgId)
     .in('status', ['active', 'proposed'])
     .order('created_at', { ascending: false });
 
   // Get a fallback actor for logging
   const { data: actors } = await supabaseAdmin
-    .from('persons')
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .limit(1);
@@ -42,7 +42,7 @@ export default async function AssetDetailPage(props: { params: Promise<{ id: str
   // Check if this asset has already been delivered
   const { data: deliverables } = await supabaseAdmin
     .from('deliverables')
-    .select('*, contract:contracts(id, version), person:persons(display_name)')
+    .select('*, contract:contracts(id, version), person:contacts(display_name)')
     .eq('asset_id', asset.id)
     .eq('organization_id', orgId);
 

@@ -21,7 +21,7 @@ export async function createBooking(input: { title: string; personId?: string | 
 
   const { data: booking, error } = await supabaseAdmin
     .from('bookings')
-    .insert({ organization_id: orgId, title, person_id: input.personId ?? null, status: 'draft' })
+    .insert({ organization_id: orgId, title, status: 'draft' })
     .select()
     .single();
 
@@ -46,7 +46,7 @@ export async function createBooking(input: { title: string; personId?: string | 
 /**
  * Attach (or change) the client on a booking, by contact id — the kernel-level
  * reference (à la sale.order.partner_id → res.partner). While Contracts and
- * Finances still FK the legacy persons table, also bridge person_id via the
+ * kernel-level reference (à la sale.order.partner_id → res.partner).
  * contact's backfill link so those flows keep working mid-migration.
  */
 export async function setBookingClient(input: { bookingId: string; contactId: string }) {
@@ -60,11 +60,10 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
     .maybeSingle();
   if (!contact) throw new Error('Contact not found');
 
-  const legacyPersonId = (contact.metadata as any)?.backfill_person_id ?? null;
 
   const { error } = await supabaseAdmin
     .from('bookings')
-    .update({ contact_id: contact.id, person_id: legacyPersonId })
+    .update({ contact_id: contact.id })
     .eq('id', input.bookingId)
     .eq('organization_id', orgId);
   if (error) {
@@ -150,7 +149,7 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, contact_id, person_id')
+    .select('id, contact_id')
     .eq('id', bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -177,7 +176,6 @@ export async function createContractForBooking(bookingId: string) {
     organizationId: orgId,
     bookingId,
     contactId: booking.contact_id,
-    legacyPersonId: booking.person_id ?? null,
     terms,
     actorId: personId,
   });
@@ -195,7 +193,7 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, contact_id, person_id')
+    .select('id, contact_id')
     .eq('id', input.bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -206,7 +204,6 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
     organizationId: orgId,
     bookingId: input.bookingId,
     contactId: booking.contact_id ?? null,
-    legacyPersonId: booking.person_id ?? null,
     label: input.label,
     amount: input.amount,
     currency: input.currency,

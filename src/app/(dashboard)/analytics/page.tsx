@@ -7,9 +7,9 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 export default async function AnalyticsPage() {
   const { orgId } = await getAuthOrgId();
 
-  const [workflowsRes, intentsRes, txRes, eventsRes] = await Promise.all([
+  const [workflowsRes, bookingsRes, txRes, eventsRes] = await Promise.all([
     supabaseAdmin.from('workflows').select('id, status, created_at').eq('organization_id', orgId),
-    supabaseAdmin.from('intents').select('id, status, created_at', { count: 'exact' }).eq('organization_id', orgId),
+    supabaseAdmin.from('bookings').select('id, status, created_at', { count: 'exact' }).eq('organization_id', orgId),
     supabaseAdmin.from('financial_transactions').select('amount, status, direction, created_at').eq('organization_id', orgId),
     supabaseAdmin.from('events').select('action, entity_type, created_at').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(20),
   ]);
@@ -25,8 +25,9 @@ export default async function AnalyticsPage() {
   const activeWorkflows = workflowsRes.data?.filter((w: any) => w.status === 'in_progress').length || 0;
   const completedWorkflows = workflowsRes.data?.filter((w: any) => w.status === 'completed').length || 0;
 
-  const conversionRate = intentsRes.count
-    ? Math.round((workflowsRes.data?.length || 0) / intentsRes.count * 100)
+  const activeBookings = bookingsRes.data?.filter((b: any) => b.status === 'active').length || 0;
+  const conversionRate = bookingsRes.count
+    ? Math.round(activeBookings / bookingsRes.count * 100)
     : 0;
 
   return (
@@ -54,13 +55,13 @@ export default async function AnalyticsPage() {
           <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{completedWorkflows}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Intents</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{intentsRes.count || 0}</div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Bookings</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{bookingsRes.count || 0}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Conversion Rate</div>
           <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{conversionRate}%</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-400)', marginTop: '4px' }}>Intents → Projects</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-400)', marginTop: '4px' }}>Inquiries → Active</div>
         </div>
       </div>
 

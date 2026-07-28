@@ -35,7 +35,7 @@ export async function createWorkflow(params: {
     .insert({
       organization_id: params.organizationId,
       contract_id: params.contractId,
-      template_id: params.templateId || null,
+      blueprint_id: params.templateId || null,
     })
     .select()
     .single();
@@ -74,7 +74,7 @@ export async function createTask(params: {
       workflow_id: params.workflowId,
       stage_name: params.stageName,
       stage_order: params.stageOrder,
-      assigned_person_id: params.assignedPersonId || null,
+
       due_date: params.dueDate || null,
     })
     .select()

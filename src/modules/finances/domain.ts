@@ -20,7 +20,7 @@ export async function createTransaction(params: {
     .insert({
       organization_id: params.organizationId,
       contract_id: params.contractId || null,
-      person_id: params.personId || null,
+      contact_id: params.personId || null,
       direction: params.direction,
       type: params.type,
       amount: params.amount,
@@ -89,7 +89,6 @@ export async function raiseInvoiceForBooking(input: {
   organizationId: string;
   bookingId: string;
   contactId?: string | null;
-  legacyPersonId?: string | null;
   label: string;
   amount: number;
   currency?: string;
@@ -104,7 +103,6 @@ export async function raiseInvoiceForBooking(input: {
       organization_id: input.organizationId,
       booking_id: input.bookingId,
       contact_id: input.contactId ?? null,
-      person_id: input.legacyPersonId ?? null,
       contract_id: null,
       direction: 'inbound',
       type: (input.label || '').trim() || 'invoice',

@@ -49,7 +49,7 @@ export async function getMessages(organizationId: string, entityType: string, en
     .from('events')
     .select(`
       *,
-      person:persons(display_name, role)
+      person:contacts(display_name)
     `)
     .eq('organization_id', organizationId)
     .eq('entity_type', entityType)

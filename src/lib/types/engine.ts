@@ -10,10 +10,7 @@
 // ============================================================
 
 export type OrganizationStatus = 'active' | 'suspended' | 'archived';
-export type PersonRole = 'configurator' | 'operator' | 'client' | 'vendor' | 'freelancer';
-export type PersonStatus = 'active' | 'archived';
 export type ResourceStatus = 'available' | 'reserved' | 'in_use' | 'maintenance' | 'retired';
-export type IntentStatus = 'created' | 'reviewed' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
 export type BookingStatus = 'draft' | 'active' | 'closed' | 'cancelled';
 export type WorkflowStatus = 'created' | 'in_progress' | 'completed' | 'halted';
@@ -41,19 +38,6 @@ export interface Organization {
   updated_at: string;
 }
 
-export interface Person {
-  id: string;
-  organization_id: string;
-  role: PersonRole;
-  display_name: string;
-  email: string | null;
-  phone: string | null;
-  status: PersonStatus;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Resource {
   id: string;
   organization_id: string;
@@ -65,25 +49,11 @@ export interface Resource {
   updated_at: string;
 }
 
-export interface Intent {
-  id: string;
-  organization_id: string;
-  person_id: string;
-  source: string | null;
-  description: string | null;
-  service_id: string | null;
-  status: IntentStatus;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Contract {
   id: string;
   organization_id: string;
-  intent_id: string | null;
   booking_id: string | null;
-  person_id: string;
+  contact_id: string;
   version: number;
   terms: Record<string, unknown>;
   status: ContractStatus;
@@ -100,7 +70,7 @@ export interface Contract {
 export interface Booking {
   id: string;
   organization_id: string;
-  person_id: string | null;
+  contact_id: string | null;
   title: string;
   status: BookingStatus;
   scheduled_for: string | null;
@@ -137,7 +107,6 @@ export interface Task {
   workflow_id: string;
   stage_name: string;
   stage_order: number;
-  assigned_person_id: string | null;
   status: TaskStatus;
   due_date: string | null;
   metadata: Record<string, unknown>;
@@ -162,7 +131,7 @@ export interface Deliverable {
   id: string;
   asset_id: string;
   contract_id: string;
-  person_id: string;
+  contact_id: string;
   status: DeliverableStatus;
   delivered_at: string | null;
   created_at: string;
@@ -172,7 +141,7 @@ export interface FinancialTransaction {
   id: string;
   organization_id: string;
   contract_id: string | null;
-  person_id: string | null;
+  contact_id: string | null;
   direction: TransactionDirection;
   type: string;
   amount: number;

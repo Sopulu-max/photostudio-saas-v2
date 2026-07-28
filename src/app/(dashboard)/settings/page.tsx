@@ -7,7 +7,7 @@ export default async function SettingsPage() {
   const { orgId } = await getAuthOrgId();
   const { data: org } = await supabaseAdmin.from('organizations').select('*').eq('id', orgId).single();
 
-  const { data: persons } = await supabaseAdmin.from('persons').select('*').eq('organization_id', orgId);
+  const { data: contacts } = await supabaseAdmin.from('contacts').select('*').eq('organization_id', orgId);
 
   return (
     <div>
@@ -46,7 +46,7 @@ export default async function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {persons?.map((p: any) => (
+                {contacts?.map((p: any) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--q-color-ink-100)' }}>
                     <td style={{ padding: '12px 0' }}>{p.display_name}</td>
                     <td style={{ padding: '12px 0', textTransform: 'capitalize' }}>{p.role}</td>

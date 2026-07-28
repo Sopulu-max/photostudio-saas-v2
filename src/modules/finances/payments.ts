@@ -52,7 +52,7 @@ export async function processPayment(txId: string) {
     entityType: 'financial_transaction',
     entityId: tx.id,
     action: 'payment_settled',
-    actorId: tx.person_id || undefined, // Client is the actor paying
+    actorId: tx.contact_id || undefined, // Client is the actor paying
     payload: { amount: tx.amount, currency: tx.currency, type: tx.type }
   });
 

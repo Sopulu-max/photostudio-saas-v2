@@ -8,22 +8,11 @@ import { revalidatePath } from 'next/cache';
 /**
  * Team — who does the work. An employee specialises a kernel contact; roles are
  * studio-defined (not hardcoded) and attach to employees via employee_roles.
- * Same legacy persons bridge as Clients until dependent modules move to contacts.
  */
 export async function addEmployee(input: { name: string; email?: string; phone?: string; title?: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('An employee needs a name.');
-
-  const { data: legacyPerson, error: pErr } = await supabaseAdmin
-    .from('persons')
-    .insert({ organization_id: orgId, display_name: name, email: input.email || null, phone: input.phone || null, role: 'operator' })
-    .select('id')
-    .single();
-  if (pErr || !legacyPerson) {
-    console.error('Failed to add employee (legacy person):', pErr);
-    throw new Error('Failed to add employee');
-  }
 
   const { data: contact, error: cErr } = await supabaseAdmin
     .from('contacts')
@@ -32,7 +21,6 @@ export async function addEmployee(input: { name: string; email?: string; phone?:
       display_name: name,
       email: input.email || null,
       phone: input.phone || null,
-      metadata: { backfill_person_id: legacyPerson.id },
     })
     .select('id')
     .single();

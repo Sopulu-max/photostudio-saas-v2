@@ -7,6 +7,7 @@ import { NewBookingForm } from './NewBookingForm';
 export const dynamic = 'force-dynamic';
 
 const STATUS_BADGE: Record<string, string> = {
+  inquiry: 'q-badge-warning',
   active: 'q-badge-success',
   draft: 'q-badge-neutral',
   closed: 'q-badge-neutral',
@@ -25,7 +26,7 @@ export default async function BookingsPage() {
     .from('bookings')
     .select(`
       id, title, status, created_at,
-      person:persons(display_name),
+      person:contacts(display_name),
       booking_lines(id),
       contracts(id, status),
       financial_transactions(id, amount, status)

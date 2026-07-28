@@ -28,16 +28,13 @@ export default async function UnifiedProductionWorkspace(props: {
         id,
         status,
         terms,
-        person:persons(id, display_name, email, phone),
-        intent:intents(id, metadata, status)
+        person:contacts(id, display_name, email, phone)
       ),
       tasks(
         id,
         stage_name,
         stage_order,
-        status,
-        assigned_person_id,
-        person:persons(display_name)
+        status
       )
     `)
     .eq('id', params.id)
@@ -72,13 +69,13 @@ export default async function UnifiedProductionWorkspace(props: {
   // 5. Fetch Messages & Person ID
   let personId = '';
   if (orgId && authOrg?.userId) {
-    const { data: personData } = await supabaseAdmin.from('persons').select('id').eq('auth_user_id', authOrg.userId).eq('organization_id', orgId).maybeSingle();
+    const { data: personData } = await supabaseAdmin.from('contacts').select('id').eq('auth_user_id', authOrg.userId).eq('organization_id', orgId).maybeSingle();
     if (personData) personId = personData.id;
   }
 
   const { data: initialMessages } = await supabaseAdmin
     .from('events')
-    .select('*, person:persons(display_name, role)')
+    .select('*, person:contacts(display_name)')
     .eq('organization_id', orgId!)
     .eq('entity_type', 'workflow')
     .eq('entity_id', workflow.id)
@@ -141,14 +138,6 @@ export default async function UnifiedProductionWorkspace(props: {
               Booking & Contract
             </h2>
             <div className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {workflow.contract?.intent && (
-                <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--q-color-ink-600)', marginBottom: '8px' }}>Original Inquiry Data</div>
-                  <pre style={{ margin: 0, fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(workflow.contract.intent.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--q-color-ink-200)', borderRadius: '8px' }}>
                 <div>
                   <div style={{ fontWeight: 600 }}>Service Contract</div>

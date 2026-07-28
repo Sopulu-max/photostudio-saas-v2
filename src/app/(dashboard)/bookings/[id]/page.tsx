@@ -22,7 +22,7 @@ function linePrice(price: any) {
   return money(base, price?.currency || 'USD');
 }
 
-const STATUS_BADGE: Record<string, string> = { active: 'q-badge-success', draft: 'q-badge-neutral', closed: 'q-badge-neutral', cancelled: 'q-badge-danger' };
+const STATUS_BADGE: Record<string, string> = { inquiry: 'q-badge-warning', active: 'q-badge-success', draft: 'q-badge-neutral', closed: 'q-badge-neutral', cancelled: 'q-badge-danger' };
 
 export default async function BookingDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -38,7 +38,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .select(`
       id, title, status, scheduled_for, created_at,
       contact:contacts(id, display_name, email),
-      person:persons(id, display_name, email),
       booking_lines(id, title, price, service_id, status),
       contracts(id, version, status),
       financial_transactions(id, type, amount, currency, status),

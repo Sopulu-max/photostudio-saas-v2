@@ -5,61 +5,20 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logEvent } from '@/lib/actions/events';
 import type { Contract } from '@/lib/types/engine';
 
-const CreateContractSchema = z.object({
-  organizationId: z.string().uuid(),
-  intentId: z.string().uuid(),
-  personId: z.string().uuid(),
-  terms: z.record(z.string(), z.any()),
-  actorId: z.string().uuid(),
-});
-
 const ActivateContractSchema = z.object({
   contractId: z.string().uuid(),
   organizationId: z.string().uuid(),
   actorId: z.string().uuid(),
 });
 
-export async function createContract(input: z.infer<typeof CreateContractSchema>) {
-  const params = CreateContractSchema.parse(input);
-
-  const { data: contract, error } = await supabaseAdmin
-    .from('contracts')
-    .insert({
-      organization_id: params.organizationId,
-      intent_id: params.intentId,
-      person_id: params.personId,
-      terms: params.terms,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Failed to create contract:', error);
-    throw new Error('Failed to create contract');
-  }
-
-  await logEvent({
-    organizationId: params.organizationId,
-    entityType: 'contract',
-    entityId: contract.id,
-    action: 'created',
-    actorId: params.actorId,
-    payload: { intentId: params.intentId }
-  });
-
-  return contract as Contract;
-}
-
 /**
- * Draft a contract for a booking — the composition path. No intent required
- * (the kernel is unlocked); the party is a kernel contact, with person_id
- * mirrored while the legacy column still exists.
+ * Draft a contract for a booking — the composition path. The party is a kernel
+ * contact; terms are whatever the booking's lines add up to.
  */
 export async function draftContractForBooking(input: {
   organizationId: string;
   bookingId: string;
   contactId: string;
-  legacyPersonId?: string | null;
   terms: Record<string, unknown>;
   actorId?: string | null;
 }) {
@@ -69,8 +28,6 @@ export async function draftContractForBooking(input: {
       organization_id: input.organizationId,
       booking_id: input.bookingId,
       contact_id: input.contactId,
-      person_id: input.legacyPersonId ?? null,
-      intent_id: null,
       terms: input.terms,
       status: 'proposed',
     })
@@ -105,11 +62,11 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
   if (typeof input === 'string') {
     const { data: ag } = await supabaseAdmin
       .from('contracts')
-      .select('organization_id, person_id')
+      .select('organization_id, contact_id')
       .eq('id', input)
       .single();
     if (!ag) throw new Error('Contract not found');
-    params = { contractId: input, organizationId: ag.organization_id, actorId: ag.person_id };
+    params = { contractId: input, organizationId: ag.organization_id, actorId: ag.contact_id };
   } else {
     params = ActivateContractSchema.parse(input);
   }
@@ -117,7 +74,7 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
   // STATE MACHINE GUARD
   const { data: currentContract, error: fetchError } = await supabaseAdmin
     .from('contracts')
-    .select('status, person_id, intent_id')
+    .select('status, contact_id')
     .eq('id', params.contractId)
     .single();
 

@@ -19,9 +19,9 @@ async function getOverviewData() {
       { count: workflowTemplatesCount },
       { count: serviceTemplatesCount }
     ] = await Promise.all([
-      supabaseAdmin.from('events').select('*, person:persons(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabaseAdmin.from('workflows').select('*, contract:contracts(id, person:persons(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
-      supabaseAdmin.from('financial_transactions').select('*, person:persons(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
+      supabaseAdmin.from('events').select('*, person:contacts(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
+      supabaseAdmin.from('workflows').select('*, contract:contracts(id, person:contacts(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
+      supabaseAdmin.from('financial_transactions').select('*, person:contacts(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('blueprints').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('services').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
     ]);

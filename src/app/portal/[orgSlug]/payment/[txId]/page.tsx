@@ -16,7 +16,7 @@ export default async function ClientPaymentPage(props: { params: Promise<{ orgSl
   // Fetch the financial transaction
   const { data: tx } = await supabaseAdmin
     .from('financial_transactions')
-    .select('*, person:persons(display_name)')
+    .select('*, person:contacts(display_name)')
     .eq('id', params.txId)
     .eq('organization_id', org.id)
     .single();

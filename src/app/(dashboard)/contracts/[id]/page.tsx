@@ -22,7 +22,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
     .from('contracts')
     .select(`
       *,
-      person:persons(display_name, email),
+      person:contacts(display_name, email),
       workflows(id, status)
     `)
     .eq('id', params.id)

@@ -9,7 +9,7 @@ export default async function ContractsPage() {
 
   const { data: contracts } = await supabaseAdmin
         .from('contracts')
-        .select('*, person:persons(display_name)')
+        .select('*, person:contacts(display_name)')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false });
 

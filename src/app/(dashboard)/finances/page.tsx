@@ -12,13 +12,13 @@ export default async function FinancesPage() {
 
   const { data: transactions } = await supabaseAdmin
     .from('financial_transactions')
-    .select(`*, person:persons(display_name)`)
+    .select(`*, person:contacts(display_name)`)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
   // Get a fallback actor for logging
   const { data: actors } = await supabaseAdmin
-    .from('persons')
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .limit(1);

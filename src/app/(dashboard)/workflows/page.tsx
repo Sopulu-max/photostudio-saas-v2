@@ -16,7 +16,7 @@ export default async function ProductionsPage() {
       template:blueprints(name),
       contract:contracts(
         id,
-        person:persons(display_name, email, phone)
+        person:contacts(display_name, email, phone)
       )
     `)
     .eq('organization_id', orgId)

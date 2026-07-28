@@ -1,8 +1,16 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
+/**
+ * Public booking intake. A lead is a booking in `inquiry` status — no separate
+ * intent entity. The system: finds-or-creates the contact, records them as a
+ * client, and opens a booking with one line for the requested service.
+ *
+ * Public surface: the visitor is unauthenticated, so this uses the admin client
+ * scoped to the org resolved from the page's slug (module interfaces assume an
+ * authenticated operator).
+ */
 export async function submitBookingForm(
   orgId: string,
   serviceId: string,
@@ -14,62 +22,89 @@ export async function submitBookingForm(
     customFields: Record<string, any>;
   }
 ) {
-  // We use supabaseAdmin here because this is a public form, the user is unauthenticated.
-  // The system acts on their behalf to ingest the Intent.
-  
-  // 1. Find or create the Person
-  let personId: string;
-  const { data: existingPerson } = await supabaseAdmin
-    .from('persons')
+  const displayName = `${formData.firstName} ${formData.lastName}`.trim();
+
+  // 1. Find or create the contact (kernel party)
+  let contactId: string;
+  const { data: existing } = await supabaseAdmin
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .eq('email', formData.email)
     .maybeSingle();
 
-  if (existingPerson) {
-    personId = existingPerson.id;
+  if (existing) {
+    contactId = existing.id;
   } else {
-    const { data: newPerson, error: personError } = await supabaseAdmin
-      .from('persons')
+    const { data: contact, error: contactError } = await supabaseAdmin
+      .from('contacts')
       .insert({
         organization_id: orgId,
-        role: 'client',
-        display_name: `${formData.firstName} ${formData.lastName}`.trim(),
+        display_name: displayName,
         email: formData.email,
         phone: formData.phone || null,
-        status: 'active',
-        metadata: {},
       })
       .select('id')
       .single();
-
-    if (personError) {
-      console.error('Error creating person:', personError);
-      throw new Error('Failed to create person record.');
+    if (contactError || !contact) {
+      console.error('Error creating contact:', contactError);
+      throw new Error('Failed to save your details.');
     }
-    personId = newPerson.id;
+    contactId = contact.id;
   }
 
-  // 2. Create the Intent
-  const { data: intent, error: intentError } = await supabaseAdmin
-    .from('intents')
+  // 2. Record them as a client (idempotent — unique on org+contact)
+  await supabaseAdmin
+    .from('clients')
+    .upsert(
+      { organization_id: orgId, contact_id: contactId },
+      { onConflict: 'organization_id,contact_id', ignoreDuplicates: true }
+    );
+
+  // 3. The service, for the line's snapshot and the booking title
+  const { data: service } = await supabaseAdmin
+    .from('services')
+    .select('id, name, pricing')
+    .eq('id', serviceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!service) throw new Error('This service is no longer available.');
+
+  // 4. The booking, in inquiry state, carrying the form responses
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from('bookings')
     .insert({
       organization_id: orgId,
-      person_id: personId,
-      source: 'public_booking_page',
-      description: `Booking request for service ${serviceId}`,
-      service_id: serviceId,
-      status: 'created',
-      // Store custom form responses in metadata
-      metadata: { form_responses: formData.customFields },
+      contact_id: contactId,
+      title: `${displayName} — ${service.name}`,
+      status: 'inquiry',
+      metadata: { source: 'public_booking_page', form_responses: formData.customFields },
     })
     .select('id')
     .single();
-
-  if (intentError) {
-    console.error('Error creating intent:', intentError);
-    throw new Error('Failed to create booking intent.');
+  if (bookingError || !booking) {
+    console.error('Error creating booking:', bookingError);
+    throw new Error('Failed to create your booking request.');
   }
 
-  return { success: true, intentId: intent.id };
+  // 5. One line for the requested service
+  await supabaseAdmin.from('booking_lines').insert({
+    organization_id: orgId,
+    booking_id: booking.id,
+    service_id: service.id,
+    title: service.name,
+    price: service.pricing || {},
+  });
+
+  // 6. Organizational memory
+  await supabaseAdmin.from('events').insert({
+    organization_id: orgId,
+    entity_type: 'booking',
+    entity_id: booking.id,
+    action: 'created',
+    actor_id: contactId,
+    payload: { source: 'public_booking_page', serviceId: service.id },
+  });
+
+  return { success: true, bookingId: booking.id };
 }

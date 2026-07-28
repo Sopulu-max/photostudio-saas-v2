@@ -17,7 +17,7 @@ export default async function AssetsPage() {
 
   // Get a fallback actor for logging
   const { data: actors } = await supabaseAdmin
-    .from('persons')
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .limit(1);

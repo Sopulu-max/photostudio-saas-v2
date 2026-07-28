@@ -8,9 +8,9 @@ import { supabaseAdmin } from './admin';
  *
  * Strategy:
  * 1. Fast path — read from user_metadata in the JWT (set during create-studio onboarding).
- * 2. Fallback — look up via persons.auth_user_id for stale sessions
+ * 2. Fallback — look up via contacts.auth_user_id for stale sessions
  *    (happens when metadata was just written but the session cookie hasn't refreshed).
- * 3. Last resort — look up via persons.email + role='configurator'.
+ * 3. Last resort — look up via contacts.email.
  *
  * Throws if the user is not authenticated or has no organization.
  */
@@ -29,25 +29,25 @@ export async function getOptionalAuthOrgId(): Promise<{ userId: string; orgId: s
     orgId = user.user_metadata.organization_id as string;
   }
 
-  // Fallback: look up via persons.auth_user_id (set during onboarding)
+  // Fallback: look up via contacts.auth_user_id (set during onboarding)
   if (!orgId) {
-    const { data: personByAuthId } = await supabaseAdmin
-      .from('persons')
+    const { data: contactByAuthId } = await supabaseAdmin
+      .from('contacts')
       .select('organization_id')
       .eq('auth_user_id', user.id)
       .maybeSingle();
-    if (personByAuthId?.organization_id) orgId = personByAuthId.organization_id;
+    if (contactByAuthId?.organization_id) orgId = contactByAuthId.organization_id;
   }
 
-  // Last resort: look up via persons.email + configurator role
+  // Last resort: look up via contacts.email
   if (!orgId && user.email) {
-    const { data: personByEmail } = await supabaseAdmin
-      .from('persons')
+    const { data: contactByEmail } = await supabaseAdmin
+      .from('contacts')
       .select('organization_id')
       .eq('email', user.email)
-      .eq('role', 'configurator')
+      .limit(1)
       .maybeSingle();
-    if (personByEmail?.organization_id) orgId = personByEmail.organization_id;
+    if (contactByEmail?.organization_id) orgId = contactByEmail.organization_id;
   }
 
   if (!orgId) return null;
