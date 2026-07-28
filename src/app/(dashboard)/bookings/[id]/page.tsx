@@ -9,6 +9,8 @@ import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
 import { TaskStatusControl } from './TaskStatusControl';
+import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
+import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,10 +69,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // Crew, roster and work through Production's interface.
   const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const [crew, candidates, work] = await Promise.all([
+  const [crew, candidates, work, deliveries] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
+    listDeliveriesForBooking(booking.id),
   ]);
 
   const lines: any[] = booking.booking_lines || [];
@@ -213,6 +216,51 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               ))}
             </div>
           )}
+        </Section>
+
+        {/* Delivery */}
+        <Section title="Delivery">
+          {deliveries.length === 0 ? (
+            <div style={{ color: 'var(--q-color-ink-500)' }}>
+              Nothing delivered yet. Bundle the finished work and share it when you're ready.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {deliveries.map((d: any) => (
+                <div key={d.id} style={{ padding: '14px 16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '2px' }}>{d.title}</strong>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+                        {d.files.length} {d.files.length === 1 ? 'file' : 'files'}
+                        {d.lastViewedAt && <> · viewed {new Date(d.lastViewedAt).toLocaleDateString()}</>}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={`q-badge ${d.status === 'shared' ? 'q-badge-success' : 'q-badge-neutral'}`}>{d.status}</span>
+                      <UploadFilesButton deliveryId={d.id} bookingId={booking.id} />
+                    </div>
+                  </div>
+
+                  {d.files.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--q-color-ink-100)' }}>
+                      {d.files.map((f: any) => (
+                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '0.85rem' }}>{f.file_name}</span>
+                          <RemoveFileButton fileId={f.id} bookingId={booking.id} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '12px' }}>
+                    <ShareControl deliveryId={d.id} bookingId={booking.id} status={d.status} shareToken={d.shareToken} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <NewDeliveryForm bookingId={booking.id} />
         </Section>
 
         {/* Money */}
