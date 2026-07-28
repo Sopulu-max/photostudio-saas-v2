@@ -23,7 +23,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
     .select(`
       *,
       person:contacts(display_name, email),
-      workflows(id, status)
+      booking:bookings(id, title)
     `)
     .eq('id', params.id)
     .eq('organization_id', orgId)
@@ -134,30 +134,20 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           </div>
         )}
 
-        {/* Workflows */}
-        <div className="q-card" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Associated Workflows</h2>
-          {!contract.workflows || contract.workflows.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>
-              No workflows attached to this contract.
+        {/* The booking this contract belongs to — work lives there, per line. */}
+        {contract.booking && (
+          <div className="q-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ fontSize: '1.125rem', margin: '0 0 4px', fontWeight: 600 }}>Booking</h2>
+              <span style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>{contract.booking.title}</span>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {contract.workflows.map((wf: any) => (
-                <div key={wf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
-                  <div>
-                    <strong style={{ display: 'block', marginBottom: '4px' }}>Production Pipeline</strong>
-                    <span className={`q-badge ${wf.status === 'completed' ? 'q-badge-success' : 'q-badge-warning'}`}>{wf.status}</span>
-                  </div>
-                  <Link href={`/workflows/${wf.id}`} className="q-btn q-btn-primary">
-                    <Play size={16} style={{ marginRight: '8px' }} />
-                    Open Board
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+            <Link href={`/bookings/${contract.booking.id}`} className="q-btn q-btn-primary">
+              <Play size={16} style={{ marginRight: '8px' }} />
+              Open booking
+            </Link>
+          </div>
+        )}
+
 
       </div>
     </div>

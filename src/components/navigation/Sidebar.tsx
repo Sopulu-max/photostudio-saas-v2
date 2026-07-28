@@ -25,7 +25,6 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
-      { label: 'Workflows', href: '/workflows', icon: Layers },
       { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
       { label: 'Finances', href: '/finances', icon: DollarSign },
     ]
@@ -35,7 +34,6 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Clients', href: '/clients', icon: Users },
       { label: 'Contracts', href: '/contracts', icon: FileSignature },
-      { label: 'Assets', href: '/assets', icon: FolderOpen },
     ]
   },
   {
@@ -44,7 +42,6 @@ const NAV_SECTIONS = [
       { label: 'Services Catalog', href: '/services', icon: Package },
       
       { label: 'Team', href: '/team', icon: Users },
-      { label: 'Resources', href: '/resources', icon: Boxes },
     ]
   },
   {

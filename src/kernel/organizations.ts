@@ -1,12 +1,12 @@
 'use server';
 
-import { supabaseAdmin } from '../supabase/admin';
-import { logEvent } from './events';
-import type { Organization } from '../types/engine';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logEvent } from '@/kernel/events';
+import type { Organization } from '@/lib/types/engine';
 
 export async function createOrganization(name: string, slug?: string) {
   // 1. Get the current authenticated user
-  const { createClient } = await import('../supabase/server');
+  const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 

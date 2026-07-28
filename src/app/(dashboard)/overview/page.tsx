@@ -20,7 +20,7 @@ async function getOverviewData() {
       { count: serviceTemplatesCount }
     ] = await Promise.all([
       supabaseAdmin.from('events').select('*, person:contacts(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabaseAdmin.from('workflows').select('*, contract:contracts(id, person:contacts(display_name))').eq('organization_id', orgId).in('status', ['created', 'in_progress']).limit(5),
+      supabaseAdmin.from('bookings').select('id, title, status, contact:contacts(display_name)').eq('organization_id', orgId).in('status', ['inquiry', 'draft', 'active']).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:contacts(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('blueprints').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('services').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
@@ -77,7 +77,7 @@ export default async function OverviewPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px' }}>
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasWorkflow ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Workflow Blueprint</h3>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a blueprint</h3>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define the pipeline of tasks that happen after booking.</p>
               </div>
               {!data.onboarding.hasWorkflow && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}
@@ -87,7 +87,7 @@ export default async function OverviewPage() {
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasService ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
               <div style={{ flex: 1 }}>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Service Catalog Item</h3>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define what you sell and attach your workflow blueprint.</p>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define what you sell and attach a blueprint.</p>
               </div>
               {data.onboarding.hasWorkflow && !data.onboarding.hasService && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}
             </div>
@@ -122,19 +122,19 @@ export default async function OverviewPage() {
           </div>
 
           <div className="q-card">
-            <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Active Workflows</h2>
+            <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Open Bookings</h2>
             {data.activeProductions.length === 0 ? (
-              <div style={{ color: 'var(--q-color-ink-500)' }}>No active workflows.</div>
+              <div style={{ color: 'var(--q-color-ink-500)' }}>No open bookings.</div>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {data.activeProductions.map((prod: any) => (
-                  <Link href={`/workflows/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link href={`/bookings/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{prod.contract?.person?.display_name || 'Production'}</div>
+                      <div style={{ fontWeight: 600 }}>{prod.title}</div>
                       <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px', textTransform: 'capitalize' }}>Status: {prod.status.replace('_', ' ')}</div>
                     </div>
                     <div>
-                      <span className="q-btn q-btn-secondary">Open Workspace</span>
+                      <span className="q-btn q-btn-secondary">Open booking</span>
                     </div>
                   </Link>
                 ))}

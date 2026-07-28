@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { logEvent } from '@/lib/actions/events';
+import { logEvent } from '@/kernel/events';
 import type { Contract } from '@/lib/types/engine';
 
 const ActivateContractSchema = z.object({

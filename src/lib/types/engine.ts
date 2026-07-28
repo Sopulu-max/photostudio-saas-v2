@@ -10,19 +10,11 @@
 // ============================================================
 
 export type OrganizationStatus = 'active' | 'suspended' | 'archived';
-export type ResourceStatus = 'available' | 'reserved' | 'in_use' | 'maintenance' | 'retired';
 export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
-export type BookingStatus = 'draft' | 'active' | 'closed' | 'cancelled';
-export type WorkflowStatus = 'created' | 'in_progress' | 'completed' | 'halted';
+export type BookingStatus = 'inquiry' | 'draft' | 'active' | 'closed' | 'cancelled';
 export type TaskStatus = 'created' | 'assigned' | 'in_progress' | 'blocked' | 'completed';
-export type AssetOrigin = 'produced' | 'provided';
-export type AssetStatus = 'registered' | 'available' | 'in_use' | 'retained' | 'released';
-export type DeliverableStatus = 'produced' | 'reviewed' | 'delivered' | 'archived';
 export type TransactionDirection = 'inbound' | 'outbound';
 export type TransactionStatus = 'created' | 'pending' | 'settled' | 'voided';
-export type WorkflowTemplateStatus = 'active' | 'retired';
-export type ServiceTemplateStatus = 'active' | 'retired';
-export type VisualLayoutStatus = 'draft' | 'published';
 
 // ============================================================
 // LEVEL 1: IMMUTABLE CORE ENTITIES
@@ -33,17 +25,6 @@ export interface Organization {
   name: string;
   slug: string | null;
   status: OrganizationStatus;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Resource {
-  id: string;
-  organization_id: string;
-  type: string;
-  name: string;
-  status: ResourceStatus;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -92,19 +73,10 @@ export interface BookingLine {
   updated_at: string;
 }
 
-export interface Workflow {
-  id: string;
-  organization_id: string;
-  contract_id: string;
-  template_id: string | null;
-  status: WorkflowStatus;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Task {
   id: string;
-  workflow_id: string;
+  organization_id: string;
+  booking_line_id: string;
   stage_name: string;
   stage_order: number;
   status: TaskStatus;
@@ -112,29 +84,6 @@ export interface Task {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
-}
-
-export interface Asset {
-  id: string;
-  organization_id: string;
-  workflow_id: string | null;
-  origin: AssetOrigin;
-  type: string;
-  file_reference: string | null;
-  status: AssetStatus;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Deliverable {
-  id: string;
-  asset_id: string;
-  contract_id: string;
-  contact_id: string;
-  status: DeliverableStatus;
-  delivered_at: string | null;
-  created_at: string;
 }
 
 export interface FinancialTransaction {
@@ -179,57 +128,8 @@ export interface WorkflowStageDefinition {
   role_requirements?: Array<{ role: string; count: number }>;
 }
 
-export interface WorkflowTemplate {
-  id: string;
-  organization_id: string;
-  name: string;
-  stages: WorkflowStageDefinition[];
-  status: WorkflowTemplateStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ServiceTemplate {
-  id: string;
-  organization_id: string;
-  name: string;
-  default_blueprint_id: string | null;
-  pricing: {
-    base_price?: number;
-    currency?: string;
-    deposit_percentage?: number;
-    add_ons?: Array<{ name: string; price: number }>;
-  };
-  resource_requirements: Record<string, unknown>;
-  role_requirements: Record<string, unknown>;
-  deliverable_spec: Record<string, unknown>;
-  form_schema: any[];
-  // Page content, held as data on the Service (Decision A — one body of truth).
-  description: string | null;
-  media: MediaItem[];
-  status: ServiceTemplateStatus;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface MediaItem {
   url: string;
   alt?: string;
   kind: 'image' | 'video';
-}
-
-export interface VisualLayout {
-  id: string;
-  organization_id: string;
-  context: string;
-  name: string | null;
-  layout_data: Record<string, unknown>;
-  // A layout may belong to a specific subject (e.g. a service). Null for
-  // org-level layouts like the storefront. First step toward view_defs.
-  subject_type: string | null;
-  subject_id: string | null;
-  status: VisualLayoutStatus;
-  created_at: string;
-  updated_at: string;
-  published_at: string | null;
 }

@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseAdmin } from '../supabase/admin';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export interface LogEventParams {
   organizationId: string;

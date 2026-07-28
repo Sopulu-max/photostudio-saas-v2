@@ -1,10 +1,17 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { logEvent } from '@/lib/actions/events';
-import type { Workflow, Task, TaskStatus, WorkflowStatus, WorkflowTemplate, WorkflowStageDefinition } from '@/lib/types/engine';
+import { logEvent } from '@/kernel/events';
+import type { Task, TaskStatus } from '@/lib/types/engine';
 import { revalidatePath } from 'next/cache';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+
+/**
+ * Production — the doing. The booking LINE is the production unit: tasks hang
+ * directly off a line (no workflow container), and a line's production state is
+ * derived from its tasks. Assignments put employees on tasks or bookings, in a
+ * role.
+ */
 
 // Valid state machine transitions for Task
 const TASK_TRANSITIONS: Record<string, TaskStatus[]> = {
@@ -15,86 +22,47 @@ const TASK_TRANSITIONS: Record<string, TaskStatus[]> = {
   completed:   [], // Terminal state
 };
 
-// Valid state machine transitions for Workflow
-const WORKFLOW_TRANSITIONS: Record<string, WorkflowStatus[]> = {
-  created:     ['in_progress', 'halted'],
-  in_progress: ['completed', 'halted'],
-  completed:   [], // Terminal state
-  halted:      ['in_progress'], // Can resume
-};
-
-export async function createWorkflow(params: {
-  organizationId: string;
-  contractId: string;
-  templateId?: string;
-  actorId: string;
-  meta?: Record<string, unknown>;
+/**
+ * Start work on a booking line: seed its tasks from the stages handed in
+ * (Bookings asks Services for the line's production plan and passes it here).
+ * A line with no plan gets a single free-form stage so work can still start.
+ */
+export async function startWorkForBookingLine(input: {
+  bookingId: string;
+  lineId: string;
+  stages: { name: string; order: number }[];
 }) {
-  const { data: workflow, error } = await supabaseAdmin
-    .from('workflows')
-    .insert({
-      organization_id: params.organizationId,
-      contract_id: params.contractId,
-      blueprint_id: params.templateId || null,
-    })
-    .select()
-    .single();
+  const { orgId, personId: actorId } = await getAuthOrgId();
 
-  if (error) {
-    console.error('Failed to create workflow:', error);
-    throw new Error('Failed to create workflow');
+  const stages = (input.stages?.length ?? 0) > 0 ? input.stages : [{ name: 'Do the work', order: 0 }];
+
+  for (const [i, stage] of stages.entries()) {
+    const { data: task, error } = await supabaseAdmin
+      .from('tasks')
+      .insert({
+        organization_id: orgId,
+        booking_line_id: input.lineId,
+        stage_name: stage.name,
+        stage_order: stage.order ?? i,
+      })
+      .select('id')
+      .single();
+    if (error || !task) {
+      console.error('Failed to seed task:', error);
+      throw new Error('Failed to start work');
+    }
+    await logEvent({
+      organizationId: orgId,
+      entityType: 'task',
+      entityId: task.id,
+      action: 'created',
+      actorId: actorId ?? undefined,
+      payload: { bookingId: input.bookingId, lineId: input.lineId, stageName: stage.name },
+    });
   }
 
-  await logEvent({
-    organizationId: params.organizationId,
-    entityType: 'workflow',
-    entityId: workflow.id,
-    action: 'created',
-    actorId: params.actorId,
-    payload: { contractId: params.contractId, templateId: params.templateId, ...(params.meta || {}) }
-  });
-
-  return workflow as Workflow;
-}
-
-export async function createTask(params: {
-  organizationId: string;
-  workflowId: string;
-  stageName: string;
-  stageOrder: number;
-  assignedPersonId?: string;
-  dueDate?: string;
-  actorId: string;
-  meta?: Record<string, unknown>;
-}) {
-  const { data: task, error } = await supabaseAdmin
-    .from('tasks')
-    .insert({
-      organization_id: params.organizationId, // FIX: was missing
-      workflow_id: params.workflowId,
-      stage_name: params.stageName,
-      stage_order: params.stageOrder,
-
-      due_date: params.dueDate || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Failed to create task:', error);
-    throw new Error('Failed to create task');
-  }
-
-  await logEvent({
-    organizationId: params.organizationId,
-    entityType: 'task',
-    entityId: task.id,
-    action: 'created',
-    actorId: params.actorId,
-    payload: { stageName: params.stageName, stageOrder: params.stageOrder, workflowId: params.workflowId, ...(params.meta || {}) }
-  });
-
-  return task as Task;
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true, taskCount: stages.length };
 }
 
 export async function updateTaskStatus(
@@ -103,7 +71,7 @@ export async function updateTaskStatus(
   newStatus: TaskStatus,
   actorId: string
 ) {
-  // STATE MACHINE GUARD: Fetch current state
+  // STATE MACHINE GUARD
   const { data: current, error: fetchError } = await supabaseAdmin
     .from('tasks')
     .select('status')
@@ -126,6 +94,7 @@ export async function updateTaskStatus(
     .from('tasks')
     .update({ status: newStatus })
     .eq('id', taskId)
+    .eq('organization_id', organizationId)
     .select()
     .single();
 
@@ -143,62 +112,52 @@ export async function updateTaskStatus(
     payload: { from: current.status, to: newStatus }
   });
 
+  revalidatePath('/bookings');
+  revalidatePath('/my-tasks');
   return task as Task;
 }
 
-export async function updateWorkflowStatus(
-  workflowId: string,
-  organizationId: string,
-  newStatus: WorkflowStatus,
-  actorId: string
-) {
-  // STATE MACHINE GUARD
-  const { data: current, error: fetchError } = await supabaseAdmin
-    .from('workflows')
-    .select('status')
-    .eq('id', workflowId)
-    .eq('organization_id', organizationId)
-    .single();
+/**
+ * The work on a set of lines — what the booking hub renders. Tasks with their
+ * assignees, grouped by line, plus a derived per-line summary.
+ */
+export async function getWorkForLines(lineIds: string[]) {
+  if (lineIds.length === 0) return {} as Record<string, { tasks: any[]; total: number; completed: number }>;
+  const { orgId } = await getAuthOrgId();
 
-  if (fetchError || !current) {
-    throw new Error('Workflow not found');
-  }
-
-  const allowedTransitions = WORKFLOW_TRANSITIONS[current.status] || [];
-  if (!allowedTransitions.includes(newStatus)) {
-    throw new Error(
-      `Illegal workflow state transition: '${current.status}' → '${newStatus}'. Allowed: [${allowedTransitions.join(', ')}]`
-    );
-  }
-
-  const { data: workflow, error } = await supabaseAdmin
-    .from('workflows')
-    .update({ status: newStatus })
-    .eq('id', workflowId)
-    .select()
-    .single();
-
+  const { data: tasks, error } = await supabaseAdmin
+    .from('tasks')
+    .select('id, booking_line_id, stage_name, stage_order, status, due_date, assignments(id, employee:employees(id, contact:contacts(display_name)), role:roles(name))')
+    .eq('organization_id', orgId)
+    .in('booking_line_id', lineIds)
+    .order('stage_order');
   if (error) {
-    console.error('Failed to update workflow status:', error);
-    throw new Error('Failed to update workflow status');
+    console.error('Failed to load work:', error);
+    throw new Error('Failed to load work');
   }
 
-  await logEvent({
-    organizationId,
-    entityType: 'workflow',
-    entityId: workflow.id,
-    action: 'status_updated',
-    actorId,
-    payload: { from: current.status, to: newStatus }
-  });
-
-  return workflow as Workflow;
+  const byLine: Record<string, { tasks: any[]; total: number; completed: number }> = {};
+  for (const t of (tasks || []) as any[]) {
+    const bucket = (byLine[t.booking_line_id] ??= { tasks: [], total: 0, completed: 0 });
+    bucket.tasks.push({
+      id: t.id,
+      stageName: t.stage_name,
+      status: t.status,
+      assignees: (t.assignments || []).map((a: any) => ({
+        name: a.employee?.contact?.display_name,
+        role: a.role?.name || null,
+      })),
+    });
+    bucket.total += 1;
+    if (t.status === 'completed') bucket.completed += 1;
+  }
+  return byLine;
 }
 
 /**
  * Assign an employee to a task, in a role. Several people can work one task
  * (a Lead and a Second Shooter), and each assignment records which role they
- * are filling — the requirement the single assigned_person_id could not meet.
+ * are filling.
  */
 export async function assignTask(input: { taskId: string; employeeId: string; roleId?: string | null }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
@@ -225,84 +184,8 @@ export async function assignTask(input: { taskId: string; employeeId: string; ro
     payload: { employeeId: input.employeeId, roleId: input.roleId ?? null },
   });
 
-  revalidatePath('/workflows');
+  revalidatePath('/bookings');
   return { ok: true };
-}
-
-/**
- * Who can be put on a task. Production asks Team for the roster rather than
- * reading employees/contacts itself.
- */
-export async function listAssignableEmployees() {
-  const { listEmployees } = await import('@/modules/team/interface');
-  const employees = await listEmployees();
-  return employees.map((e: any) => ({
-    employeeId: e.id,
-    name: e.contact?.display_name as string,
-    roles: (e.employee_roles || []).map((er: any) => ({ id: er.role?.id, name: er.role?.name })).filter((r: any) => r.id),
-  }));
-}
-
-/**
- * Start work for a booking line — Production owns creating the work and seeding
- * its stages. Bookings calls this rather than writing workflows/tasks itself.
- * No contract required: the kernel is unlocked, and starting work is the
- * studio's deliberate choice.
- */
-export async function startWorkForBookingLine(input: {
-  bookingId: string;
-  lineId: string;
-  blueprintId?: string | null;
-  stages: { name: string; order: number }[];
-}) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
-
-  const { data: workflow, error } = await supabaseAdmin
-    .from('workflows')
-    .insert({
-      organization_id: orgId,
-      booking_id: input.bookingId,
-      booking_line_id: input.lineId,
-      contract_id: null,
-      blueprint_id: input.blueprintId ?? null,
-      status: 'created',
-    })
-    .select('id')
-    .single();
-
-  if (error || !workflow) {
-    console.error('Failed to start work:', error);
-    throw new Error('Failed to start work');
-  }
-
-  await logEvent({
-    organizationId: orgId,
-    entityType: 'workflow',
-    entityId: workflow.id,
-    action: 'created',
-    actorId: actorId ?? undefined,
-    payload: { bookingId: input.bookingId, lineId: input.lineId, trigger: 'manual_start' },
-  });
-
-  for (const [i, stage] of (input.stages || []).entries()) {
-    const { data: task } = await supabaseAdmin
-      .from('tasks')
-      .insert({ organization_id: orgId, workflow_id: workflow.id, stage_name: stage.name, stage_order: stage.order ?? i })
-      .select('id')
-      .single();
-    if (task) {
-      await logEvent({
-        organizationId: orgId,
-        entityType: 'task',
-        entityId: task.id,
-        action: 'created',
-        actorId: actorId ?? undefined,
-        payload: { workflowId: workflow.id, stageName: stage.name },
-      });
-    }
-  }
-
-  return { workflowId: workflow.id };
 }
 
 /**
@@ -367,8 +250,7 @@ export async function removeFromBooking(input: { bookingId: string; assignmentId
 
 /**
  * Who is on this booking: people put on the booking directly, plus everyone
- * assigned to any of its tasks (rolled up, de-duplicated). Production owns this
- * because it owns the work — Bookings asks for it.
+ * assigned to any of its lines' tasks (rolled up, de-duplicated).
  */
 export async function listCrewForBooking(bookingId: string) {
   const { orgId } = await getAuthOrgId();
@@ -381,9 +263,9 @@ export async function listCrewForBooking(bookingId: string) {
 
   const { data: viaTasks } = await supabaseAdmin
     .from('assignments')
-    .select('id, employee_id, role_id, task_id, employee:employees(id, contact:contacts(display_name)), role:roles(name), task:tasks!inner(id, stage_name, workflow:workflows!inner(booking_id))')
+    .select('id, employee_id, role_id, task_id, employee:employees(id, contact:contacts(display_name)), role:roles(name), task:tasks!inner(id, stage_name, line:booking_lines!inner(booking_id))')
     .eq('organization_id', orgId)
-    .eq('task.workflow.booking_id', bookingId);
+    .eq('task.line.booking_id', bookingId);
 
   const rows = [...(direct || []), ...(viaTasks || [])];
   const seen = new Map<string, any>();
@@ -401,4 +283,56 @@ export async function listCrewForBooking(bookingId: string) {
     }
   }
   return Array.from(seen.values());
+}
+
+/**
+ * Who can be put on a task. Production asks Team for the roster rather than
+ * reading employees/contacts itself.
+ */
+export async function listAssignableEmployees() {
+  const { listEmployees } = await import('@/modules/team/interface');
+  const employees = await listEmployees();
+  return employees.map((e: any) => ({
+    employeeId: e.id,
+    name: e.contact?.display_name as string,
+    roles: (e.employee_roles || []).map((er: any) => ({ id: er.role?.id, name: er.role?.name })).filter((r: any) => r.id),
+  }));
+}
+
+/**
+ * The logged-in person's task list: tasks they're assigned to, with the booking
+ * for context.
+ */
+export async function listMyTasks() {
+  const { orgId, contactId } = await getAuthOrgId();
+  if (!contactId) return [];
+
+  const { data: me } = await supabaseAdmin
+    .from('employees')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  if (!me) return [];
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('assignments')
+    .select('task:tasks!inner(id, stage_name, status, due_date, line:booking_lines!inner(id, title, booking:bookings!inner(id, title)))')
+    .eq('organization_id', orgId)
+    .eq('employee_id', me.id)
+    .not('task_id', 'is', null);
+  if (error) {
+    console.error('Failed to load my tasks:', error);
+    throw new Error('Failed to load your tasks');
+  }
+
+  return ((rows || []) as any[]).map((r) => ({
+    taskId: r.task.id,
+    stageName: r.task.stage_name,
+    status: r.task.status,
+    dueDate: r.task.due_date,
+    lineTitle: r.task.line?.title,
+    bookingId: r.task.line?.booking?.id,
+    bookingTitle: r.task.line?.booking?.title,
+  }));
 }

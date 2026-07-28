@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { logEvent } from '@/lib/actions/events';
+import { logEvent } from '@/kernel/events';
 import { getService, getProductionPlanForService } from '@/modules/services/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { raiseInvoiceForBooking } from '@/modules/finances/interface';
@@ -215,12 +215,12 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
 }
 
 /**
- * Start work on a line — create its workflow when the studio chooses, no active
- * contract required (unlocked). Seeds tasks from the line's service blueprint if
- * one is attached.
+ * Start work on a line, when the studio chooses — no contract required (the
+ * kernel is unlocked). The line IS the production unit: its tasks come from the
+ * service's blueprint, asked of Services and handed to Production.
  */
 export async function startWorkForLine(input: { bookingId: string; lineId: string }) {
-  const { orgId, personId } = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
 
   const { data: line } = await supabaseAdmin
     .from('booking_lines')
@@ -236,14 +236,13 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
     ? await getProductionPlanForService(line.service_id)
     : { blueprintId: null, stages: [] };
 
-  // Production owns the work — Bookings asks, it doesn't write workflows/tasks.
-  const { workflowId } = await startWorkForBookingLine({
+  // Production owns the work — Bookings asks, it doesn't write tasks itself.
+  const { taskCount } = await startWorkForBookingLine({
     bookingId: input.bookingId,
     lineId: input.lineId,
-    blueprintId: plan.blueprintId,
     stages: plan.stages,
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
-  return { workflowId };
+  return { taskCount };
 }

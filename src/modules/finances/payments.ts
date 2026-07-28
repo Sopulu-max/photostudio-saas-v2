@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { logEvent } from '@/lib/actions/events';
+import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import type { FinancialTransaction, TransactionStatus } from '@/lib/types/engine';
 

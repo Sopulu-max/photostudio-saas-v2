@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { logEvent } from '@/lib/actions/events';
+import { logEvent } from '@/kernel/events';
 import type { FinancialTransaction, TransactionDirection, TransactionStatus } from '@/lib/types/engine';
 
 export async function createTransaction(params: {

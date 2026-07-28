@@ -7,8 +7,8 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 export default async function AnalyticsPage() {
   const { orgId } = await getAuthOrgId();
 
-  const [workflowsRes, bookingsRes, txRes, eventsRes] = await Promise.all([
-    supabaseAdmin.from('workflows').select('id, status, created_at').eq('organization_id', orgId),
+  const [tasksRes, bookingsRes, txRes, eventsRes] = await Promise.all([
+    supabaseAdmin.from('tasks').select('id, status, created_at').eq('organization_id', orgId),
     supabaseAdmin.from('bookings').select('id, status, created_at', { count: 'exact' }).eq('organization_id', orgId),
     supabaseAdmin.from('financial_transactions').select('amount, status, direction, created_at').eq('organization_id', orgId),
     supabaseAdmin.from('events').select('action, entity_type, created_at').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(20),
@@ -22,8 +22,8 @@ export default async function AnalyticsPage() {
     ?.filter((t: any) => t.status === 'pending' && t.direction === 'inbound')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
 
-  const activeWorkflows = workflowsRes.data?.filter((w: any) => w.status === 'in_progress').length || 0;
-  const completedWorkflows = workflowsRes.data?.filter((w: any) => w.status === 'completed').length || 0;
+  const activeTasks = tasksRes.data?.filter((t: any) => t.status === 'in_progress').length || 0;
+  const completedTasks = tasksRes.data?.filter((t: any) => t.status === 'completed').length || 0;
 
   const activeBookings = bookingsRes.data?.filter((b: any) => b.status === 'active').length || 0;
   const conversionRate = bookingsRes.count
@@ -47,12 +47,12 @@ export default async function AnalyticsPage() {
           <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--q-color-warm)' }}>${totalPending.toFixed(2)}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Active Projects</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{activeWorkflows}</div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Tasks In Progress</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{activeTasks}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Completed Projects</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{completedWorkflows}</div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Tasks Completed</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{completedTasks}</div>
         </div>
         <div className="q-card" style={{ padding: '24px' }}>
           <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Bookings</div>

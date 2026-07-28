@@ -2,7 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { logEvent } from '@/lib/actions/events';
+import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 
 /**

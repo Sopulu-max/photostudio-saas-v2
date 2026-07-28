@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { createOrganization } from '@/lib/actions/organizations';
+import { createOrganization } from '@/kernel/organizations';
 import { revalidatePath } from 'next/cache';
 
 export default async function CreateStudioPage({ searchParams }: { searchParams: { error?: string } }) {

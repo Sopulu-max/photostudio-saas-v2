@@ -18,7 +18,6 @@ const SECTIONS = [
     apps: [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
-      { label: 'Workflows', href: '/workflows', desc: 'Active jobs and pipelines', icon: Layers },
       { label: 'My Tasks', href: '/my-tasks', desc: 'Your assigned work', icon: CheckSquare },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
     ],
@@ -29,7 +28,6 @@ const SECTIONS = [
     apps: [
       { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
       { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
-      { label: 'Assets', href: '/assets', desc: 'Files and deliverables', icon: FolderOpen },
     ],
   },
   {
@@ -39,7 +37,6 @@ const SECTIONS = [
       { label: 'Services', href: '/services', desc: 'Your offerings and pricing', icon: Package },
       
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
-      { label: 'Resources', href: '/resources', desc: 'Gear and spaces', icon: Boxes },
     ],
   },
   {

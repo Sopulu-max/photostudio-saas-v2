@@ -1,17 +1,17 @@
 /**
  * Production — public interface. The only door in.
- * The doing: a booking line's work and its tasks, plus who is assigned to them.
- * Bookings starts work through here; Team supplies the people.
+ * The doing: a booking line's tasks and who is assigned to them. The line is
+ * the production unit; there is no workflow container. Bookings starts work
+ * through here; Team supplies the people.
  */
 export {
-  createWorkflow,
   startWorkForBookingLine,
-  createTask,
   updateTaskStatus,
-  updateWorkflowStatus,
+  getWorkForLines,
   assignTask,
   assignToBooking,
   removeFromBooking,
   listCrewForBooking,
   listAssignableEmployees,
+  listMyTasks,
 } from './domain';
