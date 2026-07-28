@@ -27,6 +27,7 @@ const SECTIONS = [
     label: 'Pipeline',
     jewel: 'var(--q-jewel-emerald)',
     apps: [
+      { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
       { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', desc: 'Files and deliverables', icon: FolderOpen },
     ],
@@ -37,7 +38,7 @@ const SECTIONS = [
     apps: [
       { label: 'Services', href: '/services', desc: 'Your offerings and pricing', icon: Package },
       { label: 'Workflow Blueprints', href: '/workflows/templates', desc: 'Reusable pipelines', icon: GitMerge },
-      { label: 'Roster & Roles', href: '/people', desc: 'Clients, staff, vendors', icon: Users },
+      { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
       { label: 'Resources', href: '/resources', desc: 'Gear and spaces', icon: Boxes },
     ],
   },

@@ -33,6 +33,7 @@ const NAV_SECTIONS = [
   {
     label: 'Pipeline',
     items: [
+      { label: 'Clients', href: '/clients', icon: Users },
       { label: 'Contracts', href: '/contracts', icon: FileSignature },
       { label: 'Assets', href: '/assets', icon: FolderOpen },
     ]
@@ -42,7 +43,7 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Services Catalog', href: '/services', icon: Package },
       { label: 'Workflow Blueprints', href: '/workflows/templates', icon: GitMerge },
-      { label: 'Roster & Roles', href: '/people', icon: Users },
+      { label: 'Team', href: '/team', icon: Users },
       { label: 'Resources', href: '/resources', icon: Boxes },
     ]
   },

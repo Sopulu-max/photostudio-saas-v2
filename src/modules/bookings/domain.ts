@@ -40,6 +40,48 @@ export async function createBooking(input: { title: string; personId?: string | 
 }
 
 /**
+ * Attach (or change) the client on a booking, by contact id — the kernel-level
+ * reference (à la sale.order.partner_id → res.partner). While Contracts and
+ * Finances still FK the legacy persons table, also bridge person_id via the
+ * contact's backfill link so those flows keep working mid-migration.
+ */
+export async function setBookingClient(input: { bookingId: string; contactId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: contact } = await supabaseAdmin
+    .from('contacts')
+    .select('id, display_name, metadata')
+    .eq('id', input.contactId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!contact) throw new Error('Contact not found');
+
+  const legacyPersonId = (contact.metadata as any)?.backfill_person_id ?? null;
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ contact_id: contact.id, person_id: legacyPersonId })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to set booking client:', error);
+    throw new Error('Failed to set the client');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'client_set',
+    actorId: actorId ?? undefined,
+    payload: { contactId: contact.id, name: contact.display_name },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
  * Add a service line to a booking. Optionally seeded from a service template
  * (which carries its price snapshot); or a free-form custom line.
  */

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Play } from 'lucide-react';
 import { AddLineForm } from './AddLineForm';
 import { CreateContractButton, StartWorkButton, AddInvoiceForm } from './BookingActions';
+import { SetClientForm } from './SetClientForm';
+import { listClients } from '@/modules/clients/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .from('bookings')
     .select(`
       id, title, status, scheduled_for, created_at,
+      contact:contacts(id, display_name, email),
       person:persons(id, display_name, email),
       booking_lines(id, title, price, service_template_id, status),
       contracts(id, version, status),
@@ -51,6 +54,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .eq('organization_id', orgId)
     .eq('status', 'active')
     .order('name');
+
+  // Clients come through the Clients module's interface — composition, not a
+  // reach into its tables.
+  const clientRows = await listClients();
+  const clientOptions = clientRows
+    .map((c: any) => ({ contactId: c.contact?.id as string, name: c.contact?.display_name as string }))
+    .filter((c: { contactId: string; name: string }) => !!c.contactId);
 
   const lines: any[] = booking.booking_lines || [];
   const workflows: any[] = booking.workflows || [];
@@ -74,7 +84,16 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
           <div>
             <h1 className="q-page-title" style={{ marginBottom: '4px' }}>{booking.title}</h1>
-            <p className="q-page-subtitle" style={{ margin: 0 }}>{booking.person?.display_name || 'No client yet'}</p>
+            {booking.contact?.display_name || booking.person?.display_name ? (
+              <p className="q-page-subtitle" style={{ margin: 0 }}>{booking.contact?.display_name || booking.person?.display_name}</p>
+            ) : (
+              <div style={{ marginTop: '6px' }}>
+                <SetClientForm
+                  bookingId={booking.id}
+                  clients={clientOptions}
+                />
+              </div>
+            )}
           </div>
           <span className={`q-badge ${STATUS_BADGE[booking.status] || 'q-badge-neutral'}`}>{booking.status.toUpperCase()}</span>
         </div>
