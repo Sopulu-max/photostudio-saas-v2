@@ -304,3 +304,101 @@ export async function startWorkForBookingLine(input: {
 
   return { workflowId: workflow.id };
 }
+
+/**
+ * Put someone on a booking — the studio knows who's shooting it before any task
+ * exists. Booking-level crew, distinct from a task-level assignment.
+ */
+export async function assignToBooking(input: { bookingId: string; employeeId: string; roleId?: string | null }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('assignments')
+    .insert({
+      organization_id: orgId,
+      booking_id: input.bookingId,
+      task_id: null,
+      employee_id: input.employeeId,
+      role_id: input.roleId || null,
+    });
+  if (error) {
+    console.error('Failed to assign to booking:', error);
+    throw new Error('Failed to add them (already on this booking in that role?)');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'crew_assigned',
+    actorId: actorId ?? undefined,
+    payload: { employeeId: input.employeeId, roleId: input.roleId ?? null },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+export async function removeFromBooking(input: { bookingId: string; assignmentId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('assignments')
+    .delete()
+    .eq('id', input.assignmentId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to remove assignment:', error);
+    throw new Error('Failed to remove them');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'crew_removed',
+    actorId: actorId ?? undefined,
+    payload: { assignmentId: input.assignmentId },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Who is on this booking: people put on the booking directly, plus everyone
+ * assigned to any of its tasks (rolled up, de-duplicated). Production owns this
+ * because it owns the work — Bookings asks for it.
+ */
+export async function listCrewForBooking(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: direct } = await supabaseAdmin
+    .from('assignments')
+    .select('id, employee_id, role_id, task_id, employee:employees(id, contact:contacts(display_name)), role:roles(name)')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+
+  const { data: viaTasks } = await supabaseAdmin
+    .from('assignments')
+    .select('id, employee_id, role_id, task_id, employee:employees(id, contact:contacts(display_name)), role:roles(name), task:tasks!inner(id, stage_name, workflow:workflows!inner(booking_id))')
+    .eq('organization_id', orgId)
+    .eq('task.workflow.booking_id', bookingId);
+
+  const rows = [...(direct || []), ...(viaTasks || [])];
+  const seen = new Map<string, any>();
+  for (const r of rows as any[]) {
+    const key = `${r.employee_id}:${r.role_id ?? ''}`;
+    if (!seen.has(key)) {
+      seen.set(key, {
+        assignmentId: r.id,
+        employeeId: r.employee_id,
+        name: r.employee?.contact?.display_name || 'Unknown',
+        role: r.role?.name || null,
+        onBookingDirectly: !r.task_id,
+        via: r.task_id ? (r.task?.stage_name ?? 'a task') : null,
+      });
+    }
+  }
+  return Array.from(seen.values());
+}

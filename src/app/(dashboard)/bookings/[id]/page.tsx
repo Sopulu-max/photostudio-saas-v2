@@ -6,7 +6,9 @@ import { Play } from 'lucide-react';
 import { AddLineForm } from './AddLineForm';
 import { CreateContractButton, StartWorkButton, AddInvoiceForm } from './BookingActions';
 import { SetClientForm } from './SetClientForm';
+import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
+import { listCrewForBooking, listAssignableEmployees } from '@/modules/production/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +64,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .map((c: any) => ({ contactId: c.contact?.id as string, name: c.contact?.display_name as string }))
     .filter((c: { contactId: string; name: string }) => !!c.contactId);
 
+  // Crew + roster through Production/Team interfaces.
+  const [crew, candidates] = await Promise.all([
+    listCrewForBooking(booking.id),
+    listAssignableEmployees(),
+  ]);
+
   const lines: any[] = booking.booking_lines || [];
   const workflows: any[] = booking.workflows || [];
   const contracts: any[] = booking.contracts || [];
@@ -84,22 +92,62 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
           <div>
             <h1 className="q-page-title" style={{ marginBottom: '4px' }}>{booking.title}</h1>
-            {booking.contact?.display_name || booking.person?.display_name ? (
-              <p className="q-page-subtitle" style={{ margin: 0 }}>{booking.contact?.display_name || booking.person?.display_name}</p>
-            ) : (
-              <div style={{ marginTop: '6px' }}>
-                <SetClientForm
-                  bookingId={booking.id}
-                  clients={clientOptions}
-                />
-              </div>
-            )}
+            <p className="q-page-subtitle" style={{ margin: 0 }}>
+              {booking.contact?.display_name || booking.person?.display_name || 'No client yet'}
+            </p>
           </div>
           <span className={`q-badge ${STATUS_BADGE[booking.status] || 'q-badge-neutral'}`}>{booking.status.toUpperCase()}</span>
         </div>
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* Client */}
+        <Section title="Client">
+          {booking.contact?.display_name || booking.person?.display_name ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '2px' }}>
+                  {booking.contact?.display_name || booking.person?.display_name}
+                </strong>
+                <span style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+                  {booking.contact?.email || booking.person?.email || 'No contact details'}
+                </span>
+              </div>
+              <SetClientForm bookingId={booking.id} clients={clientOptions} label="Change client…" />
+            </div>
+          ) : (
+            <div>
+              <div style={{ color: 'var(--q-color-ink-500)', marginBottom: '12px' }}>
+                No client yet — a booking runs fine without one. Attach whoever this is for.
+              </div>
+              <SetClientForm bookingId={booking.id} clients={clientOptions} />
+            </div>
+          )}
+        </Section>
+
+        {/* Team on this booking */}
+        <Section title="Team">
+          {crew.length === 0 ? (
+            <div style={{ color: 'var(--q-color-ink-500)' }}>No one on this booking yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {crew.map((m: any) => (
+                <div key={`${m.employeeId}-${m.role ?? ''}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
+                  <div>
+                    <strong style={{ fontSize: '0.92rem' }}>{m.name}</strong>
+                    {m.role && <span className="q-badge q-badge-neutral" style={{ marginLeft: '8px' }}>{m.role}</span>}
+                    {!m.onBookingDirectly && (
+                      <span style={{ marginLeft: '8px', fontSize: '0.78rem', color: 'var(--q-color-ink-500)' }}>via {m.via}</span>
+                    )}
+                  </div>
+                  {m.onBookingDirectly && <RemoveCrewButton bookingId={booking.id} assignmentId={m.assignmentId} />}
+                </div>
+              ))}
+            </div>
+          )}
+          <AddCrewForm bookingId={booking.id} candidates={candidates} />
+        </Section>
 
         {/* Services (lines) */}
         <Section title="Services">

@@ -10,5 +10,8 @@ export {
   updateTaskStatus,
   updateWorkflowStatus,
   assignTask,
+  assignToBooking,
+  removeFromBooking,
+  listCrewForBooking,
   listAssignableEmployees,
 } from './domain';

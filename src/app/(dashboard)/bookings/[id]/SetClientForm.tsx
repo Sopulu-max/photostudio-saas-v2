@@ -4,7 +4,7 @@ import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setBookingClient } from '@/modules/bookings/interface';
 
-export function SetClientForm({ bookingId, clients }: { bookingId: string; clients: { contactId: string; name: string }[] }) {
+export function SetClientForm({ bookingId, clients, label }: { bookingId: string; clients: { contactId: string; name: string }[]; label?: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -25,7 +25,7 @@ export function SetClientForm({ bookingId, clients }: { bookingId: string; clien
       }}
       style={{ fontSize: '0.85rem' }}
     >
-      <option value="">{isPending ? 'Setting…' : 'Set a client…'}</option>
+      <option value="">{isPending ? 'Setting…' : (label || 'Set a client…')}</option>
       {clients.map((c) => <option key={c.contactId} value={c.contactId}>{c.name}</option>)}
     </select>
   );
