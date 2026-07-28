@@ -2,7 +2,7 @@
 
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { activateContract } from '@/lib/actions/contracts';
+import { activateContract } from '@/modules/contracts/interface';
 import { Zap } from 'lucide-react';
 
 /**

@@ -14,7 +14,7 @@ import { supabaseAdmin } from './admin';
  *
  * Throws if the user is not authenticated or has no organization.
  */
-export async function getOptionalAuthOrgId(): Promise<{ userId: string; orgId: string; personId: string | null } | null> {
+export async function getOptionalAuthOrgId(): Promise<{ userId: string; orgId: string; personId: string | null; contactId: string | null } | null> {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -52,32 +52,34 @@ export async function getOptionalAuthOrgId(): Promise<{ userId: string; orgId: s
 
   if (!orgId) return null;
 
-  // Resolve the acting person within this org. events.actor_id references
-  // persons(id), so operator actions must attribute to a person — never the raw
-  // auth user id. Prefer the linked auth_user_id, fall back to email.
-  let personId: string | null = null;
-  const { data: personById } = await supabaseAdmin
-    .from('persons')
+  // Resolve the acting CONTACT within this org. events.actor_id references
+  // contacts(id) — operator actions attribute to a kernel contact, never the
+  // raw auth user id. Prefer the linked auth_user_id, fall back to email.
+  let contactId: string | null = null;
+  const { data: contactById } = await supabaseAdmin
+    .from('contacts')
     .select('id')
     .eq('organization_id', orgId)
     .eq('auth_user_id', user.id)
     .maybeSingle();
-  if (personById) {
-    personId = personById.id;
+  if (contactById) {
+    contactId = contactById.id;
   } else if (user.email) {
-    const { data: personByEmail } = await supabaseAdmin
-      .from('persons')
+    const { data: contactByEmail } = await supabaseAdmin
+      .from('contacts')
       .select('id')
       .eq('organization_id', orgId)
       .eq('email', user.email)
       .maybeSingle();
-    if (personByEmail) personId = personByEmail.id;
+    if (contactByEmail) contactId = contactByEmail.id;
   }
 
-  return { userId: user.id, orgId, personId };
+  // `personId` is kept as an alias of the acting contact: every caller uses it
+  // purely as the actor id for logEvent, and that now means a contact.
+  return { userId: user.id, orgId, personId: contactId, contactId };
 }
 
-export async function getAuthOrgId(): Promise<{ userId: string; orgId: string; personId: string | null }> {
+export async function getAuthOrgId(): Promise<{ userId: string; orgId: string; personId: string | null; contactId: string | null }> {
   const result = await getOptionalAuthOrgId();
   if (!result) {
     throw new Error('No organization found. Please complete studio setup at /create-studio');

@@ -2,7 +2,7 @@
 
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { settleTransaction } from '@/lib/actions/finances';
+import { settleTransaction } from '@/modules/finances/interface';
 import { Check } from 'lucide-react';
 
 export function SettleTransactionClient({ transactionId, orgId, actorId }: { transactionId: string, orgId: string, actorId: string }) {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateWorkflowStatus } from '@/lib/actions/workflows';
+import { updateWorkflowStatus } from '@/modules/production/interface';
 import type { WorkflowStatus } from '@/lib/types/engine';
 
 type Option = { status: WorkflowStatus; label: string; variant: 'primary' | 'secondary' };

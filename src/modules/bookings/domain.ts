@@ -4,6 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/lib/actions/events';
 import { getService, getProductionPlanForService } from '@/modules/services/interface';
+import { draftContractForBooking } from '@/modules/contracts/interface';
+import { raiseInvoiceForBooking } from '@/modules/finances/interface';
+import { startWorkForBookingLine } from '@/modules/production/interface';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -147,12 +150,12 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, person_id')
+    .select('id, contact_id, person_id')
     .eq('id', bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!booking) throw new Error('Booking not found');
-  if (!booking.person_id) throw new Error('Add a client to this booking before creating a contract.');
+  if (!booking.contact_id) throw new Error('Add a client to this booking before creating a contract.');
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
@@ -169,19 +172,18 @@ export async function createContractForBooking(bookingId: string) {
   }
   const terms = { base_price: total, deposit_percentage: 0, currency };
 
-  const { data: contract, error } = await supabaseAdmin
-    .from('contracts')
-    .insert({ organization_id: orgId, booking_id: bookingId, intent_id: null, person_id: booking.person_id, terms, status: 'proposed' })
-    .select('id')
-    .single();
-  if (error || !contract) {
-    console.error('Failed to create contract for booking:', error);
-    throw new Error('Failed to create contract');
-  }
+  // Ask the Contracts module to draft it — Bookings never writes that table.
+  const { contractId } = await draftContractForBooking({
+    organizationId: orgId,
+    bookingId,
+    contactId: booking.contact_id,
+    legacyPersonId: booking.person_id ?? null,
+    terms,
+    actorId: personId,
+  });
 
-  await logEvent({ organizationId: orgId, entityType: 'contract', entityId: contract.id, action: 'created', actorId: personId ?? undefined, payload: { bookingId, source: 'booking_hub' } });
   revalidatePath(`/bookings/${bookingId}`);
-  return { contractId: contract.id };
+  return { contractId };
 }
 
 /**
@@ -193,36 +195,24 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, person_id')
+    .select('id, contact_id, person_id')
     .eq('id', input.bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!booking) throw new Error('Booking not found');
 
-  const amount = Number(input.amount);
-  if (!amount || amount <= 0) throw new Error('Enter an amount.');
-
-  const { data: tx, error } = await supabaseAdmin
-    .from('financial_transactions')
-    .insert({
-      organization_id: orgId,
-      booking_id: input.bookingId,
-      person_id: booking.person_id ?? null,
-      contract_id: null,
-      direction: 'inbound',
-      type: (input.label || '').trim() || 'invoice',
-      amount,
-      currency: input.currency || 'USD',
-      status: 'pending',
-    })
-    .select('id')
-    .single();
-  if (error || !tx) {
-    console.error('Failed to raise invoice:', error);
-    throw new Error('Failed to raise invoice');
-  }
-
-  await logEvent({ organizationId: orgId, entityType: 'financial_transaction', entityId: tx.id, action: 'created', actorId: personId ?? undefined, payload: { bookingId: input.bookingId, amount } });
+  // Ask Finances to raise it — Bookings never writes the money table.
+  const { transactionId: txId } = await raiseInvoiceForBooking({
+    organizationId: orgId,
+    bookingId: input.bookingId,
+    contactId: booking.contact_id ?? null,
+    legacyPersonId: booking.person_id ?? null,
+    label: input.label,
+    amount: input.amount,
+    currency: input.currency,
+    actorId: personId,
+  });
+  const tx = { id: txId };
   revalidatePath(`/bookings/${input.bookingId}`);
   return { transactionId: tx.id };
 }
@@ -248,31 +238,15 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
   const plan = line.service_id
     ? await getProductionPlanForService(line.service_id)
     : { blueprintId: null, stages: [] };
-  const stages = plan.stages;
 
-  const { data: workflow, error } = await supabaseAdmin
-    .from('workflows')
-    .insert({ organization_id: orgId, booking_id: input.bookingId, booking_line_id: input.lineId, contract_id: null, blueprint_id: plan.blueprintId, status: 'created' })
-    .select('id')
-    .single();
-  if (error || !workflow) {
-    console.error('Failed to start work:', error);
-    throw new Error('Failed to start work');
-  }
-
-  await logEvent({ organizationId: orgId, entityType: 'workflow', entityId: workflow.id, action: 'created', actorId: personId ?? undefined, payload: { bookingId: input.bookingId, lineId: input.lineId, trigger: 'manual_start' } });
-
-  for (const [i, stage] of stages.entries()) {
-    const { data: task } = await supabaseAdmin
-      .from('tasks')
-      .insert({ organization_id: orgId, workflow_id: workflow.id, stage_name: stage.name, stage_order: i })
-      .select('id')
-      .single();
-    if (task) {
-      await logEvent({ organizationId: orgId, entityType: 'task', entityId: task.id, action: 'created', actorId: personId ?? undefined, payload: { workflowId: workflow.id, stageName: stage.name } });
-    }
-  }
+  // Production owns the work — Bookings asks, it doesn't write workflows/tasks.
+  const { workflowId } = await startWorkForBookingLine({
+    bookingId: input.bookingId,
+    lineId: input.lineId,
+    blueprintId: plan.blueprintId,
+    stages: plan.stages,
+  });
 
   revalidatePath(`/bookings/${input.bookingId}`);
-  return { workflowId: workflow.id };
+  return { workflowId };
 }

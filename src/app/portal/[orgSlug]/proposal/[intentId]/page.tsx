@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
-import { createContract } from '@/lib/actions/contracts';
+import { createContract } from '@/modules/contracts/interface';
 import { updateIntentStatus } from '@/lib/actions/intents';
 
 export default async function ClientProposalPage(props: { params: Promise<{ orgSlug: string, intentId: string }> }) {

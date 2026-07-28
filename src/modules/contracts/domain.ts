@@ -1,9 +1,9 @@
 'use server';
 
 import { z } from 'zod';
-import { supabaseAdmin } from '../supabase/admin';
-import { logEvent } from './events';
-import type { Contract } from '../types/engine';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logEvent } from '@/lib/actions/events';
+import type { Contract } from '@/lib/types/engine';
 
 const CreateContractSchema = z.object({
   organizationId: z.string().uuid(),
@@ -48,6 +48,50 @@ export async function createContract(input: z.infer<typeof CreateContractSchema>
   });
 
   return contract as Contract;
+}
+
+/**
+ * Draft a contract for a booking — the composition path. No intent required
+ * (the kernel is unlocked); the party is a kernel contact, with person_id
+ * mirrored while the legacy column still exists.
+ */
+export async function draftContractForBooking(input: {
+  organizationId: string;
+  bookingId: string;
+  contactId: string;
+  legacyPersonId?: string | null;
+  terms: Record<string, unknown>;
+  actorId?: string | null;
+}) {
+  const { data: contract, error } = await supabaseAdmin
+    .from('contracts')
+    .insert({
+      organization_id: input.organizationId,
+      booking_id: input.bookingId,
+      contact_id: input.contactId,
+      person_id: input.legacyPersonId ?? null,
+      intent_id: null,
+      terms: input.terms,
+      status: 'proposed',
+    })
+    .select('id')
+    .single();
+
+  if (error || !contract) {
+    console.error('Failed to draft contract for booking:', error);
+    throw new Error('Failed to create contract');
+  }
+
+  await logEvent({
+    organizationId: input.organizationId,
+    entityType: 'contract',
+    entityId: contract.id,
+    action: 'created',
+    actorId: input.actorId ?? undefined,
+    payload: { bookingId: input.bookingId, source: 'booking_hub' },
+  });
+
+  return { contractId: contract.id };
 }
 
 export async function activateContract(input: z.infer<typeof ActivateContractSchema> | string) {

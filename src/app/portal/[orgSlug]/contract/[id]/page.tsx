@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { activateContract } from '@/lib/actions/contracts';
+import { activateContract } from '@/modules/contracts/interface';
 import { redirect } from 'next/navigation';
 
 export default async function ClientContractPortalPage(props: {

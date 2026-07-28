@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateTaskStatus } from '@/lib/actions/workflows';
+import { updateTaskStatus } from '@/modules/production/interface';
 import type { TaskStatus } from '@/lib/types/engine';
 
 export function TaskActions({

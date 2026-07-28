@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createTransaction } from '@/lib/actions/finances';
+import { createTransaction } from '@/modules/finances/interface';
 import { Plus } from 'lucide-react';
 
 export function CreateTransactionClient({ orgId, actorId }: { orgId: string, actorId: string }) {

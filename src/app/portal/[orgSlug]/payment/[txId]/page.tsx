@@ -57,7 +57,7 @@ export default async function ClientPaymentPage(props: { params: Promise<{ orgSl
       {tx.status !== 'settled' && (
         <form action={async () => {
           'use server';
-          const { processPayment } = await import('@/lib/actions/payments');
+          const { processPayment } = await import('@/modules/finances/interface');
           await processPayment(tx.id);
         }}>
           <button type="submit" style={{ padding: '16px 32px', width: '100%', background: '#000', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '1.125rem', fontWeight: 600, cursor: 'pointer' }}>

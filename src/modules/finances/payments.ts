@@ -1,9 +1,9 @@
 'use server';
 
-import { supabaseAdmin } from '../supabase/admin';
-import { logEvent } from './events';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logEvent } from '@/lib/actions/events';
 import { revalidatePath } from 'next/cache';
-import type { FinancialTransaction, TransactionStatus } from '../types/engine';
+import type { FinancialTransaction, TransactionStatus } from '@/lib/types/engine';
 
 /**
  * Mocks the settlement of a payment transaction (e.g., successful Stripe charge).

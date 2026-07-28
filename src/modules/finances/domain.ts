@@ -1,8 +1,8 @@
 'use server';
 
-import { supabaseAdmin } from '../supabase/admin';
-import { logEvent } from './events';
-import type { FinancialTransaction, TransactionDirection, TransactionStatus } from '../types/engine';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logEvent } from '@/lib/actions/events';
+import type { FinancialTransaction, TransactionDirection, TransactionStatus } from '@/lib/types/engine';
 
 export async function createTransaction(params: {
   organizationId: string;
@@ -78,4 +78,56 @@ export async function settleTransaction(
   });
 
   return transaction as FinancialTransaction;
+}
+
+/**
+ * Raise an invoice against a booking — the composition path. No contract
+ * required (the kernel is unlocked). The payer is a kernel contact, with
+ * person_id mirrored while the legacy column still exists.
+ */
+export async function raiseInvoiceForBooking(input: {
+  organizationId: string;
+  bookingId: string;
+  contactId?: string | null;
+  legacyPersonId?: string | null;
+  label: string;
+  amount: number;
+  currency?: string;
+  actorId?: string | null;
+}) {
+  const amount = Number(input.amount);
+  if (!amount || amount <= 0) throw new Error('Enter an amount.');
+
+  const { data: tx, error } = await supabaseAdmin
+    .from('financial_transactions')
+    .insert({
+      organization_id: input.organizationId,
+      booking_id: input.bookingId,
+      contact_id: input.contactId ?? null,
+      person_id: input.legacyPersonId ?? null,
+      contract_id: null,
+      direction: 'inbound',
+      type: (input.label || '').trim() || 'invoice',
+      amount,
+      currency: input.currency || 'USD',
+      status: 'pending',
+    })
+    .select('id')
+    .single();
+
+  if (error || !tx) {
+    console.error('Failed to raise invoice:', error);
+    throw new Error('Failed to raise invoice');
+  }
+
+  await logEvent({
+    organizationId: input.organizationId,
+    entityType: 'financial_transaction',
+    entityId: tx.id,
+    action: 'created',
+    actorId: input.actorId ?? undefined,
+    payload: { bookingId: input.bookingId, amount },
+  });
+
+  return { transactionId: tx.id };
 }
