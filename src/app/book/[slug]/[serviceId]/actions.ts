@@ -70,14 +70,24 @@ export async function submitBookingForm(
     .maybeSingle();
   if (!service) throw new Error('This service is no longer available.');
 
-  // 4. The booking, in inquiry state, carrying the form responses
+  // 4. The booking lands on the studio's first enquiry-kind stage — whatever
+  //    they have chosen to call it.
+  const { data: enquiryStage } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('kind', 'enquiry')
+    .order('position')
+    .limit(1)
+    .maybeSingle();
+
   const { data: booking, error: bookingError } = await supabaseAdmin
     .from('bookings')
     .insert({
       organization_id: orgId,
       contact_id: contactId,
       title: `${displayName} — ${service.name}`,
-      status: 'inquiry',
+      stage_id: enquiryStage?.id ?? null,
       metadata: { source: 'public_booking_page', form_responses: formData.customFields },
     })
     .select('id')

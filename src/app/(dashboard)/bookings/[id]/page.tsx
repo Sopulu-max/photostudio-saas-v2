@@ -8,6 +8,10 @@ import { SetClientForm } from './SetClientForm';
 import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
+import { listStages } from '@/modules/bookings/interface';
+import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
+import { LineActions } from './LineActions';
+import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from './TaskStatusControl';
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
 import { ScheduleForm } from './ScheduleForm';
@@ -25,7 +29,6 @@ function linePrice(price: any) {
   return money(base, price?.currency || 'USD');
 }
 
-const STATUS_BADGE: Record<string, string> = { inquiry: 'q-badge-warning', active: 'q-badge-success', draft: 'q-badge-neutral', closed: 'q-badge-neutral', cancelled: 'q-badge-danger' };
 
 export default async function BookingDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -42,7 +45,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { data: booking } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, status, scheduled_for, created_at,
+      id, title, scheduled_for, created_at, stage_id,
+      stage:booking_stages(id, name, kind),
       contact:contacts(id, display_name, email),
       booking_lines(id, title, price, service_id, status),
       contracts(id, version, status),
@@ -70,11 +74,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // Crew, roster and work through Production's interface.
   const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const [crew, candidates, work, deliveries] = await Promise.all([
+  const [crew, candidates, work, deliveries, stages] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
     listDeliveriesForBooking(booking.id),
+    listStages(),
   ]);
 
   const lines: any[] = booking.booking_lines || [];
@@ -95,8 +100,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <div>
           <h1 className="q-page-title">{booking.title}</h1>
           <p className="q-page-subtitle">{booking.contact?.display_name || 'No client yet'}</p>
+          <div style={{ marginTop: '10px' }}>
+            <BookingTitleActions bookingId={booking.id} title={booking.title} />
+          </div>
         </div>
-        <span className={`q-badge ${STATUS_BADGE[booking.status] || 'q-badge-neutral'}`}>{booking.status.toUpperCase()}</span>
+        <div className="q-row">
+          <span className={`q-badge ${stageBadgeClass(booking.stage?.kind)}`}>{booking.stage?.name}</span>
+          <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
+        </div>
       </header>
 
       <div className="q-stack q-stack-lg">
@@ -170,7 +181,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                           {w && <> · {w.completed}/{w.total} done</>}
                         </div>
                       </div>
-                      {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}
+                      <div className="q-row">
+                        {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}
+                        <LineActions
+                          bookingId={booking.id}
+                          lineId={l.id}
+                          title={l.title}
+                          basePrice={(l.price as any)?.base_price ?? null}
+                          currency={(l.price as any)?.currency || 'USD'}
+                          hasWork={!!w}
+                        />
+                      </div>
                     </div>
 
                     {w && (

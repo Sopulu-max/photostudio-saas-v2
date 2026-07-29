@@ -9,7 +9,7 @@ export default async function AnalyticsPage() {
 
   const [tasksRes, bookingsRes, txRes, eventsRes] = await Promise.all([
     supabaseAdmin.from('tasks').select('id, status, created_at').eq('organization_id', orgId),
-    supabaseAdmin.from('bookings').select('id, status, created_at', { count: 'exact' }).eq('organization_id', orgId),
+    supabaseAdmin.from('bookings').select('id, created_at, stage:booking_stages(kind)', { count: 'exact' }).eq('organization_id', orgId),
     supabaseAdmin.from('financial_transactions').select('amount, status, direction, created_at').eq('organization_id', orgId),
     supabaseAdmin.from('events').select('action, entity_type, created_at').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(20),
   ]);
@@ -25,7 +25,7 @@ export default async function AnalyticsPage() {
   const activeTasks = tasksRes.data?.filter((t: any) => t.status === 'in_progress').length || 0;
   const completedTasks = tasksRes.data?.filter((t: any) => t.status === 'completed').length || 0;
 
-  const activeBookings = bookingsRes.data?.filter((b: any) => b.status === 'active').length || 0;
+  const activeBookings = bookingsRes.data?.filter((b: any) => b.stage?.kind === 'booked').length || 0;
   const conversionRate = bookingsRes.count
     ? Math.round(activeBookings / bookingsRes.count * 100)
     : 0;

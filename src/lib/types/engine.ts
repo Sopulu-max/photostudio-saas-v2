@@ -11,7 +11,7 @@
 
 export type OrganizationStatus = 'active' | 'suspended' | 'archived';
 export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
-export type BookingStatus = 'inquiry' | 'draft' | 'active' | 'closed' | 'cancelled';
+export type StageKind = 'enquiry' | 'booked' | 'completed' | 'cancelled';
 export type TaskStatus = 'created' | 'assigned' | 'in_progress' | 'blocked' | 'completed';
 export type TransactionDirection = 'inbound' | 'outbound';
 export type TransactionStatus = 'created' | 'pending' | 'settled' | 'voided';
@@ -53,7 +53,7 @@ export interface Booking {
   organization_id: string;
   contact_id: string | null;
   title: string;
-  status: BookingStatus;
+  stage_id: string;
   scheduled_for: string | null;
   metadata: Record<string, unknown>;
   created_at: string;

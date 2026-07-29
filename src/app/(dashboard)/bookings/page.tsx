@@ -3,16 +3,10 @@ import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from './NewBookingForm';
+import { stageBadgeClass } from '@/components/stageBadge';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_BADGE: Record<string, string> = {
-  inquiry: 'q-badge-warning',
-  active: 'q-badge-success',
-  draft: 'q-badge-neutral',
-  closed: 'q-badge-neutral',
-  cancelled: 'q-badge-danger',
-};
 
 export default async function BookingsPage() {
   let orgId: string;
@@ -25,7 +19,8 @@ export default async function BookingsPage() {
   const { data: bookings } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, status, created_at,
+      id, title, created_at,
+      stage:booking_stages(name, kind),
       person:contacts(display_name),
       booking_lines(id),
       contracts(id, status),
@@ -41,7 +36,10 @@ export default async function BookingsPage() {
           <h1 className="q-page-title">Bookings</h1>
           <p className="q-page-subtitle">Every job, wherever it is. A booking can start from just a title and grow.</p>
         </div>
-        <NewBookingForm />
+        <div className="q-row">
+          <Link href="/bookings/settings" className="q-btn q-btn-secondary">Settings</Link>
+          <NewBookingForm />
+        </div>
       </header>
 
       {(!bookings || bookings.length === 0) ? (
@@ -67,7 +65,7 @@ export default async function BookingsPage() {
                     <h3 className="q-section-title">{b.title}</h3>
                     <div className="q-meta">{b.person?.display_name || 'No client yet'}</div>
                   </div>
-                  <span className={`q-badge ${STATUS_BADGE[b.status] || 'q-badge-neutral'}`}>{b.status}</span>
+                  <span className={`q-badge ${stageBadgeClass(b.stage?.kind)}`}>{b.stage?.name}</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 'auto' }}>
                   <span className="q-badge q-badge-neutral">{lineCount} {lineCount === 1 ? 'service' : 'services'}</span>

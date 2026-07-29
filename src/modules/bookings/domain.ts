@@ -19,9 +19,20 @@ export async function createBooking(input: { title: string; personId?: string | 
   const title = (input.title || '').trim();
   if (!title) throw new Error('A booking needs a title.');
 
+  // Land on the studio's default stage (its own lifecycle, not a hardcoded one).
+  const { data: defaultStage } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id')
+    .eq('organization_id', orgId)
+    .order('is_default', { ascending: false })
+    .order('position')
+    .limit(1)
+    .maybeSingle();
+  if (!defaultStage) throw new Error('No booking stages configured for this studio.');
+
   const { data: booking, error } = await supabaseAdmin
     .from('bookings')
-    .insert({ organization_id: orgId, title, status: 'draft' })
+    .insert({ organization_id: orgId, title, stage_id: defaultStage.id })
     .select()
     .single();
 
@@ -284,7 +295,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, status, scheduled_for, contact:contacts(display_name), booking_lines(title)')
+    .select('id, title, scheduled_for, stage:booking_stages(name, kind), contact:contacts(display_name), booking_lines(title)')
     .eq('organization_id', orgId)
     .not('scheduled_for', 'is', null)
     .gte('scheduled_for', fromISO)
@@ -300,8 +311,281 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     at: b.scheduled_for,
     bookingId: b.id,
     title: b.title,
-    status: b.status,
+    stage: b.stage?.name || null,
+    stageKind: b.stage?.kind || null,
     client: b.contact?.display_name || null,
     services: (b.booking_lines || []).map((l: any) => l.title),
   }));
+}
+
+// ── Stages: the studio's own lifecycle ──────────────────────────────────────
+
+export type StageKind = 'enquiry' | 'booked' | 'completed' | 'cancelled';
+
+/** The studio's stages, in order. Consumers switch on `kind`, never on `name`. */
+export async function listStages() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id, name, kind, position, is_default')
+    .eq('organization_id', orgId)
+    .order('position');
+  if (error) {
+    console.error('Failed to list stages:', error);
+    throw new Error('Failed to load stages');
+  }
+  return data || [];
+}
+
+/** Move a booking to a stage. No cascade — see reviewCascadeForStage. */
+export async function setBookingStage(input: { bookingId: string; stageId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: stage } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id, name, kind')
+    .eq('id', input.stageId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!stage) throw new Error('Stage not found');
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ stage_id: stage.id })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to set stage:', error);
+    throw new Error('Failed to move the booking');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'stage_changed',
+    actorId: actorId ?? undefined,
+    payload: { stage: stage.name, kind: stage.kind },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/bookings');
+  revalidatePath('/calendar');
+  return { ok: true, kind: stage.kind as StageKind };
+}
+
+/**
+ * What else is affected if this booking is cancelled — surfaced, never acted on.
+ * The studio decides what to do about a live contract or an unpaid invoice;
+ * cancelling a job does not cancel a debt.
+ */
+export async function reviewCascadeForCancel(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const [{ data: contracts }, { data: txns }, { data: lines }, { data: deliveries }] = await Promise.all([
+    supabaseAdmin.from('contracts').select('id, status').eq('organization_id', orgId).eq('booking_id', bookingId),
+    supabaseAdmin.from('financial_transactions').select('id, amount, currency, status').eq('organization_id', orgId).eq('booking_id', bookingId),
+    supabaseAdmin.from('booking_lines').select('id').eq('organization_id', orgId).eq('booking_id', bookingId),
+    supabaseAdmin.from('deliveries').select('id, status').eq('organization_id', orgId).eq('booking_id', bookingId),
+  ]);
+
+  const lineIds = (lines || []).map((l: any) => l.id);
+  let openTasks = 0;
+  if (lineIds.length) {
+    const { count } = await supabaseAdmin
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .in('booking_line_id', lineIds)
+      .neq('status', 'completed');
+    openTasks = count || 0;
+  }
+
+  const unpaid = (txns || []).filter((t: any) => t.status !== 'settled');
+  return {
+    activeContracts: (contracts || []).filter((c: any) => c.status === 'active').length,
+    unpaidCount: unpaid.length,
+    unpaidTotal: unpaid.reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
+    openTasks,
+    sharedDeliveries: (deliveries || []).filter((d: any) => d.status === 'shared').length,
+  };
+}
+
+// ── Stage configuration (Bookings owns its own settings) ────────────────────
+
+export async function createStage(input: { name: string; kind: StageKind }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const name = (input.name || '').trim();
+  if (!name) throw new Error('Give the stage a name.');
+
+  const { data: last } = await supabaseAdmin
+    .from('booking_stages')
+    .select('position')
+    .eq('organization_id', orgId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: stage, error } = await supabaseAdmin
+    .from('booking_stages')
+    .insert({ organization_id: orgId, name, kind: input.kind, position: (last?.position ?? -1) + 1 })
+    .select('id')
+    .single();
+  if (error || !stage) {
+    console.error('Failed to create stage:', error);
+    throw new Error('Failed to add the stage (does that name already exist?)');
+  }
+
+  await logEvent({ organizationId: orgId, entityType: 'booking_stage', entityId: stage.id, action: 'created', actorId: actorId ?? undefined, payload: { name, kind: input.kind } });
+  revalidatePath('/bookings/settings');
+  return { stageId: stage.id };
+}
+
+export async function renameStage(input: { stageId: string; name: string }) {
+  const { orgId } = await getAuthOrgId();
+  const name = (input.name || '').trim();
+  if (!name) throw new Error('Give the stage a name.');
+
+  const { error } = await supabaseAdmin
+    .from('booking_stages')
+    .update({ name })
+    .eq('id', input.stageId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to rename (does that name already exist?)');
+
+  revalidatePath('/bookings/settings');
+  revalidatePath('/bookings');
+  return { ok: true };
+}
+
+/** Remove a stage. Bookings sitting on it move to the default stage. */
+export async function deleteStage(stageId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: stages } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id, is_default')
+    .eq('organization_id', orgId);
+  if ((stages || []).length <= 1) throw new Error('Keep at least one stage.');
+
+  const fallback = (stages || []).find((s: any) => s.is_default && s.id !== stageId) || (stages || []).find((s: any) => s.id !== stageId);
+  if (!fallback) throw new Error('No stage left to move bookings to.');
+
+  await supabaseAdmin.from('bookings').update({ stage_id: fallback.id }).eq('organization_id', orgId).eq('stage_id', stageId);
+  const { error } = await supabaseAdmin.from('booking_stages').delete().eq('id', stageId).eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the stage');
+
+  revalidatePath('/bookings/settings');
+  revalidatePath('/bookings');
+  return { ok: true };
+}
+
+// ── Editing what exists ─────────────────────────────────────────────────────
+
+export async function renameBooking(input: { bookingId: string; title: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const title = (input.title || '').trim();
+  if (!title) throw new Error('A booking needs a title.');
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ title })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to rename the booking');
+
+  await logEvent({ organizationId: orgId, entityType: 'booking', entityId: input.bookingId, action: 'renamed', actorId: actorId ?? undefined, payload: { title } });
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/bookings');
+  return { ok: true };
+}
+
+/**
+ * Delete a booking outright. Everything hanging off it goes too, so the caller
+ * must have seen reviewCascadeForCancel first — cancelling is usually the right
+ * move; deleting is for mistakes.
+ */
+export async function deleteBooking(bookingId: string) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines').select('id').eq('organization_id', orgId).eq('booking_id', bookingId);
+  const lineIds = (lines || []).map((l: any) => l.id);
+  if (lineIds.length) {
+    await supabaseAdmin.from('tasks').delete().eq('organization_id', orgId).in('booking_line_id', lineIds);
+  }
+  await supabaseAdmin.from('financial_transactions').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+  await supabaseAdmin.from('contracts').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+  await supabaseAdmin.from('deliveries').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+  await supabaseAdmin.from('assignments').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+  await supabaseAdmin.from('booking_lines').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+
+  const { error } = await supabaseAdmin.from('bookings').delete().eq('id', bookingId).eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to delete booking:', error);
+    throw new Error('Failed to delete the booking');
+  }
+
+  await logEvent({ organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'deleted', actorId: actorId ?? undefined });
+  revalidatePath('/bookings');
+  return { ok: true };
+}
+
+export async function updateBookingLine(input: {
+  lineId: string;
+  bookingId: string;
+  title?: string;
+  basePrice?: number | null;
+  currency?: string;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: line } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, title, price')
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!line) throw new Error('Line not found');
+
+  const patch: Record<string, unknown> = {};
+  if (input.title !== undefined) {
+    const t = input.title.trim();
+    if (!t) throw new Error('A line needs a name.');
+    patch.title = t;
+  }
+  if (input.basePrice !== undefined || input.currency !== undefined) {
+    const price: any = { ...(line.price as any) };
+    if (input.basePrice !== undefined) price.base_price = input.basePrice;
+    if (input.currency !== undefined) price.currency = input.currency;
+    patch.price = price;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('booking_lines')
+    .update(patch)
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to update the line');
+
+  await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/** Remove a line, and the work that was started on it. */
+export async function removeBookingLine(input: { lineId: string; bookingId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  await supabaseAdmin.from('tasks').delete().eq('organization_id', orgId).eq('booking_line_id', input.lineId);
+  const { error } = await supabaseAdmin
+    .from('booking_lines')
+    .delete()
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the line');
+
+  await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'removed', actorId: actorId ?? undefined, payload: { bookingId: input.bookingId } });
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
 }

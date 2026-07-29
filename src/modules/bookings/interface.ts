@@ -10,10 +10,21 @@
 export {
   // Commands
   createBooking,
+  renameBooking,
+  deleteBooking,
   setBookingSchedule,
+  // Stages — the studio's own lifecycle
+  listStages,
+  setBookingStage,
+  reviewCascadeForCancel,
+  createStage,
+  renameStage,
+  deleteStage,
   listBookingsInRange,
   setBookingClient,
   addBookingLine,
+  updateBookingLine,
+  removeBookingLine,
   // Composition — create other modules' objects against a booking
   createContractForBooking,
   addInvoiceToBooking,

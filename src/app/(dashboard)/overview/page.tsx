@@ -20,7 +20,7 @@ async function getOverviewData() {
       { count: serviceTemplatesCount }
     ] = await Promise.all([
       supabaseAdmin.from('events').select('*, person:contacts(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabaseAdmin.from('bookings').select('id, title, status, contact:contacts(display_name)').eq('organization_id', orgId).in('status', ['inquiry', 'draft', 'active']).order('created_at', { ascending: false }).limit(5),
+      supabaseAdmin.from('bookings').select('id, title, stage:booking_stages!inner(name, kind), contact:contacts(display_name)').eq('organization_id', orgId).in('stage.kind', ['enquiry', 'booked']).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:contacts(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('blueprints').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('services').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
