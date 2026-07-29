@@ -342,8 +342,84 @@ body {
 .q-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .q-badge-success { color: #1B6E48; background: color-mix(in srgb, var(--q-color-success) 14%, transparent); }
 .q-badge-warning { color: #8A5A12; background: var(--q-color-warm-soft); }
-.q-badge-error   { color: #A2331F; background: color-mix(in srgb, var(--q-color-danger) 12%, transparent); }
+.q-badge-error,
+.q-badge-danger  { color: #A2331F; background: color-mix(in srgb, var(--q-color-danger) 12%, transparent); }
 .q-badge-neutral { color: var(--q-color-ink-600); background: var(--q-color-ink-100); }
+
+/* ============================================================
+   LAYOUT VOCABULARY
+   The primitives above say what a thing IS (button, card, badge).
+   These say how things SIT TOGETHER — the patterns that were being
+   hand-rolled inline on every surface. Change spacing here, once.
+   ============================================================ */
+
+/* Vertical stack. --gap overrides the default per instance. */
+.q-stack      { display: flex; flex-direction: column; gap: var(--gap, 12px); }
+.q-stack-sm   { --gap: 8px; }
+.q-stack-lg   { --gap: 24px; }
+
+/* Horizontal row. Wraps by default so narrow screens never overflow. */
+.q-row        { display: flex; align-items: center; gap: var(--gap, 10px); flex-wrap: wrap; }
+.q-row-between{ justify-content: space-between; }
+.q-row-end    { justify-content: flex-end; }
+.q-row-nowrap { flex-wrap: nowrap; }
+.q-spacer     { flex: 1 1 auto; }
+
+/* A bordered list item — the repeated "row in a card" box. */
+.q-tile {
+  padding: 14px 16px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 10px;
+  background: var(--q-color-paper-base);
+}
+.q-tile-sub { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--q-color-ink-100); }
+
+/* A titled block inside a page. */
+.q-section        { padding: 24px; }
+.q-section-title  { font-size: 1.05rem; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.01em; }
+
+/* Text roles. */
+.q-meta     { font-size: 0.85rem; color: var(--q-color-ink-500); line-height: 1.5; }
+.q-meta-sm  { font-size: 0.78rem; color: var(--q-color-ink-500); }
+.q-strong   { font-weight: 600; color: var(--q-color-ink-900); }
+.q-num      { font-variant-numeric: tabular-nums; }
+.q-eyebrow  {
+  font-family: var(--q-font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+}
+
+/* Empty state — every surface needs one; they should all look alike. */
+.q-empty {
+  color: var(--q-color-ink-500);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.q-empty-lg {
+  text-align: center;
+  padding: clamp(40px, 6vw, 64px) 24px;
+}
+
+/* Page-level column with a comfortable reading measure. */
+.q-page-narrow { max-width: 820px; margin: 0 auto; padding-bottom: 64px; }
+
+/* Back link on a detail page. Sits ABOVE .q-page-header — that header is itself
+   a space-between row, so putting the link inside it fights its layout. */
+.q-back {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  color: var(--q-color-ink-500);
+  text-decoration: none;
+}
+.q-back:hover { color: var(--q-color-ink-900); }
+
+/* Small inline action, for controls that sit inside a row of text. */
+.q-btn-xs { font-size: 0.75rem; padding: 3px 9px; }
+.q-btn-sm { font-size: 0.85rem; }
 
 /* ---- Grid ---- */
 .q-grid-cards {
