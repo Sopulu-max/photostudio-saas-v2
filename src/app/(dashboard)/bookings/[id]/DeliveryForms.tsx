@@ -139,7 +139,7 @@ export function ShareControl({
   if (status === 'shared' && shareToken) {
     const url = typeof window !== 'undefined' ? `${window.location.origin}/gallery/${shareToken}` : `/gallery/${shareToken}`;
     return (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+      <div className="q-row">
         <input readOnly value={url} className="q-input" style={{ flex: 1, minWidth: '14rem', fontFamily: 'var(--q-font-mono)', fontSize: '0.75rem' }} />
         <button
           className="q-btn q-btn-secondary"

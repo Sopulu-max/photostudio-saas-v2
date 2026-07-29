@@ -52,15 +52,15 @@ export default async function ClientsPage() {
           <tbody>
             {clients.length === 0 ? (
               <tr>
-                <td colSpan={5} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                <td colSpan={5} className="q-table-td q-center-text q-muted">
                   No clients yet. Add one, or they'll appear here when a booking comes in.
                 </td>
               </tr>
             ) : (
               clients.map((c: any) => (
                 <tr key={c.id} className="q-table-tr">
-                  <td className="q-table-td" style={{ fontWeight: 500 }}>{c.contact?.display_name}</td>
-                  <td className="q-table-td" style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>
+                  <td className="q-table-td q-strong">{c.contact?.display_name}</td>
+                  <td className="q-table-td q-meta">
                     {c.contact?.email || c.contact?.phone || '—'}
                   </td>
                   <td className="q-table-td" style={{ fontVariantNumeric: 'tabular-nums' }}>

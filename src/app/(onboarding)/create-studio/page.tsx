@@ -49,13 +49,13 @@ export default async function CreateStudioPage({ searchParams }: { searchParams:
         </header>
 
         {searchParams.error && (
-          <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
+          <div className="q-note q-note-bad" style={{ marginBottom: '24px' }}>
             {searchParams.error}
           </div>
         )}
 
-        <form action={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <form className="q-stack q-stack-lg" action={handleCreateOrg}>
+          <div className="q-stack q-stack-sm">
             <label htmlFor="orgName" style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--q-color-ink-900)' }}>Studio Name</label>
             <input
               id="orgName"

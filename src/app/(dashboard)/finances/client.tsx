@@ -55,7 +55,7 @@ export function CreateTransactionClient({ orgId, actorId }: { orgId: string, act
         }}>
           <div className="q-card" style={{ width: '400px', padding: '24px' }}>
             <h2 style={{ margin: '0 0 16px 0' }}>Log Financial Transaction</h2>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form className="q-stack q-stack-md" onSubmit={handleSubmit}>
               <div>
                 <label className="q-label">Direction</label>
                 <select 

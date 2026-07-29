@@ -62,13 +62,13 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
+    <div className="q-page-narrow">
       <header className="q-page-header">
         <h1 className="q-page-title">New Service Template</h1>
         <p className="q-page-subtitle">Define what you sell and link it to your production pipeline.</p>
       </header>
 
-      <form onSubmit={handleSubmit} className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <form onSubmit={handleSubmit} className="q-card q-stack q-stack-xl">
         <div>
           <label className="q-label">Service Name</label>
           <input
@@ -100,7 +100,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
 
         <div>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Pricing & Deposit</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div className="q-grid-3">
             <div>
               <label className="q-label">Base Price</label>
               <input
@@ -137,13 +137,13 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
           </div>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
+        <div className="q-divider">
           <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem' }}>Intake Form Builder</h3>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             Define the custom information you need to collect from the client when they book this service. (Name, Email, and Phone are always collected).
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+          <div className="q-stack q-stack-md">
             {formSchema.map((field, index) => (
               <div key={field.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', background: 'var(--q-color-ink-50)', padding: '12px', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
                 <input
@@ -151,7 +151,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
                   value={field.label}
                   onChange={(e) => updateField(field.id, { label: e.target.value })}
                   placeholder="Question Label (e.g. Event Date)"
-                  className="q-input" style={{ flex: 1 }}
+                  className="q-input q-fill"
                   required
                 />
                 <select
@@ -172,7 +172,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
                   />
                   Required
                 </label>
-                <button type="button" onClick={() => removeField(field.id)} style={{ padding: '6px 10px', color: 'red', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 500 }}>
+                <button type="button" onClick={() => removeField(field.id)} className="q-btn-ghost q-danger">
                   Remove
                 </button>
               </div>

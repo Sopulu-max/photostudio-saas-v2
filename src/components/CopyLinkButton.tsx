@@ -13,7 +13,7 @@ export function CopyLinkButton({ url }: { url: string }) {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '8px' }}>
+    <div className="q-row">
       <input
         type="text"
         readOnly

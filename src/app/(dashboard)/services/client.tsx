@@ -22,7 +22,7 @@ export function ServiceTemplatesClient({ initialServices, blueprints = [] }: { i
           <div style={{ width: '54px', height: '54px', borderRadius: '15px', background: 'var(--q-color-accent-soft)', color: 'var(--q-color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
             <Package size={24} />
           </div>
-          <h3 style={{ margin: '0 0 8px', fontSize: '1.3rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>Create your first service</h3>
+          <h3 className="q-section-title">Create your first service</h3>
           <p style={{ margin: '0 0 24px', color: 'var(--q-color-ink-500)', maxWidth: '44ch', lineHeight: 1.55 }}>
             A service is something you sell — a shoot, a package, a session. Create one,
             attach a workflow, and it's ready to take bookings.
@@ -39,7 +39,7 @@ export function ServiceTemplatesClient({ initialServices, blueprints = [] }: { i
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>{svc.name}</h3>
+                  <h3 className="q-section-title">{svc.name}</h3>
                   <div style={{ fontFamily: 'var(--q-font-mono)', fontWeight: 600, color: 'var(--q-color-ink-700)', fontVariantNumeric: 'tabular-nums' }}>
                     ${svc.pricing?.base_price || 0} {svc.pricing?.currency || 'USD'}
                   </div>
@@ -70,7 +70,7 @@ export function ServiceTemplatesClient({ initialServices, blueprints = [] }: { i
               No blueprints yet.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+            <div className="q-stack">
               {blueprints.map((bp: any) => (
                 <div key={bp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 14px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
                   <strong style={{ fontSize: '0.92rem' }}>{bp.name}</strong>

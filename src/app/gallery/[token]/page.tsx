@@ -17,8 +17,8 @@ export default async function GalleryPage(props: { params: Promise<{ token: stri
   const others = gallery.files.filter((f: any) => !f.isImage && f.url);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--q-color-paper-subtle)' }}>
-      <header style={{ padding: '28px 24px', background: 'var(--q-color-paper)', borderBottom: '1px solid var(--q-color-ink-100)', textAlign: 'center' }}>
+    <div className="q-public">
+      <header className="q-public-header">
         <div style={{ fontSize: '0.72rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>
           {gallery.studioName}
         </div>
@@ -30,18 +30,18 @@ export default async function GalleryPage(props: { params: Promise<{ token: stri
         )}
       </header>
 
-      <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 24px 72px' }}>
+      <main className="q-public-main q-public-wide">
         {gallery.files.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>Nothing here yet.</p>
+          <p className="q-center-text q-muted">Nothing here yet.</p>
         ) : (
           <>
             {images.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '18px' }}>
+              <div className="q-gallery">
                 {images.map((f: any) => (
-                  <figure key={f.id} style={{ margin: 0, background: 'var(--q-color-paper)', border: '1px solid var(--q-color-ink-100)', borderRadius: '12px', overflow: 'hidden' }}>
+                  <figure className="q-media" key={f.id}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={f.url} alt={f.name} style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />
-                    <figcaption style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '10px 12px' }}>
+                    <figcaption className="q-media-cap">
                       <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                       <a href={f.url} download={f.name} className="q-btn q-btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', flexShrink: 0 }}>
                         Download

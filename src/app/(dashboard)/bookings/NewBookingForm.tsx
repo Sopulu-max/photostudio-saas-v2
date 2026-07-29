@@ -33,7 +33,7 @@ export function NewBookingForm() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div className="q-row">
       <input
         autoFocus
         className="q-input"

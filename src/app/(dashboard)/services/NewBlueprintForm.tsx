@@ -30,7 +30,7 @@ export function NewBlueprintForm() {
   }
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+    <div className="q-row">
       <input autoFocus className="q-input" placeholder="Blueprint name" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" placeholder="stages, comma separated" value={stages} onChange={(e) => setStages(e.target.value)} style={{ minWidth: '16rem' }} />
       <button className="q-btn q-btn-primary" onClick={submit} disabled={isPending}>{isPending ? 'Creating…' : 'Create'}</button>

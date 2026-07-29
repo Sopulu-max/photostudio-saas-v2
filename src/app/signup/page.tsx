@@ -3,8 +3,8 @@ import { signup } from './actions';
 
 export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
-      <div className="q-card" style={{ width: '100%', maxWidth: '400px' }}>
+    <div className="q-centered">
+      <div className="q-card q-card-narrow">
         <h1 className="q-page-title" style={{ fontSize: '1.5rem', marginBottom: '8px', textAlign: 'center' }}>
           Create an account
         </h1>
@@ -13,13 +13,13 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
         </p>
 
         {searchParams.error && (
-          <div style={{ padding: '12px', marginBottom: '24px', borderRadius: '8px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '0.875rem', border: '1px solid #fecaca' }}>
+          <div className="q-note q-note-bad" style={{ marginBottom: '24px' }}>
             {searchParams.error}
           </div>
         )}
 
-        <form action={signup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <form className="q-stack q-stack-md" action={signup}>
+          <div className="q-stack q-stack-sm">
             <label htmlFor="email" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Email Address</label>
             <input
               id="email"
@@ -37,7 +37,7 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="q-stack q-stack-sm">
             <label htmlFor="password" style={{ fontSize: '0.875rem', fontWeight: 500 }}>Password</label>
             <input
               id="password"
@@ -59,9 +59,9 @@ export default function SignupPage({ searchParams }: { searchParams: { error?: s
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
+        <div className="q-meta q-center-text">
           Already have an account?{' '}
-          <Link href="/login" style={{ color: 'var(--q-color-accent)', fontWeight: 500, textDecoration: 'none' }}>
+          <Link className="q-accent q-strong" href="/login">
             Log in
           </Link>
         </div>

@@ -37,7 +37,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
         ← Back to Ledger
       </Link>
       
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <header className="q-page-header q-row q-row-between">
         <div>
           <h1 className="q-page-title">Transaction Details</h1>
           <p className="q-page-subtitle">{transaction.id}</p>
@@ -48,16 +48,16 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-        <div className="q-card" style={{ padding: '24px' }}>
+        <div className="q-card">
           <h2 style={{ fontSize: '1.25rem', marginBottom: '16px' }}>Overview</h2>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Amount</div>
+              <div className="q-meta">Amount</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{transaction.currency?.toUpperCase()} {Number(transaction.amount).toFixed(2)}</div>
             </div>
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Status</div>
+              <div className="q-meta">Status</div>
               <div style={{ marginTop: '4px' }}>
                 <span className={`q-badge ${
                   transaction.status === 'settled' ? 'q-badge-success' :
@@ -72,11 +72,11 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid var(--q-color-ink-200)', paddingTop: '16px' }}>
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Type</div>
-              <div style={{ textTransform: 'capitalize' }}>{transaction.type.replace(/_/g, ' ')}</div>
+              <div className="q-meta">Type</div>
+              <div className="q-cap">{transaction.type.replace(/_/g, ' ')}</div>
             </div>
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Direction</div>
+              <div className="q-meta">Direction</div>
               <div>
                 <span style={{ fontSize: '0.875rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: transaction.direction === 'inbound' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)', color: transaction.direction === 'inbound' ? 'var(--q-color-success)' : 'var(--q-color-danger)', fontWeight: 500 }}>
                   {transaction.direction}
@@ -86,18 +86,18 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="q-card" style={{ padding: '24px' }}>
+        <div className="q-stack q-stack-lg">
+          <div className="q-card">
             <h3 style={{ fontSize: '1.125rem', marginBottom: '16px' }}>Related Entities</h3>
             
             <div style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Client / Person</div>
+              <div className="q-meta">Client / Person</div>
               <div>{transaction.person ? transaction.person.display_name : 'System Generated'}</div>
             </div>
             
             {transaction.contract && (
               <div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Contract</div>
+                <div className="q-meta">Contract</div>
                 <Link href={`/contracts/${transaction.contract.id}`} style={{ color: 'var(--q-color-brand-600)', textDecoration: 'none' }}>
                   View Contract (v{transaction.contract.version})
                 </Link>
@@ -105,17 +105,17 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
             )}
           </div>
           
-          <div className="q-card" style={{ padding: '24px' }}>
+          <div className="q-card">
             <h3 style={{ fontSize: '1.125rem', marginBottom: '16px' }}>Timeline</h3>
             
             <div style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Created At</div>
+              <div className="q-meta">Created At</div>
               <div>{new Date(transaction.created_at).toLocaleString()}</div>
             </div>
             
             {transaction.settled_at && (
               <div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Settled At</div>
+                <div className="q-meta">Settled At</div>
                 <div>{new Date(transaction.settled_at).toLocaleString()}</div>
               </div>
             )}

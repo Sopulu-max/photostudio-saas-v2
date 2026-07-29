@@ -26,7 +26,7 @@ export function AddEmployeeForm() {
     return <button className="q-btn q-btn-primary" onClick={() => setOpen(true)}>+ Add employee</button>;
   }
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+    <div className="q-row">
       <input autoFocus className="q-input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" type="email" placeholder="email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} style={{ minWidth: '11rem' }} />
       <input className="q-input" placeholder="job title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} style={{ minWidth: '10rem' }} />
@@ -49,7 +49,7 @@ export function NewRoleForm() {
   const { isPending, run } = useAction();
   const [name, setName] = useState('');
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div className="q-row">
       <input
         className="q-input"
         placeholder="e.g. Lead Photographer"

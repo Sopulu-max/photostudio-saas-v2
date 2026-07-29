@@ -30,7 +30,7 @@ export function NewClientForm() {
   }
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+    <div className="q-row">
       <input autoFocus className="q-input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" type="email" placeholder="email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" placeholder="phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ minWidth: '9rem' }} />

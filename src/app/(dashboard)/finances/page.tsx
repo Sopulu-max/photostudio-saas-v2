@@ -34,7 +34,7 @@ export default async function FinancesPage() {
 
   return (
     <div>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="q-page-header q-row q-row-between">
         <div>
           <h1 className="q-page-title">Financial Ledger</h1>
           <p className="q-page-subtitle">The unified record of every money movement for this organization.</p>
@@ -43,17 +43,17 @@ export default async function FinancesPage() {
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Settled Revenue</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>${totalSettled.toFixed(2)}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Settled Revenue</div>
+          <div className="q-stat-value-lg">${totalSettled.toFixed(2)}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Pending / Outstanding</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--q-color-warm)' }}>${totalPending.toFixed(2)}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Pending / Outstanding</div>
+          <div className="q-stat-value q-warm">${totalPending.toFixed(2)}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Transactions</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{transactions?.length || 0}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Total Transactions</div>
+          <div className="q-stat-value-lg">{transactions?.length || 0}</div>
         </div>
       </div>
 
@@ -73,7 +73,7 @@ export default async function FinancesPage() {
           <tbody>
             {!transactions || transactions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                <td colSpan={7} className="q-table-td q-center-text q-muted">
                   No transactions recorded.
                 </td>
               </tr>
@@ -81,14 +81,14 @@ export default async function FinancesPage() {
               transactions?.map((tx: any) => (
                 <tr key={tx.id} className="q-table-tr">
                   <td className="q-table-td">{new Date(tx.created_at).toLocaleDateString()}</td>
-                  <td className="q-table-td" style={{ textTransform: 'capitalize' }}>{tx.type.replace(/_/g, ' ')}</td>
-                  <td className="q-table-td" style={{ fontWeight: 500 }}>{tx.person?.display_name || 'System'}</td>
+                  <td className="q-table-td q-cap">{tx.type.replace(/_/g, ' ')}</td>
+                  <td className="q-table-td q-strong">{tx.person?.display_name || 'System'}</td>
                   <td className="q-table-td">
                     <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: tx.direction === 'inbound' ? 'color-mix(in srgb, var(--q-color-success) 15%, transparent)' : 'color-mix(in srgb, var(--q-color-danger) 13%, transparent)', color: tx.direction === 'inbound' ? 'var(--q-color-success)' : 'var(--q-color-danger)', fontWeight: 500 }}>
                       {tx.direction}
                     </span>
                   </td>
-                  <td className="q-table-td" style={{ fontWeight: 600 }}>{tx.currency?.toUpperCase()} {Number(tx.amount).toFixed(2)}</td>
+                  <td className="q-table-td q-strong">{tx.currency?.toUpperCase()} {Number(tx.amount).toFixed(2)}</td>
                   <td className="q-table-td">
                     <span className={`q-badge ${
                       tx.status === 'settled' ? 'q-badge-success' :

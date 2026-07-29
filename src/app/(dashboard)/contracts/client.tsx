@@ -25,14 +25,14 @@ export function ContractsClient({ initialContracts }: { initialContracts: any[] 
           <tbody>
             {initialContracts.length === 0 ? (
               <tr>
-                <td colSpan={4} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                <td colSpan={4} className="q-table-td q-center-text q-muted">
                   No contracts found.
                 </td>
               </tr>
             ) : (
               initialContracts?.map((agr: any) => (
                 <tr key={agr.id} className="q-table-tr">
-                  <td className="q-table-td" style={{ fontWeight: 500 }}>{agr.person?.display_name}</td>
+                  <td className="q-table-td q-strong">{agr.person?.display_name}</td>
                   <td className="q-table-td">v{agr.version}</td>
                   <td className="q-table-td">
                     <span className={`q-badge ${agr.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>

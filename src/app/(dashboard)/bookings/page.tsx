@@ -59,13 +59,13 @@ export default async function BookingsPage() {
               <Link
                 key={b.id}
                 href={`/bookings/${b.id}`}
-                className="q-card q-card-interactive"
-                style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', gap: '14px' }}
+                className="q-card q-card-interactive q-plain-link q-stack"
+                style={{ gap: '14px' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                   <div>
-                    <h3 style={{ margin: '0 0 4px', fontSize: '1.05rem', fontWeight: 620, letterSpacing: '-0.01em', color: 'var(--q-color-ink-900)' }}>{b.title}</h3>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>{b.person?.display_name || 'No client yet'}</div>
+                    <h3 className="q-section-title">{b.title}</h3>
+                    <div className="q-meta">{b.person?.display_name || 'No client yet'}</div>
                   </div>
                   <span className={`q-badge ${STATUS_BADGE[b.status] || 'q-badge-neutral'}`}>{b.status}</span>
                 </div>

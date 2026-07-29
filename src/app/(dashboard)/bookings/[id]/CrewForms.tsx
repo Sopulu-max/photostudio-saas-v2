@@ -25,7 +25,7 @@ export function AddCrewForm({ bookingId, candidates }: { bookingId: string; cand
   if (candidates.length === 0) {
     return (
       <p style={{ margin: '12px 0 0', fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
-        Add people to your <a href="/team" style={{ color: 'var(--q-color-accent)' }}>Team</a> to put them on this booking.
+        Add people to your <a className="q-accent" href="/team">Team</a> to put them on this booking.
       </p>
     );
   }

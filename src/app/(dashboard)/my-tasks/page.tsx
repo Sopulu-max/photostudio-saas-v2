@@ -29,7 +29,7 @@ export default async function MyTasksPage() {
         <p className="q-page-subtitle">Work assigned to you, across every booking.</p>
       </header>
 
-      <div style={{ display: 'grid', gap: '12px' }}>
+      <div className="q-stack q-stack-md">
         {tasks.length === 0 ? (
           <div className="q-card" style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--q-color-ink-500)' }}>
             <CheckCircle2 size={44} color="var(--q-color-ink-300)" style={{ margin: '0 auto 16px' }} />
@@ -37,15 +37,15 @@ export default async function MyTasksPage() {
           </div>
         ) : (
           tasks.map((t: any) => (
-            <div key={t.taskId} className="q-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div key={t.taskId} className="q-card q-row q-row-between">
               <div>
                 <div style={{ fontWeight: 600, fontSize: '1.02rem', marginBottom: '3px' }}>{t.stageName}</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+                <div className="q-meta">
                   {t.bookingTitle}
                   {t.lineTitle && <> · {t.lineTitle}</>}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="q-row">
                 <span className={`q-badge ${BADGE[t.status] || 'q-badge-neutral'}`}>{t.status.replace('_', ' ')}</span>
                 <Link href={`/bookings/${t.bookingId}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.85rem' }}>
                   Open booking

@@ -200,7 +200,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <Section title="Contract">
           {contracts.length === 0 ? (
             <div>
-              <div style={{ color: 'var(--q-color-ink-500)', marginBottom: '12px' }}>No contract yet — this booking runs fine without one. Add terms whenever you're ready.</div>
+              <div className="q-muted">No contract yet — this booking runs fine without one. Add terms whenever you're ready.</div>
               <CreateContractButton bookingId={booking.id} />
             </div>
           ) : (
@@ -221,7 +221,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* Delivery */}
         <Section title="Delivery">
           {deliveries.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>
+            <div className="q-muted">
               Nothing delivered yet. Bundle the finished work and share it when you're ready.
             </div>
           ) : (
@@ -266,17 +266,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* Money */}
         <Section title="Invoices & Payments">
           {txns.length === 0 ? (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>No money on this booking yet.</div>
+            <div className="q-muted">No money on this booking yet.</div>
           ) : (
             <div className="q-stack">
               {txns.map((t) => (
                 <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
                   <div>
-                    <strong style={{ textTransform: 'capitalize' }}>{String(t.type).replace(/_/g, ' ')}</strong>
+                    <strong className="q-cap">{String(t.type).replace(/_/g, ' ')}</strong>
                     <span className={`q-badge ${t.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`} style={{ marginLeft: '8px' }}>{t.status}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <span style={{ fontWeight: 600 }}>{money(t.amount, t.currency)}</span>
+                  <div className="q-row">
+                    <span className="q-strong">{money(t.amount, t.currency)}</span>
                     <Link href={`/finances/${t.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.85rem' }}>Open</Link>
                   </div>
                 </div>

@@ -48,14 +48,14 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
   const isActive = contract.status === 'active';
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
+    <div className="q-page-narrow">
       <header className="q-page-header">
         <div style={{ marginBottom: '16px' }}>
-          <Link href="/contracts" style={{ color: 'var(--q-color-ink-500)', textDecoration: 'none', fontSize: '0.875rem' }}>
+          <Link className="q-back" href="/contracts">
             &larr; Back to Contracts
           </Link>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="q-row q-row-between">
           <div>
             <h1 className="q-page-title">Contract v{contract.version}</h1>
             <p className="q-page-subtitle">Client: {contract.person?.display_name}</p>
@@ -66,14 +66,14 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
         </div>
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="q-stack q-stack-lg">
 
         {/* Ignition — the deliberate step that starts the production engine. */}
         {isProposed && (
           <div className="q-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px', borderColor: 'color-mix(in srgb, var(--q-color-accent) 40%, transparent)' }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.125rem' }}>Activate this contract</h3>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
+              <h3 className="q-section-title">Activate this contract</h3>
+              <p className="q-meta">
                 Marks the contract active and signed. Nothing else is created automatically — add work or an invoice from the booking whenever you're ready.
               </p>
             </div>
@@ -82,11 +82,11 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
         )}
 
         {/* Terms */}
-        <div className="q-card" style={{ padding: '24px' }}>
+        <div className="q-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '1.125rem' }}>Terms &amp; Proposal</h3>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
+              <h3 className="q-section-title">Terms &amp; Proposal</h3>
+              <p className="q-meta">
                 The formal terms agreed upon for this production.
               </p>
             </div>
@@ -96,35 +96,35 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '8px' }}>
-            <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Total</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{money(basePrice, currency)}</div>
+            <div className="q-panel">
+              <div className="q-stat-label">Total</div>
+              <div className="q-stat-value">{money(basePrice, currency)}</div>
             </div>
-            <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Deposit</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{depositPercent}%</div>
+            <div className="q-panel">
+              <div className="q-stat-label">Deposit</div>
+              <div className="q-stat-value">{depositPercent}%</div>
             </div>
-            <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Due now</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{money(depositAmount, currency)}</div>
+            <div className="q-panel">
+              <div className="q-stat-label">Due now</div>
+              <div className="q-stat-value">{money(depositAmount, currency)}</div>
             </div>
           </div>
         </div>
 
         {/* Money the cascade produced */}
         {transactions && transactions.length > 0 && (
-          <div className="q-card" style={{ padding: '24px' }}>
-            <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Invoices &amp; Payments</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="q-card">
+            <h2 className="q-section-title">Invoices &amp; Payments</h2>
+            <div className="q-stack">
               {transactions.map((tx: any) => (
-                <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
+                <div className="q-tile q-row q-row-between" key={tx.id}>
                   <div>
-                    <strong style={{ display: 'block', marginBottom: '4px', textTransform: 'capitalize' }}>{String(tx.type).replace(/_/g, ' ')}</strong>
+                    <strong className="q-block q-cap">{String(tx.type).replace(/_/g, ' ')}</strong>
                     <span className={`q-badge ${tx.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`}>{tx.status}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span style={{ fontSize: '1.125rem', fontWeight: 600 }}>{money(tx.amount, tx.currency)}</span>
-                    <Link href={`/finances/${tx.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.875rem' }}>
+                  <div className="q-row">
+                    <span className="q-stat-value">{money(tx.amount, tx.currency)}</span>
+                    <Link href={`/finances/${tx.id}`} className="q-btn q-btn-secondary q-meta-plain">
                       Open
                     </Link>
                   </div>
@@ -139,7 +139,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           <div className="q-card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <div>
               <h2 style={{ fontSize: '1.125rem', margin: '0 0 4px', fontWeight: 600 }}>Booking</h2>
-              <span style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>{contract.booking.title}</span>
+              <span className="q-meta">{contract.booking.title}</span>
             </div>
             <Link href={`/bookings/${contract.booking.id}`} className="q-btn q-btn-primary">
               <Play size={16} style={{ marginRight: '8px' }} />

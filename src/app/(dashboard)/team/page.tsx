@@ -24,7 +24,7 @@ export default async function TeamPage() {
         <AddEmployeeForm />
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="q-stack q-stack-lg">
 
         <div className="q-card q-table-container">
           <table className="q-table">
@@ -40,20 +40,20 @@ export default async function TeamPage() {
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="q-table-td" style={{ textAlign: 'center', color: 'var(--q-color-ink-500)' }}>
+                  <td colSpan={5} className="q-table-td q-center-text q-muted">
                     No employees yet.
                   </td>
                 </tr>
               ) : (
                 employees.map((e: any) => (
                   <tr key={e.id} className="q-table-tr">
-                    <td className="q-table-td" style={{ fontWeight: 500 }}>{e.contact?.display_name}</td>
-                    <td className="q-table-td" style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>
+                    <td className="q-table-td q-strong">{e.contact?.display_name}</td>
+                    <td className="q-table-td q-meta">
                       {e.contact?.email || e.contact?.phone || '—'}
                     </td>
-                    <td className="q-table-td" style={{ color: 'var(--q-color-ink-600)' }}>{e.title || '—'}</td>
+                    <td className="q-table-td q-muted">{e.title || '—'}</td>
                     <td className="q-table-td">
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                      <div className="q-row">
                         {(e.employee_roles || []).map((er: any) => (
                           <span key={er.role?.id} className="q-badge q-badge-neutral">{er.role?.name}</span>
                         ))}
@@ -73,14 +73,14 @@ export default async function TeamPage() {
           </table>
         </div>
 
-        <div className="q-card" style={{ padding: '24px' }}>
+        <div className="q-card">
           <h2 style={{ fontSize: '1.05rem', marginTop: 0, marginBottom: '6px', fontWeight: 600 }}>Roles</h2>
           <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
             Define the roles your productions need — assignments will match employees to these.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
             {roles.length === 0 ? (
-              <span style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>No roles defined yet.</span>
+              <span className="q-meta">No roles defined yet.</span>
             ) : (
               roles.map((r: any) => <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>)
             )}

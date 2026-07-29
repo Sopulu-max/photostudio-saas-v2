@@ -69,7 +69,7 @@ export default async function LaunchpadPage() {
         </div>
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+      <div className="q-stack q-stack-xl">
         {SECTIONS.map((section) => (
           <section key={section.label}>
             <div style={{ fontFamily: 'var(--q-font-mono)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--q-color-ink-500)', marginBottom: '16px' }}>
@@ -82,10 +82,10 @@ export default async function LaunchpadPage() {
                   <Link
                     key={app.href}
                     href={app.href}
-                    className="q-card q-card-interactive"
-                    style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '15px', padding: '18px' }}
+                    className="q-card q-card-interactive q-plain-link q-row q-row-nowrap"
+                    style={{ gap: '15px', padding: '18px' }}
                   >
-                    <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: section.jewel, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, boxShadow: 'var(--q-shadow-sm)' }}>
+                    <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: section.jewel, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--q-color-accent-text)', flexShrink: 0, boxShadow: 'var(--q-shadow-sm)' }}>
                       <Icon size={22} />
                     </div>
                     <div style={{ minWidth: 0 }}>

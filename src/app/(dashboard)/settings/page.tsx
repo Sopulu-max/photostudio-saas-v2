@@ -23,11 +23,11 @@ export default async function SettingsPage() {
             <div style={{ display: 'grid', gap: '16px', maxWidth: '400px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '8px' }}>Studio Name</label>
-                <input type="text" defaultValue={org.name} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-300)' }} readOnly />
+                <input className="q-input" type="text" defaultValue={org.name} readOnly />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '8px' }}>Studio Slug</label>
-                <input type="text" defaultValue={org.slug || ''} style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-300)' }} readOnly />
+                <input className="q-input" type="text" defaultValue={org.slug || ''} readOnly />
               </div>
             </div>
           </div>

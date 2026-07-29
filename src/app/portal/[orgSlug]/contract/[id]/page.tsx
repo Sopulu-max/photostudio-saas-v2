@@ -42,26 +42,26 @@ export default async function ClientContractPortalPage(props: {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)', display: 'flex', flexDirection: 'column' }}>
-      <header style={{ padding: '24px 32px', backgroundColor: 'var(--q-color-paper)', borderBottom: '1px solid var(--q-color-ink-100)', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{contract.organization?.name}</h1>
+    <div className="q-public">
+      <header className="q-public-header">
+        <h1 className="q-stat-value">{contract.organization?.name}</h1>
       </header>
 
       <main style={{ flex: 1, padding: '48px 24px', display: 'flex', justifyContent: 'center' }}>
         <div className="q-card" style={{ maxWidth: '600px', width: '100%' }}>
           <h2 style={{ fontSize: '1.5rem', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>Project Proposal & Contract</h2>
-          <p style={{ color: 'var(--q-color-ink-600)', marginBottom: '32px' }}>
+          <p className="q-muted">
             Prepared for {contract.person?.display_name}
           </p>
 
-          <div style={{ padding: '24px', backgroundColor: '#f9f9f9', borderRadius: '8px', marginBottom: '32px', border: '1px solid var(--q-color-ink-200)' }}>
+          <div className="q-panel" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px dashed var(--q-color-ink-300)' }}>
-              <span style={{ fontWeight: 500 }}>Base Price</span>
+              <span className="q-strong">Base Price</span>
               <span>{terms.currency} {terms.base_price}</span>
             </div>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <span style={{ fontWeight: 500 }}>Required Deposit ({terms.deposit_percentage}%)</span>
+              <span className="q-strong">Required Deposit ({terms.deposit_percentage}%)</span>
               <span>{terms.currency} {(terms.base_price * (terms.deposit_percentage / 100)).toFixed(2)}</span>
             </div>
           </div>
@@ -71,7 +71,7 @@ export default async function ClientContractPortalPage(props: {
           </div>
 
           {contract.status === 'active' ? (
-            <div style={{ padding: '16px', backgroundColor: '#D1FAE5', color: '#065F46', borderRadius: '8px', textAlign: 'center', fontWeight: 500 }}>
+            <div className="q-note q-note-good q-center-text q-strong">
               Contract Signed. Awaiting Deposit.
             </div>
           ) : (

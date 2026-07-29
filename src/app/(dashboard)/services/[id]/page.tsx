@@ -27,14 +27,14 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   }
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
+    <div className="q-page-narrow">
       <header className="q-page-header">
         <div style={{ marginBottom: '16px' }}>
-          <Link href="/services" style={{ color: 'var(--q-color-ink-500)', textDecoration: 'none', fontSize: '0.875rem' }}>
+          <Link className="q-back" href="/services">
             &larr; Back to Services
           </Link>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="q-row q-row-between">
           <div>
             <h1 className="q-page-title">{service.name}</h1>
             <p className="q-page-subtitle">Service Template Details</p>
@@ -45,19 +45,19 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         </div>
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="q-stack q-stack-lg">
         
-        <div className="q-card" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Pricing</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="q-card">
+          <h2 className="q-section-title">Pricing</h2>
+          <div className="q-grid-2">
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>Base Price</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 500 }}>
+              <div className="q-stat-label">Base Price</div>
+              <div className="q-stat-value">
                 {service.pricing?.base_price ? `$${service.pricing.base_price}` : 'Free'} {service.pricing?.currency || 'USD'}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '4px' }}>Pricing Model</div>
+              <div className="q-stat-label">Pricing Model</div>
               <div style={{ fontSize: '1.125rem', textTransform: 'capitalize' }}>
                 {service.pricing?.model || 'Fixed'}
               </div>
@@ -65,35 +65,35 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           </div>
         </div>
 
-        <div className="q-card" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Workflow Attachment</h2>
+        <div className="q-card">
+          <h2 className="q-section-title">Workflow Attachment</h2>
           {service.default_blueprint_id ? (
             <div>
-              <div style={{ padding: '12px 16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
-                <strong style={{ display: 'block', marginBottom: '4px' }}>{service.workflow?.name || 'Attached Workflow'}</strong>
-                <span style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>This blueprint is used when you start work on this service from a booking.</span>
+              <div className="q-panel">
+                <strong className="q-block">{service.workflow?.name || 'Attached Workflow'}</strong>
+                <span className="q-meta">This blueprint is used when you start work on this service from a booking.</span>
               </div>
             </div>
           ) : (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>
+            <div className="q-muted">
               No default workflow is attached to this service.
             </div>
           )}
         </div>
 
-        <div className="q-card" style={{ padding: '24px' }}>
-          <h2 style={{ fontSize: '1.125rem', marginBottom: '16px', fontWeight: 600 }}>Intake Form Schema</h2>
+        <div className="q-card">
+          <h2 className="q-section-title">Intake Form Schema</h2>
           {(!service.form_schema || service.form_schema.length === 0) ? (
-            <div style={{ color: 'var(--q-color-ink-500)' }}>No custom intake fields required.</div>
+            <div className="q-muted">No custom intake fields required.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="q-stack">
               {service.form_schema.map((field: any, i: number) => (
-                <div key={i} style={{ padding: '12px', border: '1px solid var(--q-color-ink-100)', borderRadius: '6px' }}>
+                <div className="q-tile" key={i}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <strong>{field.label}</strong>
                     <span style={{ fontSize: '0.75rem', background: 'var(--q-color-paper-subtle)', padding: '2px 6px', borderRadius: '4px' }}>{field.type}</span>
                   </div>
-                  {field.required && <div style={{ fontSize: '0.75rem', color: 'var(--q-color-danger)', marginTop: '4px' }}>Required</div>}
+                  {field.required && <div className="q-meta-sm q-danger">Required</div>}
                 </div>
               ))}
             </div>

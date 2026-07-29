@@ -46,7 +46,7 @@ export default async function OverviewPage() {
 
   if (data && 'fatalError' in data) {
     return (
-      <div style={{ padding: '48px', color: 'red' }}>
+      <div className="q-note q-note-bad">
         <h1>FATAL ERROR</h1>
         <p>{data.fatalError}</p>
       </div>
@@ -59,7 +59,7 @@ export default async function OverviewPage() {
 
   return (
     <div>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <header className="q-page-header q-row q-row-between">
         <div>
           <h1 className="q-page-title">Command Center</h1>
           <p className="q-page-subtitle">Good morning. Here is what needs your attention.</p>
@@ -72,22 +72,22 @@ export default async function OverviewPage() {
       {isOnboarding && (
         <div className="q-card" style={{ maxWidth: '600px', marginBottom: '48px' }}>
           <h2 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '24px' }}>Setup Checklist</h2>
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div className="q-stack q-stack-md">
             {/* Step 1 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasWorkflow ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px' }}>
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasWorkflow ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a blueprint</h3>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define the pipeline of tasks that happen after booking.</p>
+              <div className="q-fill">
+                <h3 className="q-muted">Create a blueprint</h3>
+                <p className="q-meta">Define the pipeline of tasks that happen after booking.</p>
               </div>
               {!data.onboarding.hasWorkflow && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}
             </div>
             {/* Step 2 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 12%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${data.onboarding.hasService ? 'color-mix(in srgb, var(--q-color-success) 32%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px', opacity: data.onboarding.hasWorkflow ? 1 : 0.5 }}>
               <div style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0, background: data.onboarding.hasService ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'var(--q-color-paper-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: 'var(--q-color-ink-900)' }}>Create a Service Catalog Item</h3>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>Define what you sell and attach a blueprint.</p>
+              <div className="q-fill">
+                <h3 className="q-muted">Create a Service Catalog Item</h3>
+                <p className="q-meta">Define what you sell and attach a blueprint.</p>
               </div>
               {data.onboarding.hasWorkflow && !data.onboarding.hasService && <Link href="/services" className="q-btn q-btn-secondary">Go →</Link>}
             </div>
@@ -98,23 +98,23 @@ export default async function OverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
         
         {/* Main Action Area */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="q-stack q-stack-lg">
           
           <div className="q-card">
             <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
               Action Required: Pending Payments
             </h2>
             {data.pendingPayments.length === 0 ? (
-              <div style={{ color: 'var(--q-color-ink-500)' }}>No pending payments.</div>
+              <div className="q-muted">No pending payments.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="q-stack">
                 {data.pendingPayments.map((tx: any) => (
                   <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--q-color-warm-soft)', border: '1px solid color-mix(in srgb, var(--q-color-warm) 35%, transparent)', borderRadius: '8px' }}>
                     <div>
-                      <div style={{ fontWeight: 600 }}>{tx.person?.display_name || 'Client'}</div>
-                      <div style={{ fontSize: '0.875rem', color: 'var(--q-color-warm)' }}>Awaiting payment</div>
+                      <div className="q-strong">{tx.person?.display_name || 'Client'}</div>
+                      <div className="q-meta-plain q-warm">Awaiting payment</div>
                     </div>
-                    <div style={{ fontWeight: 600 }}>${Number(tx.amount || 0).toLocaleString()}</div>
+                    <div className="q-strong">${Number(tx.amount || 0).toLocaleString()}</div>
                   </div>
                 ))}
               </div>
@@ -122,15 +122,15 @@ export default async function OverviewPage() {
           </div>
 
           <div className="q-card">
-            <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Open Bookings</h2>
+            <h2 className="q-section-title">Open Bookings</h2>
             {data.activeProductions.length === 0 ? (
-              <div style={{ color: 'var(--q-color-ink-500)' }}>No open bookings.</div>
+              <div className="q-muted">No open bookings.</div>
             ) : (
-              <div style={{ display: 'grid', gap: '12px' }}>
+              <div className="q-stack q-stack-md">
                 {data.activeProductions.map((prod: any) => (
-                  <Link href={`/bookings/${prod.id}`} key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--q-color-paper-subtle)', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px', textDecoration: 'none', color: 'inherit' }}>
+                  <Link href={`/bookings/${prod.id}`} key={prod.id} className="q-panel q-row q-row-between q-plain-link">
                     <div>
-                      <div style={{ fontWeight: 600 }}>{prod.title}</div>
+                      <div className="q-strong">{prod.title}</div>
                       <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px', textTransform: 'capitalize' }}>Status: {prod.status.replace('_', ' ')}</div>
                     </div>
                     <div>
@@ -146,22 +146,22 @@ export default async function OverviewPage() {
 
         {/* Sidebar Feed */}
         <div className="q-card" style={{ alignSelf: 'start' }}>
-          <h2 style={{ fontSize: '1.125rem', marginTop: 0, marginBottom: '16px' }}>Activity Feed</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 className="q-section-title">Activity Feed</h2>
+          <div className="q-stack q-stack-md">
             {data.recentEvents.length === 0 ? (
-              <div style={{ color: 'var(--q-color-ink-500)' }}>No recent activity.</div>
+              <div className="q-muted">No recent activity.</div>
             ) : data.recentEvents.map((evt: any) => (
               <div key={evt.id} style={{ display: 'flex', gap: '12px', fontSize: '0.875rem' }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 600 }}>{evt.person?.display_name || 'System'}</span> 
+                <div className="q-fill">
+                  <span className="q-strong">{evt.person?.display_name || 'System'}</span> 
                   {' '}
-                  <span style={{ color: 'var(--q-color-ink-600)' }}>
+                  <span className="q-muted">
                     {evt.action === 'intent_created' ? 'submitted a new booking' :
                      evt.action === 'payment_settled' ? 'paid their invoice' :
                      evt.action === 'message_sent' ? 'sent a message' : 
                      evt.action.replace('_', ' ')}
                   </span>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-400)', marginTop: '4px' }}>
+                  <div className="q-meta">
                     {new Date(evt.created_at).toLocaleString()}
                   </div>
                 </div>

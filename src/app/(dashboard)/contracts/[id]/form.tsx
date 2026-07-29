@@ -57,8 +57,8 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '64px' }}>
-      <header className="q-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="q-page-narrow">
+      <header className="q-page-header q-row q-row-between">
         <div>
           <h1 className="q-page-title">Contract</h1>
           <p className="q-page-subtitle">For {contract.person?.display_name} — {contract.intent?.template?.name || 'Custom Service'}</p>
@@ -78,14 +78,14 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
         </span>
       </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="q-stack q-stack-lg">
 
         {/* Pricing Terms */}
-        <form onSubmit={handleSave} className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <form onSubmit={handleSave} className="q-card q-stack q-stack-lg">
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Pricing Terms</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="q-grid-2">
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>
+              <label className="q-label">
                 Total Price ({contract.terms?.currency || 'USD'})
               </label>
               <input
@@ -97,7 +97,7 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>
+              <label className="q-label">
                 Required Deposit (%)
               </label>
               <input
@@ -110,14 +110,14 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
             </div>
           </div>
 
-          <div style={{ padding: '16px', background: 'var(--q-color-paper-subtle)', borderRadius: '8px', border: '1px solid var(--q-color-ink-100)' }}>
+          <div className="q-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--q-color-ink-600)' }}>Total Value</span>
-              <span style={{ fontWeight: 600 }}>{contract.terms?.currency || 'USD'} {basePrice.toFixed(2)}</span>
+              <span className="q-muted">Total Value</span>
+              <span className="q-strong">{contract.terms?.currency || 'USD'} {basePrice.toFixed(2)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--q-color-ink-600)' }}>Deposit Required</span>
-              <span style={{ fontWeight: 600 }}>{contract.terms?.currency || 'USD'} {(basePrice * depositPercent / 100).toFixed(2)}</span>
+              <span className="q-muted">Deposit Required</span>
+              <span className="q-strong">{contract.terms?.currency || 'USD'} {(basePrice * depositPercent / 100).toFixed(2)}</span>
             </div>
           </div>
 
@@ -132,16 +132,16 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
         </form>
 
         {/* Client Portal Links */}
-        <div className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="q-card q-stack q-stack-md">
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Client Portal Links</h3>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
+          <p className="q-meta">
             Share these links with the client at the appropriate stage of the project.
           </p>
 
           {/* Contract Signing Link */}
           <div>
             <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--q-color-ink-600)', marginBottom: '6px' }}>Contract Signing</div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="q-row">
               <input
                 type="text"
                 readOnly

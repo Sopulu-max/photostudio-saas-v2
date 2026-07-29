@@ -38,39 +38,39 @@ export default async function AnalyticsPage() {
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Settled Revenue</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>${totalSettled.toFixed(2)}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Settled Revenue</div>
+          <div className="q-stat-value-lg">${totalSettled.toFixed(2)}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Outstanding</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600, color: 'var(--q-color-warm)' }}>${totalPending.toFixed(2)}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Outstanding</div>
+          <div className="q-stat-value q-warm">${totalPending.toFixed(2)}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Tasks In Progress</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{activeTasks}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Tasks In Progress</div>
+          <div className="q-stat-value-lg">{activeTasks}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Tasks Completed</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{completedTasks}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Tasks Completed</div>
+          <div className="q-stat-value-lg">{completedTasks}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Total Bookings</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{bookingsRes.count || 0}</div>
+        <div className="q-card">
+          <div className="q-stat-label">Total Bookings</div>
+          <div className="q-stat-value-lg">{bookingsRes.count || 0}</div>
         </div>
-        <div className="q-card" style={{ padding: '24px' }}>
-          <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>Conversion Rate</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 600 }}>{conversionRate}%</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--q-color-ink-400)', marginTop: '4px' }}>Inquiries → Active</div>
+        <div className="q-card">
+          <div className="q-stat-label">Conversion Rate</div>
+          <div className="q-stat-value-lg">{conversionRate}%</div>
+          <div className="q-meta">Inquiries → Active</div>
         </div>
       </div>
 
-      <div className="q-card" style={{ padding: '24px' }}>
+      <div className="q-card">
         <h3 style={{ marginTop: 0, fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>Recent System Events</h3>
         {!eventsRes.data || eventsRes.data.length === 0 ? (
-          <p style={{ color: 'var(--q-color-ink-500)', fontSize: '0.875rem' }}>No events recorded yet.</p>
+          <p className="q-meta">No events recorded yet.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="q-stack q-stack-sm">
             {eventsRes.data.map((ev: any, i: number) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--q-color-ink-100)', fontSize: '0.875rem' }}>
                 <div>
