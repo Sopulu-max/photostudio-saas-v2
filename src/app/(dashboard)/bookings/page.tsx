@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from './NewBookingForm';
 import { stageBadgeClass } from '@/components/stageBadge';
+import { listClients } from '@/modules/clients/interface';
+import { listServices } from '@/modules/services/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +31,23 @@ export default async function BookingsPage() {
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
 
+  // Options for the create form, asked of the modules that own them.
+  const [clientRows, serviceRows] = await Promise.all([listClients(), listServices()]);
+  const clientOptions = clientRows
+    .map((c: any) => ({ id: c.contact?.id as string, name: c.contact?.display_name as string }))
+    .filter((c: { id: string }) => !!c.id);
+  const serviceOptions = serviceRows.map((s: any) => ({ id: s.id as string, name: s.name as string }));
+
   return (
     <div>
       <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 className="q-page-title">Bookings</h1>
-          <p className="q-page-subtitle">Every job, wherever it is. A booking can start from just a title and grow.</p>
+          <p className="q-page-subtitle">Every job, wherever it is. Start one with whatever you know — the rest fills in as you go.</p>
         </div>
         <div className="q-row">
           <Link href="/bookings/settings" className="q-btn q-btn-secondary">Settings</Link>
-          <NewBookingForm />
+          <NewBookingForm clients={clientOptions} services={serviceOptions} />
         </div>
       </header>
 

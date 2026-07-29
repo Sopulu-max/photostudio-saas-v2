@@ -14,10 +14,13 @@ import { revalidatePath } from 'next/cache';
  * contract, money, work) associates later, in any order. This is the hub that
  * independent things cohere around, not a wizard step.
  */
-export async function createBooking(input: { title: string; personId?: string | null }) {
+export async function createBooking(input: {
+  contactId?: string | null;
+  serviceId?: string | null;
+  scheduledFor?: string | null;
+  title?: string;
+}) {
   const { orgId, personId } = await getAuthOrgId();
-  const title = (input.title || '').trim();
-  if (!title) throw new Error('A booking needs a title.');
 
   // Land on the studio's default stage (its own lifecycle, not a hardcoded one).
   const { data: defaultStage } = await supabaseAdmin
@@ -30,9 +33,35 @@ export async function createBooking(input: { title: string; personId?: string | 
     .maybeSingle();
   if (!defaultStage) throw new Error('No booking stages configured for this studio.');
 
+  // The name is composed from what's known — the studio never invents one.
+  const custom = (input.title || '').trim();
+  let clientName: string | null = null;
+  if (input.contactId) {
+    const { data: c } = await supabaseAdmin
+      .from('contacts').select('display_name').eq('id', input.contactId).eq('organization_id', orgId).maybeSingle();
+    clientName = c?.display_name ?? null;
+  }
+  let serviceName: string | null = null;
+  if (input.serviceId) {
+    const svc = await getService(input.serviceId);
+    serviceName = svc?.name ?? null;
+  }
+  const title = custom || composeTitle({
+    clientName,
+    serviceTitles: serviceName ? [serviceName] : [],
+    scheduledFor: input.scheduledFor ?? null,
+  });
+
   const { data: booking, error } = await supabaseAdmin
     .from('bookings')
-    .insert({ organization_id: orgId, title, stage_id: defaultStage.id })
+    .insert({
+      organization_id: orgId,
+      title,
+      title_custom: !!custom,
+      stage_id: defaultStage.id,
+      contact_id: input.contactId ?? null,
+      scheduled_for: input.scheduledFor ?? null,
+    })
     .select()
     .single();
 
@@ -50,7 +79,13 @@ export async function createBooking(input: { title: string; personId?: string | 
     payload: { title },
   });
 
+  // A chosen service becomes the booking's first line straight away.
+  if (input.serviceId) {
+    await addBookingLine({ bookingId: booking.id, serviceId: input.serviceId, title: '' });
+  }
+
   revalidatePath('/bookings');
+  revalidatePath('/calendar');
   return { bookingId: booking.id };
 }
 
@@ -91,6 +126,7 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
     payload: { contactId: contact.id, name: contact.display_name },
   });
 
+  await refreshBookingTitle(input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
 }
@@ -146,6 +182,7 @@ export async function addBookingLine(input: {
     payload: { bookingId: input.bookingId, title },
   });
 
+  await refreshBookingTitle(input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { lineId: line.id };
 }
@@ -280,6 +317,8 @@ export async function setBookingSchedule(input: { bookingId: string; scheduledFo
     actorId: actorId ?? undefined,
     payload: { scheduledFor: input.scheduledFor },
   });
+
+  await refreshBookingTitle(input.bookingId);
 
   revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/calendar');
@@ -487,9 +526,10 @@ export async function renameBooking(input: { bookingId: string; title: string })
   const title = (input.title || '').trim();
   if (!title) throw new Error('A booking needs a title.');
 
+  // Renaming claims the name: auto-naming stops touching it from here.
   const { error } = await supabaseAdmin
     .from('bookings')
-    .update({ title })
+    .update({ title, title_custom: true })
     .eq('id', input.bookingId)
     .eq('organization_id', orgId);
   if (error) throw new Error('Failed to rename the booking');
@@ -569,6 +609,7 @@ export async function updateBookingLine(input: {
   if (error) throw new Error('Failed to update the line');
 
   await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
+  await refreshBookingTitle(input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
 }
@@ -586,6 +627,77 @@ export async function removeBookingLine(input: { lineId: string; bookingId: stri
   if (error) throw new Error('Failed to remove the line');
 
   await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'removed', actorId: actorId ?? undefined, payload: { bookingId: input.bookingId } });
+  await refreshBookingTitle(input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
+}
+
+// ── Naming: the module owns it, the studio never has to invent one ──────────
+
+function formatDay(iso: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+/**
+ * Compose a booking's name from what's actually known about it:
+ *   client + service  →  "Amara Obi — Studio Headshots"
+ *   client            →  "Amara Obi"
+ *   service + date    →  "Studio Headshots — 14 Jul"
+ *   nothing yet       →  "New booking"
+ * Extra services are counted rather than listed, so the name stays readable.
+ */
+function composeTitle(input: {
+  clientName?: string | null;
+  serviceTitles?: string[];
+  scheduledFor?: string | null;
+}) {
+  const client = (input.clientName || '').trim();
+  const services = (input.serviceTitles || []).filter(Boolean);
+  const day = formatDay(input.scheduledFor ?? null);
+
+  let what = services[0] || '';
+  if (services.length > 1) what += ` +${services.length - 1}`;
+
+  if (client && what) return `${client} — ${what}`;
+  if (client) return day ? `${client} — ${day}` : client;
+  if (what) return day ? `${what} — ${day}` : what;
+  return day ? `Booking — ${day}` : 'New booking';
+}
+
+/**
+ * Recompute a booking's name after its facts change. Silently does nothing if
+ * the studio has claimed the name itself.
+ */
+export async function refreshBookingTitle(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, title_custom, scheduled_for, contact:contacts(display_name), booking_lines(title, created_at)')
+    .eq('id', bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!booking || booking.title_custom) return { ok: true, title: booking?.title ?? null };
+
+  const lines = ((booking as any).booking_lines || [])
+    .slice()
+    .sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+
+  const title = composeTitle({
+    clientName: (booking as any).contact?.display_name,
+    serviceTitles: lines.map((l: any) => l.title),
+    scheduledFor: booking.scheduled_for,
+  });
+
+  if (title !== booking.title) {
+    await supabaseAdmin
+      .from('bookings')
+      .update({ title })
+      .eq('id', bookingId)
+      .eq('organization_id', orgId);
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath('/bookings');
+  }
+  return { ok: true, title };
 }

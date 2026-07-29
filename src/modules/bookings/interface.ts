@@ -10,6 +10,7 @@
 export {
   // Commands
   createBooking,
+  refreshBookingTitle,
   renameBooking,
   deleteBooking,
   setBookingSchedule,

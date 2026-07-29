@@ -166,7 +166,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* Services (lines) */}
         <Section title="Services">
           {lines.length === 0 ? (
-            <p className="q-empty">No services yet — add one, or leave it and fill in later.</p>
+            <p className="q-empty">No services yet — add one whenever you know what they want.</p>
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
