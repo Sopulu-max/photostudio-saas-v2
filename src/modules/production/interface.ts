@@ -14,4 +14,5 @@ export {
   listCrewForBooking,
   listAssignableEmployees,
   listMyTasks,
+  listTaskDeadlinesInRange,
 } from './domain';

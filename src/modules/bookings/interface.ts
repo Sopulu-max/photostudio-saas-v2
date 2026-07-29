@@ -10,6 +10,8 @@
 export {
   // Commands
   createBooking,
+  setBookingSchedule,
+  listBookingsInRange,
   setBookingClient,
   addBookingLine,
   // Composition — create other modules' objects against a booking

@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
-  CalendarCheck, FileSignature, FolderOpen,
+  CalendarCheck, CalendarDays, FileSignature, FolderOpen,
   Package, GitMerge, Users, Boxes,
   PieChart, Settings,
 } from 'lucide-react';
@@ -18,6 +18,7 @@ const SECTIONS = [
     apps: [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
+      { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
       { label: 'My Tasks', href: '/my-tasks', desc: 'Your assigned work', icon: CheckSquare },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
     ],

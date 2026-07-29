@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logEvent } from '@/kernel/events';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import type { FinancialTransaction, TransactionDirection, TransactionStatus } from '@/lib/types/engine';
 
 export async function createTransaction(params: {
@@ -128,4 +129,36 @@ export async function raiseInvoiceForBooking(input: {
   });
 
   return { transactionId: tx.id };
+}
+
+/**
+ * Money falling due within a window — the calendar's money layer.
+ */
+export async function listDueInRange(fromISO: string, toISO: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('id, type, amount, currency, status, due_date, booking:bookings(id, title)')
+    .eq('organization_id', orgId)
+    .not('due_date', 'is', null)
+    .gte('due_date', fromISO)
+    .lte('due_date', toISO)
+    .order('due_date');
+  if (error) {
+    console.error('Failed to list money due:', error);
+    return [];
+  }
+
+  return ((data || []) as any[]).map((t) => ({
+    kind: 'money' as const,
+    at: t.due_date,
+    transactionId: t.id,
+    title: String(t.type).replace(/_/g, ' '),
+    amount: Number(t.amount || 0),
+    currency: t.currency || 'USD',
+    status: t.status,
+    bookingId: t.booking?.id ?? null,
+    bookingTitle: t.booking?.title ?? null,
+  }));
 }

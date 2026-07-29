@@ -336,3 +336,35 @@ export async function listMyTasks() {
     bookingTitle: r.task.line?.booking?.title,
   }));
 }
+
+/**
+ * Task deadlines within a window — the calendar's deadline layer. Carries the
+ * booking for context so a due date is readable on its own.
+ */
+export async function listTaskDeadlinesInRange(fromISO: string, toISO: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('tasks')
+    .select('id, stage_name, status, due_date, line:booking_lines!inner(title, booking:bookings!inner(id, title))')
+    .eq('organization_id', orgId)
+    .not('due_date', 'is', null)
+    .gte('due_date', fromISO)
+    .lte('due_date', toISO)
+    .order('due_date');
+  if (error) {
+    console.error('Failed to list task deadlines:', error);
+    return [];
+  }
+
+  return ((data || []) as any[]).map((t) => ({
+    kind: 'deadline' as const,
+    at: t.due_date,
+    taskId: t.id,
+    title: t.stage_name,
+    status: t.status,
+    bookingId: t.line?.booking?.id,
+    bookingTitle: t.line?.booking?.title,
+    lineTitle: t.line?.title,
+  }));
+}

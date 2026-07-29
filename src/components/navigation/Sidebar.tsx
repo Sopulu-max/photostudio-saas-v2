@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   CalendarCheck,
+  CalendarDays,
   FileSignature,
   FolderOpen,
   GitMerge,
@@ -25,6 +26,7 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
+      { label: 'Calendar', href: '/calendar', icon: CalendarDays },
       { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
       { label: 'Finances', href: '/finances', icon: DollarSign },
     ]

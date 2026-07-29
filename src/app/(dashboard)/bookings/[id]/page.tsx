@@ -10,6 +10,7 @@ import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
 import { TaskStatusControl } from './TaskStatusControl';
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
+import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 
 export const dynamic = 'force-dynamic';
@@ -127,6 +128,16 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               </div>
               <SetClientForm bookingId={booking.id} clients={clientOptions} />
             </div>
+          )}
+        </Section>
+
+        {/* When */}
+        <Section title="When">
+          <ScheduleForm bookingId={booking.id} scheduledFor={booking.scheduled_for} />
+          {!booking.scheduled_for && (
+            <p style={{ margin: '10px 0 0', fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
+              No date yet — set one and it appears on the calendar.
+            </p>
           )}
         </Section>
 

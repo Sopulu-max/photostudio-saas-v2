@@ -246,3 +246,62 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
   revalidatePath(`/bookings/${input.bookingId}`);
   return { taskCount };
 }
+
+/** Set (or clear) when this booking happens. */
+export async function setBookingSchedule(input: { bookingId: string; scheduledFor: string | null }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ scheduled_for: input.scheduledFor })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to set schedule:', error);
+    throw new Error('Failed to set the date');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: input.scheduledFor ? 'scheduled' : 'unscheduled',
+    actorId: actorId ?? undefined,
+    payload: { scheduledFor: input.scheduledFor },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/calendar');
+  return { ok: true };
+}
+
+/**
+ * Bookings scheduled within a window — the calendar's shoot layer. Carries just
+ * enough context to be readable without opening the booking.
+ */
+export async function listBookingsInRange(fromISO: string, toISO: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, status, scheduled_for, contact:contacts(display_name), booking_lines(title)')
+    .eq('organization_id', orgId)
+    .not('scheduled_for', 'is', null)
+    .gte('scheduled_for', fromISO)
+    .lte('scheduled_for', toISO)
+    .order('scheduled_for');
+  if (error) {
+    console.error('Failed to list bookings in range:', error);
+    throw new Error('Failed to load the calendar');
+  }
+
+  return (data || []).map((b: any) => ({
+    kind: 'booking' as const,
+    at: b.scheduled_for,
+    bookingId: b.id,
+    title: b.title,
+    status: b.status,
+    client: b.contact?.display_name || null,
+    services: (b.booking_lines || []).map((l: any) => l.title),
+  }));
+}
