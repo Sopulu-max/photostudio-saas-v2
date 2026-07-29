@@ -20,6 +20,7 @@ export {
   reviewCascadeForCancel,
   createStage,
   renameStage,
+  setStageColor,
   deleteStage,
   listBookingsInRange,
   setBookingClient,

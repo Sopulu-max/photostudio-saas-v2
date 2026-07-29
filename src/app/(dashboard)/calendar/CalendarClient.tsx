@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
 
 type Item =
-  | { kind: 'booking'; at: string; bookingId: string; title: string; stage: string | null; stageKind: string | null; client: string | null; services: string[] }
+  | { kind: 'booking'; at: string; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; services: string[] }
   | { kind: 'deadline'; at: string; taskId: string; title: string; status: string; bookingId: string; bookingTitle: string; lineTitle: string }
   | { kind: 'money'; at: string; transactionId: string; title: string; amount: number; currency: string; status: string; bookingId: string | null; bookingTitle: string | null };
 
@@ -172,7 +172,7 @@ export function CalendarClient({
                           {it.services.length > 0 && <> · {it.services.join(', ')}</>}
                         </div>
                         <div className="q-row" style={{ marginTop: '9px' }}>
-                          <span className={`q-badge ${stageBadgeClass(it.stageKind)}`}>{it.stage}</span>
+                          <span className={`q-badge ${stageBadgeClass({ kind: it.stageKind, color: it.stageColor })}`}>{it.stage}</span>
                           <Link href={`/bookings/${it.bookingId}`} className="q-btn q-btn-secondary q-btn-xs">Open</Link>
                         </div>
                       </>

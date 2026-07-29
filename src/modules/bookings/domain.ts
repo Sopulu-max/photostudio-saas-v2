@@ -334,7 +334,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, stage:booking_stages(name, kind), contact:contacts(display_name), booking_lines(title)')
+    .select('id, title, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name), booking_lines(title)')
     .eq('organization_id', orgId)
     .not('scheduled_for', 'is', null)
     .gte('scheduled_for', fromISO)
@@ -352,6 +352,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     title: b.title,
     stage: b.stage?.name || null,
     stageKind: b.stage?.kind || null,
+    stageColor: b.stage?.color || null,
     client: b.contact?.display_name || null,
     services: (b.booking_lines || []).map((l: any) => l.title),
   }));
@@ -379,7 +380,7 @@ export async function listStages() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('booking_stages')
-    .select('id, name, kind, position, is_default')
+    .select('id, name, kind, color, position, is_default')
     .eq('organization_id', orgId)
     .order('position');
   if (error) {
@@ -711,4 +712,19 @@ export async function refreshBookingTitle(bookingId: string) {
     revalidatePath('/bookings');
   }
   return { ok: true, title };
+}
+
+/** Pick the colour a stage shows in. Null returns it to the kind's default. */
+export async function setStageColor(input: { stageId: string; color: string | null }) {
+  const { orgId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('booking_stages')
+    .update({ color: input.color })
+    .eq('id', input.stageId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to set the colour');
+
+  revalidateStageSurfaces();
+  return { ok: true };
 }

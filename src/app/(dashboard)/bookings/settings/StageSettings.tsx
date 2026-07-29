@@ -2,10 +2,10 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createStage, renameStage, deleteStage } from '@/modules/bookings/interface';
-import { stageBadgeClass } from '@/components/stageBadge';
+import { createStage, renameStage, deleteStage, setStageColor } from '@/modules/bookings/interface';
+import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
 
-type Stage = { id: string; name: string; kind: string; position: number; is_default: boolean };
+type Stage = { id: string; name: string; kind: string; color: string | null; position: number; is_default: boolean };
 
 const KINDS = [
   { key: 'enquiry',   label: 'Enquiry',   help: 'Someone’s interested, nothing committed' },
@@ -33,16 +33,38 @@ function StageRow({ stage }: { stage: Stage }) {
   return (
     <div className="q-tile q-row q-row-between">
       {editing ? (
-        <div className="q-row q-fill">
-          <input autoFocus className="q-input" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
-            onClick={() => name.trim() && run(() => renameStage({ stageId: stage.id, name }), () => setEditing(false))}>Save</button>
-          <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setName(stage.name); }}>Cancel</button>
+        <div className="q-stack q-stack-sm q-fill">
+          <div className="q-row">
+            <input autoFocus className="q-input" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
+            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+              onClick={() => name.trim() && run(() => renameStage({ stageId: stage.id, name }), () => setEditing(false))}>Save</button>
+            <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setName(stage.name); }}>Cancel</button>
+          </div>
+          <div className="q-row">
+            <span className="q-meta-sm">Colour</span>
+            {STAGE_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={c}
+                title={c}
+                disabled={isPending}
+                className={`q-swatch q-swatch-${c} ${stageColor(stage) === c ? 'q-swatch-on' : ''}`}
+                onClick={() => run(() => setStageColor({ stageId: stage.id, color: c }))}
+              />
+            ))}
+            {stage.color && (
+              <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
+                onClick={() => run(() => setStageColor({ stageId: stage.id, color: null }))}>
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <>
           <div className="q-row">
-            <span className={`q-badge ${stageBadgeClass(stage.kind)}`}>{stage.name}</span>
+            <span className={`q-badge ${stageBadgeClass(stage)}`}>{stage.name}</span>
             <span className="q-meta-sm">counts as {stage.kind}</span>
             {stage.is_default && <span className="q-meta-sm">· new bookings start here</span>}
           </div>
@@ -89,7 +111,7 @@ export function StageSettings({ stages }: { stages: Stage[] }) {
         <strong className="q-meta-plain">What the four kinds mean</strong>
         {KINDS.map((k) => (
           <div key={k.key} className="q-row">
-            <span className={`q-badge ${stageBadgeClass(k.key)}`}>{k.label}</span>
+            <span className={`q-badge ${stageBadgeClass({ kind: k.key })}`}>{k.label}</span>
             <span className="q-meta">{k.help}</span>
           </div>
         ))}

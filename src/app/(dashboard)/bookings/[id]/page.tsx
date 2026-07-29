@@ -46,7 +46,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .from('bookings')
     .select(`
       id, title, scheduled_for, created_at, stage_id,
-      stage:booking_stages(id, name, kind),
+      stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(id, title, price, service_id, status),
       contracts(id, version, status),
@@ -105,7 +105,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           </div>
         </div>
         <div className="q-row">
-          <span className={`q-badge ${stageBadgeClass(booking.stage?.kind)}`}>{booking.stage?.name}</span>
+          <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage?.name}</span>
           <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
         </div>
       </header>

@@ -41,6 +41,15 @@
   --q-color-brand-600:    #3B47D6;
   --q-color-primary:      #3B47D6;
   --q-color-warm:         #EE9B3D;
+
+  /* Stage palette hues */
+  --q-hue-amber:  #EE9B3D;
+  --q-hue-green:  #2E9E68;
+  --q-hue-blue:   #3B47D6;
+  --q-hue-violet: #7C5CE0;
+  --q-hue-teal:   #10908C;
+  --q-hue-rose:   #DB4B7A;
+  --q-hue-red:    #E14F38;
   --q-color-warm-soft:    rgba(238, 155, 61, 0.16);
 
   /* Semantic (separate from the accent) */
@@ -104,6 +113,14 @@
   --q-color-brand-600:    #6C78FF;
   --q-color-primary:      #6C78FF;
   --q-color-warm:         #F2A857;
+
+  --q-hue-amber:  #F2A857;
+  --q-hue-green:  #3FBE80;
+  --q-hue-blue:   #6C78FF;
+  --q-hue-violet: #9B84F5;
+  --q-hue-teal:   #2FBDB6;
+  --q-hue-rose:   #F06A93;
+  --q-hue-red:    #F0674F;
   --q-color-warm-soft:    rgba(242, 168, 87, 0.16);
 
   --q-color-success: #3FBE80;
@@ -362,11 +379,39 @@ body {
   text-transform: uppercase;
 }
 .q-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.q-badge-success { color: #1B6E48; background: color-mix(in srgb, var(--q-color-success) 14%, transparent); }
-.q-badge-warning { color: #8A5A12; background: var(--q-color-warm-soft); }
+/* Text is mixed toward ink-900 rather than a fixed hex, so it stays legible when
+   the theme flips (the old hardcoded darks were unreadable on a dark ground). */
+.q-badge-success { color: color-mix(in srgb, var(--q-color-success) 72%, var(--q-color-ink-900)); background: color-mix(in srgb, var(--q-color-success) 14%, transparent); }
+.q-badge-warning { color: color-mix(in srgb, var(--q-color-warm) 72%, var(--q-color-ink-900)); background: var(--q-color-warm-soft); }
 .q-badge-error,
-.q-badge-danger  { color: #A2331F; background: color-mix(in srgb, var(--q-color-danger) 12%, transparent); }
+.q-badge-danger  { color: color-mix(in srgb, var(--q-color-danger) 72%, var(--q-color-ink-900)); background: color-mix(in srgb, var(--q-color-danger) 12%, transparent); }
 .q-badge-neutral { color: var(--q-color-ink-600); background: var(--q-color-ink-100); }
+
+/* ---- Stage colours -------------------------------------------------------
+   A studio picks its own colour per stage. A bounded palette rather than a free
+   hex picker: every swatch is token-derived, so contrast holds in both themes
+   and the app stays coherent. Same principle as blueprints — choose, don't draw.
+   -------------------------------------------------------------------------- */
+.q-badge-c-amber  { color: color-mix(in srgb, var(--q-hue-amber) 72%, var(--q-color-ink-900));  background: color-mix(in srgb, var(--q-hue-amber) 15%, transparent); }
+.q-badge-c-green  { color: color-mix(in srgb, var(--q-hue-green) 72%, var(--q-color-ink-900));  background: color-mix(in srgb, var(--q-hue-green) 15%, transparent); }
+.q-badge-c-blue   { color: color-mix(in srgb, var(--q-hue-blue) 72%, var(--q-color-ink-900));   background: color-mix(in srgb, var(--q-hue-blue) 15%, transparent); }
+.q-badge-c-violet { color: color-mix(in srgb, var(--q-hue-violet) 72%, var(--q-color-ink-900)); background: color-mix(in srgb, var(--q-hue-violet) 15%, transparent); }
+.q-badge-c-teal   { color: color-mix(in srgb, var(--q-hue-teal) 72%, var(--q-color-ink-900));   background: color-mix(in srgb, var(--q-hue-teal) 15%, transparent); }
+.q-badge-c-rose   { color: color-mix(in srgb, var(--q-hue-rose) 72%, var(--q-color-ink-900));   background: color-mix(in srgb, var(--q-hue-rose) 15%, transparent); }
+.q-badge-c-red    { color: color-mix(in srgb, var(--q-hue-red) 72%, var(--q-color-ink-900));    background: color-mix(in srgb, var(--q-hue-red) 15%, transparent); }
+.q-badge-c-slate  { color: var(--q-color-ink-600); background: var(--q-color-ink-100); }
+
+/* A plain swatch, for the colour picker. */
+.q-swatch { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--q-color-ink-200); cursor: pointer; padding: 0; }
+.q-swatch-on { box-shadow: 0 0 0 2px var(--q-color-accent); border-color: transparent; }
+.q-swatch-amber  { background: var(--q-hue-amber); }
+.q-swatch-green  { background: var(--q-hue-green); }
+.q-swatch-blue   { background: var(--q-hue-blue); }
+.q-swatch-violet { background: var(--q-hue-violet); }
+.q-swatch-teal   { background: var(--q-hue-teal); }
+.q-swatch-rose   { background: var(--q-hue-rose); }
+.q-swatch-red    { background: var(--q-hue-red); }
+.q-swatch-slate  { background: var(--q-color-ink-400); }
 
 /* ============================================================
    LAYOUT VOCABULARY

@@ -22,7 +22,7 @@ export default async function BookingsPage() {
     .from('bookings')
     .select(`
       id, title, created_at,
-      stage:booking_stages(name, kind),
+      stage:booking_stages(name, kind, color),
       person:contacts(display_name),
       booking_lines(id),
       contracts(id, status),
@@ -74,7 +74,7 @@ export default async function BookingsPage() {
                     <h3 className="q-section-title">{b.title}</h3>
                     <div className="q-meta">{b.person?.display_name || 'No client yet'}</div>
                   </div>
-                  <span className={`q-badge ${stageBadgeClass(b.stage?.kind)}`}>{b.stage?.name}</span>
+                  <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage?.name}</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 'auto' }}>
                   <span className="q-badge q-badge-neutral">{lineCount} {lineCount === 1 ? 'service' : 'services'}</span>
