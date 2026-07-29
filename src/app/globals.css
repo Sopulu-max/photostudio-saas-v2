@@ -9,6 +9,11 @@
    ========================================================================== */
 
 :root {
+  /* Tells the browser which way to render the parts we DON'T draw: the native
+     <select> popup, scrollbars, and date/time pickers. Without this they render
+     light on a dark app, which is what made dropdowns look foreign. */
+  color-scheme: light;
+
   /* Neutrals — a warm, gallery-paper ramp (near-black → near-white) */
   --q-color-ink-900: #1A1A1D;
   --q-color-ink-800: #2C2C31;
@@ -73,6 +78,7 @@
 
 /* ---- Dark theme (opt-in via data-theme="dark" on <html>) ---- */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --q-color-ink-900: #F2F1ED;
   --q-color-ink-800: #D5D4CE;
   --q-color-ink-700: #B9B8B2;
@@ -268,6 +274,22 @@ body {
   box-shadow: 0 0 0 3px var(--q-color-accent-soft);
 }
 .q-textarea { resize: vertical; min-height: 96px; }
+
+/* Selects: drop the OS arrow and draw our own, so the control matches the rest
+   of the UI in both themes. (The popup list itself is drawn by the OS — that is
+   what `color-scheme` above governs.) */
+.q-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'><path d='M1.5 1.75 6 6.25l4.5-4.5' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 11px 8px;
+  cursor: pointer;
+}
+/* Keep the options legible where the browser lets us paint them. */
+.q-select option { background: var(--q-color-paper-base); color: var(--q-color-ink-900); }
 
 /* ---- Visual states (the state grammar) ---- */
 .q-state-waiting {

@@ -59,7 +59,7 @@ export function CreateTransactionClient({ orgId, actorId }: { orgId: string, act
               <div>
                 <label className="q-label">Direction</label>
                 <select 
-                  className="q-input" 
+                  className="q-select" 
                   value={formData.direction}
                   onChange={(e) => setFormData({...formData, direction: e.target.value as any})}
                 >

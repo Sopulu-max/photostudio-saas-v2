@@ -70,26 +70,26 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
 
       <form onSubmit={handleSubmit} className="q-card" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
         <div>
-          <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>Service Name</label>
+          <label className="q-label">Service Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Premium Wedding Package"
-            style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--q-color-ink-200)', fontSize: '1rem' }}
+            className="q-input"
             required
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>Workflow Pipeline (Optional)</label>
+          <label className="q-label">Workflow Pipeline (Optional)</label>
           <p style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', margin: '0 0 12px 0' }}>
             Which blueprint should its work start from when you begin production on a booking?
           </p>
           <select
             value={workflowId}
             onChange={(e) => setWorkflowId(e.target.value)}
-            style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--q-color-ink-200)', fontSize: '1rem', background: 'white' }}
+            className="q-select"
           >
             <option value="">No standard workflow</option>
             {workflowTemplates.map((wf) => (
@@ -102,21 +102,21 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
           <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Pricing & Deposit</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>Base Price</label>
+              <label className="q-label">Base Price</label>
               <input
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(parseFloat(e.target.value) || 0)}
                 min="0"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)' }}
+                className="q-input"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>Currency</label>
+              <label className="q-label">Currency</label>
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)', background: 'white' }}
+                className="q-select"
               >
                 <option value="USD">USD ($)</option>
                 <option value="EUR">EUR (€)</option>
@@ -124,14 +124,14 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '8px', color: 'var(--q-color-ink-700)' }}>Deposit Required (%)</label>
+              <label className="q-label">Deposit Required (%)</label>
               <input
                 type="number"
                 value={depositPercentage}
                 onChange={(e) => setDepositPercentage(parseInt(e.target.value) || 0)}
                 min="0"
                 max="100"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)' }}
+                className="q-input"
               />
             </div>
           </div>
@@ -139,7 +139,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
 
         <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
           <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem' }}>Intake Form Builder</h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', margin: '0 0 16px 0' }}>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
             Define the custom information you need to collect from the client when they book this service. (Name, Email, and Phone are always collected).
           </p>
 
@@ -151,13 +151,13 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
                   value={field.label}
                   onChange={(e) => updateField(field.id, { label: e.target.value })}
                   placeholder="Question Label (e.g. Event Date)"
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--q-color-ink-200)' }}
+                  className="q-input" style={{ flex: 1 }}
                   required
                 />
                 <select
                   value={field.type}
                   onChange={(e) => updateField(field.id, { type: e.target.value })}
-                  style={{ width: '150px', padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--q-color-ink-200)', background: 'white' }}
+                  className="q-select" style={{ width: '150px' }}
                 >
                   <option value="text">Short Text</option>
                   <option value="textarea">Long Text</option>
