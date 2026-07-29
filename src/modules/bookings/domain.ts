@@ -359,6 +359,19 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
 
 // ── Stages: the studio's own lifecycle ──────────────────────────────────────
 
+/**
+ * A stage's name shows up wherever a booking does. Anything that changes the
+ * stage list must invalidate all of those surfaces — including the dynamic
+ * booking pages, which is what a bare revalidatePath('/bookings') misses.
+ */
+function revalidateStageSurfaces() {
+  revalidatePath('/bookings/settings');
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/[id]', 'page');
+  revalidatePath('/calendar');
+  revalidatePath('/overview');
+}
+
 export type StageKind = 'enquiry' | 'booked' | 'completed' | 'cancelled';
 
 /** The studio's stages, in order. Consumers switch on `kind`, never on `name`. */
@@ -476,7 +489,7 @@ export async function createStage(input: { name: string; kind: StageKind }) {
   }
 
   await logEvent({ organizationId: orgId, entityType: 'booking_stage', entityId: stage.id, action: 'created', actorId: actorId ?? undefined, payload: { name, kind: input.kind } });
-  revalidatePath('/bookings/settings');
+  revalidateStageSurfaces();
   return { stageId: stage.id };
 }
 
@@ -492,8 +505,7 @@ export async function renameStage(input: { stageId: string; name: string }) {
     .eq('organization_id', orgId);
   if (error) throw new Error('Failed to rename (does that name already exist?)');
 
-  revalidatePath('/bookings/settings');
-  revalidatePath('/bookings');
+  revalidateStageSurfaces();
   return { ok: true };
 }
 
@@ -514,8 +526,7 @@ export async function deleteStage(stageId: string) {
   const { error } = await supabaseAdmin.from('booking_stages').delete().eq('id', stageId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to remove the stage');
 
-  revalidatePath('/bookings/settings');
-  revalidatePath('/bookings');
+  revalidateStageSurfaces();
   return { ok: true };
 }
 

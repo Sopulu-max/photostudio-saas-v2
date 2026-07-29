@@ -42,9 +42,9 @@ function StageRow({ stage }: { stage: Stage }) {
       ) : (
         <>
           <div className="q-row">
-            <strong>{stage.name}</strong>
-            <span className={`q-badge ${stageBadgeClass(stage.kind)}`}>{stage.kind}</span>
-            {stage.is_default && <span className="q-meta-sm">new bookings start here</span>}
+            <span className={`q-badge ${stageBadgeClass(stage.kind)}`}>{stage.name}</span>
+            <span className="q-meta-sm">counts as {stage.kind}</span>
+            {stage.is_default && <span className="q-meta-sm">· new bookings start here</span>}
           </div>
           <div className="q-row">
             <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Rename</button>
