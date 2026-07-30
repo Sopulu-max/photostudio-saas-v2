@@ -728,3 +728,30 @@ export async function setStageColor(input: { stageId: string; color: string | nu
   revalidateStageSurfaces();
   return { ok: true };
 }
+
+/**
+ * Save a stage's name and colour together — one round trip for one edit.
+ * (Trying colours is a local, instant thing; only the Save hits the server.)
+ */
+export async function updateStage(input: { stageId: string; name?: string; color?: string | null }) {
+  const { orgId } = await getAuthOrgId();
+
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('Give the stage a name.');
+    patch.name = name;
+  }
+  if (input.color !== undefined) patch.color = input.color;
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabaseAdmin
+    .from('booking_stages')
+    .update(patch)
+    .eq('id', input.stageId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to save the stage (does that name already exist?)');
+
+  revalidateStageSurfaces();
+  return { ok: true };
+}

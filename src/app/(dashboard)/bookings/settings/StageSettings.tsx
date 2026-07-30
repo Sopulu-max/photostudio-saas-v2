@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createStage, renameStage, deleteStage, setStageColor } from '@/modules/bookings/interface';
+import { createStage, deleteStage, updateStage } from '@/modules/bookings/interface';
 import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
 
 type Stage = { id: string; name: string; kind: string; color: string | null; position: number; is_default: boolean };
@@ -29,6 +29,13 @@ function StageRow({ stage }: { stage: Stage }) {
   const { isPending, run } = useAction();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(stage.name);
+  // Colour is chosen locally so trying one is instant — only Save goes to the
+  // server, and it carries the name with it.
+  const [color, setColor] = useState<string | null>(stage.color);
+
+  const reset = () => { setName(stage.name); setColor(stage.color); setEditing(false); };
+  const preview = { kind: stage.kind, color };
+  const dirty = name.trim() !== stage.name || color !== stage.color;
 
   return (
     <div className="q-tile q-row q-row-between">
@@ -36,9 +43,15 @@ function StageRow({ stage }: { stage: Stage }) {
         <div className="q-stack q-stack-sm q-fill">
           <div className="q-row">
             <input autoFocus className="q-input" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
-            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
-              onClick={() => name.trim() && run(() => renameStage({ stageId: stage.id, name }), () => setEditing(false))}>Save</button>
-            <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setName(stage.name); }}>Cancel</button>
+            <span className={`q-badge ${stageBadgeClass(preview)}`}>{name.trim() || stage.name}</span>
+            <span className="q-spacer" />
+            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending || !dirty}
+              onClick={() => name.trim() && run(
+                () => updateStage({ stageId: stage.id, name, color }),
+                () => setEditing(false))}>
+              {isPending ? 'Saving…' : 'Save'}
+            </button>
+            <button className="q-btn q-btn-secondary q-btn-sm" onClick={reset}>Cancel</button>
           </div>
           <div className="q-row">
             <span className="q-meta-sm">Colour</span>
@@ -48,15 +61,13 @@ function StageRow({ stage }: { stage: Stage }) {
                 type="button"
                 aria-label={c}
                 title={c}
-                disabled={isPending}
-                className={`q-swatch q-swatch-${c} ${stageColor(stage) === c ? 'q-swatch-on' : ''}`}
-                onClick={() => run(() => setStageColor({ stageId: stage.id, color: c }))}
+                className={`q-swatch q-swatch-${c} ${stageColor(preview) === c ? 'q-swatch-on' : ''}`}
+                onClick={() => setColor(c)}
               />
             ))}
-            {stage.color && (
-              <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
-                onClick={() => run(() => setStageColor({ stageId: stage.id, color: null }))}>
-                Reset
+            {color && (
+              <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setColor(null)}>
+                Use default
               </button>
             )}
           </div>
@@ -69,7 +80,7 @@ function StageRow({ stage }: { stage: Stage }) {
             {stage.is_default && <span className="q-meta-sm">· new bookings start here</span>}
           </div>
           <div className="q-row">
-            <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Rename</button>
+            <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Edit</button>
             <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
               onClick={() => run(() => deleteStage(stage.id))}>Remove</button>
           </div>

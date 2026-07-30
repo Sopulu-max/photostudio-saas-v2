@@ -21,6 +21,7 @@ export {
   createStage,
   renameStage,
   setStageColor,
+  updateStage,
   deleteStage,
   listBookingsInRange,
   setBookingClient,
