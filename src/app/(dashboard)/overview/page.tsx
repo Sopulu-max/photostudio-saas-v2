@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { stageBadgeClass } from '@/components/stageBadge';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
@@ -20,7 +21,7 @@ async function getOverviewData() {
       { count: serviceTemplatesCount }
     ] = await Promise.all([
       supabaseAdmin.from('events').select('*, person:contacts(display_name)').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(5),
-      supabaseAdmin.from('bookings').select('id, title, stage:booking_stages!inner(name, kind), contact:contacts(display_name)').eq('organization_id', orgId).in('stage.kind', ['enquiry', 'booked']).order('created_at', { ascending: false }).limit(5),
+      supabaseAdmin.from('bookings').select('id, title, stage:booking_stages!inner(name, kind, color), contact:contacts(display_name)').eq('organization_id', orgId).in('stage.kind', ['enquiry', 'booked']).order('created_at', { ascending: false }).limit(5),
       supabaseAdmin.from('financial_transactions').select('*, person:contacts(display_name)').eq('organization_id', orgId).eq('status', 'pending').limit(5),
       supabaseAdmin.from('blueprints').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
       supabaseAdmin.from('services').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
@@ -131,7 +132,10 @@ export default async function OverviewPage() {
                   <Link href={`/bookings/${prod.id}`} key={prod.id} className="q-panel q-row q-row-between q-plain-link">
                     <div>
                       <div className="q-strong">{prod.title}</div>
-                      <div style={{ fontSize: '0.875rem', color: 'var(--q-color-ink-500)', marginTop: '4px', textTransform: 'capitalize' }}>Status: {prod.status.replace('_', ' ')}</div>
+                      <div className="q-row" style={{ marginTop: '6px' }}>
+                        <span className={`q-badge ${stageBadgeClass(prod.stage)}`}>{prod.stage?.name}</span>
+                        {prod.contact?.display_name && <span className="q-meta-sm">{prod.contact.display_name}</span>}
+                      </div>
                     </div>
                     <div>
                       <span className="q-btn q-btn-secondary">Open booking</span>
