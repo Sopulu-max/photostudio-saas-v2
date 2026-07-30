@@ -8,7 +8,7 @@ import { SetClientForm } from './SetClientForm';
 import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
-import { listStages, getIntakeAnswersForBooking } from '@/modules/bookings/interface';
+import { listStages, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
 import { stageBadgeClass } from '@/components/stageBadge';
@@ -42,7 +42,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { data: booking } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, scheduled_for, created_at, stage_id,
+      id, title, scheduled_for, duration_minutes, created_at, stage_id,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(id, title, price, service_id, status),
@@ -71,13 +71,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // Crew, roster and work through Production's interface.
   const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const [crew, candidates, work, deliveries, stages, intake] = await Promise.all([
+  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
+    suggestedDurationForBooking(booking.id),
   ]);
 
   const lines: any[] = booking.booking_lines || [];
@@ -149,7 +150,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* When */}
         <Section title="When">
-          <ScheduleForm bookingId={booking.id} scheduledFor={booking.scheduled_for} />
+          <ScheduleForm
+            bookingId={booking.id}
+            scheduledFor={booking.scheduled_for}
+            durationMinutes={booking.duration_minutes}
+            suggestedMinutes={suggestedMinutes}
+          />
           {!booking.scheduled_for && (
             <p className="q-meta" style={{ marginTop: '10px' }}>
               No date yet — set one and it appears on the calendar.

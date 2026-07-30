@@ -296,12 +296,19 @@ export async function startWorkForLine(input: { bookingId: string; lineId: strin
 }
 
 /** Set (or clear) when this booking happens. */
-export async function setBookingSchedule(input: { bookingId: string; scheduledFor: string | null }) {
+export async function setBookingSchedule(input: {
+  bookingId: string;
+  scheduledFor: string | null;
+  durationMinutes?: number | null;
+}) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const patch: Record<string, unknown> = { scheduled_for: input.scheduledFor };
+  if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
 
   const { error } = await supabaseAdmin
     .from('bookings')
-    .update({ scheduled_for: input.scheduledFor })
+    .update(patch)
     .eq('id', input.bookingId)
     .eq('organization_id', orgId);
   if (error) {
@@ -315,7 +322,7 @@ export async function setBookingSchedule(input: { bookingId: string; scheduledFo
     entityId: input.bookingId,
     action: input.scheduledFor ? 'scheduled' : 'unscheduled',
     actorId: actorId ?? undefined,
-    payload: { scheduledFor: input.scheduledFor },
+    payload: { scheduledFor: input.scheduledFor, durationMinutes: input.durationMinutes },
   });
 
   await refreshBookingTitle(input.bookingId);
@@ -334,7 +341,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name), booking_lines(title)')
+    .select('id, title, scheduled_for, duration_minutes, stage:booking_stages(name, kind, color), contact:contacts(display_name), booking_lines(title)')
     .eq('organization_id', orgId)
     .not('scheduled_for', 'is', null)
     .gte('scheduled_for', fromISO)
@@ -348,6 +355,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
   return (data || []).map((b: any) => ({
     kind: 'booking' as const,
     at: b.scheduled_for,
+    durationMinutes: b.duration_minutes ?? null,
     bookingId: b.id,
     title: b.title,
     stage: b.stage?.name || null,
@@ -866,4 +874,26 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
     rows.push({ label: 'Question removed', value: Array.isArray(v) ? v.join(', ') : String(v), removed: true });
   }
   return rows;
+}
+
+/**
+ * What this booking's lines suggest it should run for — the longest of their
+ * services' typical durations, since work on one day usually overlaps rather
+ * than stacking. A suggestion only: the studio sets the real figure.
+ */
+export async function suggestedDurationForBooking(bookingId: string): Promise<number | null> {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines')
+    .select('service_id')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+
+  const serviceIds = (lines || []).map((l: any) => l.service_id).filter(Boolean) as string[];
+  if (serviceIds.length === 0) return null;
+
+  const durations = await Promise.all(serviceIds.map(async (id) => (await getService(id))?.duration_minutes ?? null));
+  const known = durations.filter((d): d is number => typeof d === 'number' && d > 0);
+  return known.length ? Math.max(...known) : null;
 }

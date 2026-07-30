@@ -14,6 +14,7 @@ export {
   renameBooking,
   deleteBooking,
   setBookingSchedule,
+  suggestedDurationForBooking,
   // Stages — the studio's own lifecycle
   listStages,
   setBookingStage,

@@ -21,6 +21,7 @@ export async function createService(input: {
   description?: string;
   basePrice?: number;
   depositPercentage?: number;
+  durationMinutes?: number | null;
   blueprintId?: string | null;
   formSchema?: any[];
 }) {
@@ -44,6 +45,7 @@ export async function createService(input: {
       description: input.description || null,
       pricing,
       default_blueprint_id: input.blueprintId || null,
+      duration_minutes: input.durationMinutes ?? null,
       form_schema: input.formSchema || [],
       status: 'active',
     })
@@ -72,7 +74,7 @@ export async function listServices() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('services')
-    .select('id, name, description, pricing, status, default_blueprint_id, blueprint:blueprints(id, name)')
+    .select('id, name, description, pricing, status, duration_minutes, default_blueprint_id, blueprint:blueprints(id, name)')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -87,7 +89,7 @@ export async function getService(serviceId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('services')
-    .select('id, name, pricing')
+    .select('id, name, pricing, duration_minutes')
     .eq('id', serviceId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -214,13 +216,14 @@ export async function updateService(input: {
   description?: string | null;
   basePrice?: number | null;
   depositPercentage?: number | null;
+  durationMinutes?: number | null;
   blueprintId?: string | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
   const { data: existing } = await supabaseAdmin
     .from('services')
-    .select('id, name, pricing')
+    .select('id, name, pricing, duration_minutes')
     .eq('id', input.serviceId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -234,6 +237,7 @@ export async function updateService(input: {
   }
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.blueprintId !== undefined) patch.default_blueprint_id = input.blueprintId || null;
+  if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
 
   if (input.basePrice !== undefined || input.depositPercentage !== undefined) {
     const pricing: any = { ...(existing.pricing as any) };

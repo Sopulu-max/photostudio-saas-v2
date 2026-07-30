@@ -3,10 +3,10 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { formatMoney } from '@/kernel/currency';
+import { formatMoney, formatDuration } from '@/kernel/currency';
 
 type Item =
-  | { kind: 'booking'; at: string; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; services: string[] }
+  | { kind: 'booking'; at: string; durationMinutes: number | null; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; services: string[] }
   | { kind: 'deadline'; at: string; taskId: string; title: string; status: string; bookingId: string; bookingTitle: string; lineTitle: string }
   | { kind: 'money'; at: string; transactionId: string; title: string; amount: number; currency: string; status: string; bookingId: string | null; bookingTitle: string | null };
 
@@ -168,6 +168,14 @@ export function CalendarClient({
                     {it.kind === 'booking' && (
                       <>
                         <strong className="q-block">{it.title}</strong>
+                        <div className="q-meta">
+                          {new Date(it.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          {it.durationMinutes ? (
+                            <> – {new Date(new Date(it.at).getTime() + it.durationMinutes * 60000)
+                              .toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                              {' '}<span className="q-meta-sm">({formatDuration(it.durationMinutes)})</span></>
+                          ) : null}
+                        </div>
                         <div className="q-meta">
                           {it.client || 'No client yet'}
                           {it.services.length > 0 && <> · {it.services.join(', ')}</>}

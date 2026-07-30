@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateService, setServiceStatus } from '@/modules/services/interface';
+import { DURATION_CHOICES } from '@/kernel/currency';
 
 type Blueprint = { id: string; name: string };
 
@@ -18,6 +19,7 @@ export function ServiceEditor({
   basePrice: initialPrice,
   depositPercentage: initialDeposit,
   blueprintId: initialBlueprint,
+  durationMinutes: initialDuration,
   status,
   currencyCode,
   blueprints,
@@ -28,6 +30,7 @@ export function ServiceEditor({
   basePrice: number;
   depositPercentage: number;
   blueprintId: string | null;
+  durationMinutes: number | null;
   status: string;
   currencyCode: string;
   blueprints: Blueprint[];
@@ -37,6 +40,7 @@ export function ServiceEditor({
   const [price, setPrice] = useState(String(initialPrice ?? 0));
   const [deposit, setDeposit] = useState(String(initialDeposit ?? 0));
   const [blueprintId, setBlueprintId] = useState(initialBlueprint ?? '');
+  const [duration, setDuration] = useState(initialDuration ?? 0);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -45,7 +49,8 @@ export function ServiceEditor({
     description !== (initialDescription ?? '') ||
     price !== String(initialPrice ?? 0) ||
     deposit !== String(initialDeposit ?? 0) ||
-    blueprintId !== (initialBlueprint ?? '');
+    blueprintId !== (initialBlueprint ?? '') ||
+    duration !== (initialDuration ?? 0);
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -61,6 +66,7 @@ export function ServiceEditor({
       basePrice: price === '' ? 0 : parseFloat(price),
       depositPercentage: deposit === '' ? 0 : parseInt(deposit, 10),
       blueprintId: blueprintId || null,
+      durationMinutes: duration > 0 ? duration : null,
     }));
 
   const retired = status === 'retired';
@@ -87,6 +93,14 @@ export function ServiceEditor({
           <label className="q-label">Deposit (%)</label>
           <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
         </div>
+      </div>
+
+      <div className="q-field">
+        <label className="q-label">Usually takes</label>
+        <select className="q-select" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+          {DURATION_CHOICES.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+        </select>
+        <span className="q-meta-sm">Suggests a length when this service is added to a booking. Not every service is timed.</span>
       </div>
 
       <div className="q-field">
