@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
+import { getStudioCurrency } from '@/kernel/organizations';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -18,7 +19,6 @@ export async function createService(input: {
   name: string;
   description?: string;
   basePrice?: number;
-  currency?: string;
   depositPercentage?: number;
   blueprintId?: string | null;
   formSchema?: any[];
@@ -27,9 +27,11 @@ export async function createService(input: {
   const name = (input.name || '').trim();
   if (!name) throw new Error('A service needs a name.');
 
+  // The studio bills in one currency — read it rather than defaulting to USD.
+  const currency = await getStudioCurrency();
   const pricing = {
     base_price: input.basePrice ?? 0,
-    currency: input.currency || 'USD',
+    currency,
     deposit_percentage: input.depositPercentage ?? 0,
   };
 
@@ -196,4 +198,170 @@ export async function getProductionPlanForService(
     blueprintId: service.default_blueprint_id,
     stages: ((blueprint?.stages as any[]) || []).map((s, i) => ({ name: s.name, order: s.order ?? i })),
   };
+}
+
+// ── Editing what exists (a service was write-once until now) ────────────────
+
+/**
+ * Change a service. Price edits deliberately do NOT touch existing bookings:
+ * booking_lines snapshot title and price when added, so history stays what was
+ * actually agreed. New lines pick up the new price.
+ */
+export async function updateService(input: {
+  serviceId: string;
+  name?: string;
+  description?: string | null;
+  basePrice?: number | null;
+  depositPercentage?: number | null;
+  blueprintId?: string | null;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: existing } = await supabaseAdmin
+    .from('services')
+    .select('id, name, pricing')
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!existing) throw new Error('Service not found');
+
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('A service needs a name.');
+    patch.name = name;
+  }
+  if (input.description !== undefined) patch.description = input.description || null;
+  if (input.blueprintId !== undefined) patch.default_blueprint_id = input.blueprintId || null;
+
+  if (input.basePrice !== undefined || input.depositPercentage !== undefined) {
+    const pricing: any = { ...(existing.pricing as any) };
+    if (input.basePrice !== undefined) pricing.base_price = input.basePrice ?? 0;
+    if (input.depositPercentage !== undefined) pricing.deposit_percentage = input.depositPercentage ?? 0;
+    patch.pricing = pricing;
+  }
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabaseAdmin
+    .from('services')
+    .update(patch)
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to update service:', error);
+    throw new Error('Failed to save the service');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'updated',
+    actorId: actorId ?? undefined,
+    payload: patch,
+  });
+
+  revalidatePath('/services');
+  revalidatePath(`/services/${input.serviceId}`);
+  return { ok: true };
+}
+
+/**
+ * Retire a service so it stops being sellable, or bring it back. Never deletes:
+ * past bookings keep their line (which carries its own title and price), and a
+ * retired service simply stops appearing in the pickers.
+ */
+export async function setServiceStatus(input: { serviceId: string; status: 'active' | 'retired' }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('services')
+    .update({ status: input.status })
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to change the service');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: input.status === 'retired' ? 'retired' : 'restored',
+    actorId: actorId ?? undefined,
+  });
+
+  revalidatePath('/services');
+  revalidatePath(`/services/${input.serviceId}`);
+  return { ok: true };
+}
+
+/** Rename a blueprint and/or rewrite its stages. */
+export async function updateBlueprint(input: { blueprintId: string; name?: string; stages?: { name: string }[] }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('A blueprint needs a name.');
+    patch.name = name;
+  }
+  if (input.stages !== undefined) {
+    const stages = input.stages
+      .map((s, i) => ({ name: (s.name || '').trim(), order: i }))
+      .filter((s) => s.name);
+    if (stages.length === 0) throw new Error('Keep at least one stage.');
+    patch.stages = stages;
+  }
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabaseAdmin
+    .from('blueprints')
+    .update(patch)
+    .eq('id', input.blueprintId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to save the blueprint');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'blueprint',
+    entityId: input.blueprintId,
+    action: 'updated',
+    actorId: actorId ?? undefined,
+    payload: patch,
+  });
+
+  revalidatePath('/services');
+  return { ok: true };
+}
+
+/**
+ * Remove a blueprint. Services pointing at it lose the reference (their work
+ * then starts from a single free-form stage); tasks already created are
+ * untouched — they were copied out when work started.
+ */
+export async function deleteBlueprint(blueprintId: string) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  await supabaseAdmin
+    .from('services')
+    .update({ default_blueprint_id: null })
+    .eq('organization_id', orgId)
+    .eq('default_blueprint_id', blueprintId);
+
+  const { error } = await supabaseAdmin
+    .from('blueprints')
+    .delete()
+    .eq('id', blueprintId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the blueprint');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'blueprint',
+    entityId: blueprintId,
+    action: 'deleted',
+    actorId: actorId ?? undefined,
+  });
+
+  revalidatePath('/services');
+  return { ok: true };
 }

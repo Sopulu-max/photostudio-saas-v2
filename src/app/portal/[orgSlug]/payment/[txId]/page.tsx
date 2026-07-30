@@ -1,9 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { formatMoney } from '@/kernel/currency';
 
-const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', EUR: '€', GBP: '£' };
-function money(amount: number, currency = 'USD') {
-  return `${CURRENCY_SYMBOL[currency] || ''}${Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default async function ClientPaymentPage(props: { params: Promise<{ orgSlug: string, txId: string }> }) {
   const params = await props.params;
@@ -64,7 +61,7 @@ export default async function ClientPaymentPage(props: { params: Promise<{ orgSl
 
             <div className="q-kv q-divider">
               <span className="q-strong">Amount due</span>
-              <span className="q-amount">{money(tx.amount, tx.currency)}</span>
+              <span className="q-amount">{formatMoney(tx.amount, tx.currency)}</span>
             </div>
           </div>
 

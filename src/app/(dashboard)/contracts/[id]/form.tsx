@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Copy, Check, ExternalLink } from 'lucide-react';
+import { formatMoney } from '@/kernel/currency';
 
 export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: string }) {
   const [basePrice, setBasePrice] = useState(contract.terms?.base_price || 0);
@@ -113,11 +114,11 @@ export function ContractForm({ contract, orgSlug }: { contract: any; orgSlug: st
           <div className="q-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.875rem' }}>
               <span className="q-muted">Total Value</span>
-              <span className="q-strong">{contract.terms?.currency || 'USD'} {basePrice.toFixed(2)}</span>
+              <span className="q-strong">{formatMoney(basePrice, contract.terms?.currency)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
               <span className="q-muted">Deposit Required</span>
-              <span className="q-strong">{contract.terms?.currency || 'USD'} {(basePrice * depositPercent / 100).toFixed(2)}</span>
+              <span className="q-strong">{formatMoney(basePrice * depositPercent / 100, contract.terms?.currency)}</span>
             </div>
           </div>
 

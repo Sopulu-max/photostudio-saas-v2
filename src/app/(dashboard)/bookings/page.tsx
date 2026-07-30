@@ -36,7 +36,10 @@ export default async function BookingsPage() {
   const clientOptions = clientRows
     .map((c: any) => ({ id: c.contact?.id as string, name: c.contact?.display_name as string }))
     .filter((c: { id: string }) => !!c.id);
-  const serviceOptions = serviceRows.map((s: any) => ({ id: s.id as string, name: s.name as string }));
+  // Retired services are not on offer for new work.
+  const serviceOptions = serviceRows
+    .filter((s: any) => s.status !== 'retired')
+    .map((s: any) => ({ id: s.id as string, name: s.name as string }));
 
   return (
     <div>

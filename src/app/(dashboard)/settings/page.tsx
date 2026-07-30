@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { CurrencyForm } from './CurrencyForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +13,15 @@ export default async function SettingsPage() {
   return (
     <div>
       <header className="q-page-header">
-        <h1 className="q-page-title">Settings & Registry</h1>
+        <h1 className="q-page-title">Settings</h1>
         <p className="q-page-subtitle">Manage organization config, team members, and resources.</p>
       </header>
+
+      <div className="q-card q-section" style={{ marginBottom: '24px' }}>
+        <h2 className="q-section-title">Currency</h2>
+        <p className="q-meta" style={{ marginBottom: '14px' }}>What your studio bills in.</p>
+        <CurrencyForm current={org?.currency || 'USD'} />
+      </div>
 
       {org ? (
         <div style={{ display: 'grid', gap: '32px' }}>

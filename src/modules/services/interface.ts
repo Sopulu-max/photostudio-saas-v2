@@ -5,10 +5,14 @@
  */
 export {
   createService,
+  updateService,
+  setServiceStatus,
   listServices,
   getService,
   setServiceBlueprint,
   createBlueprint,
+  updateBlueprint,
+  deleteBlueprint,
   listBlueprints,
   getProductionPlanForService,
 } from './domain';

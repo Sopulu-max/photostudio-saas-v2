@@ -3,6 +3,8 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logEvent } from '@/kernel/events';
 import type { Organization } from '@/lib/types/engine';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { revalidatePath } from 'next/cache';
 
 export async function createOrganization(name: string, slug?: string) {
   // 1. Get the current authenticated user
@@ -100,4 +102,28 @@ export async function updateOrganizationStatus(organizationId: string, status: '
   });
 
   return org as Organization;
+}
+
+/** The currency this studio bills in. Every money surface reads this. */
+export async function getStudioCurrency(): Promise<string> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('currency')
+    .eq('id', orgId)
+    .maybeSingle();
+  return data?.currency || 'USD';
+}
+
+/** Change the currency the studio bills in (global setting). */
+export async function setStudioCurrency(code: string) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('organizations')
+    .update({ currency: code })
+    .eq('id', orgId);
+  if (error) throw new Error('Failed to set the currency');
+  revalidatePath('/settings');
+  revalidatePath('/services');
+  return { ok: true };
 }

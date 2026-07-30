@@ -4,12 +4,11 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createService } from '@/modules/services/interface';
 
-export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[] }) {
+export function NewServiceForm({ workflowTemplates, currencyCode }: { workflowTemplates: any[]; currencyCode: string }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [workflowId, setWorkflowId] = useState('');
   const [basePrice, setBasePrice] = useState(0);
-  const [currency, setCurrency] = useState('USD');
   const [depositPercentage, setDepositPercentage] = useState(50);
   
   // Intake Form Schema State
@@ -38,16 +37,10 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
     
     setIsSubmitting(true);
     try {
-      const pricing = {
-        base_price: basePrice,
-        currency,
-        deposit_percentage: depositPercentage,
-      };
       // Pass the form schema to the server action
       await createService({
         name,
         basePrice,
-        currency,
         depositPercentage,
         blueprintId: workflowId || null,
         formSchema,
@@ -102,7 +95,7 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
           <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Pricing & Deposit</h3>
           <div className="q-grid-3">
             <div>
-              <label className="q-label">Base Price</label>
+              <label className="q-label">Base price ({currencyCode})</label>
               <input
                 type="number"
                 value={basePrice}
@@ -110,18 +103,6 @@ export function NewServiceForm({ workflowTemplates }: { workflowTemplates: any[]
                 min="0"
                 className="q-input"
               />
-            </div>
-            <div>
-              <label className="q-label">Currency</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="q-select"
-              >
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-              </select>
             </div>
             <div>
               <label className="q-label">Deposit Required (%)</label>

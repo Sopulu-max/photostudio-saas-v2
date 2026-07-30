@@ -16,17 +16,14 @@ import { TaskStatusControl } from './TaskStatusControl';
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
+import { formatMoney } from '@/kernel/currency';
 
 export const dynamic = 'force-dynamic';
 
-const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', EUR: '€', GBP: '£' };
-function money(amount: number, currency = 'USD') {
-  return `${CURRENCY_SYMBOL[currency] || ''}${Number(amount || 0).toLocaleString()} ${currency}`;
-}
 function linePrice(price: any) {
   const base = price?.base_price;
   if (base == null) return '—';
-  return money(base, price?.currency || 'USD');
+  return formatMoney(base, price?.currency || 'USD');
 }
 
 
@@ -297,7 +294,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     <span className={`q-badge ${t.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`} style={{ marginLeft: '8px' }}>{t.status}</span>
                   </div>
                   <div className="q-row">
-                    <span className="q-strong">{money(t.amount, t.currency)}</span>
+                    <span className="q-strong">{formatMoney(t.amount, t.currency)}</span>
                     <Link href={`/finances/${t.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.85rem' }}>Open</Link>
                   </div>
                 </div>

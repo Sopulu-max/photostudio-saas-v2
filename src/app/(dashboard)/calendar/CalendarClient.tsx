@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
+import { formatMoney } from '@/kernel/currency';
 
 type Item =
   | { kind: 'booking'; at: string; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; services: string[] }
@@ -16,7 +17,7 @@ const LAYERS = [
 ] as const;
 
 const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
-const money = (a: number, c: string) => `${c === 'USD' ? '$' : ''}${a.toLocaleString()}${c === 'USD' ? '' : ' ' + c}`;
+
 
 export function CalendarClient({
   items,
@@ -129,7 +130,7 @@ export function CalendarClient({
                       className="q-cal-chip"
                     >
                       <span className="q-dot q-dot-sm" style={{ ['--dot' as any]: LAYERS.find((l) => l.key === it.kind)!.dot }} />
-                      {it.kind === 'money' ? money((it as any).amount, (it as any).currency) : it.title}
+                      {it.kind === 'money' ? formatMoney((it as any).amount, (it as any).currency) : it.title}
                     </span>
                   ))}
                   {dayItems.length > 3 && (
@@ -192,7 +193,7 @@ export function CalendarClient({
                     {it.kind === 'money' && (
                       <>
                         <strong className="q-block q-cap">
-                          {money(it.amount, it.currency)} · {it.title}
+                          {formatMoney(it.amount, it.currency)} · {it.title}
                         </strong>
                         {it.bookingTitle && <div className="q-meta">{it.bookingTitle}</div>}
                         <div className="q-row" style={{ marginTop: '9px' }}>

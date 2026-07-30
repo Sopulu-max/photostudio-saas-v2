@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listBlueprints } from '@/modules/services/interface';
+import { getStudioCurrency } from '@/kernel/organizations';
 import { NewServiceForm } from './form';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export default async function NewServicePage() {
     redirect('/login');
   }
 
-  const blueprints = await listBlueprints();
+  const [blueprints, currencyCode] = await Promise.all([listBlueprints(), getStudioCurrency()]);
 
-  return <NewServiceForm workflowTemplates={blueprints} />;
+  return <NewServiceForm workflowTemplates={blueprints} currencyCode={currencyCode} />;
 }

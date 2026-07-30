@@ -4,15 +4,11 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { FileText, Play } from 'lucide-react';
 import { ActivateContractButton } from './ContractActions';
+import { formatMoney } from '@/kernel/currency';
 
 export const dynamic = 'force-dynamic';
 
-const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', EUR: '€', GBP: '£' };
 
-function money(amount: number, currency: string) {
-  const sym = CURRENCY_SYMBOL[currency] || '';
-  return `${sym}${Number(amount || 0).toLocaleString()} ${currency}`;
-}
 
 export default async function ContractDetailsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -98,7 +94,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '8px' }}>
             <div className="q-panel">
               <div className="q-stat-label">Total</div>
-              <div className="q-stat-value">{money(basePrice, currency)}</div>
+              <div className="q-stat-value">{formatMoney(basePrice, currency)}</div>
             </div>
             <div className="q-panel">
               <div className="q-stat-label">Deposit</div>
@@ -106,7 +102,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
             </div>
             <div className="q-panel">
               <div className="q-stat-label">Due now</div>
-              <div className="q-stat-value">{money(depositAmount, currency)}</div>
+              <div className="q-stat-value">{formatMoney(depositAmount, currency)}</div>
             </div>
           </div>
         </div>
@@ -123,7 +119,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
                     <span className={`q-badge ${tx.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`}>{tx.status}</span>
                   </div>
                   <div className="q-row">
-                    <span className="q-stat-value">{money(tx.amount, tx.currency)}</span>
+                    <span className="q-stat-value">{formatMoney(tx.amount, tx.currency)}</span>
                     <Link href={`/finances/${tx.id}`} className="q-btn q-btn-secondary q-meta-plain">
                       Open
                     </Link>
