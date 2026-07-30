@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listServices, listBlueprints } from '@/modules/services/interface';
+import { listServices, listBlueprints, listCategories } from '@/modules/services/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { ServiceTemplatesClient } from './client';
 
@@ -14,7 +14,9 @@ export default async function ServicesPage() {
   }
 
   // Through the module's interface — the page never touches its tables.
-  const [services, blueprints, currencyCode] = await Promise.all([listServices(), listBlueprints(), getStudioCurrency()]);
+  const [services, blueprints, categories, currencyCode] = await Promise.all([
+    listServices(), listBlueprints(), listCategories(), getStudioCurrency(),
+  ]);
 
-  return <ServiceTemplatesClient initialServices={services} blueprints={blueprints} currencyCode={currencyCode} />;
+  return <ServiceTemplatesClient initialServices={services} blueprints={blueprints} categories={categories} currencyCode={currencyCode} />;
 }

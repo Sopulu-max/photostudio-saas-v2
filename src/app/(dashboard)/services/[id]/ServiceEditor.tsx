@@ -21,9 +21,11 @@ export function ServiceEditor({
   blueprintId: initialBlueprint,
   durationMinutes: initialDuration,
   priceUnit: initialUnit,
+  categoryId: initialCategory,
   status,
   currencyCode,
   blueprints,
+  categories,
 }: {
   serviceId: string;
   name: string;
@@ -33,9 +35,11 @@ export function ServiceEditor({
   blueprintId: string | null;
   durationMinutes: number | null;
   priceUnit: string | null;
+  categoryId: string | null;
   status: string;
   currencyCode: string;
   blueprints: Blueprint[];
+  categories: { id: string; name: string }[];
 }) {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? '');
@@ -44,6 +48,7 @@ export function ServiceEditor({
   const [blueprintId, setBlueprintId] = useState(initialBlueprint ?? '');
   const [duration, setDuration] = useState(initialDuration ?? 0);
   const [unit, setUnit] = useState(initialUnit ?? '');
+  const [categoryId, setCategoryId] = useState(initialCategory ?? '');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -54,7 +59,8 @@ export function ServiceEditor({
     deposit !== String(initialDeposit ?? 0) ||
     blueprintId !== (initialBlueprint ?? '') ||
     duration !== (initialDuration ?? 0) ||
-    unit !== (initialUnit ?? '');
+    unit !== (initialUnit ?? '') ||
+    categoryId !== (initialCategory ?? '');
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -72,6 +78,7 @@ export function ServiceEditor({
       blueprintId: blueprintId || null,
       durationMinutes: duration > 0 ? duration : null,
       priceUnit: unit.trim() || null,
+      categoryId: categoryId || null,
     }));
 
   const retired = status === 'retired';
@@ -109,6 +116,15 @@ export function ServiceEditor({
           <label className="q-label">Deposit (%)</label>
           <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
         </div>
+      </div>
+
+      <div className="q-field">
+        <label className="q-label">Group</label>
+        <select className="q-select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="">Ungrouped</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <span className="q-meta-sm">How this sits in your catalogue. Manage groups on the Services page.</span>
       </div>
 
       <div className="q-field">

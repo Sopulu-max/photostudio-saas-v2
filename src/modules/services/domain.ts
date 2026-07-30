@@ -23,6 +23,7 @@ export async function createService(input: {
   depositPercentage?: number;
   durationMinutes?: number | null;
   priceUnit?: string | null;
+  categoryId?: string | null;
   blueprintId?: string | null;
   formSchema?: any[];
 }) {
@@ -48,6 +49,7 @@ export async function createService(input: {
       default_blueprint_id: input.blueprintId || null,
       duration_minutes: input.durationMinutes ?? null,
       price_unit: (input.priceUnit || '').trim() || null,
+      category_id: input.categoryId || null,
       form_schema: input.formSchema || [],
       status: 'active',
     })
@@ -76,7 +78,7 @@ export async function listServices() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('services')
-    .select('id, name, description, pricing, status, duration_minutes, price_unit, default_blueprint_id, blueprint:blueprints(id, name)')
+    .select('id, name, description, pricing, status, duration_minutes, price_unit, category_id, default_blueprint_id, blueprint:blueprints(id, name), category:service_categories(id, name, position)')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -220,6 +222,7 @@ export async function updateService(input: {
   depositPercentage?: number | null;
   durationMinutes?: number | null;
   priceUnit?: string | null;
+  categoryId?: string | null;
   blueprintId?: string | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
@@ -242,6 +245,8 @@ export async function updateService(input: {
   if (input.blueprintId !== undefined) patch.default_blueprint_id = input.blueprintId || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.priceUnit !== undefined) patch.price_unit = (input.priceUnit || '').trim() || null;
+  if (input.categoryId !== undefined) patch.category_id = input.categoryId || null;
+  if (input.categoryId !== undefined) patch.category_id = input.categoryId || null;
 
   if (input.basePrice !== undefined || input.depositPercentage !== undefined) {
     const pricing: any = { ...(existing.pricing as any) };
@@ -498,4 +503,75 @@ export async function updateServiceQuestions(input: { serviceId: string; questio
 export async function getLockedQuestionIds(serviceId: string): Promise<string[]> {
   const { getAnsweredQuestionIdsForService } = await import('@/modules/bookings/interface');
   return getAnsweredQuestionIdsForService(serviceId);
+}
+
+// ── Categories: how a studio arranges its own shelf ─────────────────────────
+
+export async function listCategories() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_categories')
+    .select('id, name, position')
+    .eq('organization_id', orgId)
+    .order('position');
+  if (error) {
+    console.error('Failed to list categories:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function createCategory(name: string) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const clean = (name || '').trim();
+  if (!clean) throw new Error('Give the group a name.');
+
+  const { data: last } = await supabaseAdmin
+    .from('service_categories')
+    .select('position')
+    .eq('organization_id', orgId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: row, error } = await supabaseAdmin
+    .from('service_categories')
+    .insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 })
+    .select('id')
+    .single();
+  if (error || !row) throw new Error('Failed to add the group (does that name already exist?)');
+
+  await logEvent({ organizationId: orgId, entityType: 'service_category', entityId: row.id, action: 'created', actorId: actorId ?? undefined, payload: { name: clean } });
+  revalidatePath('/services');
+  return { categoryId: row.id };
+}
+
+export async function renameCategory(input: { categoryId: string; name: string }) {
+  const { orgId } = await getAuthOrgId();
+  const clean = (input.name || '').trim();
+  if (!clean) throw new Error('Give the group a name.');
+
+  const { error } = await supabaseAdmin
+    .from('service_categories')
+    .update({ name: clean })
+    .eq('id', input.categoryId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to rename (does that name already exist?)');
+
+  revalidatePath('/services');
+  return { ok: true };
+}
+
+/** Removing a group never removes its services — they simply become ungrouped. */
+export async function deleteCategory(categoryId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('service_categories')
+    .delete()
+    .eq('id', categoryId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the group');
+
+  revalidatePath('/services');
+  return { ok: true };
 }

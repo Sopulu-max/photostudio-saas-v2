@@ -5,15 +5,18 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { NewBlueprintForm } from './NewBlueprintForm';
 import { BlueprintRow } from './BlueprintRow';
+import { CategoryManager } from './CategoryManager';
 import { formatMoney } from '@/kernel/currency';
 
 export function ServiceTemplatesClient({
   initialServices,
   blueprints = [],
+  categories = [],
   currencyCode = 'USD',
 }: {
   initialServices: any[];
   blueprints?: any[];
+  categories?: { id: string; name: string; position: number }[];
   currencyCode?: string;
 }) {
   const active = initialServices.filter((s: any) => s.status !== 'retired');
@@ -51,6 +54,7 @@ export function ServiceTemplatesClient({
         <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
       </header>
 
+      {(() => null)()}
       {initialServices.length === 0 ? (
         <div className="q-card q-empty-lg q-stack">
           <div className="q-empty-icon"><Package size={24} /></div>
@@ -62,8 +66,31 @@ export function ServiceTemplatesClient({
           <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>
       ) : (
-        <div className="q-grid-cards">
-          {active.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+        <div className="q-stack q-stack-lg">
+          {categories.map((cat) => {
+            const inCat = active.filter((s: any) => s.category_id === cat.id);
+            if (inCat.length === 0) return null;
+            return (
+              <section key={cat.id}>
+                <h2 className="q-section-title">{cat.name}</h2>
+                <div className="q-grid-cards">
+                  {inCat.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                </div>
+              </section>
+            );
+          })}
+          {(() => {
+            const ungrouped = active.filter((s: any) => !s.category_id);
+            if (ungrouped.length === 0) return null;
+            return (
+              <section>
+                {categories.length > 0 && <h2 className="q-section-title">Everything else</h2>}
+                <div className="q-grid-cards">
+                  {ungrouped.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                </div>
+              </section>
+            );
+          })()}
         </div>
       )}
 
@@ -78,6 +105,22 @@ export function ServiceTemplatesClient({
           </div>
         </section>
       )}
+
+      <section style={{ marginTop: '40px' }}>
+        <h2 className="q-section-title">Groups</h2>
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          How your catalogue is arranged. Your words — nothing in the app reads meaning into them.
+        </p>
+        <div className="q-card">
+          <CategoryManager
+            categories={categories}
+            counts={initialServices.reduce((acc: Record<string, number>, s: any) => {
+              if (s.category_id) acc[s.category_id] = (acc[s.category_id] || 0) + 1;
+              return acc;
+            }, {})}
+          />
+        </div>
+      </section>
 
       <section style={{ marginTop: '40px' }}>
         <h2 className="q-section-title">Blueprints</h2>

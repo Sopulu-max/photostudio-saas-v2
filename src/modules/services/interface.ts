@@ -20,4 +20,10 @@ export {
   getIntakeQuestionsPublic,
   updateServiceQuestions,
   getLockedQuestionIds,
+  // Categories — how the studio arranges its catalogue
+  listCategories,
+  createCategory,
+  renameCategory,
+  deleteCategory,
+  // Categories
 } from './domain';

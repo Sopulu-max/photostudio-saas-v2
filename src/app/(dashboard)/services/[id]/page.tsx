@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { listBlueprints, getIntakeQuestions, getLockedQuestionIds } from '@/modules/services/interface';
+import { listBlueprints, listCategories, getIntakeQuestions, getLockedQuestionIds } from '@/modules/services/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { ServiceEditor } from './ServiceEditor';
@@ -21,15 +21,16 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
   const { data: service } = await supabaseAdmin
     .from('services')
-    .select('id, name, description, pricing, status, duration_minutes, price_unit, form_schema, default_blueprint_id')
+    .select('id, name, description, pricing, status, duration_minutes, price_unit, category_id, form_schema, default_blueprint_id')
     .eq('id', params.id)
     .eq('organization_id', orgId)
     .single();
 
   if (!service) notFound();
 
-  const [blueprints, currencyCode, questions, lockedIds] = await Promise.all([
+  const [blueprints, categories, currencyCode, questions, lockedIds] = await Promise.all([
     listBlueprints(),
+    listCategories(),
     getStudioCurrency(),
     getIntakeQuestions(params.id),
     getLockedQuestionIds(params.id),
@@ -93,6 +94,8 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             blueprintId={service.default_blueprint_id}
             durationMinutes={service.duration_minutes}
             priceUnit={service.price_unit}
+            categoryId={service.category_id}
+            categories={categories}
             status={service.status}
             currencyCode={currencyCode}
             blueprints={blueprints}
