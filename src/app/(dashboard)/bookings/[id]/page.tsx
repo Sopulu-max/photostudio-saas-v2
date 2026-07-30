@@ -20,10 +20,20 @@ import { formatMoney } from '@/kernel/currency';
 
 export const dynamic = 'force-dynamic';
 
-function linePrice(price: any) {
+/** "₦200 × 3 hours = ₦600" when there's a unit; just the price when there isn't. */
+function linePrice(price: any, quantity: number) {
   const base = price?.base_price;
   if (base == null) return '—';
-  return formatMoney(base, price?.currency || 'USD');
+  const currency = price?.currency || 'USD';
+  const unit = price?.unit;
+  const qty = Number(quantity ?? 1);
+  if (qty === 1 && !unit) return formatMoney(base, currency);
+  const unitLabel = unit ? `${qty} ${unit}${qty === 1 ? '' : 's'}` : `× ${qty}`;
+  return `${formatMoney(base, currency)}${unit ? ' × ' : ' '}${unitLabel} = ${formatMoney(base * qty, currency)}`;
+}
+
+function lineTotal(l: any) {
+  return Number(l.price?.base_price || 0) * Number(l.quantity ?? 1);
 }
 
 
@@ -45,7 +55,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
       id, title, scheduled_for, duration_minutes, created_at, stage_id,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
-      booking_lines(id, title, price, service_id, status),
+      booking_lines(id, title, price, quantity, service_id, status),
       contracts(id, version, status),
       financial_transactions(id, type, amount, currency, status)
     `)
@@ -198,7 +208,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       <div>
                         <strong className="q-strong">{l.title}</strong>
                         <div className="q-meta q-num">
-                          {linePrice(l.price)}
+                          {linePrice(l.price, l.quantity)}
                           {w && <> · {w.completed}/{w.total} done</>}
                         </div>
                       </div>
@@ -209,6 +219,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                           lineId={l.id}
                           title={l.title}
                           basePrice={(l.price as any)?.base_price ?? null}
+                          quantity={Number(l.quantity ?? 1)}
+                          unit={(l.price as any)?.unit ?? null}
                           currency={(l.price as any)?.currency || 'USD'}
                           hasWork={!!w}
                         />
@@ -233,6 +245,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   </div>
                 );
               })}
+            </div>
+          )}
+          {lines.length > 0 && (
+            <div className="q-tile-sub q-row q-row-between">
+              <span className="q-meta">Total</span>
+              <strong className="q-stat-value">
+                {formatMoney(lines.reduce((sum: number, l: any) => sum + lineTotal(l), 0), (lines[0]?.price as any)?.currency)}
+              </strong>
             </div>
           )}
           <AddLineForm bookingId={booking.id} services={services || []} />

@@ -140,6 +140,7 @@ export async function addBookingLine(input: {
   serviceId?: string | null;
   title: string;
   price?: Record<string, unknown>;
+  quantity?: number;
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -151,7 +152,11 @@ export async function addBookingLine(input: {
     const svc = await getService(input.serviceId);
     if (svc) {
       if (!title) title = svc.name;
-      if (!input.price) price = (svc.pricing as Record<string, unknown>) || {};
+      if (!input.price) {
+        // Snapshot the unit alongside the price: what it was sold as, at the
+        // time it was sold.
+        price = { ...((svc.pricing as Record<string, unknown>) || {}), unit: (svc as any).price_unit ?? null };
+      }
     }
   }
   if (!title) throw new Error('A line needs a name.');
@@ -164,6 +169,7 @@ export async function addBookingLine(input: {
       service_id: input.serviceId ?? null,
       title,
       price,
+      quantity: input.quantity ?? 1,
     })
     .select()
     .single();
@@ -206,15 +212,16 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('price')
+    .select('price, quantity')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
 
+  // price × quantity — a line for "3 hours" is not billed as one hour.
   let total = 0;
   let currency = 'USD';
   for (const l of lines || []) {
     const p: any = l.price || {};
-    total += Number(p.base_price || 0);
+    total += Number(p.base_price || 0) * Number((l as any).quantity ?? 1);
     if (p.currency) currency = p.currency;
   }
   const terms = { base_price: total, deposit_percentage: 0, currency };
@@ -609,6 +616,7 @@ export async function updateBookingLine(input: {
   title?: string;
   basePrice?: number | null;
   currency?: string;
+  quantity?: number;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -625,6 +633,11 @@ export async function updateBookingLine(input: {
     const t = input.title.trim();
     if (!t) throw new Error('A line needs a name.');
     patch.title = t;
+  }
+  if (input.quantity !== undefined) {
+    const q = Number(input.quantity);
+    if (!Number.isFinite(q) || q <= 0) throw new Error('Quantity must be more than zero.');
+    patch.quantity = q;
   }
   if (input.basePrice !== undefined || input.currency !== undefined) {
     const price: any = { ...(line.price as any) };

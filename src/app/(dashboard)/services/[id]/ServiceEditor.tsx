@@ -20,6 +20,7 @@ export function ServiceEditor({
   depositPercentage: initialDeposit,
   blueprintId: initialBlueprint,
   durationMinutes: initialDuration,
+  priceUnit: initialUnit,
   status,
   currencyCode,
   blueprints,
@@ -31,6 +32,7 @@ export function ServiceEditor({
   depositPercentage: number;
   blueprintId: string | null;
   durationMinutes: number | null;
+  priceUnit: string | null;
   status: string;
   currencyCode: string;
   blueprints: Blueprint[];
@@ -41,6 +43,7 @@ export function ServiceEditor({
   const [deposit, setDeposit] = useState(String(initialDeposit ?? 0));
   const [blueprintId, setBlueprintId] = useState(initialBlueprint ?? '');
   const [duration, setDuration] = useState(initialDuration ?? 0);
+  const [unit, setUnit] = useState(initialUnit ?? '');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -50,7 +53,8 @@ export function ServiceEditor({
     price !== String(initialPrice ?? 0) ||
     deposit !== String(initialDeposit ?? 0) ||
     blueprintId !== (initialBlueprint ?? '') ||
-    duration !== (initialDuration ?? 0);
+    duration !== (initialDuration ?? 0) ||
+    unit !== (initialUnit ?? '');
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -67,6 +71,7 @@ export function ServiceEditor({
       depositPercentage: deposit === '' ? 0 : parseInt(deposit, 10),
       blueprintId: blueprintId || null,
       durationMinutes: duration > 0 ? duration : null,
+      priceUnit: unit.trim() || null,
     }));
 
   const retired = status === 'retired';
@@ -84,11 +89,22 @@ export function ServiceEditor({
           placeholder="What the client gets. Shown on the booking page." />
       </div>
 
-      <div className="q-grid-2">
+      <div className="q-grid-3">
         <div className="q-field">
           <label className="q-label">Base price ({currencyCode})</label>
           <input className="q-input" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
+        <div className="q-field">
+          <label className="q-label">Priced per</label>
+          <input className="q-input" value={unit} onChange={(e) => setUnit(e.target.value)}
+            placeholder="flat price" list="unit-suggestions" />
+          <datalist id="unit-suggestions">
+            <option value="hour" /><option value="day" /><option value="person" />
+            <option value="image" /><option value="print" /><option value="room" />
+          </datalist>
+          <span className="q-meta-sm">Leave blank for a flat price. Otherwise a booking can say &ldquo;3 hours&rdquo;.</span>
+        </div>
+
         <div className="q-field">
           <label className="q-label">Deposit (%)</label>
           <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />

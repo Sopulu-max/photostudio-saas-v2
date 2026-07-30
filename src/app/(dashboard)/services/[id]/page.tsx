@@ -21,7 +21,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
   const { data: service } = await supabaseAdmin
     .from('services')
-    .select('id, name, description, pricing, status, duration_minutes, form_schema, default_blueprint_id')
+    .select('id, name, description, pricing, status, duration_minutes, price_unit, form_schema, default_blueprint_id')
     .eq('id', params.id)
     .eq('organization_id', orgId)
     .single();
@@ -92,6 +92,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             depositPercentage={depositPct}
             blueprintId={service.default_blueprint_id}
             durationMinutes={service.duration_minutes}
+            priceUnit={service.price_unit}
             status={service.status}
             currencyCode={currencyCode}
             blueprints={blueprints}

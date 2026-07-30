@@ -20,6 +20,8 @@ export function LineActions({
   lineId,
   title,
   basePrice,
+  quantity,
+  unit,
   currency,
   hasWork,
 }: {
@@ -27,6 +29,8 @@ export function LineActions({
   lineId: string;
   title: string;
   basePrice: number | null;
+  quantity: number;
+  unit: string | null;
   currency: string;
   hasWork: boolean;
 }) {
@@ -35,19 +39,23 @@ export function LineActions({
   const [confirming, setConfirming] = useState(false);
   const [t, setT] = useState(title);
   const [p, setP] = useState(basePrice == null ? '' : String(basePrice));
+  const [qty, setQty] = useState(String(quantity ?? 1));
 
   if (editing) {
     return (
       <div className="q-row" style={{ marginTop: '10px' }}>
         <input className="q-input" value={t} onChange={(e) => setT(e.target.value)} placeholder="Line name" style={{ minWidth: '12rem' }} />
         <input className="q-input" type="number" min="0" step="0.01" value={p} onChange={(e) => setP(e.target.value)} placeholder="price" style={{ width: '8rem' }} />
+        <input className="q-input" type="number" min="0" step="0.5" value={qty} onChange={(e) => setQty(e.target.value)}
+          placeholder="qty" title={unit ? `How many ${unit}s` : 'How many'} style={{ width: '6rem' }} />
+        {unit && <span className="q-meta-sm">{unit}s</span>}
         <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
           onClick={() => t.trim() && run(
-            () => updateBookingLine({ lineId, bookingId, title: t, basePrice: p === '' ? null : parseFloat(p), currency }),
+            () => updateBookingLine({ lineId, bookingId, title: t, basePrice: p === '' ? null : parseFloat(p), currency, quantity: parseFloat(qty) || 1 }),
             () => setEditing(false))}>
           Save
         </button>
-        <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setT(title); setP(basePrice == null ? '' : String(basePrice)); }}>
+        <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setT(title); setP(basePrice == null ? '' : String(basePrice)); setQty(String(quantity ?? 1)); }}>
           Cancel
         </button>
       </div>
