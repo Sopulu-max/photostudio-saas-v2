@@ -127,3 +127,39 @@ export async function setStudioCurrency(code: string) {
   revalidatePath('/services');
   return { ok: true };
 }
+
+/**
+ * Rename the studio, or change the handle its public links use.
+ *
+ * The slug is in every public URL (/book/<slug>/…), so changing it breaks links
+ * already shared with clients — the UI says so before you do it.
+ */
+export async function updateStudio(input: { name?: string; slug?: string }) {
+  const { orgId } = await getAuthOrgId();
+
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('Your studio needs a name.');
+    patch.name = name;
+  }
+  if (input.slug !== undefined) {
+    const slug = input.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!slug) throw new Error('The handle needs at least one letter or number.');
+    patch.slug = slug;
+  }
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabaseAdmin
+    .from('organizations')
+    .update(patch)
+    .eq('id', orgId);
+  if (error) {
+    console.error('Failed to update studio:', error);
+    throw new Error('Failed to save (is that handle already taken?)');
+  }
+
+  revalidatePath('/settings');
+  revalidatePath('/dashboard');
+  return { ok: true };
+}

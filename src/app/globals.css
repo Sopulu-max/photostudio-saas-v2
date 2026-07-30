@@ -655,3 +655,5 @@ body {
 .q-btn-ghost  { border: none; background: transparent; cursor: pointer; padding: 6px 10px; font-weight: 500; }
 .q-empty-icon { width: 54px; height: 54px; border-radius: 15px; background: var(--q-color-accent-soft); color: var(--q-color-accent); display: flex; align-items: center; justify-content: center; }
 .q-fill { flex: 1 1 auto; }
+.q-link { color: var(--q-color-accent); text-decoration: none; font-weight: 500; }
+.q-link:hover { text-decoration: underline; }
