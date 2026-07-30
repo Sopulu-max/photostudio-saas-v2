@@ -15,4 +15,9 @@ export {
   deleteBlueprint,
   listBlueprints,
   getProductionPlanForService,
+  // Intake questions
+  getIntakeQuestions,
+  getIntakeQuestionsPublic,
+  updateServiceQuestions,
+  getLockedQuestionIds,
 } from './domain';

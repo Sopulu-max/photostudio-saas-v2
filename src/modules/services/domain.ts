@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { getStudioCurrency } from '@/kernel/organizations';
+import { fieldType, type IntakeQuestion } from './fieldTypes';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -364,4 +365,129 @@ export async function deleteBlueprint(blueprintId: string) {
 
   revalidatePath('/services');
   return { ok: true };
+}
+
+// ── Intake questions: what a service asks a client ──────────────────────────
+
+/**
+ * The questions a service asks. Read by the public booking form (to render the
+ * right widget per type) and by the booking hub (to label the answers).
+ */
+export async function getIntakeQuestions(serviceId: string): Promise<IntakeQuestion[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('services')
+    .select('form_schema')
+    .eq('id', serviceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  return normaliseQuestions(data?.form_schema);
+}
+
+/** Public read — the booking page has no session. */
+export async function getIntakeQuestionsPublic(serviceId: string): Promise<IntakeQuestion[]> {
+  const { data } = await supabaseAdmin
+    .from('services')
+    .select('form_schema')
+    .eq('id', serviceId)
+    .maybeSingle();
+  return normaliseQuestions(data?.form_schema);
+}
+
+function normaliseQuestions(raw: unknown): IntakeQuestion[] {
+  return ((raw as any[]) || [])
+    .filter((q) => q && q.id && q.label)
+    .map((q) => ({
+      id: String(q.id),
+      type: (q.type || 'text') as IntakeQuestion['type'],
+      label: String(q.label),
+      required: !!q.required,
+      help: q.help ? String(q.help) : undefined,
+      options: Array.isArray(q.options) ? q.options.map(String) : undefined,
+    }));
+}
+
+/**
+ * Rewrite a service's questions.
+ *
+ * Two rules, both traced from what happens to answers already collected:
+ *  · a question's TYPE is locked once a client has answered it — changing it
+ *    would leave "about 40" sitting in a number field.
+ *  · removing a question is allowed; bookings keep the answers they hold and
+ *    show them as "(question removed)". A client told you something real.
+ */
+export async function updateServiceQuestions(input: { serviceId: string; questions: IntakeQuestion[] }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: service } = await supabaseAdmin
+    .from('services')
+    .select('form_schema')
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!service) throw new Error('Service not found');
+
+  const before = normaliseQuestions(service.form_schema);
+
+  // Clean and check each question against its own type's rules.
+  const questions: IntakeQuestion[] = [];
+  for (const q of input.questions || []) {
+    const label = (q.label || '').trim();
+    if (!label) continue;
+    const def = fieldType(q.type);
+    const options = def.needsOptions
+      ? (q.options || []).map((o) => String(o).trim()).filter(Boolean)
+      : undefined;
+    if (def.needsOptions && (!options || options.length === 0)) {
+      throw new Error(`"${label}" needs at least one choice.`);
+    }
+    questions.push({
+      id: q.id || crypto.randomUUID(),
+      type: def.key,
+      label,
+      required: !!q.required,
+      help: (q.help || '').trim() || undefined,
+      options,
+    });
+  }
+
+  // The type lock — ask Bookings which questions already carry answers.
+  const { getAnsweredQuestionIdsForService } = await import('@/modules/bookings/interface');
+  const answered = new Set(await getAnsweredQuestionIdsForService(input.serviceId));
+  for (const q of questions) {
+    const was = before.find((b) => b.id === q.id);
+    if (was && was.type !== q.type && answered.has(q.id)) {
+      throw new Error(
+        `"${was.label}" has already been answered by a client, so its type can't change. Add a new question instead.`
+      );
+    }
+  }
+
+  const { error } = await supabaseAdmin
+    .from('services')
+    .update({ form_schema: questions })
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to save questions:', error);
+    throw new Error('Failed to save the questions');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'questions_updated',
+    actorId: actorId ?? undefined,
+    payload: { count: questions.length },
+  });
+
+  revalidatePath(`/services/${input.serviceId}`);
+  return { ok: true };
+}
+
+/** Which of a service's questions are type-locked, for the editor to grey out. */
+export async function getLockedQuestionIds(serviceId: string): Promise<string[]> {
+  const { getAnsweredQuestionIdsForService } = await import('@/modules/bookings/interface');
+  return getAnsweredQuestionIdsForService(serviceId);
 }

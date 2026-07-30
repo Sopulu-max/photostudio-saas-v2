@@ -8,7 +8,7 @@ import { SetClientForm } from './SetClientForm';
 import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
-import { listStages } from '@/modules/bookings/interface';
+import { listStages, getIntakeAnswersForBooking } from '@/modules/bookings/interface';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
 import { stageBadgeClass } from '@/components/stageBadge';
@@ -71,12 +71,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // Crew, roster and work through Production's interface.
   const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const [crew, candidates, work, deliveries, stages] = await Promise.all([
+  const [crew, candidates, work, deliveries, stages, intake] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
     listDeliveriesForBooking(booking.id),
     listStages(),
+    getIntakeAnswersForBooking(booking.id),
   ]);
 
   const lines: any[] = booking.booking_lines || [];
@@ -128,6 +129,23 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
         </Section>
+
+        {/* What the client told us — answers to the service's intake questions */}
+        {intake.length > 0 && (
+          <Section title="What the client told us">
+            <div className="q-stack q-stack-sm">
+              {intake.map((row: any, i: number) => (
+                <div key={i} className="q-tile q-row q-row-between">
+                  <div>
+                    <strong className="q-strong">{row.label}</strong>
+                    {row.removed && <span className="q-meta-sm"> · no longer asked</span>}
+                  </div>
+                  <span className="q-meta-plain">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         {/* When */}
         <Section title="When">

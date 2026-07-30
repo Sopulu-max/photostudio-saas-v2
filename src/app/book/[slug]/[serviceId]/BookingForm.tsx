@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { fieldType } from '@/modules/services/fieldTypes';
 import { submitBookingForm } from './actions';
 
 interface BookingFormProps {
@@ -98,30 +99,66 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema }: Booki
 
       {formSchema && formSchema.length > 0 && (
         <div className="q-divider">
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '1.25rem' }}>Additional Information</h3>
+          <h3 className="q-section-title">A few details</h3>
           <div className="q-stack q-stack-md">
-            {formSchema.map((field) => (
-              <div key={field.id}>
-                <label className="q-label">
-                  {field.label} {field.required && <span className="q-danger">*</span>}
-                </label>
-                {field.type === 'textarea' ? (
-                  <textarea
-                    required={field.required}
-                    value={customFields[field.id] || ''}
-                    onChange={(e) => setCustomFields({ ...customFields, [field.id]: e.target.value })}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--q-color-ink-200)', minHeight: '100px', resize: 'vertical' }}
-                  />
-                ) : (
-                  <input className="q-input"
-                    type={field.type}
-                    required={field.required}
-                    value={customFields[field.id] || ''}
-                    onChange={(e) => setCustomFields({ ...customFields, [field.id]: e.target.value })}
-                  />
-                )}
-              </div>
-            ))}
+            {formSchema.map((field: any) => {
+              const def = fieldType(field.type);
+              const value = customFields[field.id];
+              const set = (v: any) => setCustomFields({ ...customFields, [field.id]: v });
+
+              return (
+                <div className="q-field" key={field.id}>
+                  <label className="q-label">
+                    {field.label} {field.required && <span className="q-danger">*</span>}
+                  </label>
+
+                  {field.type === 'textarea' ? (
+                    <textarea className="q-textarea" required={field.required}
+                      value={value || ''} onChange={(e) => set(e.target.value)} />
+
+                  ) : field.type === 'boolean' ? (
+                    <label className="q-row q-meta-plain" style={{ gap: '8px' }}>
+                      <input type="checkbox" checked={value === true} onChange={(e) => set(e.target.checked)} />
+                      Yes
+                    </label>
+
+                  ) : field.type === 'choice' ? (
+                    <select className="q-select" required={field.required}
+                      value={value || ''} onChange={(e) => set(e.target.value)}>
+                      <option value="">Choose…</option>
+                      {(field.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+
+                  ) : field.type === 'multichoice' ? (
+                    <div className="q-stack q-stack-sm">
+                      {(field.options || []).map((o: string) => {
+                        const picked: string[] = Array.isArray(value) ? value : [];
+                        return (
+                          <label key={o} className="q-row q-meta-plain" style={{ gap: '8px' }}>
+                            <input
+                              type="checkbox"
+                              checked={picked.includes(o)}
+                              onChange={(e) => set(e.target.checked ? [...picked, o] : picked.filter((x) => x !== o))}
+                            />
+                            {o}
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                  ) : (
+                    <input className="q-input"
+                      type={def.inputType || 'text'}
+                      required={field.required}
+                      value={value ?? ''}
+                      onChange={(e) => set(e.target.value)}
+                    />
+                  )}
+
+                  {field.help && <span className="q-meta-sm">{field.help}</span>}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

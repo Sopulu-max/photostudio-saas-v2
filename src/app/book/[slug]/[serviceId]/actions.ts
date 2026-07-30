@@ -1,6 +1,8 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getIntakeQuestionsPublic } from '@/modules/services/interface';
+import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
 
 /**
  * Public booking intake. A lead is a booking in `inquiry` status — no separate
@@ -70,6 +72,14 @@ export async function submitBookingForm(
     .maybeSingle();
   if (!service) throw new Error('This service is no longer available.');
 
+  // Never trust the browser: validate the answers against the service's own
+  // questions, and normalise them to each type's storage shape.
+  const questions = await getIntakeQuestionsPublic(service.id);
+  const errors = validateAnswers(questions, formData.customFields || {});
+  const firstError = Object.values(errors)[0];
+  if (firstError) throw new Error(firstError);
+  const storedAnswers = storeAnswers(questions, formData.customFields || {});
+
   // 4. The booking lands on the studio's first enquiry-kind stage — whatever
   //    they have chosen to call it.
   // Prefer an enquiry-kind stage, but never REQUIRE one — a studio may not use
@@ -92,7 +102,7 @@ export async function submitBookingForm(
       contact_id: contactId,
       title: `${displayName} — ${service.name}`,
       stage_id: landingStage.id,
-      metadata: { source: 'public_booking_page', form_responses: formData.customFields },
+      metadata: { source: 'public_booking_page', form_responses: storedAnswers },
     })
     .select('id')
     .single();

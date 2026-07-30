@@ -784,3 +784,86 @@ export async function setDefaultStage(stageId: string) {
   revalidateStageSurfaces();
   return { ok: true };
 }
+
+/**
+ * Which intake questions for a service already have answers on real bookings.
+ *
+ * Services asks this before letting a studio change a question's TYPE: once a
+ * client has answered, changing the type would corrupt the stored value. The
+ * answers live here (booking metadata), the questions live in Services — so
+ * this is the seam between them.
+ */
+export async function getAnsweredQuestionIdsForService(serviceId: string): Promise<string[]> {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: rows } = await supabaseAdmin
+    .from('bookings')
+    .select('metadata, booking_lines!inner(service_id)')
+    .eq('organization_id', orgId)
+    .eq('booking_lines.service_id', serviceId);
+
+  const ids = new Set<string>();
+  for (const r of (rows || []) as any[]) {
+    const answers = r.metadata?.form_responses;
+    if (answers && typeof answers === 'object') {
+      for (const [qid, value] of Object.entries(answers)) {
+        const empty = value === null || value === undefined || value === '' ||
+          (Array.isArray(value) && value.length === 0);
+        if (!empty) ids.add(qid);
+      }
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
+ * What the client told us when they booked — the answers, paired with the
+ * questions that produced them.
+ *
+ * This closes a loop that was half-built: intake answers were collected on the
+ * public form and stored, but no surface ever showed them. Questions belong to
+ * Services, so we ask for them per service; answers whose question has since
+ * been removed are kept and marked, because a client genuinely said that.
+ */
+export async function getIntakeAnswersForBooking(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('metadata, booking_lines(service_id)')
+    .eq('id', bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+
+  const answers = (booking?.metadata as any)?.form_responses;
+  if (!answers || typeof answers !== 'object') return [];
+
+  // The questions come from Services — never read its tables from here.
+  const { getIntakeQuestions } = await import('@/modules/services/interface');
+  const serviceIds = Array.from(
+    new Set(((booking as any).booking_lines || []).map((l: any) => l.service_id).filter(Boolean))
+  ) as string[];
+
+  const questions = (await Promise.all(serviceIds.map((id) => getIntakeQuestions(id)))).flat();
+  const byId = new Map(questions.map((q) => [q.id, q]));
+
+  const { fieldType } = await import('@/modules/services/fieldTypes');
+
+  const rows: { label: string; value: string; removed: boolean }[] = [];
+  // Asked questions first, in the order the studio arranged them.
+  for (const q of questions) {
+    if (!(q.id in answers)) continue;
+    const v = answers[q.id];
+    const empty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+    if (empty) continue;
+    rows.push({ label: q.label, value: fieldType(q.type).display(v), removed: false });
+  }
+  // Then anything answered whose question has since been removed.
+  for (const [qid, v] of Object.entries(answers)) {
+    if (byId.has(qid)) continue;
+    const empty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+    if (empty) continue;
+    rows.push({ label: 'Question removed', value: Array.isArray(v) ? v.join(', ') : String(v), removed: true });
+  }
+  return rows;
+}

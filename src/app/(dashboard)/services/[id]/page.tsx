@@ -2,10 +2,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { listBlueprints } from '@/modules/services/interface';
+import { listBlueprints, getIntakeQuestions, getLockedQuestionIds } from '@/modules/services/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { ServiceEditor } from './ServiceEditor';
+import { QuestionEditor } from './QuestionEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,12 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
   if (!service) notFound();
 
-  const [blueprints, currencyCode] = await Promise.all([listBlueprints(), getStudioCurrency()]);
+  const [blueprints, currencyCode, questions, lockedIds] = await Promise.all([
+    listBlueprints(),
+    getStudioCurrency(),
+    getIntakeQuestions(params.id),
+    getLockedQuestionIds(params.id),
+  ]);
 
   const pricing: any = service.pricing || {};
   const basePrice = Number(pricing.base_price || 0);
@@ -41,7 +47,6 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
     .eq('organization_id', orgId)
     .eq('service_id', service.id);
 
-  const formFields: any[] = service.form_schema || [];
 
   return (
     <div className="q-page-narrow">
@@ -94,23 +99,10 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
         <div className="q-card q-section">
           <h2 className="q-section-title">Intake questions</h2>
-          {formFields.length === 0 ? (
-            <p className="q-empty">
-              No extra questions. Name, email and phone are always collected on the booking page.
-            </p>
-          ) : (
-            <div className="q-stack q-stack-sm">
-              {formFields.map((field: any, i: number) => (
-                <div key={i} className="q-tile q-row q-row-between">
-                  <strong className="q-strong">{field.label}</strong>
-                  <div className="q-row">
-                    <span className="q-badge q-badge-neutral">{field.type}</span>
-                    {field.required && <span className="q-meta-sm">required</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            What a client is asked when they book this online.
+          </p>
+          <QuestionEditor serviceId={service.id} questions={questions} lockedIds={lockedIds} />
         </div>
 
       </div>
