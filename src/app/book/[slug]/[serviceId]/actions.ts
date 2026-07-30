@@ -72,14 +72,18 @@ export async function submitBookingForm(
 
   // 4. The booking lands on the studio's first enquiry-kind stage — whatever
   //    they have chosen to call it.
-  const { data: enquiryStage } = await supabaseAdmin
+  // Prefer an enquiry-kind stage, but never REQUIRE one — a studio may not use
+  // that idea at all. Fall back to their default stage, then to the first.
+  const { data: stages } = await supabaseAdmin
     .from('booking_stages')
-    .select('id')
+    .select('id, kind, is_default, position')
     .eq('organization_id', orgId)
-    .eq('kind', 'enquiry')
-    .order('position')
-    .limit(1)
-    .maybeSingle();
+    .order('position');
+  const landingStage =
+    (stages || []).find((s: any) => s.kind === 'enquiry') ||
+    (stages || []).find((s: any) => s.is_default) ||
+    (stages || [])[0];
+  if (!landingStage) throw new Error('This studio has no booking stages configured.');
 
   const { data: booking, error: bookingError } = await supabaseAdmin
     .from('bookings')
@@ -87,7 +91,7 @@ export async function submitBookingForm(
       organization_id: orgId,
       contact_id: contactId,
       title: `${displayName} — ${service.name}`,
-      stage_id: enquiryStage?.id ?? null,
+      stage_id: landingStage.id,
       metadata: { source: 'public_booking_page', form_responses: formData.customFields },
     })
     .select('id')

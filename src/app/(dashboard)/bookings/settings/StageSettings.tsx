@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createStage, deleteStage, updateStage } from '@/modules/bookings/interface';
+import { createStage, deleteStage, updateStage, setDefaultStage } from '@/modules/bookings/interface';
 import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
 
 type Stage = { id: string; name: string; kind: string; color: string | null; position: number; is_default: boolean };
@@ -80,6 +80,10 @@ function StageRow({ stage }: { stage: Stage }) {
             {stage.is_default && <span className="q-meta-sm">· new bookings start here</span>}
           </div>
           <div className="q-row">
+            {!stage.is_default && (
+              <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
+                onClick={() => run(() => setDefaultStage(stage.id))}>Start here</button>
+            )}
             <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Edit</button>
             <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
               onClick={() => run(() => deleteStage(stage.id))}>Remove</button>

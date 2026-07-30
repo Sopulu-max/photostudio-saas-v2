@@ -516,8 +516,9 @@ export async function deleteStage(stageId: string) {
 
   const { data: stages } = await supabaseAdmin
     .from('booking_stages')
-    .select('id, is_default')
-    .eq('organization_id', orgId);
+    .select('id, is_default, position')
+    .eq('organization_id', orgId)
+    .order('position');
   if ((stages || []).length <= 1) throw new Error('Keep at least one stage.');
 
   const fallback = (stages || []).find((s: any) => s.is_default && s.id !== stageId) || (stages || []).find((s: any) => s.id !== stageId);
@@ -526,6 +527,17 @@ export async function deleteStage(stageId: string) {
   await supabaseAdmin.from('bookings').update({ stage_id: fallback.id }).eq('organization_id', orgId).eq('stage_id', stageId);
   const { error } = await supabaseAdmin.from('booking_stages').delete().eq('id', stageId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to remove the stage');
+
+  // Removing the default would leave the studio without one — promote the
+  // stage its bookings just moved to.
+  const removedTheDefault = (stages || []).some((s: any) => s.id === stageId && s.is_default);
+  if (removedTheDefault) {
+    await supabaseAdmin
+      .from('booking_stages')
+      .update({ is_default: true })
+      .eq('id', fallback.id)
+      .eq('organization_id', orgId);
+  }
 
   revalidateStageSurfaces();
   return { ok: true };
@@ -751,6 +763,23 @@ export async function updateStage(input: { stageId: string; name?: string; color
     .eq('id', input.stageId)
     .eq('organization_id', orgId);
   if (error) throw new Error('Failed to save the stage (does that name already exist?)');
+
+  revalidateStageSurfaces();
+  return { ok: true };
+}
+
+/** Choose which stage new bookings start on. Exactly one stage is the default. */
+export async function setDefaultStage(stageId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: stage } = await supabaseAdmin
+    .from('booking_stages').select('id').eq('id', stageId).eq('organization_id', orgId).maybeSingle();
+  if (!stage) throw new Error('Stage not found');
+
+  await supabaseAdmin.from('booking_stages').update({ is_default: false }).eq('organization_id', orgId).neq('id', stageId);
+  const { error } = await supabaseAdmin
+    .from('booking_stages').update({ is_default: true }).eq('id', stageId).eq('organization_id', orgId);
+  if (error) throw new Error('Failed to set the starting stage');
 
   revalidateStageSurfaces();
   return { ok: true };

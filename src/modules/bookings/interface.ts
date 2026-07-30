@@ -23,6 +23,7 @@ export {
   setStageColor,
   updateStage,
   deleteStage,
+  setDefaultStage,
   listBookingsInRange,
   setBookingClient,
   addBookingLine,
