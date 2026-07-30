@@ -25,5 +25,8 @@ export {
   createCategory,
   renameCategory,
   deleteCategory,
+  // Services' own settings
+  getServiceDefaults,
+  setServiceDefaults,
   // Categories
 } from './domain';

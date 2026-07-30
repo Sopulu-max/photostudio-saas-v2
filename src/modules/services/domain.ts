@@ -575,3 +575,46 @@ export async function deleteCategory(categoryId: string) {
   revalidatePath('/services');
   return { ok: true };
 }
+
+// ── Services' own settings ──────────────────────────────────────────────────
+// A module owns its configuration. These are studio-wide but only meaningful to
+// Services, so Services owns reading and writing them; the organization row is
+// just where the bag is kept.
+
+export type ServiceDefaults = { depositPercentage: number };
+
+export async function getServiceDefaults(): Promise<ServiceDefaults> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('metadata')
+    .eq('id', orgId)
+    .maybeSingle();
+  const bag = ((data?.metadata as any)?.services) || {};
+  const pct = Number(bag.deposit_percentage);
+  return { depositPercentage: Number.isFinite(pct) ? pct : 50 };
+}
+
+export async function setServiceDefaults(input: ServiceDefaults) {
+  const { orgId } = await getAuthOrgId();
+  const pct = Number(input.depositPercentage);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) throw new Error('Deposit must be between 0 and 100.');
+
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('metadata')
+    .eq('id', orgId)
+    .maybeSingle();
+
+  const metadata = { ...((org?.metadata as any) || {}) };
+  metadata.services = { ...(metadata.services || {}), deposit_percentage: pct };
+
+  const { error } = await supabaseAdmin
+    .from('organizations')
+    .update({ metadata })
+    .eq('id', orgId);
+  if (error) throw new Error('Failed to save the default');
+
+  revalidatePath('/services/settings');
+  return { ok: true };
+}
