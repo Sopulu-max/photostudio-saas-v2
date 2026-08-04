@@ -56,7 +56,7 @@ export async function listEmployees() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('employees')
-    .select('id, status, title, created_at, contact:contacts(id, display_name, email, phone), employee_roles(role:roles(id, name))')
+    .select('id, status, title, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -64,6 +64,179 @@ export async function listEmployees() {
     throw new Error('Failed to load the team');
   }
   return data || [];
+}
+
+/** One employee, with everything the detail page shows. */
+export async function getEmployee(employeeId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('employees')
+    .select('id, status, title, skills, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
+    .eq('id', employeeId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * An employee was write-once until now. Identity (name/email/phone) lives on
+ * the kernel contact; role/skills live on the employee row — this updates
+ * whichever side the caller actually passed.
+ */
+export async function updateEmployee(input: {
+  employeeId: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  title?: string | null;
+  skills?: string[];
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: existing } = await supabaseAdmin
+    .from('employees')
+    .select('id, contact_id')
+    .eq('id', input.employeeId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!existing) throw new Error('Employee not found');
+
+  const contactPatch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('An employee needs a name.');
+    contactPatch.display_name = name;
+  }
+  if (input.email !== undefined) contactPatch.email = input.email || null;
+  if (input.phone !== undefined) contactPatch.phone = input.phone || null;
+  if (Object.keys(contactPatch).length > 0) {
+    const { error } = await supabaseAdmin
+      .from('contacts')
+      .update(contactPatch)
+      .eq('id', existing.contact_id)
+      .eq('organization_id', orgId);
+    if (error) {
+      console.error('Failed to update employee contact:', error);
+      throw new Error('Failed to save the employee');
+    }
+  }
+
+  const employeePatch: Record<string, unknown> = {};
+  if (input.title !== undefined) employeePatch.title = input.title || null;
+  if (input.skills !== undefined) employeePatch.skills = input.skills;
+  if (Object.keys(employeePatch).length > 0) {
+    const { error } = await supabaseAdmin
+      .from('employees')
+      .update(employeePatch)
+      .eq('id', input.employeeId)
+      .eq('organization_id', orgId);
+    if (error) {
+      console.error('Failed to update employee:', error);
+      throw new Error('Failed to save the employee');
+    }
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'employee',
+    entityId: input.employeeId,
+    action: 'updated',
+    actorId: actorId ?? undefined,
+    payload: { ...contactPatch, ...employeePatch },
+  });
+
+  revalidatePath('/team');
+  revalidatePath(`/team/${input.employeeId}`);
+  return { ok: true };
+}
+
+/** Archive an employee, or bring them back. Never deletes — past assignments keep their contact. */
+export async function setEmployeeStatus(input: { employeeId: string; status: 'active' | 'archived' }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('employees')
+    .update({ status: input.status })
+    .eq('id', input.employeeId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to change the employee');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'employee',
+    entityId: input.employeeId,
+    action: input.status === 'archived' ? 'archived' : 'restored',
+    actorId: actorId ?? undefined,
+  });
+
+  revalidatePath('/team');
+  revalidatePath(`/team/${input.employeeId}`);
+  return { ok: true };
+}
+
+/** Take a role back off an employee. The role itself survives. */
+export async function removeRoleAssignment(input: { employeeId: string; roleId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('employee_roles')
+    .delete()
+    .eq('employee_id', input.employeeId)
+    .eq('role_id', input.roleId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the role');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'employee',
+    entityId: input.employeeId,
+    action: 'role_removed',
+    actorId: actorId ?? undefined,
+    payload: { roleId: input.roleId },
+  });
+
+  revalidatePath('/team');
+  revalidatePath(`/team/${input.employeeId}`);
+  return { ok: true };
+}
+
+/** Rename a role or change its description. */
+export async function updateRole(input: { roleId: string; name?: string; description?: string | null }) {
+  const { orgId } = await getAuthOrgId();
+
+  const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) throw new Error('A role needs a name.');
+    patch.name = name;
+  }
+  if (input.description !== undefined) patch.description = input.description || null;
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await supabaseAdmin
+    .from('roles')
+    .update(patch)
+    .eq('id', input.roleId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to save the role (does that name already exist?)');
+
+  revalidatePath('/team');
+  return { ok: true };
+}
+
+/** Remove a role entirely. Employees who had it just lose the badge — nothing else references a role. */
+export async function deleteRole(roleId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('roles')
+    .delete()
+    .eq('id', roleId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to remove the role');
+
+  revalidatePath('/team');
+  return { ok: true };
 }
 
 export async function createRole(input: { name: string; description?: string }) {

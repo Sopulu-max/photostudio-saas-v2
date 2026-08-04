@@ -292,7 +292,9 @@ export async function listCrewForBooking(bookingId: string) {
 export async function listAssignableEmployees() {
   const { listEmployees } = await import('@/modules/team/interface');
   const employees = await listEmployees();
-  return employees.map((e: any) => ({
+  // Archived employees aren't offered for a new assignment — same rule as
+  // retired services and archived clients.
+  return employees.filter((e: any) => e.status !== 'archived').map((e: any) => ({
     employeeId: e.id,
     name: e.contact?.display_name as string,
     roles: (e.employee_roles || []).map((er: any) => ({ id: er.role?.id, name: er.role?.name })).filter((r: any) => r.id),

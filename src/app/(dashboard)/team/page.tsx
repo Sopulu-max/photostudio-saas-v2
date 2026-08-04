@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listEmployees, listRoles } from '@/modules/team/interface';
+import { ContactAvatar } from '@/components/ContactAvatar';
 import { AddEmployeeForm, NewRoleForm, AssignRoleControl } from './TeamForms';
+import { RoleManager } from './RoleManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +33,7 @@ export default async function TeamPage() {
           <table className="q-table">
             <thead>
               <tr>
+                <th className="q-table-th"></th>
                 <th className="q-table-th">Employee</th>
                 <th className="q-table-th">Contact</th>
                 <th className="q-table-th">Title</th>
@@ -40,14 +44,19 @@ export default async function TeamPage() {
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="q-table-td q-center-text q-muted">
+                  <td colSpan={6} className="q-table-td q-center-text q-muted">
                     No employees yet.
                   </td>
                 </tr>
               ) : (
                 employees.map((e: any) => (
                   <tr key={e.id} className="q-table-tr">
-                    <td className="q-table-td q-strong">{e.contact?.display_name}</td>
+                    <td className="q-table-td" style={{ width: '1%' }}>
+                      <ContactAvatar name={e.contact?.display_name || ''} url={e.contact?.avatar_url} size="sm" />
+                    </td>
+                    <td className="q-table-td q-strong">
+                      <Link href={`/team/${e.id}`} className="q-plain-link">{e.contact?.display_name}</Link>
+                    </td>
                     <td className="q-table-td q-meta">
                       {e.contact?.email || e.contact?.phone || '—'}
                     </td>
@@ -82,7 +91,7 @@ export default async function TeamPage() {
             {roles.length === 0 ? (
               <span className="q-meta">No roles defined yet.</span>
             ) : (
-              roles.map((r: any) => <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>)
+              roles.map((r: any) => <RoleManager key={r.id} role={r} />)
             )}
           </div>
           <NewRoleForm />
