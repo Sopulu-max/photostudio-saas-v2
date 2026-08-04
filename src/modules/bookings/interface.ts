@@ -26,6 +26,7 @@ export {
   deleteStage,
   setDefaultStage,
   listBookingsInRange,
+  listBookingsForContact,
   getAnsweredQuestionIdsForService,
   getIntakeAnswersForBooking,
   setBookingClient,

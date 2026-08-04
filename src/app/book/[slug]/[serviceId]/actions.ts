@@ -22,18 +22,39 @@ export async function submitBookingForm(
     email: string;
     phone: string;
     customFields: Record<string, any>;
+    extraIds?: string[];
   }
 ) {
   const displayName = `${formData.firstName} ${formData.lastName}`.trim();
 
-  // 1. Find or create the contact (kernel party)
+  // 1. Find or create the contact (kernel party). Email is the primary match;
+  // if it doesn't hit but a phone was given, try that too — a client who
+  // mistypes or changes their email shouldn't fork into a second record.
+  // (.limit(1) here is picking one candidate match, not blindly fetching an
+  // organization — still scoped by organization_id above it.)
   let contactId: string;
-  const { data: existing } = await supabaseAdmin
-    .from('contacts')
-    .select('id')
-    .eq('organization_id', orgId)
-    .eq('email', formData.email)
-    .maybeSingle();
+  let existing = (
+    await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('email', formData.email)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+  ).data;
+  if (!existing && formData.phone) {
+    existing = (
+      await supabaseAdmin
+        .from('contacts')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('phone', formData.phone)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    ).data;
+  }
 
   if (existing) {
     contactId = existing.id;
@@ -55,12 +76,16 @@ export async function submitBookingForm(
     contactId = contact.id;
   }
 
-  // 2. Record them as a client (idempotent — unique on org+contact)
+  // 2. Record them as a client (idempotent — unique on org+contact). Always
+  // set status active: a real new booking is unambiguous evidence they're
+  // engaged again, so this also reactivates anyone the studio had archived —
+  // leaving them archived while a live booking sits against them would be a
+  // standing contradiction, not a studio decision worth preserving.
   await supabaseAdmin
     .from('clients')
     .upsert(
-      { organization_id: orgId, contact_id: contactId },
-      { onConflict: 'organization_id,contact_id', ignoreDuplicates: true }
+      { organization_id: orgId, contact_id: contactId, status: 'active' },
+      { onConflict: 'organization_id,contact_id' }
     );
 
   // 3. The service, for the line's snapshot and the booking title
@@ -119,6 +144,29 @@ export async function submitBookingForm(
     title: service.name,
     price: service.pricing || {},
   });
+
+  // 5b. Any add-ons the client picked — each becomes its own line, snapshotted
+  // at today's price, exactly like a custom line. Never trust the browser for
+  // the price: look extras up again by id, scoped to this service and org.
+  const extraIds = (formData.extraIds || []).filter(Boolean);
+  if (extraIds.length > 0) {
+    const { data: chosenExtras } = await supabaseAdmin
+      .from('service_extras')
+      .select('id, name, price, price_unit')
+      .in('id', extraIds)
+      .eq('service_id', service.id)
+      .eq('organization_id', orgId);
+
+    const currency = (service.pricing as any)?.currency;
+    for (const extra of chosenExtras || []) {
+      await supabaseAdmin.from('booking_lines').insert({
+        organization_id: orgId,
+        booking_id: booking.id,
+        title: extra.name,
+        price: { base_price: Number(extra.price), currency, unit: extra.price_unit },
+      });
+    }
+  }
 
   // 6. Organizational memory
   await supabaseAdmin.from('events').insert({

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listBlueprints } from '@/modules/services/interface';
+import { listBlueprints, getServiceDefaults } from '@/modules/services/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { NewServiceForm } from './form';
 
@@ -13,7 +13,16 @@ export default async function NewServicePage() {
     redirect('/login');
   }
 
-  const [blueprints, currencyCode] = await Promise.all([listBlueprints(), getStudioCurrency()]);
+  const [blueprints, currencyCode, defaults] = await Promise.all([
+    listBlueprints(), getStudioCurrency(), getServiceDefaults(),
+  ]);
 
-  return <NewServiceForm workflowTemplates={blueprints} currencyCode={currencyCode} />;
+  return (
+    <NewServiceForm
+      workflowTemplates={blueprints}
+      currencyCode={currencyCode}
+      defaultPaymentPolicy={defaults.paymentPolicy}
+      defaultDepositPercentage={defaults.depositPercentage}
+    />
+  );
 }

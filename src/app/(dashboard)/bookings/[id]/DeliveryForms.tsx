@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useTransition } from 'react';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -135,9 +135,14 @@ export function ShareControl({
 }) {
   const { isPending, run } = useAction();
   const [copied, setCopied] = useState(false);
+  // Start relative so server and first client render match — swap in the
+  // full origin after mount to avoid a hydration mismatch on the input value.
+  const [url, setUrl] = useState(`/gallery/${shareToken}`);
+  useEffect(() => {
+    if (shareToken) setUrl(`${window.location.origin}/gallery/${shareToken}`);
+  }, [shareToken]);
 
   if (status === 'shared' && shareToken) {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/gallery/${shareToken}` : `/gallery/${shareToken}`;
     return (
       <div className="q-row">
         <input readOnly value={url} className="q-input" style={{ flex: 1, minWidth: '14rem', fontFamily: 'var(--q-font-mono)', fontSize: '0.75rem' }} />

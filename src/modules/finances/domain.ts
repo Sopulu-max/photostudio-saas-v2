@@ -90,6 +90,7 @@ export async function raiseInvoiceForBooking(input: {
   organizationId: string;
   bookingId: string;
   contactId?: string | null;
+  contractId?: string | null;
   label: string;
   amount: number;
   currency?: string;
@@ -104,7 +105,7 @@ export async function raiseInvoiceForBooking(input: {
       organization_id: input.organizationId,
       booking_id: input.bookingId,
       contact_id: input.contactId ?? null,
-      contract_id: null,
+      contract_id: input.contractId ?? null,
       direction: 'inbound',
       type: (input.label || '').trim() || 'invoice',
       amount,
@@ -129,6 +130,60 @@ export async function raiseInvoiceForBooking(input: {
   });
 
   return { transactionId: tx.id };
+}
+
+/** Every transaction for this org — the ledger. */
+export async function listTransactions() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('id, type, direction, amount, currency, status, due_date, settled_at, created_at, contact:contacts(id, display_name), contract:contracts(id, version), booking:bookings(id, title)')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to list transactions:', error);
+    return [];
+  }
+  return data || [];
+}
+
+/** One transaction, with what it's tied to. */
+export async function getTransaction(transactionId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('id, type, direction, amount, currency, status, due_date, settled_at, created_at, contact:contacts(id, display_name, email), contract:contracts(id, version)')
+    .eq('id', transactionId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * What a client has actually paid, net of refunds — the same settled-inbound-
+ * minus-settled-outbound netting used on a single booking, rolled up across
+ * every booking for this contact.
+ */
+export async function getPaymentSummaryForContact(contactId: string): Promise<{ paid: number; pending: number; currency: string }> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('amount, currency, status, direction')
+    .eq('organization_id', orgId)
+    .eq('contact_id', contactId);
+
+  let paid = 0;
+  let pending = 0;
+  let currency = 'USD';
+  for (const t of (data || []) as any[]) {
+    if (t.currency) currency = t.currency;
+    if (t.status === 'settled') {
+      paid += t.direction === 'outbound' ? -Number(t.amount || 0) : Number(t.amount || 0);
+    } else if (t.status === 'pending') {
+      pending += Number(t.amount || 0);
+    }
+  }
+  return { paid, pending, currency };
 }
 
 /**

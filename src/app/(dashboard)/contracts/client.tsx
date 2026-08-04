@@ -7,9 +7,15 @@ export function ContractsClient({ initialContracts }: { initialContracts: any[] 
 
   return (
     <div>
-      <header className="q-page-header">
-        <h1 className="q-page-title">Contracts</h1>
-        <p className="q-page-subtitle">Active commitments and signed contracts.</p>
+      <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h1 className="q-page-title">Contracts</h1>
+          <p className="q-page-subtitle">Active commitments and signed contracts.</p>
+        </div>
+        <div className="q-row">
+          <Link href="/contracts/settings" className="q-btn q-btn-secondary">Settings</Link>
+          <Link href="/bookings" className="q-btn q-btn-primary">+ New contract</Link>
+        </div>
       </header>
 
       <div className="q-card q-table-container">
@@ -26,7 +32,8 @@ export function ContractsClient({ initialContracts }: { initialContracts: any[] 
             {initialContracts.length === 0 ? (
               <tr>
                 <td colSpan={4} className="q-table-td q-center-text q-muted">
-                  No contracts found.
+                  No contracts yet. Contracts are drafted from a booking — open one and click &ldquo;Create a contract&rdquo;, or{' '}
+                  <Link href="/bookings" className="q-link">start from Bookings</Link>.
                 </td>
               </tr>
             ) : (

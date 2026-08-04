@@ -16,10 +16,13 @@ import { revalidatePath } from 'next/cache';
  * ("standard editing") can back many services.
  */
 
+export type PaymentPolicy = 'deposit' | 'full';
+
 export async function createService(input: {
   name: string;
   description?: string;
   basePrice?: number;
+  paymentPolicy?: PaymentPolicy;
   depositPercentage?: number;
   durationMinutes?: number | null;
   priceUnit?: string | null;
@@ -33,10 +36,13 @@ export async function createService(input: {
 
   // The studio bills in one currency — read it rather than defaulting to USD.
   const currency = await getStudioCurrency();
+  const paymentPolicy: PaymentPolicy = input.paymentPolicy === 'full' ? 'full' : 'deposit';
+  // Full payment is never partial — the stored percentage can't be trusted to
+  // say 100, so the policy itself is what anything downstream must check.
   const pricing = {
     base_price: input.basePrice ?? 0,
     currency,
-    deposit_percentage: input.depositPercentage ?? 0,
+    deposit_percentage: paymentPolicy === 'full' ? 100 : (input.depositPercentage ?? 0),
   };
 
   const { data: service, error } = await supabaseAdmin
@@ -46,6 +52,7 @@ export async function createService(input: {
       name,
       description: input.description || null,
       pricing,
+      payment_policy: paymentPolicy,
       default_blueprint_id: input.blueprintId || null,
       duration_minutes: input.durationMinutes ?? null,
       price_unit: (input.priceUnit || '').trim() || null,
@@ -78,7 +85,7 @@ export async function listServices() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('services')
-    .select('id, name, description, pricing, status, duration_minutes, price_unit, category_id, default_blueprint_id, blueprint:blueprints(id, name), category:service_categories(id, name, position)')
+    .select('id, name, description, pricing, status, duration_minutes, price_unit, category_id, payment_policy, default_blueprint_id, blueprint:blueprints(id, name), category:service_categories(id, name, position)')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -88,12 +95,32 @@ export async function listServices() {
   return data || [];
 }
 
+/**
+ * The storefront — active services only, no session. The public booking
+ * index asks this rather than reading the table (and rather than reusing
+ * listServices, which would need an authenticated org and includes retired
+ * services the public should never see).
+ */
+export async function listServicesPublic(orgId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('services')
+    .select('id, name, description, pricing, duration_minutes, price_unit, category_id')
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to list public services:', error);
+    return [];
+  }
+  return data || [];
+}
+
 /** A single service's sellable detail — what Bookings needs to build a line. */
 export async function getService(serviceId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('services')
-    .select('id, name, pricing, duration_minutes, price_unit')
+    .select('id, name, pricing, duration_minutes, price_unit, payment_policy')
     .eq('id', serviceId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -219,6 +246,7 @@ export async function updateService(input: {
   name?: string;
   description?: string | null;
   basePrice?: number | null;
+  paymentPolicy?: PaymentPolicy;
   depositPercentage?: number | null;
   durationMinutes?: number | null;
   priceUnit?: string | null;
@@ -229,7 +257,7 @@ export async function updateService(input: {
 
   const { data: existing } = await supabaseAdmin
     .from('services')
-    .select('id, name, pricing, duration_minutes, price_unit')
+    .select('id, name, pricing, duration_minutes, price_unit, payment_policy')
     .eq('id', input.serviceId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -246,12 +274,15 @@ export async function updateService(input: {
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.priceUnit !== undefined) patch.price_unit = (input.priceUnit || '').trim() || null;
   if (input.categoryId !== undefined) patch.category_id = input.categoryId || null;
-  if (input.categoryId !== undefined) patch.category_id = input.categoryId || null;
 
-  if (input.basePrice !== undefined || input.depositPercentage !== undefined) {
+  const nextPolicy: PaymentPolicy = input.paymentPolicy ?? (existing.payment_policy as PaymentPolicy) ?? 'deposit';
+  if (input.paymentPolicy !== undefined) patch.payment_policy = nextPolicy;
+
+  if (input.basePrice !== undefined || input.depositPercentage !== undefined || input.paymentPolicy !== undefined) {
     const pricing: any = { ...(existing.pricing as any) };
     if (input.basePrice !== undefined) pricing.base_price = input.basePrice ?? 0;
-    if (input.depositPercentage !== undefined) pricing.deposit_percentage = input.depositPercentage ?? 0;
+    // Full payment is never partial, regardless of what a stale percentage said.
+    pricing.deposit_percentage = nextPolicy === 'full' ? 100 : (input.depositPercentage ?? pricing.deposit_percentage ?? 0);
     patch.pricing = pricing;
   }
   if (Object.keys(patch).length === 0) return { ok: true };
@@ -521,6 +552,20 @@ export async function listCategories() {
   return data || [];
 }
 
+/** A studio's own catalogue groups, for the public storefront — no session. */
+export async function listCategoriesPublic(orgId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('service_categories')
+    .select('id, name, position')
+    .eq('organization_id', orgId)
+    .order('position');
+  if (error) {
+    console.error('Failed to list public categories:', error);
+    return [];
+  }
+  return data || [];
+}
+
 export async function createCategory(name: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const clean = (name || '').trim();
@@ -576,12 +621,149 @@ export async function deleteCategory(categoryId: string) {
   return { ok: true };
 }
 
+/**
+ * Payment policy for many services at once — Bookings asks for this when
+ * drafting a contract, rather than reaching into the services table itself.
+ */
+export async function getPaymentPoliciesForServices(
+  serviceIds: string[]
+): Promise<Record<string, { policy: PaymentPolicy; depositPercentage: number }>> {
+  if (serviceIds.length === 0) return {};
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('services')
+    .select('id, pricing, payment_policy')
+    .in('id', serviceIds)
+    .eq('organization_id', orgId);
+  const map: Record<string, { policy: PaymentPolicy; depositPercentage: number }> = {};
+  for (const row of (data || []) as any[]) {
+    const policy: PaymentPolicy = row.payment_policy === 'full' ? 'full' : 'deposit';
+    map[row.id] = {
+      policy,
+      depositPercentage: policy === 'full' ? 100 : Number((row.pricing as any)?.deposit_percentage || 0),
+    };
+  }
+  return map;
+}
+
+// ── Extras: optional add-ons a service carries ──────────────────────────────
+// Not a sellable concept of its own — an extra only exists in relation to the
+// service that defines it (cascade-deleted with it), and consumption reuses
+// booking_lines exactly as a custom line already does: an extra becomes a
+// line with its own snapshotted name/price, added the same way a plain
+// custom line is. Nothing new was needed in Bookings for this to work.
+
+export type ServiceExtra = { id: string; name: string; price: number; unit: string | null };
+
+export async function listServiceExtras(serviceId: string): Promise<ServiceExtra[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('service_extras')
+    .select('id, name, price, price_unit')
+    .eq('service_id', serviceId)
+    .eq('organization_id', orgId)
+    .order('position');
+  return (data || []).map((e: any) => ({ id: e.id, name: e.name, price: Number(e.price), unit: e.price_unit }));
+}
+
+/** Public read — the booking page has no session. */
+export async function listServiceExtrasPublic(serviceId: string): Promise<ServiceExtra[]> {
+  const { data } = await supabaseAdmin
+    .from('service_extras')
+    .select('id, name, price, price_unit')
+    .eq('service_id', serviceId)
+    .order('position');
+  return (data || []).map((e: any) => ({ id: e.id, name: e.name, price: Number(e.price), unit: e.price_unit }));
+}
+
+/**
+ * Extras for many services at once — Bookings asks for this in bulk when
+ * building the "add a line" picker, rather than one call per service.
+ */
+export async function listExtrasForServices(serviceIds: string[]): Promise<Record<string, ServiceExtra[]>> {
+  if (serviceIds.length === 0) return {};
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('service_extras')
+    .select('id, service_id, name, price, price_unit')
+    .in('service_id', serviceIds)
+    .eq('organization_id', orgId)
+    .order('position');
+  const map: Record<string, ServiceExtra[]> = {};
+  for (const row of data || []) {
+    (map[row.service_id] ??= []).push({ id: row.id, name: row.name, price: Number(row.price), unit: row.price_unit });
+  }
+  return map;
+}
+
+/**
+ * Rewrite a service's extras in one go, like questions. Safe to fully replace:
+ * an extra carries no identity a booking line depends on — a line snapshots
+ * the name and price at add-time, so editing or removing the definition never
+ * touches a booking that already used it.
+ */
+export async function updateServiceExtras(input: {
+  serviceId: string;
+  extras: { name: string; price: number; unit?: string | null }[];
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: service } = await supabaseAdmin
+    .from('services')
+    .select('id')
+    .eq('id', input.serviceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!service) throw new Error('Service not found');
+
+  const clean = (input.extras || [])
+    .map((e, i) => ({
+      name: (e.name || '').trim(),
+      price: Number(e.price) || 0,
+      price_unit: (e.unit || '').trim() || null,
+      position: i,
+    }))
+    .filter((e) => e.name);
+
+  const { error: delErr } = await supabaseAdmin
+    .from('service_extras')
+    .delete()
+    .eq('service_id', input.serviceId)
+    .eq('organization_id', orgId);
+  if (delErr) {
+    console.error('Failed to clear extras:', delErr);
+    throw new Error('Failed to save extras');
+  }
+
+  if (clean.length > 0) {
+    const { error: insErr } = await supabaseAdmin
+      .from('service_extras')
+      .insert(clean.map((e) => ({ ...e, organization_id: orgId, service_id: input.serviceId })));
+    if (insErr) {
+      console.error('Failed to save extras:', insErr);
+      throw new Error('Failed to save extras');
+    }
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'extras_updated',
+    actorId: actorId ?? undefined,
+    payload: { count: clean.length },
+  });
+
+  revalidatePath(`/services/${input.serviceId}`);
+  return { ok: true };
+}
+
 // ── Services' own settings ──────────────────────────────────────────────────
 // A module owns its configuration. These are studio-wide but only meaningful to
 // Services, so Services owns reading and writing them; the organization row is
 // just where the bag is kept.
 
-export type ServiceDefaults = { depositPercentage: number };
+export type ServiceDefaults = { paymentPolicy: PaymentPolicy; depositPercentage: number };
 
 export async function getServiceDefaults(): Promise<ServiceDefaults> {
   const { orgId } = await getAuthOrgId();
@@ -592,13 +774,17 @@ export async function getServiceDefaults(): Promise<ServiceDefaults> {
     .maybeSingle();
   const bag = ((data?.metadata as any)?.services) || {};
   const pct = Number(bag.deposit_percentage);
-  return { depositPercentage: Number.isFinite(pct) ? pct : 50 };
+  return {
+    paymentPolicy: bag.payment_policy === 'full' ? 'full' : 'deposit',
+    depositPercentage: Number.isFinite(pct) ? pct : 50,
+  };
 }
 
 export async function setServiceDefaults(input: ServiceDefaults) {
   const { orgId } = await getAuthOrgId();
   const pct = Number(input.depositPercentage);
   if (!Number.isFinite(pct) || pct < 0 || pct > 100) throw new Error('Deposit must be between 0 and 100.');
+  const paymentPolicy: PaymentPolicy = input.paymentPolicy === 'full' ? 'full' : 'deposit';
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
@@ -607,7 +793,7 @@ export async function setServiceDefaults(input: ServiceDefaults) {
     .maybeSingle();
 
   const metadata = { ...((org?.metadata as any) || {}) };
-  metadata.services = { ...(metadata.services || {}), deposit_percentage: pct };
+  metadata.services = { ...(metadata.services || {}), payment_policy: paymentPolicy, deposit_percentage: pct };
 
   const { error } = await supabaseAdmin
     .from('organizations')

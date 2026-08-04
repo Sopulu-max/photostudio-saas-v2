@@ -9,6 +9,8 @@ import { AddCrewForm, RemoveCrewButton } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
 import { listStages, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
+import { listExtrasForServices } from '@/modules/services/interface';
+import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
 import { stageBadgeClass } from '@/components/stageBadge';
@@ -56,8 +58,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(id, title, price, quantity, service_id, status),
-      contracts(id, version, status),
-      financial_transactions(id, type, amount, currency, status)
+      contracts(id, version, status, terms, created_at),
+      financial_transactions(id, type, amount, currency, status, direction)
     `)
     .eq('id', params.id)
     .eq('organization_id', orgId)
@@ -75,13 +77,16 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   // Clients come through the Clients module's interface — composition, not a
   // reach into its tables.
   const clientRows = await listClients();
+  // Archived clients aren't offered for a new assignment — same rule as retired services.
   const clientOptions = clientRows
+    .filter((c: any) => c.status !== 'archived')
     .map((c: any) => ({ contactId: c.contact?.id as string, name: c.contact?.display_name as string }))
     .filter((c: { contactId: string; name: string }) => !!c.contactId);
 
   // Crew, roster and work through Production's interface.
   const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes] = await Promise.all([
+  const serviceIds = (services || []).map((s: any) => s.id);
+  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, extrasByService, currencyCode] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
@@ -89,11 +94,37 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     listStages(),
     getIntakeAnswersForBooking(booking.id),
     suggestedDurationForBooking(booking.id),
+    listExtrasForServices(serviceIds),
+    getStudioCurrency(),
   ]);
 
   const lines: any[] = booking.booking_lines || [];
   const contracts: any[] = booking.contracts || [];
   const txns: any[] = booking.financial_transactions || [];
+
+  // What's due to book, per the contract's own terms — suggested, never
+  // forced. An operator can always raise something else instead. A booking
+  // can have more than one contract once an earlier one is closed out, so
+  // "latest" means most recently created, not just last in the array — and
+  // an open one (still worth something) always wins over a closed one even
+  // if it's older, since a cancelled contract's terms aren't live anymore.
+  const byNewest = [...contracts].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+  const hasOpenContract = contracts.some((c: any) => !['completed', 'cancelled'].includes(c.status));
+  const latestContract = byNewest.find((c: any) => !['completed', 'cancelled'].includes(c.status)) || byNewest[0];
+  const contractTerms: any = latestContract?.terms || {};
+  const contractDepositPct = Number(contractTerms.deposit_percentage || 0);
+  const contractBasePrice = Number(contractTerms.base_price || 0);
+  const suggestedInvoiceAmount = contractDepositPct > 0 ? (contractBasePrice * contractDepositPct) / 100 : undefined;
+  const suggestedInvoiceLabel = contractDepositPct >= 100 ? 'Full payment' : `${contractDepositPct}% deposit`;
+
+  // What's actually landed vs what's still owed. A refund (outbound) reduces
+  // what counts as paid rather than being its own separate figure — it's
+  // money that came back out, not a different kind of debt.
+  const paidTotal = txns
+    .filter((t) => t.status === 'settled')
+    .reduce((sum, t) => sum + (t.direction === 'outbound' ? -Number(t.amount || 0) : Number(t.amount || 0)), 0);
+  const pendingTotal = txns.filter((t) => t.status === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const outstanding = contractBasePrice > 0 ? Math.max(contractBasePrice - paidTotal, 0) : 0;
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="q-card q-section">
@@ -255,18 +286,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               </strong>
             </div>
           )}
-          <AddLineForm bookingId={booking.id} services={services || []} />
+          <AddLineForm bookingId={booking.id} services={services || []} extrasByService={extrasByService} currencyCode={currencyCode} />
         </Section>
 
         {/* Contract */}
         <Section title="Contract">
-          {contracts.length === 0 ? (
-            <div>
-              <div className="q-muted">No contract yet — this booking runs fine without one. Add terms whenever you're ready.</div>
-              <CreateContractButton bookingId={booking.id} />
-            </div>
-          ) : (
-            <div className="q-stack">
+          {contracts.length > 0 && (
+            <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
               {contracts.map((c) => (
                 <div key={c.id} className="q-tile q-row q-row-between">
                   <div className="q-row">
@@ -276,6 +302,16 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   <Link href={`/contracts/${c.id}`} className="q-btn q-btn-secondary q-btn-sm">Open</Link>
                 </div>
               ))}
+            </div>
+          )}
+          {!hasOpenContract && (
+            <div>
+              <div className="q-muted">
+                {contracts.length === 0
+                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
+                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
+              </div>
+              <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />
             </div>
           )}
         </Section>
@@ -327,6 +363,24 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* Money */}
         <Section title="Invoices & Payments">
+          {contractBasePrice > 0 && (
+            <div className="q-grid-3" style={{ marginBottom: '16px' }}>
+              <div className="q-panel">
+                <div className="q-stat-label">Paid</div>
+                <div className="q-stat-value">{formatMoney(paidTotal, contractTerms.currency || currencyCode)}</div>
+              </div>
+              <div className="q-panel">
+                <div className="q-stat-label">Outstanding</div>
+                <div className="q-stat-value">{formatMoney(outstanding, contractTerms.currency || currencyCode)}</div>
+              </div>
+              {pendingTotal > 0 && (
+                <div className="q-panel">
+                  <div className="q-stat-label">Pending</div>
+                  <div className="q-stat-value q-warm">{formatMoney(pendingTotal, contractTerms.currency || currencyCode)}</div>
+                </div>
+              )}
+            </div>
+          )}
           {txns.length === 0 ? (
             <div className="q-muted">No money on this booking yet.</div>
           ) : (
@@ -335,7 +389,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
                   <div>
                     <strong className="q-cap">{String(t.type).replace(/_/g, ' ')}</strong>
-                    <span className={`q-badge ${t.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`} style={{ marginLeft: '8px' }}>{t.status}</span>
+                    <span className={`q-badge ${
+                      t.status === 'settled' ? 'q-badge-success' :
+                      t.status === 'pending' ? 'q-badge-warning' :
+                      t.status === 'voided' ? 'q-badge-danger' : 'q-badge-neutral'
+                    }`} style={{ marginLeft: '8px' }}>{t.status}</span>
+                    {t.direction === 'outbound' && <span className="q-badge q-badge-neutral" style={{ marginLeft: '4px' }}>refund</span>}
                   </div>
                   <div className="q-row">
                     <span className="q-strong">{formatMoney(t.amount, t.currency)}</span>
@@ -345,7 +404,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               ))}
             </div>
           )}
-          <AddInvoiceForm bookingId={booking.id} />
+          <AddInvoiceForm
+            bookingId={booking.id}
+            currencyCode={contractTerms.currency || currencyCode}
+            suggestedLabel={suggestedInvoiceLabel}
+            suggestedAmount={suggestedInvoiceAmount}
+          />
         </Section>
 
       </div>

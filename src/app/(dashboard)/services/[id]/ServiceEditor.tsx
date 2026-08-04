@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateService, setServiceStatus } from '@/modules/services/interface';
+import type { PaymentPolicy } from '@/modules/services/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
 
 type Blueprint = { id: string; name: string };
@@ -17,6 +18,7 @@ export function ServiceEditor({
   name: initialName,
   description: initialDescription,
   basePrice: initialPrice,
+  paymentPolicy: initialPolicy,
   depositPercentage: initialDeposit,
   blueprintId: initialBlueprint,
   durationMinutes: initialDuration,
@@ -31,6 +33,7 @@ export function ServiceEditor({
   name: string;
   description: string | null;
   basePrice: number;
+  paymentPolicy: PaymentPolicy;
   depositPercentage: number;
   blueprintId: string | null;
   durationMinutes: number | null;
@@ -44,6 +47,7 @@ export function ServiceEditor({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? '');
   const [price, setPrice] = useState(String(initialPrice ?? 0));
+  const [policy, setPolicy] = useState<PaymentPolicy>(initialPolicy ?? 'deposit');
   const [deposit, setDeposit] = useState(String(initialDeposit ?? 0));
   const [blueprintId, setBlueprintId] = useState(initialBlueprint ?? '');
   const [duration, setDuration] = useState(initialDuration ?? 0);
@@ -56,6 +60,7 @@ export function ServiceEditor({
     name.trim() !== initialName ||
     description !== (initialDescription ?? '') ||
     price !== String(initialPrice ?? 0) ||
+    policy !== (initialPolicy ?? 'deposit') ||
     deposit !== String(initialDeposit ?? 0) ||
     blueprintId !== (initialBlueprint ?? '') ||
     duration !== (initialDuration ?? 0) ||
@@ -74,6 +79,7 @@ export function ServiceEditor({
       name,
       description: description.trim() || null,
       basePrice: price === '' ? 0 : parseFloat(price),
+      paymentPolicy: policy,
       depositPercentage: deposit === '' ? 0 : parseInt(deposit, 10),
       blueprintId: blueprintId || null,
       durationMinutes: duration > 0 ? duration : null,
@@ -113,10 +119,23 @@ export function ServiceEditor({
         </div>
 
         <div className="q-field">
-          <label className="q-label">Deposit (%)</label>
-          <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+          <label className="q-label">Payment</label>
+          <select className="q-select" value={policy} onChange={(e) => setPolicy(e.target.value as PaymentPolicy)}>
+            <option value="deposit">Deposit required</option>
+            <option value="full">Full payment required</option>
+          </select>
         </div>
       </div>
+
+      {policy === 'deposit' ? (
+        <div className="q-field" style={{ maxWidth: '12rem' }}>
+          <label className="q-label">Deposit (%)</label>
+          <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+          <span className="q-meta-sm">0% means nothing is due to book — the full amount is invoiced later.</span>
+        </div>
+      ) : (
+        <span className="q-meta-sm">The full price is due before the booking is confirmed. No partial option.</span>
+      )}
 
       <div className="q-field">
         <label className="q-label">Group</label>

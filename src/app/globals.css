@@ -365,6 +365,24 @@ body {
 .q-table-tr:hover { background: var(--q-color-ink-50); }
 .q-table-td { padding: 15px 16px; }
 
+/* ---- Avatars (photo, or initials fallback) ---- */
+.q-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  overflow: hidden;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--q-color-accent-text);
+  background: var(--q-color-accent);
+}
+.q-avatar-sm { width: 32px; height: 32px; font-size: 0.7rem; }
+.q-avatar-md { width: 48px; height: 48px; font-size: 0.95rem; }
+.q-avatar-lg { width: 88px; height: 88px; font-size: 1.6rem; }
+
 /* ---- Badges (pills) ---- */
 .q-badge {
   display: inline-flex;

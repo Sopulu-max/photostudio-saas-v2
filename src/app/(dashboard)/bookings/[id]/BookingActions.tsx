@@ -15,11 +15,11 @@ function useAction() {
   return { isPending, run };
 }
 
-export function CreateContractButton({ bookingId }: { bookingId: string }) {
+export function CreateContractButton({ bookingId, label = 'Create a contract' }: { bookingId: string; label?: string }) {
   const { isPending, run } = useAction();
   return (
     <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => run(() => createContractForBooking(bookingId))}>
-      {isPending ? 'Creating…' : 'Create a contract'}
+      {isPending ? 'Creating…' : label}
     </button>
   );
 }
@@ -33,7 +33,17 @@ export function StartWorkButton({ bookingId, lineId }: { bookingId: string; line
   );
 }
 
-export function AddInvoiceForm({ bookingId }: { bookingId: string }) {
+export function AddInvoiceForm({
+  bookingId,
+  currencyCode,
+  suggestedLabel,
+  suggestedAmount,
+}: {
+  bookingId: string;
+  currencyCode: string;
+  suggestedLabel?: string;
+  suggestedAmount?: number;
+}) {
   const { isPending, run } = useAction();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('Deposit');
@@ -42,14 +52,29 @@ export function AddInvoiceForm({ bookingId }: { bookingId: string }) {
   const submit = () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
-    run(() => addInvoiceToBooking({ bookingId, label, amount: amt }).then(() => { setOpen(false); setAmount(''); }));
+    run(() => addInvoiceToBooking({ bookingId, label, amount: amt, currency: currencyCode }).then(() => { setOpen(false); setAmount(''); }));
+  };
+
+  const useSuggested = () => {
+    if (!suggestedAmount) return;
+    setLabel(suggestedLabel || 'Deposit');
+    setAmount(String(suggestedAmount));
+    setOpen(true);
   };
 
   if (!open) {
     return (
-      <button className="q-btn q-btn-secondary" style={{ marginTop: '16px' }} onClick={() => setOpen(true)}>
-        + Raise an invoice
-      </button>
+      <div className="q-row" style={{ marginTop: '16px' }}>
+        <button className="q-btn q-btn-secondary" onClick={() => setOpen(true)}>
+          + Raise an invoice
+        </button>
+        {!!suggestedAmount && (
+          <span className="q-meta-sm">
+            {suggestedLabel} is {currencyCode} {suggestedAmount.toFixed(2)} —{' '}
+            <button className="q-btn-ghost q-link" onClick={useSuggested}>use that</button>
+          </span>
+        )}
+      </div>
     );
   }
 

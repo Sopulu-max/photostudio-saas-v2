@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { fieldType } from '@/modules/services/fieldTypes';
+import { formatMoney } from '@/kernel/currency';
 import { submitBookingForm } from './actions';
 
 interface BookingFormProps {
@@ -9,16 +10,22 @@ interface BookingFormProps {
   serviceId: string;
   serviceName: string;
   formSchema: any[];
+  extras?: { id: string; name: string; price: number; unit: string | null }[];
+  currencyCode?: string;
 }
 
-export function BookingForm({ orgId, serviceId, serviceName, formSchema }: BookingFormProps) {
+export function BookingForm({ orgId, serviceId, serviceName, formSchema, extras = [], currencyCode = 'USD' }: BookingFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
+  const [extraIds, setExtraIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const toggleExtra = (id: string) =>
+    setExtraIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +36,8 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema }: Booki
         lastName,
         email,
         phone,
-        customFields
+        customFields,
+        extraIds,
       });
       setIsSuccess(true);
     } catch (error) {
@@ -159,6 +167,24 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema }: Booki
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {extras.length > 0 && (
+        <div className="q-divider">
+          <h3 className="q-section-title">Add-ons</h3>
+          <div className="q-stack q-stack-sm">
+            {extras.map((extra) => (
+              <label key={extra.id} className="q-row q-meta-plain" style={{ gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={extraIds.includes(extra.id)}
+                  onChange={() => toggleExtra(extra.id)}
+                />
+                {extra.name} — {formatMoney(extra.price, currencyCode)}{extra.unit ? `/${extra.unit}` : ''}
+              </label>
+            ))}
           </div>
         </div>
       )}

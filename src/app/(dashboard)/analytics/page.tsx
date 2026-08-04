@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AnalyticsPage() {
   const { orgId } = await getAuthOrgId();
 

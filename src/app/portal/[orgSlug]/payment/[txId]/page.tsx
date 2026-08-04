@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { formatMoney } from '@/kernel/currency';
 
+export const dynamic = 'force-dynamic';
 
 export default async function ClientPaymentPage(props: { params: Promise<{ orgSlug: string, txId: string }> }) {
   const params = await props.params;

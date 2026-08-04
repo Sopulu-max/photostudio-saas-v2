@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { getService, getProductionPlanForService } from '@/modules/services/interface';
+import { getService, getProductionPlanForService, getPaymentPoliciesForServices, getServiceDefaults } from '@/modules/services/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { raiseInvoiceForBooking } from '@/modules/finances/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
@@ -212,7 +212,7 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('price, quantity')
+    .select('title, price, quantity, service_id')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
 
@@ -224,7 +224,38 @@ export async function createContractForBooking(bookingId: string) {
     total += Number(p.base_price || 0) * Number((l as any).quantity ?? 1);
     if (p.currency) currency = p.currency;
   }
-  const terms = { base_price: total, deposit_percentage: 0, currency };
+
+  // Snapshot what's actually being sold, not just the total — a contract
+  // that only states a price with no scope reads as a payment slip, not an
+  // agreement. This is a snapshot like line prices already are: if the
+  // booking's lines change later, this contract's terms don't silently
+  // drift with them.
+  const lineItems = (lines || []).map((l: any) => {
+    const p: any = l.price || {};
+    const quantity = Number(l.quantity ?? 1);
+    const unitPrice = Number(p.base_price || 0);
+    return { title: l.title, quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity };
+  });
+
+  // What's due to book — resolved from what's actually being sold, not
+  // hardcoded. A service requiring full payment overrides everything else on
+  // the booking (you can't half-confirm a full-payment line); otherwise the
+  // largest deposit among the services involved applies. Lines with no
+  // service (custom lines only) fall back to the studio's own default.
+  const serviceIds = [...new Set((lines || []).map((l: any) => l.service_id).filter(Boolean))] as string[];
+  const policies = await getPaymentPoliciesForServices(serviceIds);
+  const resolved = Object.values(policies);
+  let depositPercentage: number;
+  if (resolved.some((p) => p.policy === 'full')) {
+    depositPercentage = 100;
+  } else if (resolved.length > 0) {
+    depositPercentage = Math.max(...resolved.map((p) => p.depositPercentage));
+  } else {
+    const defaults = await getServiceDefaults();
+    depositPercentage = defaults.paymentPolicy === 'full' ? 100 : defaults.depositPercentage;
+  }
+
+  const terms = { base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems };
 
   // Ask the Contracts module to draft it — Bookings never writes that table.
   const { contractId } = await draftContractForBooking({
@@ -254,11 +285,24 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
     .maybeSingle();
   if (!booking) throw new Error('Booking not found');
 
+  // Which contract this invoice belongs to — the most recently created one
+  // that's still open, so it shows up on that contract's own page. A booking
+  // can have more than one contract once an earlier one is closed out; an
+  // invoice raised with none open just isn't tied to a contract at all.
+  const { data: bookingContracts } = await supabaseAdmin
+    .from('contracts')
+    .select('id, status, created_at')
+    .eq('booking_id', input.bookingId)
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+  const relevantContract = (bookingContracts || []).find((c: any) => !['completed', 'cancelled'].includes(c.status));
+
   // Ask Finances to raise it — Bookings never writes the money table.
   const { transactionId: txId } = await raiseInvoiceForBooking({
     organizationId: orgId,
     bookingId: input.bookingId,
     contactId: booking.contact_id ?? null,
+    contractId: relevantContract?.id ?? null,
     label: input.label,
     amount: input.amount,
     currency: input.currency,
@@ -371,6 +415,41 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     client: b.contact?.display_name || null,
     services: (b.booking_lines || []).map((l: any) => l.title),
   }));
+}
+
+/** Every booking for one client — Clients asks this rather than reading the bookings table. */
+export async function listBookingsForContact(contactId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, scheduled_for, created_at, stage:booking_stages(name, kind, color), booking_lines(price, quantity)')
+    .eq('organization_id', orgId)
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to list bookings for contact:', error);
+    return [];
+  }
+
+  return (data || []).map((b: any) => {
+    let total = 0;
+    let currency = 'USD';
+    for (const l of b.booking_lines || []) {
+      const p: any = l.price || {};
+      total += Number(p.base_price || 0) * Number(l.quantity ?? 1);
+      if (p.currency) currency = p.currency;
+    }
+    return {
+      id: b.id,
+      title: b.title,
+      scheduledFor: b.scheduled_for,
+      stageName: b.stage?.name || null,
+      stageKind: b.stage?.kind || null,
+      stageColor: b.stage?.color || null,
+      total,
+      currency,
+    };
+  });
 }
 
 // ── Stages: the studio's own lifecycle ──────────────────────────────────────

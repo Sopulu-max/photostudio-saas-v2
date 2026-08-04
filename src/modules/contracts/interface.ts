@@ -3,4 +3,11 @@
  * Terms for a booking, versioned and signable. Bookings composes a contract
  * onto a booking through here; it never writes the contracts table itself.
  */
-export { draftContractForBooking, activateContract } from './domain';
+export {
+  draftContractForBooking,
+  activateContract,
+  reviseContractTerms,
+  cancelContract,
+  getContractTermsTemplate,
+  setContractTermsTemplate,
+} from './domain';

@@ -3,21 +3,19 @@
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
-import { NewBlueprintForm } from './NewBlueprintForm';
-import { BlueprintRow } from './BlueprintRow';
-import { CategoryManager } from './CategoryManager';
 import { formatMoney } from '@/kernel/currency';
+import { StorefrontLink } from './StorefrontLink';
 
 export function ServiceTemplatesClient({
   initialServices,
-  blueprints = [],
   categories = [],
   currencyCode = 'USD',
+  storefrontSlug,
 }: {
   initialServices: any[];
-  blueprints?: any[];
   categories?: { id: string; name: string; position: number }[];
   currencyCode?: string;
+  storefrontSlug?: string | null;
 }) {
   const active = initialServices.filter((s: any) => s.status !== 'retired');
   const retired = initialServices.filter((s: any) => s.status === 'retired');
@@ -51,10 +49,22 @@ export function ServiceTemplatesClient({
           <h1 className="q-page-title">Services</h1>
           <p className="q-page-subtitle">What your studio sells, and the pipelines behind it.</p>
         </div>
-        <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
+        <div className="q-row">
+          <Link href="/services/settings" className="q-btn q-btn-secondary">Groups, blueprints &amp; defaults</Link>
+          <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
+        </div>
       </header>
 
-      {(() => null)()}
+      {storefrontSlug && (
+        <div className="q-card" style={{ marginBottom: '24px' }}>
+          <div className="q-row q-row-between" style={{ marginBottom: '10px', alignItems: 'baseline' }}>
+            <strong className="q-strong">Your storefront</strong>
+            <span className="q-meta-sm">Everyone active above, in one link — hand this out instead of a single service&rsquo;s.</span>
+          </div>
+          <StorefrontLink slug={storefrontSlug} />
+        </div>
+      )}
+
       {initialServices.length === 0 ? (
         <div className="q-card q-empty-lg q-stack">
           <div className="q-empty-icon"><Package size={24} /></div>
@@ -106,38 +116,6 @@ export function ServiceTemplatesClient({
         </section>
       )}
 
-      <section style={{ marginTop: '40px' }}>
-        <h2 className="q-section-title">Groups</h2>
-        <p className="q-meta" style={{ marginBottom: '16px' }}>
-          How your catalogue is arranged. Your words — nothing in the app reads meaning into them.
-        </p>
-        <div className="q-card">
-          <CategoryManager
-            categories={categories}
-            counts={initialServices.reduce((acc: Record<string, number>, s: any) => {
-              if (s.category_id) acc[s.category_id] = (acc[s.category_id] || 0) + 1;
-              return acc;
-            }, {})}
-          />
-        </div>
-      </section>
-
-      <section style={{ marginTop: '40px' }}>
-        <h2 className="q-section-title">Blueprints</h2>
-        <p className="q-meta" style={{ marginBottom: '16px' }}>
-          Reusable stage sets. Attach one to a service and its work starts from those stages.
-        </p>
-        <div className="q-card q-stack q-stack-md">
-          {blueprints.length === 0 ? (
-            <p className="q-empty">No blueprints yet.</p>
-          ) : (
-            <div className="q-stack q-stack-sm">
-              {blueprints.map((bp: any) => <BlueprintRow key={bp.id} blueprint={bp} />)}
-            </div>
-          )}
-          <NewBlueprintForm />
-        </div>
-      </section>
     </div>
   );
 }

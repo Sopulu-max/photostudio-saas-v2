@@ -2,7 +2,9 @@
 
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
+import { revalidatePath } from 'next/cache';
 import type { Contract } from '@/lib/types/engine';
 
 const ActivateContractSchema = z.object({
@@ -11,9 +13,39 @@ const ActivateContractSchema = z.object({
   actorId: z.string().uuid(),
 });
 
+// ── The studio's own contract language ───────────────────────────────────
+// A price and a deposit percentage are payment terms, not a contract. The
+// actual agreement — payment schedule, cancellation policy, usage rights,
+// whatever a given studio's business actually requires — is text the studio
+// writes itself. No default text is assumed here; an empty template prompts
+// the studio to write their own rather than silently shipping generic
+// legalese nobody reviewed.
+
+export async function getContractTermsTemplate(): Promise<string> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  return ((data?.metadata as any)?.contracts?.terms_template as string) || '';
+}
+
+export async function setContractTermsTemplate(text: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  const metadata = { ...((org?.metadata as any) || {}) };
+  metadata.contracts = { ...(metadata.contracts || {}), terms_template: text };
+
+  const { error } = await supabaseAdmin.from('organizations').update({ metadata }).eq('id', orgId);
+  if (error) throw new Error('Failed to save the contract terms');
+
+  revalidatePath('/contracts/settings');
+  return { ok: true };
+}
+
 /**
  * Draft a contract for a booking — the composition path. The party is a kernel
- * contact; terms are whatever the booking's lines add up to.
+ * contact; financial terms are whatever the booking's lines add up to.
+ * Agreement text comes from the studio's own template, snapshotted at draft
+ * time — like price, it won't silently change if the studio edits their
+ * template later.
  */
 export async function draftContractForBooking(input: {
   organizationId: string;
@@ -22,13 +54,16 @@ export async function draftContractForBooking(input: {
   terms: Record<string, unknown>;
   actorId?: string | null;
 }) {
+  const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', input.organizationId).maybeSingle();
+  const agreementText = ((org?.metadata as any)?.contracts?.terms_template as string) || '';
+
   const { data: contract, error } = await supabaseAdmin
     .from('contracts')
     .insert({
       organization_id: input.organizationId,
       booking_id: input.bookingId,
       contact_id: input.contactId,
-      terms: input.terms,
+      terms: { ...input.terms, agreement_text: agreementText },
       status: 'proposed',
     })
     .select('id')
@@ -117,4 +152,103 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
   // studio wants the "next thing" created for them; they add work or money from
   // the booking when and if they choose. (Composition, not orchestration.)
   return contract as Contract;
+}
+
+/**
+ * Change price, deposit, and/or the agreement text itself. A contract that
+ * hasn't been signed yet (proposed) is edited in place — nothing to protect.
+ * One that's already active gets versioned: the change moves it to
+ * 'modified' and clears signed_at, because the client agreed to specific
+ * numbers AND specific words — either changing means it needs to go back
+ * through Activate (re-signing) before it counts again.
+ */
+export async function reviseContractTerms(input: {
+  contractId: string;
+  organizationId: string;
+  actorId?: string | null;
+  basePrice?: number;
+  depositPercentage?: number;
+  agreementText?: string;
+}) {
+  const { data: existing } = await supabaseAdmin
+    .from('contracts')
+    .select('id, status, version, terms')
+    .eq('id', input.contractId)
+    .eq('organization_id', input.organizationId)
+    .maybeSingle();
+  if (!existing) throw new Error('Contract not found');
+  if (['completed', 'cancelled'].includes(existing.status)) {
+    throw new Error(`Can't change terms on a ${existing.status} contract.`);
+  }
+
+  const terms: any = { ...(existing.terms as any) };
+  if (input.basePrice !== undefined) terms.base_price = input.basePrice;
+  if (input.depositPercentage !== undefined) terms.deposit_percentage = input.depositPercentage;
+  if (input.agreementText !== undefined) terms.agreement_text = input.agreementText;
+
+  const wasActive = existing.status === 'active';
+  const patch: Record<string, unknown> = { terms };
+  if (wasActive) {
+    patch.status = 'modified';
+    patch.version = (existing.version ?? 1) + 1;
+    patch.signed_at = null;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('contracts')
+    .update(patch)
+    .eq('id', input.contractId)
+    .eq('organization_id', input.organizationId);
+  if (error) {
+    console.error('Failed to revise contract terms:', error);
+    throw new Error('Failed to save the terms');
+  }
+
+  await logEvent({
+    organizationId: input.organizationId,
+    entityType: 'contract',
+    entityId: input.contractId,
+    action: 'terms_revised',
+    actorId: input.actorId ?? undefined,
+    payload: { terms, wasActive },
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Void a contract. Never deletes — the record and its history (any invoices
+ * already raised against it) stay exactly as they are. The studio decides
+ * separately what to do about the booking or any money already in motion;
+ * cancelling a contract doesn't touch either. (Composition, not orchestration.)
+ */
+export async function cancelContract(input: { contractId: string; organizationId: string; actorId?: string | null }) {
+  const { data: existing } = await supabaseAdmin
+    .from('contracts')
+    .select('id, status')
+    .eq('id', input.contractId)
+    .eq('organization_id', input.organizationId)
+    .maybeSingle();
+  if (!existing) throw new Error('Contract not found');
+  if (['completed', 'cancelled'].includes(existing.status)) {
+    throw new Error(`Contract is already ${existing.status}.`);
+  }
+
+  const { error } = await supabaseAdmin
+    .from('contracts')
+    .update({ status: 'cancelled' })
+    .eq('id', input.contractId)
+    .eq('organization_id', input.organizationId);
+  if (error) throw new Error('Failed to cancel the contract');
+
+  await logEvent({
+    organizationId: input.organizationId,
+    entityType: 'contract',
+    entityId: input.contractId,
+    action: 'cancelled',
+    actorId: input.actorId ?? undefined,
+    payload: { previousStatus: existing.status },
+  });
+
+  return { ok: true };
 }

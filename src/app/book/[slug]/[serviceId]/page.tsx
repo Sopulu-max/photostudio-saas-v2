@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { listServiceExtrasPublic } from '@/modules/services/interface';
 import { BookingForm } from './BookingForm';
 
 export default async function BookingPage(props: {
@@ -21,7 +22,7 @@ export default async function BookingPage(props: {
   // 2. Fetch the Service Template
   const { data: service } = await supabaseAdmin
     .from('services')
-    .select('id, name, form_schema')
+    .select('id, name, form_schema, pricing')
     .eq('organization_id', org.id)
     .eq('id', params.serviceId)
     .single();
@@ -29,6 +30,8 @@ export default async function BookingPage(props: {
   if (!service) {
     notFound();
   }
+
+  const extras = await listServiceExtrasPublic(service.id);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-ink-50)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 24px' }}>
@@ -42,11 +45,13 @@ export default async function BookingPage(props: {
           </p>
         </header>
 
-        <BookingForm 
-          orgId={org.id} 
-          serviceId={service.id} 
+        <BookingForm
+          orgId={org.id}
+          serviceId={service.id}
           serviceName={service.name}
-          formSchema={service.form_schema || []} 
+          formSchema={service.form_schema || []}
+          extras={extras}
+          currencyCode={(service.pricing as any)?.currency || 'USD'}
         />
       </div>
     </div>

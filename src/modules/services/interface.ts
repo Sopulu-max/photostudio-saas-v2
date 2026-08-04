@@ -8,6 +8,7 @@ export {
   updateService,
   setServiceStatus,
   listServices,
+  listServicesPublic,
   getService,
   setServiceBlueprint,
   createBlueprint,
@@ -22,11 +23,18 @@ export {
   getLockedQuestionIds,
   // Categories — how the studio arranges its catalogue
   listCategories,
+  listCategoriesPublic,
   createCategory,
   renameCategory,
   deleteCategory,
+  getPaymentPoliciesForServices,
+  // Extras — optional add-ons a service carries
+  listServiceExtras,
+  listServiceExtrasPublic,
+  listExtrasForServices,
+  updateServiceExtras,
   // Services' own settings
   getServiceDefaults,
   setServiceDefaults,
-  // Categories
 } from './domain';
+export type { ServiceExtra, PaymentPolicy, ServiceDefaults } from './domain';

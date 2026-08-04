@@ -75,7 +75,7 @@ export default async function ServiceSettingsPage() {
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a new service starts with. You can change it per service afterwards.
           </p>
-          <DefaultsForm depositPercentage={defaults.depositPercentage} />
+          <DefaultsForm paymentPolicy={defaults.paymentPolicy} depositPercentage={defaults.depositPercentage} />
         </section>
 
       </div>

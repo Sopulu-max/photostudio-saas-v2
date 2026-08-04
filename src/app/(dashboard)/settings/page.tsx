@@ -101,10 +101,10 @@ export default async function SettingsPage() {
               </div>
               <span className="q-meta-sm">Bookings &rarr;</span>
             </Link>
-            <Link href="/services" className="q-tile q-row q-row-between q-plain-link">
+            <Link href="/services/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
-                <strong className="q-strong">Services &amp; blueprints</strong>
-                <div className="q-meta">What you sell, and the pipelines behind it</div>
+                <strong className="q-strong">Groups, blueprints &amp; defaults</strong>
+                <div className="q-meta">How your catalogue is arranged, and what a new service starts with</div>
               </div>
               <span className="q-meta-sm">Services &rarr;</span>
             </Link>
@@ -114,6 +114,13 @@ export default async function SettingsPage() {
                 <div className="q-meta">The roles your productions need</div>
               </div>
               <span className="q-meta-sm">Team &rarr;</span>
+            </Link>
+            <Link href="/contracts/settings" className="q-tile q-row q-row-between q-plain-link">
+              <div>
+                <strong className="q-strong">Contract terms</strong>
+                <div className="q-meta">The standard terms your contracts start from</div>
+              </div>
+              <span className="q-meta-sm">Contracts &rarr;</span>
             </Link>
           </div>
         </section>

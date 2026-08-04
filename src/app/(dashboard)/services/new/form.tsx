@@ -3,13 +3,25 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createService } from '@/modules/services/interface';
+import type { PaymentPolicy } from '@/modules/services/interface';
 
-export function NewServiceForm({ workflowTemplates, currencyCode }: { workflowTemplates: any[]; currencyCode: string }) {
+export function NewServiceForm({
+  workflowTemplates,
+  currencyCode,
+  defaultPaymentPolicy = 'deposit',
+  defaultDepositPercentage = 50,
+}: {
+  workflowTemplates: any[];
+  currencyCode: string;
+  defaultPaymentPolicy?: PaymentPolicy;
+  defaultDepositPercentage?: number;
+}) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [workflowId, setWorkflowId] = useState('');
   const [basePrice, setBasePrice] = useState(0);
-  const [depositPercentage, setDepositPercentage] = useState(50);
+  const [paymentPolicy, setPaymentPolicy] = useState<PaymentPolicy>(defaultPaymentPolicy);
+  const [depositPercentage, setDepositPercentage] = useState(defaultDepositPercentage);
   
   // Intake Form Schema State
   const [formSchema, setFormSchema] = useState<any[]>([]);
@@ -41,6 +53,7 @@ export function NewServiceForm({ workflowTemplates, currencyCode }: { workflowTe
       await createService({
         name,
         basePrice,
+        paymentPolicy,
         depositPercentage,
         blueprintId: workflowId || null,
         formSchema,
@@ -105,16 +118,29 @@ export function NewServiceForm({ workflowTemplates, currencyCode }: { workflowTe
               />
             </div>
             <div>
-              <label className="q-label">Deposit Required (%)</label>
-              <input
-                type="number"
-                value={depositPercentage}
-                onChange={(e) => setDepositPercentage(parseInt(e.target.value) || 0)}
-                min="0"
-                max="100"
-                className="q-input"
-              />
+              <label className="q-label">Payment</label>
+              <select
+                value={paymentPolicy}
+                onChange={(e) => setPaymentPolicy(e.target.value as PaymentPolicy)}
+                className="q-select"
+              >
+                <option value="deposit">Deposit required</option>
+                <option value="full">Full payment required</option>
+              </select>
             </div>
+            {paymentPolicy === 'deposit' && (
+              <div>
+                <label className="q-label">Deposit (%)</label>
+                <input
+                  type="number"
+                  value={depositPercentage}
+                  onChange={(e) => setDepositPercentage(parseInt(e.target.value) || 0)}
+                  min="0"
+                  max="100"
+                  className="q-input"
+                />
+              </div>
+            )}
           </div>
         </div>
 

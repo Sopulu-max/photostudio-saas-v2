@@ -1,7 +1,10 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { activateContract } from '@/modules/contracts/interface';
+import { formatMoney } from '@/kernel/currency';
 import { redirect } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ClientContractPortalPage(props: {
   params: Promise<{ orgSlug: string, id: string }>
@@ -54,20 +57,44 @@ export default async function ClientContractPortalPage(props: {
             Prepared for {contract.person?.display_name}
           </p>
 
+          {Array.isArray(terms.line_items) && terms.line_items.length > 0 && (
+            <div className="q-panel" style={{ marginBottom: '20px' }}>
+              {terms.line_items.map((li: any, i: number) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < terms.line_items.length - 1 ? '1px dashed var(--q-color-ink-200)' : undefined }}>
+                  <div>
+                    <span>{li.title}</span>
+                    {(li.quantity !== 1 || li.unit) && (
+                      <div className="q-meta-sm">
+                        {formatMoney(li.unitPrice, terms.currency)}{li.unit ? ` × ${li.quantity} ${li.unit}${li.quantity === 1 ? '' : 's'}` : ` × ${li.quantity}`}
+                      </div>
+                    )}
+                  </div>
+                  <span className="q-strong">{formatMoney(li.total, terms.currency)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="q-panel" style={{ marginBottom: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px dashed var(--q-color-ink-300)' }}>
               <span className="q-strong">Base Price</span>
-              <span>{terms.currency} {terms.base_price}</span>
+              <span>{formatMoney(terms.base_price, terms.currency)}</span>
             </div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
               <span className="q-strong">Required Deposit ({terms.deposit_percentage}%)</span>
-              <span>{terms.currency} {(terms.base_price * (terms.deposit_percentage / 100)).toFixed(2)}</span>
+              <span>{formatMoney(terms.base_price * (terms.deposit_percentage / 100), terms.currency)}</span>
             </div>
           </div>
 
+          {terms.agreement_text && (
+            <div style={{ marginBottom: '32px', fontSize: '0.875rem', color: 'var(--q-color-ink-700)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              {terms.agreement_text}
+            </div>
+          )}
+
           <div style={{ marginBottom: '32px', fontSize: '0.875rem', color: 'var(--q-color-ink-600)', lineHeight: 1.6 }}>
-            <p>By signing below, you agree to the terms and conditions outlined in this document.</p>
+            <p>By signing below, you agree to the terms {terms.agreement_text ? 'above' : 'and conditions outlined in this document'}.</p>
           </div>
 
           {contract.status === 'active' ? (

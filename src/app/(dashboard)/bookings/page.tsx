@@ -33,7 +33,9 @@ export default async function BookingsPage() {
 
   // Options for the create form, asked of the modules that own them.
   const [clientRows, serviceRows] = await Promise.all([listClients(), listServices()]);
+  // Archived clients are not on offer for new work — same rule as retired services below.
   const clientOptions = clientRows
+    .filter((c: any) => c.status !== 'archived')
     .map((c: any) => ({ id: c.contact?.id as string, name: c.contact?.display_name as string }))
     .filter((c: { id: string }) => !!c.id);
   // Retired services are not on offer for new work.
