@@ -1,208 +1,173 @@
 # 09. System Contracts
 
-This document defines the **behavioral contracts** of the Studio Operating System. It is the authoritative reference for how entities mutate, what events they emit, and what constraints the system enforces. Any code that creates, modifies, or reads kernel entities MUST conform to this document.
+> **Revision note:** this document previously specified state machines and
+> command contracts for the retired entity model (Intent, Agreement,
+> Workflow, Asset, Resource) and pointed at file paths that no longer exist
+> (`src/lib/actions/*`). The five contract principles below were true then
+> and are still enforced today, verified against the actual codebase — only
+> the entities and file locations changed. Logic now lives in
+> `src/modules/<name>/domain.ts`, exposed only through `interface.ts`. See
+> [00-FRAMEWORK](00-FRAMEWORK.md) for the module map.
+
+This document is the authoritative reference for how the system's real
+entities mutate, what events they emit, and what constraints are enforced.
+Code that creates or modifies a module's data should conform to this.
 
 ---
 
-## Contract Principles
+## Contract principles
 
-1. **Commands, not Updates.** State mutations are named commands (e.g., `ActivateAgreement`), not generic CRUD operations. Each command has a single responsibility.
-2. **State Machine First.** No entity may transition to a state outside its defined graph. The system enforces this at the action layer (and ideally via DB triggers).
-3. **Every Mutation Emits an Event.** Any successful state change writes a record to the `events` table. Event logging failures are hard errors, not warnings.
-4. **Side Effects Are Explicit.** When a command triggers downstream creation (e.g., activating an Agreement spawns a Workflow), those downstream entities also emit their own creation events.
-5. **Tenant Isolation is Mandatory.** All dashboard queries MUST use the authenticated user's `organization_id` from their JWT. `supabaseAdmin` is permitted ONLY inside server actions that also perform their own authorization check.
+1. **Commands, not updates.** State mutations are named functions
+   (`activateContract`, `settleTransaction`, `setBookingStage`), not generic
+   CRUD. Each has one responsibility and lives in its owning module's
+   `domain.ts`.
+2. **Every mutation emits an event.** A successful state change writes a row
+   to `events` (`entity_type`, `entity_id`, `action`, `actor_id`, `payload`).
+   Verified by audit: every domain function that mutates state calls
+   `logEvent`.
+3. **Side effects are explicit, never automatic.** Activating a contract
+   does not spawn work or raise an invoice by itself — an operator does that
+   as a separate, deliberate action from the booking hub. This is
+   composition over orchestration: the system surfaces what *could* happen
+   next; a person decides if it does. (The old model's `activateAgreement`
+   auto-spawning a workflow and a deposit invoice was replaced by this on
+   purpose.)
+4. **Tenant isolation is mandatory.** Every query is scoped by
+   `organization_id`, resolved via `getAuthOrgId()` — never a blind
+   `.limit(1)`, never trusting a client-supplied org id. Every dashboard and
+   portal page declares `export const dynamic = 'force-dynamic'`.
+5. **Nothing is silently deleted.** Retiring a service, archiving a client,
+   voiding a transaction — all status changes, never row deletion. The one
+   deliberate exception is `mergeClientInto`-style data correction, which
+   was built, then removed by product decision (see memory
+   `finances-scope-decisions` and the Clients module history) — the
+   principle held even when the feature didn't survive.
 
 ---
 
-## Entity State Machines
+## Real state machines (verified against migrations + domain code)
 
-### Intent
+### Contract (`contracts.status`)
 ```
-created → reviewed → accepted  (terminal: Agreement now exists)
-                  → declined   (terminal)
-                  → withdrawn  (terminal)
-        → withdrawn
-        → expired
-```
-Implemented in: `src/lib/actions/intents.ts` → `INTENT_TRANSITIONS`
-
-### Agreement
-```
-proposed → active    (triggers: Workflow spawn, Deposit Invoice creation)
-         → cancelled (terminal)
-active   → modified  (version increments, terms updated)
-         → completed (terminal: all deliverables delivered)
+proposed → active      (operator activates; sets signed_at)
+         → cancelled
+active   → modified     (version increments, terms change)
+         → completed
 modified → active
 ```
-Implemented in: `src/lib/actions/agreements.ts`
 
-### Workflow
+### Financial Transaction (`financial_transactions.status`)
 ```
-created     → in_progress
-            → halted
-in_progress → completed   (terminal: all tasks completed)
-            → halted
-halted      → in_progress (resumable)
+created → pending → settled   (money received)
+                  → voided
 ```
-Implemented in: `src/lib/actions/workflows.ts` → `WORKFLOW_TRANSITIONS`
+Never deleted — a refund is a new `outbound` transaction, not a reversal of
+an existing row.
 
-### Task
+### Task (`tasks.status`)
 ```
-created     → assigned
-            → in_progress
-assigned    → in_progress
-            → blocked
-            → created      (unassignment)
-in_progress → blocked
-            → completed    (terminal)
-blocked     → in_progress
-            → created
+created → assigned → in_progress → completed
+                    → blocked → in_progress
 ```
-Implemented in: `src/lib/actions/workflows.ts` → `TASK_TRANSITIONS`
+A task belongs to a `booking_line_id` (not a workflow — that container was
+dropped). Assignment is a separate `assignments` row, not a column on the
+task.
 
-### Asset
+### Client (`clients.status`)
 ```
-registered → available
-available  → in_use
-           → retained
-in_use     → available
-           → retained
-retained   → released      (terminal)
+active ⇄ archived
 ```
-Implemented in: `src/lib/actions/assets.ts` → `ASSET_TRANSITIONS`
+Archiving removes a client from booking pickers (enforced at the picker
+call sites) without touching any booking, contract, or transaction it's
+already attached to.
 
-### Deliverable
+### Delivery (`deliveries.status`)
 ```
-produced  → reviewed
-          → delivered
-reviewed  → delivered
-          → produced       (revision requested: revert)
-delivered → archived       (terminal)
+draft → shared ⇄ archived
 ```
-Implemented in: `src/lib/actions/assets.ts` → `DELIVERABLE_TRANSITIONS`
+`shared` mints a `share_token`; files are served through short-lived signed
+URLs, never a public storage path.
 
-### Financial Transaction
-```
-created → pending → settled  (terminal: money received)
-                  → voided   (terminal: cancelled)
-```
-Note: Financial Transactions are never deleted. Corrections are new transactions (e.g., a refund is a new `outbound` transaction).
-
-### Resource
-```
-available → reserved → in_use → available
-available → maintenance → available
-any       → retired    (terminal: written off)
-```
+### Booking stages — not a fixed graph
+Unlike the entities above, a booking's "state" (its stage) has **no fixed
+transition graph** — a studio names and orders its own stages. What the
+system enforces instead is semantic: each stage carries one of four fixed
+`kind`s (`enquiry` / `booked` / `completed` / `cancelled`), and code that
+needs to reason about a booking's progress checks `kind`, never a specific
+stage name or a hardcoded sequence. This is deliberate — see
+[02-ONTOLOGY](02-ONTOLOGY.md) on bounded configuration.
 
 ---
 
-## Command Contracts
+## Representative commands (shape, not exhaustive)
 
-### `createIntent`
-- **Input:** `{ organizationId, personId, source?, description?, serviceTemplateId?, metadata? }`
-- **Preconditions:** Person must belong to Organization.
-- **Mutations:** INSERT `intents` row at status `created`.
-- **Events Emitted:** `intent.created`
-
-### `updateIntentStatus`
-- **Input:** `{ intentId, organizationId, newStatus, actorId }`
-- **Preconditions:** `newStatus` must be reachable from current status per state machine.
-- **Mutations:** UPDATE `intents.status`
-- **Events Emitted:** `intent.status_updated` with `{ from, to }`
-
-### `createAgreement`
-- **Input:** `{ organizationId, intentId, personId, terms, actorId }`
-- **Preconditions:** Intent must be in `reviewed` or `accepted` status.
-- **Mutations:** INSERT `agreements` row at status `proposed`.
-- **Events Emitted:** `agreement.created`
-
-### `activateAgreement` ← THE CORE COMMAND
-- **Input:** `{ agreementId, organizationId, actorId }`
-- **Preconditions:** Agreement status must be `proposed` or `modified`.
-- **Mutations:**
-  1. UPDATE `agreements.status` → `active`, set `signed_at`
-  2. INSERT `workflows` row from template
-  3. INSERT `tasks` rows from workflow template stages
-  4. INSERT `financial_transactions` row for deposit invoice (status: `pending`)
-- **Events Emitted:**
-  1. `agreement.activated`
-  2. `workflow.created` (with `trigger: agreement_activation`)
-  3. `task.created` (one per stage, with `trigger: workflow_spawn`)
-  4. `financial_transaction.created` (with `trigger: agreement_activation`)
-
-### `createTask` / `updateTaskStatus`
-- See state machine above. Both emit events with `{ from, to }` on status changes.
-
-### `registerAsset`
-- **Input:** `{ organizationId, workflowId?, origin, type, fileReference, actorId }`
-- **Mutations:** INSERT `assets` row at status `registered`.
-- **Events Emitted:** `asset.registered`
-
-### `createDeliverable`
-- **Input:** `{ organizationId, assetId, agreementId, personId, actorId }`
-- **Preconditions:** Asset must be in `available` status.
-- **Mutations:** INSERT `deliverables` row at status `produced`.
-- **Events Emitted:** `deliverable.created`
+- **`createBooking`** — Bookings. Mutations: INSERT `bookings` at the
+  studio's default (or first enquiry-kind) stage. Events: `booking.created`.
+- **`createContractForBooking`** — Bookings, composing onto Contracts.
+  Sums `booking_lines` (price × quantity), resolves a deposit percentage by
+  asking Services for each line's payment policy (strictest wins), then
+  asks Contracts to draft the row. Events: `contract.created`.
+- **`activateContract`** — Contracts. Preconditions: status is `proposed`
+  or `modified`. Mutations: UPDATE status → `active`, set `signed_at`. No
+  side effects on other modules — see Principle 3.
+- **`addInvoiceToBooking`** — Bookings, composing onto Finances via
+  `raiseInvoiceForBooking`. Mutations: INSERT `financial_transactions` at
+  `pending`. Events: `financial_transaction.created`.
+- **`settleTransaction`** — Finances. Mutations: UPDATE status → `settled`,
+  set `settled_at`. Events: `financial_transaction.status_updated`.
+- **`updateTaskStatus`** — Production. Preconditions: new status reachable
+  per the Task state machine above. Events: `task.status_updated` with
+  `{ from, to }`.
 
 ---
 
-## Tenant Isolation Rules
+## Tenant isolation
 
-| Context | Permitted Client | Rule |
+| Context | Client | Rule |
 |---|---|---|
-| Dashboard pages (RSC) | `createClient()` from `@/lib/supabase/server` | User must be authenticated. `orgId` comes from `user.user_metadata.organization_id`. |
-| Server Actions (mutations) | `supabaseAdmin` | MUST still validate `organization_id` matches authenticated user before mutating. |
-| Public portal pages (`/portal`, `/storefront`, `/book`) | `supabaseAdmin` | Permitted — unauthenticated users. Queries must be scoped by `orgSlug` → `org.id` lookup. |
-| Client Components | `createClient()` from `@/lib/supabase/client` | Use RLS. Never use admin key on the client. |
+| Dashboard pages (RSC) | `supabaseAdmin`, scoped manually | `orgId` from `getAuthOrgId()`, every query filtered by it |
+| Server actions (mutations) | `supabaseAdmin` | Same — `getAuthOrgId()` first, every write scoped |
+| Public portal / booking pages | `supabaseAdmin` | No session — org resolved from the URL's `slug`, every query scoped to that resolved org id |
 
-**Forbidden pattern:**
+**Forbidden:**
 ```typescript
-// ❌ NEVER do this in dashboard pages
+// Never — org resolved by grabbing the first row
 const { data: orgs } = await supabaseAdmin.from('organizations').select('id').limit(1);
-const org = orgs?.[0]; // This will show another studio's data in production
+const org = orgs?.[0];
 ```
 
-**Required pattern:**
+**Required:**
 ```typescript
-// ✅ Always do this in dashboard pages
-const supabase = await createClient();
-const { data: { user } } = await supabase.auth.getUser();
-const orgId = user?.user_metadata?.organization_id;
-if (!orgId) redirect('/login');
+const { orgId } = await getAuthOrgId(); // throws / redirects if unauthenticated
+// every query below this line filters .eq('organization_id', orgId)
 ```
+
+`getAuthOrgId()` resolves via the authenticated user's linked `contacts.auth_user_id`
+first, falling back to an email match only for stale sessions — see
+[03-KERNEL_SPEC](03-KERNEL_SPEC.md) on why a contact carries no role tag itself.
 
 ---
 
-## Event Schema
+## Event schema (unchanged from the original design)
 
-Every event record conforms to:
 ```
 {
-  organization_id: uuid    -- tenant scope
-  entity_type:     text    -- 'agreement' | 'workflow' | 'task' | etc.
-  entity_id:       uuid    -- ID of the mutated entity
-  action:          text    -- verb: 'created' | 'activated' | 'status_updated' | etc.
-  actor_id:        uuid?   -- who caused this (null for system triggers)
-  payload:         jsonb   -- { from?, to?, trigger?, ...context }
+  organization_id: uuid
+  entity_type:     text    -- 'booking' | 'contract' | 'client' | 'task' | etc.
+  entity_id:       uuid
+  action:          text    -- 'created' | 'activated' | 'status_updated' | etc.
+  actor_id:        uuid?   -- the acting contact; null for system triggers
+  payload:         jsonb
   created_at:      timestamptz
 }
 ```
 
-The `payload.trigger` field distinguishes user-initiated actions from system-triggered side effects (e.g., `trigger: 'agreement_activation'`).
+## Known gaps (accurate as of this revision)
 
----
-
-## Not Yet Implemented (Next Pass)
-
-The following capabilities are specified in `03-CAPABILITY_DESIGN.md` but have no implementation yet:
-
-| Capability | Status | Target Module |
-|---|---|---|
-| Resource Reservation | ❌ Missing | `src/lib/actions/resources.ts` |
-| Asset-Mediated Dependencies | ❌ Missing | DB trigger or `updateTaskStatus` guard |
-| Digital Signature (real) | ❌ Placeholder | Integration with DocuSign or similar |
-| Payment Processing | ❌ Placeholder | Stripe Webhook → `updateTransactionStatus` |
-| Client Approval Portal | ❌ Missing | `/portal/[orgSlug]/review/[workflowId]` |
-| Proposal via Visual Engine | ❌ Missing | Connect `visual_layouts` to portal renderer |
-| Agreement Versioning | ❌ Partial | `version` integer exists; modify command needed |
+| Capability | Status |
+|---|---|
+| Real payment processing | Explicitly deferred by product decision — manual settlement only, see memory `finances-scope-decisions` |
+| Digital signature | Not built — `activateContract` is the "signing" action, no third-party integration |
+| Resource/room/gear reservation | Not built — the Scheduling module was dropped from the target architecture; build only if a studio actually has colliding shooters/rooms |
+| Bounded vocabulary for transaction `type` | Deferred — free text today, no cascade currently needs it to be closed |
+| Automation / rules engine | Does not exist and is not planned — see Principle 3, this is a deliberate design stance, not a gap |

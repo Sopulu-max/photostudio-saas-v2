@@ -1,50 +1,76 @@
-# 02. Ontology: The Three-Level Model
+# 02. Ontology: Kernel, Modules, Configuration
 
-The system separates what is universal from what is configurable. This prevents the engine from becoming rigid while ensuring all studios speak a common language.
+> **Revision note:** this document previously described a "Three-Level Model"
+> built around a polymorphic `Person` entity (extended into Client/Employee/
+> etc.), a root `Intent` object, and an `Agreement` entity. That schema was
+> retired — `persons` and `intents` were dropped, `agreements` was renamed to
+> `contracts`, and `workflows` collapsed into `booking_lines`. This revision
+> describes the model that actually exists: see [00-FRAMEWORK](00-FRAMEWORK.md)
+> for the full picture, [03-KERNEL_SPEC](03-KERNEL_SPEC.md) for the kernel in
+> detail.
 
-## Level 1 — Immutable Core
+The system separates three things: what's universal (the kernel), what's a
+self-contained capability (a module), and what a studio shapes for itself
+(bounded configuration). This is composition by foreign key and interface,
+not inheritance — there is no supertype that gets specialized.
 
-These concepts define what a production organization *is*. Every studio has them. They cannot be removed or redefined. They are the shared language of the entire platform.
+## The kernel — universal, the same for every studio
 
-| Concept | What It Is |
+| Concept | What it is |
 |---|---|
-| **Organization** | The persistent production entity. The studio itself. |
-| **Intent** | The desire for something to exist that does not yet exist. The root object. |
-| **Person** | Any human actor — client, employee, freelancer, vendor. |
-| **Resource** | Any non-human asset required for production — gear, space, software. |
-| **Workflow** | An ordered sequence of stages that transforms intent into a deliverable. |
-| **Task** | A discrete unit of work within a workflow stage. |
-| **Asset** | Any artifact produced or consumed during production. |
-| **Deliverable** | The final output transferred to the recipient. |
-| **Financial Transaction** | Any movement of money — in or out. |
-| **Agreement** | The mutual commitment between Organization and Person to deliver value under specific terms. |
+| **Organization** | The studio itself. Created → active, never deleted. |
+| **Contact** | Any human or business the studio deals with — identity only (name, email, phone, optional login). Not typed as "client" or "employee" at this level. |
+| **Event** | An append-only record of something that happened, attributed to an actor contact. Organizational memory, not yet reactive. |
 
-## Level 2 — Extensible Core
+That's the whole kernel. Nothing else is universal — everything a studio
+actually *does* (sell services, take bookings, manage a team, invoice, run
+production, deliver files) is a module.
 
-The engine understands these structurally, but studios extend them with their own specializations.
+## Modules — self-contained, composed by reference
 
-**Person** can be extended into: Client, Employee, Freelancer, Model, Director, Musician, etc.
+A contact **becomes** a client, a team member, both, or neither, by whether a
+`clients` row or an `employees` row references its id — not by the kernel
+tagging it with a type. This is the load-bearing difference from the old
+model: **composition by foreign key, never a polymorphic supertype.** The
+kernel never needs to know what a contact "is"; each module that cares
+declares the relationship itself.
 
-**Resource** can be extended into: Camera, Lens, Microphone, Studio Space, Lighting Kit, etc.
+| Module | What it owns |
+|---|---|
+| **Clients** | CRM depth on a contact: notes, tags, source, active/archived status |
+| **Team** | Employment on a contact: roles, staff status |
+| **Services** | What the studio sells: price, currency, duration, payment policy, categories, reusable production blueprints, intake questions |
+| **Bookings** | The spine: a booking, its lines (each optionally sourced from a service), its stages |
+| **Contracts** | Versioned terms for a booking |
+| **Finances** | Money movement: invoices, payments, refunds |
+| **Production** | Work: tasks and assignments, derived from a booking line's service blueprint |
+| **Delivery** | Finished-work handoff: a named file bundle with its own share link |
 
-**Asset** can be extended into: RAW Photo, Edited JPEG, Audio Master, Video Render, Design File, etc.
+A module is whole on its own — it has its schema, its logic (`domain.ts`),
+and its one public door (`interface.ts`). Other modules and every page reach
+it only through that interface. See [00-FRAMEWORK §4](00-FRAMEWORK.md) for
+the seam discipline and how modules compose onto a booking.
 
-**Financial Transaction** can be extended into: Invoice, Deposit, Expense, Refund, Commission, etc.
+## Bounded configuration — what a studio actually shapes
 
-The principle: **The ontology is stable. The vocabulary is flexible.** The engine stores `Person`. A photography studio displays `Client`. A hospital displays `Patient`. Same concept, different label.
+Studios don't get a schema editor or a blank canvas. Every place they need to
+shape something, the shape is a **closed, named vocabulary** — a fixed set of
+options they can name and arrange, sometimes carrying a fixed semantic
+meaning the system reasons about, sometimes not:
 
-## Level 3 — Studio Configuration
+- **Booking stages** — studio-named, studio-coloured (from 8 fixed
+  swatches), each also carrying one of 4 fixed `kind`s (enquiry / booked /
+  completed / cancelled) that the system actually reasons about.
+- **Intake question types** — one of 8 fixed field types per question
+  (text, number, date, choice, …), not a free-form form builder.
+- **Service categories** — pure studio vocabulary; unlike stage `kind`,
+  nothing in the system reads meaning into a category name.
+- **Payment policy** — deposit-with-a-percentage, or full-payment-required.
+- **Currency, deposit defaults, blueprints** — studio-wide settings that
+  seed new services, always editable per-service afterward.
 
-Studios have near-complete freedom here. They define:
-
-- Services and packages
-- Workflow stage templates
-- Pricing models and deposit rules
-- Team roles and permissions
-- Deliverable formats
-- Approval chains
-- Business policies and automations
-- Naming conventions
-- Client-facing aesthetics (via the Visual Engine)
-
-This is where one studio becomes different from another — not because the engine changed, but because the configuration diverged.
+The principle: **the vocabulary is the studio's; the set of possible shapes
+is the engine's.** A studio can rename, recolour, and rearrange freely, but
+never invent a structure the system doesn't already know how to reason
+about. This is deliberately narrower than a generic no-code builder — see
+[00-FRAMEWORK §1](00-FRAMEWORK.md) for why that trade was made.

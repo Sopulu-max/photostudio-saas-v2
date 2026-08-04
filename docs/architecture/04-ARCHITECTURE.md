@@ -1,33 +1,19 @@
 # 04. System Architecture
 
-> **Superseded by [00-FRAMEWORK](00-FRAMEWORK.md).** This doc's two-layer sketch
-> (Production Engine + Visual Engine) is correct but incomplete — it names the
-> data core and the view engine but not the module system, metadata registry, or
-> automation engine that make it a real framework. Read 00 first; the layers below
-> map to 00's Layer 1 (Production Engine) and Layer 3 (Visual Engine).
+> **Fully superseded by [00-FRAMEWORK](00-FRAMEWORK.md).** This doc's
+> two-layer sketch (a data-only "Production Engine" + a headless, generic
+> "Ubiquitous Visual Engine" that painted every screen from bound blocks) was
+> the design behind the no-code Builder. The Builder was built, used, and
+> removed — it felt like a dataview, not a studio's own tool. There is no
+> longer a generic visual engine layer at all: the UI is hardcoded pages per
+> module, built deep on purpose, per [00-FRAMEWORK §2](00-FRAMEWORK.md).
+>
+> Kept only so the decision has a paper trail. Read 00 for the actual
+> architecture; do not build against anything below this line.
 
-The system is a two-layer stack.
-
-## Layer 1: The Production Engine
-
-A PostgreSQL database (via Supabase) that holds the Level 1 immutable primitives and their relationships. It is the single source of truth.
-
-- **No UI data.** This layer knows nothing about colors, fonts, or layouts. It knows business truth: prices, schedules, asset locations, relationships.
-- **State Machine.** This layer enforces the rules of reality. A Resource cannot be double-booked. An Agreement cannot skip from Proposed to Completed. A Financial Transaction cannot be silently deleted.
-- **The API.** Secure, typed Server Actions that expose the engine's data to the frontend. The API is domain-agnostic — it serves Intents, Agreements, Workflows, and Assets. What those things *mean* in a specific studio is determined by configuration.
-- **Three-Level Model.** The database schema implements the three levels from the Ontology: Level 1 tables for immutable primitives, Level 2 extension mechanisms (type/category columns, custom fields), and Level 3 configuration storage (workflow templates, pricing models, business rules stored as structured metadata).
-
-## Layer 2: The Ubiquitous Visual Engine
-
-The entire user interface. Completely decoupled from the Production Engine.
-
-- **Headless.** There are no hardcoded pages. The system is a library of visual components (blocks) that bind to data from Layer 1.
-- **Heavy.** This is not a lite editor. It is a Framer/Webflow-grade canvas with full CSS control — Grid, Flexbox, gradients, typography, physical lighting effects.
-- **Ubiquitous.** The same engine is summoned whether the studio is designing a public storefront, a private invoice, or a client gallery.
-- **Data Binding.** Any visual block can be bound to a query against the Production Engine. A text element can display `{{Agreement.TotalAmount}}`. If the data changes, the visual updates.
-
-## How They Connect
-
-1. The studio defines its reality in Layer 1 (services, prices, team, gear).
-2. The studio uses Layer 2 to visually express that reality to the world (or to specific clients).
-3. Layer 2 never owns data. It only reads from and writes to Layer 1.
+The two-layer sketch this doc originally specified — a "Production Engine"
+holding immutable data and a "Ubiquitous Visual Engine" rendering every
+screen from data-bound blocks — is not how the system works today. See
+[00-FRAMEWORK](00-FRAMEWORK.md) for the kernel + modules + views shape that
+replaced it, and [02-ONTOLOGY](02-ONTOLOGY.md) / [03-KERNEL_SPEC](03-KERNEL_SPEC.md)
+for the current data model.

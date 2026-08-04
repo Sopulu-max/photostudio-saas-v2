@@ -1,125 +1,89 @@
 # 03. Kernel Specification
 
-The kernel defines the Level 1 immutable primitives — the smallest set of concepts without which a production organization cannot exist. Every database table, API endpoint, and UI component must trace back to something here.
+> **Revision note:** this document previously specified ten Level-1 entities
+> (Organization, Intent, Person, Resource, Workflow, Task, Asset, Deliverable,
+> Agreement, Financial Transaction) as the immutable kernel. Only three of
+> those survive as kernel concepts; the rest are either retired (`Intent`,
+> `Workflow` as a standalone entity) or now owned by a module instead of the
+> kernel (Task → Production, Financial Transaction → Finances, Deliverable →
+> Delivery, Agreement → Contracts, Resource → not built). See
+> [00-FRAMEWORK](00-FRAMEWORK.md) and [02-ONTOLOGY](02-ONTOLOGY.md) for why.
 
-## Kernel Rules
+The kernel is deliberately small: the things a studio's data cannot exist
+without, regardless of what it sells or how it runs production. Everything
+else — pricing, bookings, money, work, delivery — is a module's
+responsibility, not the kernel's.
 
-1. Nothing enters the kernel unless production cannot happen without it.
-2. Every entity must be constructible at its Minimum Viable Representation (MVR). Completeness is never required for creation.
-3. Workflows describe how studios organize work. They live as configuration, not as hardcoded steps.
-4. The kernel knows nothing about photography, music, film, or any specific domain.
+## Kernel rules
+
+1. Nothing enters the kernel unless every module needs it.
+2. A kernel entity is constructible at minimum: a contact needs only an id;
+   an organization needs only a name.
+3. The kernel knows nothing about photography, music, or any specific
+   domain — and nothing about services, bookings, or money either. Those are
+   module concerns.
+4. Modules compose onto the kernel by referencing a kernel id (`contact_id`,
+   `organization_id`) — the kernel never references a module's tables back.
 
 ---
 
 ## Entity 1 — Organization
 
-**What it is.** The persistent production entity. The studio itself.
-**Relationships.** Employs Persons. Owns Resources. Offers configured Services. Enters Agreements.
-**Lifecycle.** Created → Active → Suspended → Archived. Never deleted.
+**What it is.** The studio itself — the tenant.
+**Relationships.** Every module table is scoped to one organization via
+`organization_id`, enforced by RLS and by every query.
+**Lifecycle.** Created → Active. Never deleted.
 **MVR.** A name.
 
 ---
 
-## Entity 2 — Intent
+## Entity 2 — Contact
 
-**What it is.** The desire for something to exist that does not yet exist. The root object of every production cycle.
-**Relationships.** Originates from a Person. References configured Services. May become an Agreement.
-**Lifecycle.** Created → Reviewed → Accepted / Declined / Withdrawn / Expired.
-**MVR.** A Person + a description of what they want.
-**Kernel law.** Intent expresses desire. Only an Agreement expresses commitment. No work begins from Intent alone.
-
----
-
-## Entity 3 — Person
-
-**What it is.** Any human actor in the system. The engine does not distinguish between clients and employees at Level 1 — that is Level 2 extension.
-**Relationships.** Creates Intents. Enters Agreements. Performs Tasks. Receives Deliverables.
-**Lifecycle.** Created → progressively enriched → optionally Archived. Never deleted.
-**MVR.** One unique identifier.
-**Kernel law.** An Organization may itself be treated as a Person (for B2B relationships).
-
----
-
-## Entity 4 — Resource
-
-**What it is.** Any non-human asset required for production. Gear, space, software, vehicles.
-**Relationships.** Owned by Organization. Reserved by Workflow stages. Checked out to Persons.
-**Lifecycle.** Registered → Available → Reserved → In Use → Available. Never silently deleted.
-**MVR.** A name + a type.
+**What it is.** Any human or business the studio deals with. Identity only —
+name, email, phone, an optional `auth_user_id` if this contact can log into
+the dashboard. The kernel does not know or care whether a contact is a
+client, a team member, both, or neither.
+**Relationships.** Referenced by module tables that give it a role: a
+`clients` row makes it a client, an `employees` row makes it a team member.
+Both can point at the same contact — composition by reference, not a type
+tag on the contact itself.
+**Lifecycle.** Created → progressively enriched. Never deleted outright;
+modules that reference it manage their own archive/status instead (a client
+can be archived, a contact is not).
+**MVR.** A display name.
+**Kernel law.** The kernel never gains a "kind" or "role" column on contact.
+If something needs to know what a contact *is*, it asks the module that
+would own that relationship, not the kernel.
 
 ---
 
-## Entity 5 — Workflow
+## Entity 3 — Event
 
-**What it is.** An ordered sequence of stages that transforms Intent into a Deliverable.
-**Relationships.** Instantiated from a configured template. Contains Tasks. Produces Assets.
-**Lifecycle.** Created → In Progress → Completed / Halted.
-**MVR.** At least one stage.
-**Kernel law.** The engine defines that Workflows exist and have stages. Studios define what those stages are.
-
----
-
-## Entity 6 — Task
-
-**What it is.** A discrete unit of work within a Workflow stage.
-**Relationships.** Belongs to a Workflow stage. Assigned to a Person. May consume or produce Assets.
-**Lifecycle.** Created → Assigned → In Progress → Completed / Blocked.
-**MVR.** A description.
+**What it is.** An append-only record of something that happened —
+organizational memory.
+**Relationships.** Tagged with `entity_type`/`entity_id` (what it happened
+to), an `action`, and an `actor_id` (which contact did it).
+**Lifecycle.** Created. Never updated, never deleted.
+**MVR.** An entity type, an entity id, an action.
+**Kernel law.** Events are written by modules as things happen; nothing
+currently reacts to an event automatically. There is no automation/rules
+engine — every cascade in the system today is either a direct function call
+through a module's `interface.ts`, or a deliberate, separate action a person
+takes (see [00-FRAMEWORK §1](00-FRAMEWORK.md) on composition over
+orchestration).
 
 ---
 
-## Entity 7 — Asset
+## What used to be kernel, and where it actually lives now
 
-**What it is.** Any artifact produced or consumed during production.
-**Origin.** Either *Produced* (created by a Workflow) or *Provided* (supplied externally).
-**Relationships.** Managed by Organization. Consumed and produced by Workflows. Carries provenance.
-**Lifecycle.** Registered → Available → In Use → Retained / Released. Never silently deleted.
-**MVR.** A reference pointer + its origin.
-**Kernel law.** Asset provenance may cross organizational boundaries (for outsourcing/white-label).
-
----
-
-## Entity 8 — Deliverable
-
-**What it is.** An Asset that has been approved and transferred to the recipient. The value that fulfills an Agreement.
-**Relationships.** Produced by a Workflow. Fulfills an Agreement. Received by a Person.
-**Lifecycle.** Produced → Reviewed → Delivered → Archived.
-**MVR.** A reference to its Workflow + a pointer.
-
----
-
-## Entity 9 — Agreement
-
-**What it is.** The mutual commitment between Organization and Person to deliver specific value under specific terms.
-**Relationships.** Originates from Intent. Commits Organization and Person. Spawns Workflows. Generates Financial Transactions.
-**Lifecycle.** Proposed → Active → Modified → Completed / Cancelled.
-**MVR.** An accepted Intent.
-**Kernel laws.**
-- Workflows are created only by their Agreement.
-- Modification never overwrites; it versions.
-- Cancellation halts non-completed Workflows. The Agreement record persists.
-
----
-
-## Entity 10 — Financial Transaction
-
-**What it is.** Any movement of money — in or out.
-**Relationships.** Linked to an Agreement, a Person, or an Organization.
-**Lifecycle.** Created → Pending → Settled / Voided. Never deleted.
-**MVR.** An amount + a direction (in/out).
-
----
-
-## The Kernel Chain
-
-```
-Organization ── employs ──► Person
-Organization ── owns ──► Resource
-Person ── creates ──► Intent ── references ──► configured Services
-Intent ── accepted ──► Agreement ◄── commits ── Organization + Person
-Agreement ── spawns ──► Workflow(s)
-Workflow ── assigns ──► Tasks to Persons, reserves Resources
-Workflow ── produces ──► Assets ── approved as ──► Deliverables
-Deliverable ── transferred to ──► Person
-Agreement ── generates ──► Financial Transactions
-```
+| Old Level-1 entity | Where it lives now |
+|---|---|
+| Intent | Retired — a lead is a booking in an `inquiry`-kind stage, not a separate object |
+| Person | Split: `Contact` (kernel, identity only) + `Clients`/`Team` modules (the roles) |
+| Resource | Not built — no module currently manages gear/room booking |
+| Workflow | Collapsed into `booking_lines` — a line *is* the production unit; tasks hang off it |
+| Task | Owned by the **Production** module |
+| Asset | Not built as a standalone concept |
+| Deliverable | Owned by the **Delivery** module (`deliveries` + `delivery_files`) |
+| Agreement | Renamed and owned by the **Contracts** module |
+| Financial Transaction | Owned by the **Finances** module |

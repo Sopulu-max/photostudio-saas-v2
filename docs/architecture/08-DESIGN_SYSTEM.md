@@ -55,11 +55,16 @@ launcher tiles. All carry Lumen motion.
 
 ## Theming
 
-Light-only for now. The token architecture is dark-ready, but the app still has
-hardcoded light colours in inline styles; **dark mode ships once those are removed.**
+Light and dark both ship. Every token in `globals.css` is defined twice — once under
+`:root`, once under `:root[data-theme="dark"]` — and nothing in the component tree
+uses a hardcoded colour outside those tokens, so the theme is a straight swap of the
+attribute, not a partial skin. `ThemeToggle` (in the sidebar) writes `data-theme` onto
+`<html>` and persists the choice. New surfaces must define both light and dark values
+for anything colour-related — never ship a `.q-` class or inline style that only
+resolves in one theme.
 
 ## Status
 
-Foundation is live (`globals.css`). Rollout is progressive: legacy inline styles are
-being replaced with `.q-` classes screen by screen, starting with the visual builder
-(the showcase surface). See the approved living preview ("Lumen") for the target feel.
+Foundation is live (`globals.css`) and the `.q-` class rollout is complete — no
+hardcoded inline colours remain anywhere in the app. See the approved living preview
+("Lumen") for the target feel.
