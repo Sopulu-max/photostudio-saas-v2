@@ -113,7 +113,7 @@ export async function updateTaskStatus(
   });
 
   revalidatePath('/bookings');
-  revalidatePath('/my-tasks');
+  revalidatePath('/tasks');
   return task as Task;
 }
 
@@ -143,7 +143,10 @@ export async function getWorkForLines(lineIds: string[]) {
       id: t.id,
       stageName: t.stage_name,
       status: t.status,
+      dueDate: t.due_date,
       assignees: (t.assignments || []).map((a: any) => ({
+        assignmentId: a.id,
+        employeeId: a.employee?.id,
         name: a.employee?.contact?.display_name,
         role: a.role?.name || null,
       })),
@@ -152,6 +155,23 @@ export async function getWorkForLines(lineIds: string[]) {
     if (t.status === 'completed') bucket.completed += 1;
   }
   return byLine;
+}
+
+/** When this task is due, or clear it. Studio-set, never inferred. */
+export async function setTaskDueDate(input: { taskId: string; dueDate: string | null }) {
+  const { orgId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('tasks')
+    .update({ due_date: input.dueDate })
+    .eq('id', input.taskId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to set the due date');
+
+  revalidatePath('/bookings');
+  revalidatePath('/calendar');
+  revalidatePath('/tasks');
+  return { ok: true };
 }
 
 /**
@@ -185,6 +205,7 @@ export async function assignTask(input: { taskId: string; employeeId: string; ro
   });
 
   revalidatePath('/bookings');
+  revalidatePath('/tasks');
   return { ok: true };
 }
 
@@ -222,7 +243,8 @@ export async function assignToBooking(input: { bookingId: string; employeeId: st
   return { ok: true };
 }
 
-export async function removeFromBooking(input: { bookingId: string; assignmentId: string }) {
+/** Take someone off — a booking-level assignment or a task-level one, same row shape either way. */
+export async function removeAssignment(input: { bookingId: string; assignmentId: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
   const { error } = await supabaseAdmin
@@ -245,6 +267,7 @@ export async function removeFromBooking(input: { bookingId: string; assignmentId
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/tasks');
   return { ok: true };
 }
 
@@ -301,6 +324,19 @@ export async function listAssignableEmployees() {
   }));
 }
 
+/** The logged-in person's own employee id, if they are one — for "assigned to me" filters. */
+export async function getMyEmployeeId(): Promise<string | null> {
+  const { orgId, contactId } = await getAuthOrgId();
+  if (!contactId) return null;
+  const { data } = await supabaseAdmin
+    .from('employees')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 /**
  * The logged-in person's task list: tasks they're assigned to, with the booking
  * for context.
@@ -336,6 +372,46 @@ export async function listMyTasks() {
     lineTitle: r.task.line?.title,
     bookingId: r.task.line?.booking?.id,
     bookingTitle: r.task.line?.booking?.title,
+  }));
+}
+
+/**
+ * Every task in the studio, whoever it's assigned to (or no one) — the
+ * management view. listMyTasks stays as the personal lens; this is the
+ * "who is doing what, across everything" one, filtered client-side rather
+ * than duplicating that logic on the server for what's typically a small list.
+ */
+export async function listTasks() {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('tasks')
+    .select(`
+      id, stage_name, status, due_date,
+      line:booking_lines!inner(id, title, booking:bookings!inner(id, title)),
+      assignments(id, employee:employees(id, contact:contacts(display_name)), role:roles(name))
+    `)
+    .eq('organization_id', orgId)
+    .order('due_date', { ascending: true, nullsFirst: false });
+  if (error) {
+    console.error('Failed to list tasks:', error);
+    throw new Error('Failed to load tasks');
+  }
+
+  return ((data || []) as any[]).map((t) => ({
+    taskId: t.id,
+    stageName: t.stage_name,
+    status: t.status,
+    dueDate: t.due_date,
+    lineTitle: t.line?.title,
+    bookingId: t.line?.booking?.id,
+    bookingTitle: t.line?.booking?.title,
+    assignees: (t.assignments || []).map((a: any) => ({
+      assignmentId: a.id,
+      employeeId: a.employee?.id,
+      name: a.employee?.contact?.display_name,
+      role: a.role?.name || null,
+    })),
   }));
 }
 

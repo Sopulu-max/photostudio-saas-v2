@@ -2,7 +2,7 @@
 
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { assignToBooking, removeFromBooking } from '@/modules/production/interface';
+import { assignToBooking, removeAssignment } from '@/modules/production/interface';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -62,7 +62,7 @@ export function RemoveCrewButton({ bookingId, assignmentId }: { bookingId: strin
       className="q-btn q-btn-secondary"
       style={{ fontSize: '0.75rem', padding: '4px 9px' }}
       disabled={isPending}
-      onClick={() => run(() => removeFromBooking({ bookingId, assignmentId }))}
+      onClick={() => run(() => removeAssignment({ bookingId, assignmentId }))}
       aria-label="Remove from booking"
     >
       Remove

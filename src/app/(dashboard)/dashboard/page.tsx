@@ -19,7 +19,7 @@ const SECTIONS = [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
       { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
-      { label: 'My Tasks', href: '/my-tasks', desc: 'Your assigned work', icon: CheckSquare },
+      { label: 'Tasks', href: '/tasks', desc: 'Who is doing what, across every booking', icon: CheckSquare },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
     ],
   },

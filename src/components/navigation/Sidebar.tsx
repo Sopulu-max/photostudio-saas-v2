@@ -27,7 +27,7 @@ const NAV_SECTIONS = [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
       { label: 'Calendar', href: '/calendar', icon: CalendarDays },
-      { label: 'My Tasks', href: '/my-tasks', icon: CheckSquare },
+      { label: 'Tasks', href: '/tasks', icon: CheckSquare },
       { label: 'Finances', href: '/finances', icon: DollarSign },
     ]
   },

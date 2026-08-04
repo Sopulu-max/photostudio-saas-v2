@@ -14,7 +14,8 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { TaskStatusControl } from './TaskStatusControl';
+import { TaskStatusControl } from '@/components/TaskStatusControl';
+import { TaskAssignControl } from '@/components/TaskAssignControl';
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
@@ -259,16 +260,20 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     </div>
 
                     {w && (
-                      <div className="q-stack q-stack-sm q-tile-sub">
+                      <div className="q-stack q-stack-md q-tile-sub">
                         {w.tasks.map((t: any) => (
-                          <div key={t.id} className="q-row q-row-between">
-                            <div className="q-row">
+                          <div key={t.id}>
+                            <div className="q-row q-row-between">
                               <span>{t.stageName}</span>
-                              {t.assignees.length > 0 && (
-                                <span className="q-meta-sm">{t.assignees.map((a: any) => a.name).join(', ')}</span>
-                              )}
+                              <TaskStatusControl taskId={t.id} status={t.status} orgId={orgId} actorId={actorId ?? ''} />
                             </div>
-                            <TaskStatusControl taskId={t.id} status={t.status} orgId={orgId} actorId={actorId ?? ''} />
+                            <TaskAssignControl
+                              taskId={t.id}
+                              bookingId={booking.id}
+                              assignees={t.assignees}
+                              candidates={candidates}
+                              dueDate={t.dueDate}
+                            />
                           </div>
                         ))}
                       </div>
