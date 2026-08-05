@@ -6,6 +6,10 @@
  */
 export {
   createDelivery,
+  updateDelivery,
+  deleteDelivery,
+  archiveDelivery,
+  unarchiveDelivery,
   getUploadTarget,
   registerFile,
   removeFile,

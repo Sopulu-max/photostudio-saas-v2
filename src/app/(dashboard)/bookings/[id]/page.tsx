@@ -16,7 +16,7 @@ import { LineActions } from './LineActions';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
-import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl } from './DeliveryForms';
+import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions } from './DeliveryForms';
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
@@ -329,7 +329,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           ) : (
             <div className="q-stack">
-              {deliveries.map((d: any) => (
+              {deliveries.filter((d: any) => !d.archivedAt).map((d: any) => (
                 <div key={d.id} className="q-tile">
                   <div className="q-row q-row-between">
                     <div>
@@ -356,14 +356,42 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     </div>
                   )}
 
-                  <div style={{ marginTop: '12px' }}>
+                  <div className="q-row q-row-between" style={{ marginTop: '12px' }}>
                     <ShareControl deliveryId={d.id} bookingId={booking.id} status={d.status} shareToken={d.shareToken} />
+                    <DeliveryActions deliveryId={d.id} bookingId={booking.id} title={d.title} status={d.status} archived={false} />
                   </div>
                 </div>
               ))}
             </div>
           )}
           <NewDeliveryForm bookingId={booking.id} />
+
+          {deliveries.some((d: any) => d.archivedAt) && (
+            <div style={{ marginTop: '28px' }}>
+              <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Archived</h3>
+              <p className="q-meta" style={{ marginBottom: '12px' }}>
+                Superseded, but not touched — a shared link here still works exactly as before.
+              </p>
+              <div className="q-stack">
+                {deliveries.filter((d: any) => d.archivedAt).map((d: any) => (
+                  <div key={d.id} className="q-tile" style={{ opacity: 0.7 }}>
+                    <div className="q-row q-row-between">
+                      <div>
+                        <strong className="q-strong">{d.title}</strong>
+                        <div className="q-meta">
+                          {d.files.length} {d.files.length === 1 ? 'file' : 'files'}
+                        </div>
+                      </div>
+                      <div className="q-row">
+                        <span className={`q-badge ${d.status === 'shared' ? 'q-badge-success' : 'q-badge-neutral'}`}>{d.status}</span>
+                        <DeliveryActions deliveryId={d.id} bookingId={booking.id} title={d.title} status={d.status} archived={true} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* Money */}

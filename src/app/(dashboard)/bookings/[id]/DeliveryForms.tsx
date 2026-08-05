@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
   createDelivery,
+  updateDelivery,
+  deleteDelivery,
+  archiveDelivery,
+  unarchiveDelivery,
   getUploadTarget,
   registerFile,
   removeFile,
@@ -53,6 +57,70 @@ export function NewDeliveryForm({ bookingId }: { bookingId: string }) {
         {isPending ? 'Creating…' : 'Create'}
       </button>
       <button className="q-btn q-btn-secondary" onClick={() => setOpen(false)} disabled={isPending}>Cancel</button>
+    </div>
+  );
+}
+
+/** Rename, archive/restore, and delete — a delivery was write-once until now. */
+export function DeliveryActions({
+  deliveryId,
+  bookingId,
+  title,
+  status,
+  archived,
+}: {
+  deliveryId: string;
+  bookingId: string;
+  title: string;
+  status: string;
+  archived: boolean;
+}) {
+  const { isPending, run } = useAction();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title);
+  const [confirming, setConfirming] = useState(false);
+
+  if (editing) {
+    return (
+      <div className="q-row">
+        <input autoFocus className="q-input" value={value} onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(false); setValue(title); } }}
+          style={{ minWidth: '12rem' }} />
+        <button className="q-btn q-btn-primary q-btn-xs" disabled={isPending}
+          onClick={() => value.trim() && run(() => updateDelivery({ deliveryId, bookingId, title: value }).then(() => setEditing(false)))}>
+          Save
+        </button>
+        <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => { setEditing(false); setValue(title); }}>Cancel</button>
+      </div>
+    );
+  }
+
+  if (confirming) {
+    return (
+      <div className="q-note q-note-bad q-stack q-stack-sm">
+        <strong>Delete “{title}” for good?</strong>
+        <span className="q-meta-plain">
+          Its files go with it{status === 'shared' ? ", and the client's link stops working immediately" : ''}.
+        </span>
+        <div className="q-row">
+          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+            onClick={() => run(() => deleteDelivery({ deliveryId, bookingId }))}>
+            Delete
+          </button>
+          <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setConfirming(false)}>Keep it</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="q-row">
+      <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Rename</button>
+      <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
+        onClick={() => run(() => archived ? unarchiveDelivery({ deliveryId, bookingId }) : archiveDelivery({ deliveryId, bookingId }))}>
+        {archived ? 'Restore' : 'Archive'}
+      </button>
+      <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setConfirming(true)}>Delete</button>
     </div>
   );
 }

@@ -9,10 +9,15 @@ import { revalidatePath } from 'next/cache';
 /**
  * Delivery — handing finished work to the client.
  *
- * A delivery is a named bundle of files for a booking, with its own share link
- * and state (draft → shared → archived). Files live in a private bucket; the
- * client gallery is served through short-lived signed URLs, so the share link
- * is the only capability and nothing is publicly readable.
+ * A delivery is a named bundle of files for a booking, with its own share
+ * link (draft ⇄ shared) and access model: files live in a private bucket,
+ * the client gallery is served through short-lived signed URLs, so the share
+ * link is the only capability and nothing is publicly readable.
+ *
+ * Archiving is a separate, orthogonal flag (archived_at), not a third status
+ * value — it's the studio's own bookkeeping ("this one's superseded by the
+ * final gallery"), and never touches whether a delivery is actually shared.
+ * A shared-and-archived delivery's link keeps working exactly as before.
  */
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60; // an hour — long enough to browse and download
@@ -51,6 +56,93 @@ export async function createDelivery(input: { bookingId: string; title: string }
 
   revalidatePath(`/bookings/${input.bookingId}`);
   return { deliveryId: delivery.id };
+}
+
+/** Rename a delivery. Was write-once — a typo had no fix. */
+export async function updateDelivery(input: { deliveryId: string; bookingId: string; title: string }) {
+  const { orgId } = await getAuthOrgId();
+  const title = (input.title || '').trim();
+  if (!title) throw new Error('Give this delivery a name.');
+
+  const { error } = await supabaseAdmin
+    .from('deliveries')
+    .update({ title })
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to rename the delivery');
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Remove a delivery entirely — its files and the storage objects behind
+ * them. If it's currently shared, this also kills the client's link (there's
+ * nothing left to serve); the caller's confirmation copy should say so.
+ */
+export async function deleteDelivery(input: { deliveryId: string; bookingId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: files } = await supabaseAdmin
+    .from('delivery_files')
+    .select('storage_path')
+    .eq('delivery_id', input.deliveryId)
+    .eq('organization_id', orgId);
+
+  const paths = (files || []).map((f: any) => f.storage_path).filter(Boolean);
+  if (paths.length > 0) {
+    await supabaseAdmin.storage.from('deliveries').remove(paths);
+  }
+  await supabaseAdmin.from('delivery_files').delete().eq('delivery_id', input.deliveryId).eq('organization_id', orgId);
+
+  const { error } = await supabaseAdmin
+    .from('deliveries')
+    .delete()
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to delete delivery:', error);
+    throw new Error('Failed to delete the delivery');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'delivery',
+    entityId: input.deliveryId,
+    action: 'deleted',
+    actorId: actorId ?? undefined,
+    payload: { bookingId: input.bookingId, fileCount: paths.length },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/** Mark a delivery superseded, without touching its share state either way. */
+export async function archiveDelivery(input: { deliveryId: string; bookingId: string }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('deliveries')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to archive the delivery');
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+export async function unarchiveDelivery(input: { deliveryId: string; bookingId: string }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('deliveries')
+    .update({ archived_at: null })
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error('Failed to restore the delivery');
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
 }
 
 /**
@@ -195,10 +287,11 @@ export async function listDeliveriesForBooking(bookingId: string) {
 
   const { data, error } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, share_token, shared_at, last_viewed_at, delivery_files(id, file_name, mime_type, size_bytes)')
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_files(id, file_name, mime_type, size_bytes)')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .order('created_at', { foreignTable: 'delivery_files', ascending: true });
   if (error) {
     console.error('Failed to list deliveries:', error);
     throw new Error('Failed to load deliveries');
@@ -211,6 +304,7 @@ export async function listDeliveriesForBooking(bookingId: string) {
     shareToken: d.share_token,
     sharedAt: d.shared_at,
     lastViewedAt: d.last_viewed_at,
+    archivedAt: d.archived_at,
     files: d.delivery_files || [],
   }));
 }
@@ -226,6 +320,7 @@ export async function getGalleryByToken(token: string) {
     .from('deliveries')
     .select('id, title, status, organization_id, booking:bookings(title), delivery_files(id, file_name, mime_type, storage_path)')
     .eq('share_token', token)
+    .order('created_at', { foreignTable: 'delivery_files', ascending: true })
     .maybeSingle();
 
   if (!delivery || delivery.status !== 'shared') return null;
@@ -238,9 +333,13 @@ export async function getGalleryByToken(token: string) {
 
   const files = await Promise.all(
     ((delivery as any).delivery_files || []).map(async (f: any) => {
-      const { data: signed } = await supabaseAdmin.storage
+      const { data: signed, error: signError } = await supabaseAdmin.storage
         .from('deliveries')
         .createSignedUrl(f.storage_path, SIGNED_URL_TTL_SECONDS);
+      // A file that fails to sign was silently dropping out of the gallery
+      // with no trace anywhere — at least log it, so a missing file is
+      // diagnosable instead of just "the gallery looked a bit short."
+      if (signError) console.error(`Failed to sign delivery file ${f.id} (${f.storage_path}):`, signError);
       return {
         id: f.id,
         name: f.file_name,
