@@ -280,12 +280,15 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
         let finalContactId = contactId || null;
         
         if (newClientName) {
-          const { clientId } = await createClient({
+          // createClient returns BOTH ids: clientId is the clients row, contactId
+          // the contacts row. A booking points at the contact — bookings.contact_id
+          // is FK'd to contacts(id) — so taking clientId here fails the constraint.
+          const { contactId: newContactId } = await createClient({
             name: newClientName,
             email: newClientEmail || undefined,
             phone: newClientPhone || undefined,
           });
-          finalContactId = clientId;
+          finalContactId = newContactId;
         }
 
         let linePrice: Record<string, unknown> | undefined = undefined;

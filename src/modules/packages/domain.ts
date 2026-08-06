@@ -226,9 +226,20 @@ const PACKAGE_SELECT = `
 
 export async function listPackages() {
   const { orgId } = await getAuthOrgId();
-  const { data, error } = await supabaseAdmin.from('packages').select(PACKAGE_SELECT).eq('organization_id', orgId).order('created_at', { ascending: false });
+  // Deliverables come along here, not just on getPackage: a picker showing what
+  // a package promises is exactly where that matters, and asking per-package
+  // would be a query per row.
+  const { data, error } = await supabaseAdmin
+    .from('packages')
+    .select(PACKAGE_SELECT + ', package_deliverables(deliverable:deliverables(id, name))')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
   if (error) { console.error('Failed to list packages:', error); throw new Error('Failed to load packages'); }
-  return (data || []).map((p: any) => ({ ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean) }));
+  return (data || []).map((p: any) => ({
+    ...p,
+    services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean),
+    deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
+  }));
 }
 
 /** The storefront — active packages only, no session. */
