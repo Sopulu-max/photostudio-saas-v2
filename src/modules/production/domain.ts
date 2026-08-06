@@ -30,7 +30,7 @@ const TASK_TRANSITIONS: Record<string, TaskStatus[]> = {
 export async function startWorkForBookingLine(input: {
   bookingId: string;
   lineId: string;
-  stages: { name: string; order: number }[];
+  stages: { name: string; order: number; roleId?: string | null; frontStage?: boolean | null }[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -44,6 +44,10 @@ export async function startWorkForBookingLine(input: {
         booking_line_id: input.lineId,
         stage_name: stage.name,
         stage_order: stage.order ?? i,
+        // The routing this stage suggested — a lead for the assignment
+        // picker, never a lock. A studio can still assign anyone.
+        suggested_role_id: (stage as any).roleId ?? null,
+        is_front_stage: (stage as any).frontStage ?? null,
       })
       .select('id')
       .single();
@@ -127,7 +131,7 @@ export async function getWorkForLines(lineIds: string[]) {
 
   const { data: tasks, error } = await supabaseAdmin
     .from('tasks')
-    .select('id, booking_line_id, stage_name, stage_order, status, due_date, assignments(id, employee:employees(id, contact:contacts(display_name)), role:roles(name))')
+    .select('id, booking_line_id, stage_name, stage_order, status, due_date, suggested_role_id, is_front_stage, suggested_role:roles(name), assignments(id, employee:employees(id, contact:contacts(display_name)), role:roles(name))')
     .eq('organization_id', orgId)
     .in('booking_line_id', lineIds)
     .order('stage_order');
@@ -144,6 +148,9 @@ export async function getWorkForLines(lineIds: string[]) {
       stageName: t.stage_name,
       status: t.status,
       dueDate: t.due_date,
+      suggestedRoleId: t.suggested_role_id,
+      suggestedRoleName: t.suggested_role?.name || null,
+      isFrontStage: t.is_front_stage,
       assignees: (t.assignments || []).map((a: any) => ({
         assignmentId: a.id,
         employeeId: a.employee?.id,
@@ -299,6 +306,9 @@ export async function listCrewForBooking(bookingId: string) {
         assignmentId: r.id,
         employeeId: r.employee_id,
         name: r.employee?.contact?.display_name || 'Unknown',
+        // Both: the name reads, the id matches. Matching staffing needs by
+        // name would break the moment a studio renames a role.
+        roleId: r.role_id ?? null,
         role: r.role?.name || null,
         onBookingDirectly: !r.task_id,
         via: r.task_id ? (r.task?.stage_name ?? 'a task') : null,
@@ -387,7 +397,8 @@ export async function listTasks() {
   const { data, error } = await supabaseAdmin
     .from('tasks')
     .select(`
-      id, stage_name, status, due_date,
+      id, stage_name, status, due_date, suggested_role_id, is_front_stage,
+      suggested_role:roles(name),
       line:booking_lines!inner(id, title, booking:bookings!inner(id, title)),
       assignments(id, employee:employees(id, contact:contacts(display_name)), role:roles(name))
     `)
@@ -403,6 +414,9 @@ export async function listTasks() {
     stageName: t.stage_name,
     status: t.status,
     dueDate: t.due_date,
+    suggestedRoleId: t.suggested_role_id,
+    suggestedRoleName: t.suggested_role?.name || null,
+    isFrontStage: t.is_front_stage,
     lineTitle: t.line?.title,
     bookingId: t.line?.booking?.id,
     bookingTitle: t.line?.booking?.title,

@@ -39,7 +39,7 @@ declares the relationship itself.
 |---|---|
 | **Clients** | CRM depth on a contact: notes, tags, source, active/archived status |
 | **Team** | Employment on a contact: roles, staff status |
-| **Services** | What the studio sells: price, currency, duration, payment policy, categories, reusable production blueprints, intake questions |
+| **Services** | What the studio sells — composed per-service from a closed field registry (name, price, duration, payment policy, price unit, category, discipline, subject, context, one graduated pricing variant, a production blueprint, intake questions); only Name always resolves to a value, everything else a studio can leave out |
 | **Bookings** | The spine: a booking, its lines (each optionally sourced from a service), its stages |
 | **Contracts** | Versioned terms for a booking |
 | **Finances** | Money movement: invoices, payments, refunds |
@@ -65,9 +65,25 @@ meaning the system reasons about, sometimes not:
   (text, number, date, choice, …), not a free-form form builder.
 - **Service categories** — pure studio vocabulary; unlike stage `kind`,
   nothing in the system reads meaning into a category name.
+- **Service fields** — a closed registry a studio composes per service
+  (name, description, price, payment policy, duration, price unit,
+  category, discipline, subject, context, one graduated pricing variant,
+  blueprint, intake questions). Only Name always resolves to a value —
+  auto-composed from whichever other fields are set unless a studio crafts
+  one — everything else can be genuinely absent. The same field-then-value
+  pattern intake questions already use, applied to the service's own
+  definition rather than what it asks a client.
+- **Service discipline and subject** — studio-editable, open vocabulary,
+  the same mechanism as category (what kind of work, who or what it's for).
+- **Service context** — small, fixed, engine-curated list (in-studio,
+  outdoor, on-location, home) — not studio-editable, the same shape as
+  payment policy: universal enough across creative studios that it doesn't
+  need to be.
 - **Payment policy** — deposit-with-a-percentage, or full-payment-required.
-- **Currency, deposit defaults, blueprints** — studio-wide settings that
-  seed new services, always editable per-service afterward.
+- **Service templates** — curated, engine-authored starting points a new
+  service is always created from; there is no blank canvas. A studio's own
+  catalog becomes a second source of starting points via duplicating an
+  existing service.
 
 The principle: **the vocabulary is the studio's; the set of possible shapes
 is the engine's.** A studio can rename, recolour, and rearrange freely, but

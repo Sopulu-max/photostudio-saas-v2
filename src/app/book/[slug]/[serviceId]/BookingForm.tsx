@@ -10,22 +10,19 @@ interface BookingFormProps {
   serviceId: string;
   serviceName: string;
   formSchema: any[];
-  extras?: { id: string; name: string; price: number; unit: string | null }[];
+  variant?: { axis_label: string; tiers: { label: string; price: number }[] } | null;
   currencyCode?: string;
 }
 
-export function BookingForm({ orgId, serviceId, serviceName, formSchema, extras = [], currencyCode = 'USD' }: BookingFormProps) {
+export function BookingForm({ orgId, serviceId, serviceName, formSchema, variant, currencyCode = 'USD' }: BookingFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
-  const [extraIds, setExtraIds] = useState<string[]>([]);
+  const [tierIndex, setTierIndex] = useState<number | null>(variant ? 0 : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-
-  const toggleExtra = (id: string) =>
-    setExtraIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +34,7 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema, extras 
         email,
         phone,
         customFields,
-        extraIds,
+        tierIndex: tierIndex ?? undefined,
       });
       setIsSuccess(true);
     } catch (error) {
@@ -171,18 +168,14 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema, extras 
         </div>
       )}
 
-      {extras.length > 0 && (
+      {variant && variant.tiers.length > 0 && (
         <div className="q-divider">
-          <h3 className="q-section-title">Add-ons</h3>
+          <h3 className="q-section-title">{variant.axis_label}</h3>
           <div className="q-stack q-stack-sm">
-            {extras.map((extra) => (
-              <label key={extra.id} className="q-row q-meta-plain" style={{ gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={extraIds.includes(extra.id)}
-                  onChange={() => toggleExtra(extra.id)}
-                />
-                {extra.name} — {formatMoney(extra.price, currencyCode)}{extra.unit ? `/${extra.unit}` : ''}
+            {variant.tiers.map((t, i) => (
+              <label key={i} className="q-row q-meta-plain" style={{ gap: '8px' }}>
+                <input type="radio" name="tier" checked={tierIndex === i} onChange={() => setTierIndex(i)} />
+                {t.label} — {formatMoney(t.price, currencyCode)}
               </label>
             ))}
           </div>

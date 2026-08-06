@@ -19,12 +19,16 @@ export function TaskAssignControl({
   assignees,
   candidates,
   dueDate,
+  suggestedRoleId,
+  suggestedRoleName,
 }: {
   taskId: string;
   bookingId: string;
   assignees: Assignee[];
   candidates: Candidate[];
   dueDate: string | null;
+  suggestedRoleId?: string | null;
+  suggestedRoleName?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [employeeId, setEmployeeId] = useState('');
@@ -38,11 +42,20 @@ export function TaskAssignControl({
       catch (e: any) { alert(e?.message || 'Something went wrong.'); }
     });
 
-  const available = candidates.filter((c) => !assignees.some((a) => a.employeeId === c.employeeId));
+  const hasSuggestedRole = (c: Candidate) => !!suggestedRoleId && c.roles.some((r) => r.id === suggestedRoleId);
+
+  // Role-matched candidates lead the list — a suggestion, not a filter;
+  // everyone stays pickable.
+  const available = candidates
+    .filter((c) => !assignees.some((a) => a.employeeId === c.employeeId))
+    .sort((a, b) => Number(hasSuggestedRole(b)) - Number(hasSuggestedRole(a)));
   const selected = available.find((c) => c.employeeId === employeeId);
 
   return (
     <div className="q-stack q-stack-sm" style={{ marginTop: '6px' }}>
+      {suggestedRoleName && (
+        <span className="q-meta-sm">Looking for: {suggestedRoleName}</span>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
         {assignees.map((a) => (
           <span key={a.assignmentId} className="q-badge q-badge-neutral">
@@ -62,10 +75,21 @@ export function TaskAssignControl({
         {available.length > 0 && (
           <>
             <select className="q-select" value={employeeId} disabled={isPending}
-              onChange={(e) => { setEmployeeId(e.target.value); setRoleId(''); }}
+              onChange={(e) => {
+                const id = e.target.value;
+                setEmployeeId(id);
+                // Lead with the suggested role if this candidate holds it —
+                // still just a starting point, the "as…" picker overrides freely.
+                const c = available.find((x) => x.employeeId === id);
+                setRoleId(c && hasSuggestedRole(c) ? suggestedRoleId! : '');
+              }}
               style={{ fontSize: '0.8rem', padding: '3px 8px', minWidth: '9rem' }}>
               <option value="">+ assign…</option>
-              {available.map((c) => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}
+              {available.map((c) => (
+                <option key={c.employeeId} value={c.employeeId}>
+                  {c.name}{hasSuggestedRole(c) ? ` — ${suggestedRoleName}` : ''}
+                </option>
+              ))}
             </select>
             {selected && selected.roles.length > 0 && (
               <select className="q-select" value={roleId} disabled={isPending}

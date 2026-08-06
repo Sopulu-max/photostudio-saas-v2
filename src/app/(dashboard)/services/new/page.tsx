@@ -1,8 +1,11 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listBlueprints, getServiceDefaults } from '@/modules/services/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
-import { NewServiceForm } from './form';
+import {
+  listBlueprints, listServiceDomains, listDeliverables, listServices,
+  getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
+  buildDeliverableSuggestions, buildDimensionSuggestions,
+} from '@/modules/services/interface';
+import { TemplatePicker } from './TemplatePicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,16 +16,25 @@ export default async function NewServicePage() {
     redirect('/login');
   }
 
-  const [blueprints, currencyCode, defaults] = await Promise.all([
-    listBlueprints(), getStudioCurrency(), getServiceDefaults(),
+  const [blueprints, domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
+    listBlueprints(), listServiceDomains(), listDeliverables(),
+    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
+    listServices(),
   ]);
 
   return (
-    <NewServiceForm
-      workflowTemplates={blueprints}
-      currencyCode={currencyCode}
-      defaultPaymentPolicy={defaults.paymentPolicy}
-      defaultDepositPercentage={defaults.depositPercentage}
+    <TemplatePicker
+      blueprints={blueprints}
+      domainOptions={domains.map((d: any) => d.name)}
+      deliverableOptions={deliverables.map((d: any) => d.name)}
+      enabledDimensions={enabledDimensions}
+      occasionOptions={occasions.map((o: any) => o.name)}
+      contextOptions={contexts.map((c: any) => c.name)}
+      subjectOptions={subjects.map((s: any) => s.name)}
+      purposeOptions={purposes.map((p: any) => p.name)}
+      clientTypeOptions={clientTypes.map((c: any) => c.name)}
+      deliverableSuggestionsByDomain={buildDeliverableSuggestions(services)}
+      dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
     />
   );
 }

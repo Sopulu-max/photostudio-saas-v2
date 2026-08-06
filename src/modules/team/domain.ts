@@ -239,6 +239,37 @@ export async function deleteRole(roleId: string) {
   return { ok: true };
 }
 
+/**
+ * Find a role by name, or create it — same find-or-create mechanism Services
+ * uses for its own facets. This is how a Blueprint stage can name a role
+ * ("Video Editor") without a separate trip to Team first, whether typed by a
+ * studio or suggested by a Template.
+ */
+export async function findOrCreateRole(name: string): Promise<string | null> {
+  const { orgId } = await getAuthOrgId();
+  const clean = (name || '').trim();
+  if (!clean) return null;
+
+  const { data: existing } = await supabaseAdmin
+    .from('roles')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('name', clean)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: created, error } = await supabaseAdmin
+    .from('roles')
+    .insert({ organization_id: orgId, name: clean })
+    .select('id')
+    .single();
+  if (error || !created) {
+    console.error('Failed to create role:', error);
+    return null;
+  }
+  return created.id;
+}
+
 export async function createRole(input: { name: string; description?: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();

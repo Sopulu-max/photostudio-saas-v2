@@ -1,40 +1,48 @@
 /**
  * Services — public interface. The only door in.
- * Bookings reads the catalog through here to build lines; Production asks
- * getStagesForService() rather than touching services/blueprints itself.
+ *
+ * The ontology layer: Service Domains, Services (the specific
+ * transformations a studio performs), Deliverables (what they produce), and
+ * Blueprints (how — a Service's Process, already routed to Team's roles).
+ *
+ * What a studio sells is a different module (Packages) — it asks this
+ * interface for the real Services it bundles and the Processes they run,
+ * never touching these tables directly.
  */
 export {
-  createService,
-  updateService,
-  setServiceStatus,
-  listServices,
-  listServicesPublic,
-  getService,
-  setServiceBlueprint,
-  createBlueprint,
-  updateBlueprint,
-  deleteBlueprint,
-  listBlueprints,
-  getProductionPlanForService,
-  // Intake questions
-  getIntakeQuestions,
-  getIntakeQuestionsPublic,
-  updateServiceQuestions,
-  getLockedQuestionIds,
-  // Categories — how the studio arranges its catalogue
-  listCategories,
-  listCategoriesPublic,
-  createCategory,
-  renameCategory,
-  deleteCategory,
-  getPaymentPoliciesForServices,
-  // Extras — optional add-ons a service carries
-  listServiceExtras,
-  listServiceExtrasPublic,
-  listExtrasForServices,
-  updateServiceExtras,
-  // Services' own settings
-  getServiceDefaults,
-  setServiceDefaults,
+  // Service Domains — the broad capability
+  listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
+  // Deliverables — the vocabulary of what a Service produces
+  listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
+  // The five classification dimensions — Subject, Occasion, Context, Purpose,
+  // Client. Apply to both Service and Package; owned here since Packages
+  // already depends on Services one-way, never the reverse.
+  getEnabledDimensions, setEnabledDimensions, findOrCreateDimensionValue,
+  listOccasions, createOccasion, renameOccasion, deleteOccasion,
+  listContexts, createContext, renameContext, deleteContext,
+  listSubjects, createSubject, renameSubject, deleteSubject,
+  listPurposes, createPurpose, renamePurpose, deletePurpose,
+  listClientTypes, createClientType, renameClientType, deleteClientType,
+  // Blueprints — a Service's Process
+  createBlueprint, updateBlueprint, deleteBlueprint, listBlueprints,
+  getProductionPlanForService, getDeliverableIdsForServices,
+  // Services — the specific transformation
+  createService, updateService, duplicateService, setServiceStatus,
+  listServices, listActiveServices, getService,
 } from './domain';
-export type { ServiceExtra, PaymentPolicy, ServiceDefaults } from './domain';
+
+export { DIMENSIONS } from './dimensions';
+export type { Dimension } from './dimensions';
+
+export {
+  // Intake question field-type registry — shared vocabulary, used wherever a
+  // Package builds the questions it asks a client.
+  FIELD_TYPES, FIELD_TYPE_LIST, fieldType, validateAnswers, storeAnswers,
+} from './fieldTypes';
+export type { FieldTypeKey, IntakeQuestion, FieldTypeDef } from './fieldTypes';
+
+export { SERVICE_TEMPLATES, templatesByDomain, getTemplate } from './templates';
+export type { ServiceTemplate, TemplateQuestion, TemplateStage } from './templates';
+
+export { buildDeliverableSuggestions, buildDimensionSuggestions } from './suggestions';
+export type { DeliverableSuggestions, DimensionSuggestions } from './suggestions';

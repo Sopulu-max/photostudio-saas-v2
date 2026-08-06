@@ -41,8 +41,8 @@ const NAV_SECTIONS = [
   {
     label: 'Configuration',
     items: [
-      { label: 'Services Catalog', href: '/services', icon: Package },
-      
+      { label: 'Services', href: '/services', icon: Layers },
+      { label: 'Packages', href: '/packages', icon: Package },
       { label: 'Team', href: '/team', icon: Users },
     ]
   },

@@ -64,7 +64,7 @@ export interface BookingLine {
   id: string;
   organization_id: string;
   booking_id: string;
-  service_id: string | null;
+  package_id: string | null;
   title: string;
   price: Record<string, unknown>;
   status: string;

@@ -10,6 +10,7 @@ export {
   updateEmployee,
   setEmployeeStatus,
   createRole,
+  findOrCreateRole,
   listRoles,
   updateRole,
   deleteRole,

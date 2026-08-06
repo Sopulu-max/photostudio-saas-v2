@@ -1,30 +1,161 @@
 'use client';
+// Force Turbopack reload
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBooking } from '@/modules/bookings/interface';
+import { createClient } from '@/modules/clients/interface';
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; email?: string; phone?: string };
+
+function ClientCombobox({ 
+  clients, 
+  value, 
+  onChange,
+  onNewClientName
+}: { 
+  clients: Option[]; 
+  value: string; 
+  onChange: (id: string) => void;
+  onNewClientName: (name: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      const selectedClient = clients.find(c => c.id === value);
+      setQuery(selectedClient ? selectedClient.name : '');
+    }
+  }, [value, isOpen, clients]);
+
+  const filtered = query === '' 
+    ? clients 
+    : clients.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div className="q-field" style={{ position: 'relative' }}>
+      <label className="q-label">Who&rsquo;s it for?</label>
+      <input 
+        className="q-input" 
+        placeholder="Not sure yet (type to search or create)"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setIsOpen(true);
+          onChange(''); // Clear selected id when typing
+          onNewClientName('');
+        }}
+        onFocus={() => {
+          setIsOpen(true);
+          // Auto-select text on focus so they can easily type over it
+          setTimeout(() => {
+            const el = document.activeElement as HTMLInputElement;
+            if (el && el.select) el.select();
+          }, 0);
+        }}
+        onBlur={() => {
+          setTimeout(() => setIsOpen(false), 200);
+        }}
+      />
+      
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, 
+          background: 'var(--q-color-paper-elevated)', 
+          border: '1px solid var(--q-color-border)', 
+          borderRadius: '4px',
+          maxHeight: '16rem', overflowY: 'auto',
+          zIndex: 10,
+          marginTop: '4px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          {filtered.map(c => (
+            <div 
+              key={c.id} 
+              style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--q-color-border-subtle)' }}
+              onMouseDown={() => {
+                onChange(c.id);
+                setQuery(c.name);
+                setIsOpen(false);
+                onNewClientName('');
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--q-color-surface)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{ fontWeight: 500 }}>{c.name}</div>
+              {(c.phone || c.email) && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-subtle)', marginTop: '2px' }}>
+                  {c.phone} {c.phone && c.email && ' • '} {c.email}
+                </div>
+              )}
+            </div>
+          ))}
+          {query.trim() !== '' && (
+            <div 
+              style={{ padding: '8px 12px', cursor: 'pointer', color: 'var(--q-color-ink-accent)' }}
+              onMouseDown={() => {
+                onNewClientName(query.trim());
+                setIsOpen(false);
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--q-color-surface)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              + Create new client: &quot;{query.trim()}&quot;
+            </div>
+          )}
+          {filtered.length === 0 && query.trim() === '' && (
+            <div style={{ padding: '8px 12px', color: 'var(--q-color-ink-subtle)' }}>
+              No clients found. Type to create one.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * A booking starts from what a studio actually knows: who it's for, what they
  * want, when. Nothing is required — the name composes itself from whatever is
  * given, so nobody has to invent a title.
  */
-export function NewBookingForm({ clients, services }: { clients: Option[]; services: Option[] }) {
-  const [open, setOpen] = useState(false);
+export function NewBookingForm({ clients, packages }: { clients: Option[]; packages: Option[] }) {
   const [contactId, setContactId] = useState('');
-  const [serviceId, setServiceId] = useState('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [packageId, setPackageId] = useState('');
   const [when, setWhen] = useState('');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  const selectedClient = clients.find(c => c.id === contactId);
+
+  const clearClient = () => {
+    setContactId('');
+    setNewClientName('');
+    setNewClientEmail('');
+    setNewClientPhone('');
+  };
+
   const create = () =>
     startTransition(async () => {
       try {
+        let finalContactId = contactId || null;
+        
+        if (newClientName) {
+          const { clientId } = await createClient({
+            name: newClientName,
+            email: newClientEmail || undefined,
+            phone: newClientPhone || undefined,
+          });
+          finalContactId = clientId;
+        }
+
         const { bookingId } = await createBooking({
-          contactId: contactId || null,
-          serviceId: serviceId || null,
+          contactId: finalContactId,
+          packageId: packageId || null,
           scheduledFor: when ? new Date(when).toISOString() : null,
         });
         router.push(`/bookings/${bookingId}`);
@@ -34,25 +165,81 @@ export function NewBookingForm({ clients, services }: { clients: Option[]; servi
       }
     });
 
-  if (!open) {
-    return <button className="q-btn q-btn-primary" onClick={() => setOpen(true)}>+ New booking</button>;
-  }
-
   return (
-    <div className="q-card q-stack q-stack-md" style={{ minWidth: 'min(30rem, 100%)' }}>
-      <div className="q-field">
-        <label className="q-label">Who&rsquo;s it for?</label>
-        <select className="q-select" value={contactId} onChange={(e) => setContactId(e.target.value)}>
-          <option value="">Not sure yet</option>
-          {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
+    <div className="q-card q-stack q-stack-md" style={{ width: '100%', maxWidth: '500px', overflow: 'visible', position: 'relative' }}>
+
+      {/* ── Client Section ── */}
+      {selectedClient ? (
+        /* Existing client selected — show their info */
+        <div className="q-field">
+          <label className="q-label">Who&rsquo;s it for?</label>
+          <div className="q-note" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600 }}>{selectedClient.name}</div>
+              {(selectedClient.phone || selectedClient.email) && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)', marginTop: '2px' }}>
+                  {selectedClient.phone}{selectedClient.phone && selectedClient.email && ' · '}{selectedClient.email}
+                </div>
+              )}
+              {!selectedClient.phone && !selectedClient.email && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-500)', marginTop: '2px', fontStyle: 'italic' }}>
+                  No contact details on file
+                </div>
+              )}
+            </div>
+            <button type="button" className="q-btn q-btn-secondary" style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={clearClient}>
+              Change
+            </button>
+          </div>
+        </div>
+      ) : newClientName ? (
+        /* Creating new client — show editable fields */
+        <div className="q-field">
+          <label className="q-label">New client</label>
+          <div className="q-stack q-stack-sm" style={{ padding: '12px', border: '1px solid var(--q-color-accent)', borderRadius: '8px', background: 'color-mix(in srgb, var(--q-color-accent) 5%, transparent)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>{newClientName}</span>
+              <button type="button" className="q-btn q-btn-secondary" style={{ fontSize: '0.8rem', padding: '4px 10px' }} onClick={clearClient}>
+                Change
+              </button>
+            </div>
+            <div className="q-field">
+              <label className="q-label" style={{ fontSize: '0.8rem' }}>Email</label>
+              <input
+                className="q-input"
+                type="email"
+                placeholder="client@example.com"
+                value={newClientEmail}
+                onChange={(e) => setNewClientEmail(e.target.value)}
+              />
+            </div>
+            <div className="q-field">
+              <label className="q-label" style={{ fontSize: '0.8rem' }}>Phone</label>
+              <input
+                className="q-input"
+                type="tel"
+                placeholder="+1 555 000 0000"
+                value={newClientPhone}
+                onChange={(e) => setNewClientPhone(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* No client chosen yet — show the combobox */
+        <ClientCombobox 
+          clients={clients} 
+          value={contactId} 
+          onChange={setContactId} 
+          onNewClientName={setNewClientName}
+        />
+      )}
 
       <div className="q-field">
         <label className="q-label">What do they want?</label>
-        <select className="q-select" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+        <select className="q-select" value={packageId} onChange={(e) => setPackageId(e.target.value)}>
           <option value="">Decide later</option>
-          {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          {packages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
 
@@ -65,7 +252,7 @@ export function NewBookingForm({ clients, services }: { clients: Option[]; servi
         <button className="q-btn q-btn-primary" onClick={create} disabled={isPending}>
           {isPending ? 'Creating…' : 'Create booking'}
         </button>
-        <button className="q-btn q-btn-secondary" onClick={() => setOpen(false)} disabled={isPending}>Cancel</button>
+        <button className="q-btn q-btn-secondary" onClick={() => router.back()} disabled={isPending}>Cancel</button>
       </div>
 
       <span className="q-meta-sm">

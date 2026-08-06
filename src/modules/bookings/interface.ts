@@ -8,13 +8,20 @@
  * modules, they compose onto a booking through these operations + its id.
  */
 export {
+  // Reads — the surfaces ask for these rather than querying the tables
+  getBooking,
+  listBookings,
   // Commands
   createBooking,
+  // Intake from the public booking page — takes an explicit org, no session
+  createBookingFromIntake,
   refreshBookingTitle,
   renameBooking,
   deleteBooking,
   setBookingSchedule,
   suggestedDurationForBooking,
+  // The staffing cascade: which roles the booked Packages' blueprints call for
+  getStaffingNeedsForBooking,
   // Stages — the studio's own lifecycle
   listStages,
   setBookingStage,
@@ -27,7 +34,7 @@ export {
   setDefaultStage,
   listBookingsInRange,
   listBookingsForContact,
-  getAnsweredQuestionIdsForService,
+  getAnsweredQuestionIdsForPackage,
   getIntakeAnswersForBooking,
   setBookingClient,
   addBookingLine,

@@ -14,6 +14,9 @@ type Task = {
   lineTitle: string | null;
   bookingId: string;
   bookingTitle: string;
+  suggestedRoleId?: string | null;
+  suggestedRoleName?: string | null;
+  isFrontStage?: boolean | null;
   assignees: { assignmentId: string; employeeId: string; name: string; role: string | null }[];
 };
 type Candidate = { employeeId: string; name: string; roles: { id: string; name: string }[] };
@@ -89,7 +92,10 @@ export function TasksClient({
             <div key={t.taskId} className="q-card">
               <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '1.02rem', marginBottom: '3px' }}>{t.stageName}</div>
+                  <div style={{ fontWeight: 600, fontSize: '1.02rem', marginBottom: '3px' }}>
+                    {t.stageName}
+                    {t.isFrontStage === false && <span className="q-meta-sm"> · back-stage</span>}
+                  </div>
                   <div className="q-meta">
                     <Link href={`/bookings/${t.bookingId}`} className="q-plain-link" style={{ textDecoration: 'underline' }}>
                       {t.bookingTitle}
@@ -105,6 +111,8 @@ export function TasksClient({
                 assignees={t.assignees}
                 candidates={candidates}
                 dueDate={t.dueDate}
+                suggestedRoleId={t.suggestedRoleId}
+                suggestedRoleName={t.suggestedRoleName}
               />
             </div>
           ))

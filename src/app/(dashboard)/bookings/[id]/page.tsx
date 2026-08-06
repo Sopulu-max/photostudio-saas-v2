@@ -1,15 +1,14 @@
 import { notFound, redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { AddLineForm } from './AddLineForm';
 import { CreateContractButton, StartWorkButton, AddInvoiceForm } from './BookingActions';
 import { SetClientForm } from './SetClientForm';
-import { AddCrewForm, RemoveCrewButton } from './CrewForms';
+import { AddCrewForm, RemoveCrewButton, FillRoleForm } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
-import { listStages, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
-import { listExtrasForServices } from '@/modules/services/interface';
+import { getBooking, listStages, getIntakeAnswersForBooking, suggestedDurationForBooking, getStaffingNeedsForBooking } from '@/modules/bookings/interface';
+import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
@@ -52,28 +51,21 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     redirect('/login');
   }
 
-  const { data: booking } = await supabaseAdmin
-    .from('bookings')
-    .select(`
-      id, title, scheduled_for, duration_minutes, created_at, stage_id,
-      stage:booking_stages(id, name, kind, color),
-      contact:contacts(id, display_name, email),
-      booking_lines(id, title, price, quantity, service_id, status),
-      contracts(id, version, status, terms, created_at),
-      financial_transactions(id, type, amount, currency, status, direction)
-    `)
-    .eq('id', params.id)
-    .eq('organization_id', orgId)
-    .single();
-
+  const booking = await getBooking(params.id);
   if (!booking) notFound();
 
-  const { data: services } = await supabaseAdmin
-    .from('services')
-    .select('id, name')
-    .eq('organization_id', orgId)
-    .eq('status', 'active')
-    .order('name');
+  // The catalogue of what can be added to this booking — asked of Packages,
+  // never read from its table. Retired packages aren't offered for new lines.
+  const packageRows = await listPackages();
+  const packageOptions = (packageRows as any[])
+    .filter((p) => p.status !== 'retired')
+    .map((p) => ({ id: p.id as string, name: p.name as string }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const variantsByPackage: Record<string, any> = {};
+  for (const p of packageRows as any[]) {
+    if (p.status !== 'retired' && p.pricing_variant) variantsByPackage[p.id] = p.pricing_variant;
+  }
 
   // Clients come through the Clients module's interface — composition, not a
   // reach into its tables.
@@ -85,9 +77,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .filter((c: { contactId: string; name: string }) => !!c.contactId);
 
   // Crew, roster and work through Production's interface.
-  const lineIds = (booking.booking_lines || []).map((l: any) => l.id);
-  const serviceIds = (services || []).map((s: any) => s.id);
-  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, extrasByService, currencyCode] = await Promise.all([
+  const lineIds = booking.lines.map((l: any) => l.id);
+  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds),
@@ -95,13 +86,18 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     listStages(),
     getIntakeAnswersForBooking(booking.id),
     suggestedDurationForBooking(booking.id),
-    listExtrasForServices(serviceIds),
     getStudioCurrency(),
+    getStaffingNeedsForBooking(booking.id),
   ]);
 
-  const lines: any[] = booking.booking_lines || [];
-  const contracts: any[] = booking.contracts || [];
-  const txns: any[] = booking.financial_transactions || [];
+  // Anyone on the booking who isn't covering one of the roles the blueprints
+  // asked for — a second shooter the studio added themselves, say.
+  const neededRoleIds = new Set(staffing.roles.map((r) => r.roleId));
+  const extraCrew = (crew as any[]).filter((m) => !m.roleId || !neededRoleIds.has(m.roleId));
+
+  const lines: any[] = booking.lines;
+  const contracts: any[] = booking.contracts;
+  const txns: any[] = booking.transactions;
 
   // What's due to book, per the contract's own terms — suggested, never
   // forced. An operator can always raise something else instead. A booking
@@ -205,31 +201,95 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
         </Section>
 
-        {/* Team on this booking */}
+        {/* Team — the roles come from what was booked, not from a blank roster */}
         <Section title="Team">
-          {crew.length === 0 ? (
-            <p className="q-empty">No one on this booking yet.</p>
-          ) : (
-            <div className="q-stack">
-              {crew.map((m: any) => (
-                <div key={`${m.employeeId}-${m.role ?? ''}`} className="q-tile q-row q-row-between">
-                  <div className="q-row">
-                    <strong className="q-strong">{m.name}</strong>
-                    {m.role && <span className="q-badge q-badge-neutral">{m.role}</span>}
-                    {!m.onBookingDirectly && <span className="q-meta-sm">via {m.via}</span>}
+          {staffing.roles.length > 0 && (
+            <>
+              <p className="q-meta" style={{ marginBottom: '12px' }}>
+                What these packages need, from their services&rsquo; blueprints. Unfilled is fine — it just means no one&rsquo;s named yet.
+              </p>
+              <div className="q-stack q-stack-sm">
+                {staffing.roles.map((r) => (
+                  <div key={r.roleId} className="q-tile">
+                    <div className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                      <div className="q-row" style={{ flexWrap: 'wrap' }}>
+                        <strong className="q-strong">{r.roleName}</strong>
+                        <span className="q-meta-sm">
+                          {r.stageCount} {r.stageCount === 1 ? 'stage' : 'stages'} · {r.fromPackages.join(', ')}
+                        </span>
+                      </div>
+                      {r.assigned.length === 0
+                        ? <span className="q-badge q-badge-warning">unfilled</span>
+                        : <span className="q-badge q-badge-success">{r.assigned.length === 1 ? 'filled' : `${r.assigned.length} people`}</span>}
+                    </div>
+
+                    {r.assigned.length > 0 && (
+                      <div className="q-row q-tile-sub" style={{ flexWrap: 'wrap' }}>
+                        {r.assigned.map((a) => {
+                          const member = (crew as any[]).find((m) => m.employeeId === a.employeeId && m.roleId === r.roleId);
+                          return (
+                            <span key={a.employeeId} className="q-row" style={{ gap: '6px' }}>
+                              <span className="q-meta-plain">{a.name}</span>
+                              {member?.onBookingDirectly && (
+                                <RemoveCrewButton bookingId={booking.id} assignmentId={member.assignmentId} />
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="q-tile-sub">
+                      <FillRoleForm bookingId={booking.id} roleId={r.roleId} roleName={r.roleName} candidates={candidates} />
+                    </div>
                   </div>
-                  {m.onBookingDirectly && <RemoveCrewButton bookingId={booking.id} assignmentId={m.assignmentId} />}
-                </div>
-              ))}
+                ))}
+              </div>
+              {staffing.unroutedStages > 0 && (
+                <p className="q-meta-sm" style={{ marginTop: '10px' }}>
+                  {staffing.unroutedStages} {staffing.unroutedStages === 1 ? 'stage' : 'stages'} on these packages
+                  {staffing.unroutedStages === 1 ? " doesn't" : " don't"} name a role — route
+                  {' '}<Link href="/services/settings" className="q-accent">their blueprints</Link> if you want them staffed too.
+                </p>
+              )}
+            </>
+          )}
+
+          {staffing.roles.length === 0 && crew.length === 0 && (
+            <p className="q-empty">
+              {lines.length === 0
+                ? 'No one on this booking yet — add a package and the roles its blueprints call for show up here.'
+                : "No one yet, and these packages' blueprints don't name any roles."}
+            </p>
+          )}
+
+          {extraCrew.length > 0 && (
+            <div style={{ marginTop: staffing.roles.length > 0 ? '20px' : 0 }}>
+              {staffing.roles.length > 0 && (
+                <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Also on this booking</h3>
+              )}
+              <div className="q-stack q-stack-sm">
+                {extraCrew.map((m: any) => (
+                  <div key={`${m.employeeId}-${m.roleId ?? ''}`} className="q-tile q-row q-row-between">
+                    <div className="q-row">
+                      <strong className="q-strong">{m.name}</strong>
+                      {m.role && <span className="q-badge q-badge-neutral">{m.role}</span>}
+                      {!m.onBookingDirectly && <span className="q-meta-sm">via {m.via}</span>}
+                    </div>
+                    {m.onBookingDirectly && <RemoveCrewButton bookingId={booking.id} assignmentId={m.assignmentId} />}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
           <AddCrewForm bookingId={booking.id} candidates={candidates} />
         </Section>
 
-        {/* Services (lines) */}
-        <Section title="Services">
+        {/* What they're booking — one line per Package */}
+        <Section title="What they're booking">
           {lines.length === 0 ? (
-            <p className="q-empty">No services yet — add one whenever you know what they want.</p>
+            <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
@@ -264,7 +324,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         {w.tasks.map((t: any) => (
                           <div key={t.id}>
                             <div className="q-row q-row-between">
-                              <span>{t.stageName}</span>
+                              <span>
+                                {t.stageName}
+                                {t.isFrontStage === false && <span className="q-meta-sm"> · back-stage</span>}
+                              </span>
                               <TaskStatusControl taskId={t.id} status={t.status} orgId={orgId} actorId={actorId ?? ''} />
                             </div>
                             <TaskAssignControl
@@ -273,6 +336,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                               assignees={t.assignees}
                               candidates={candidates}
                               dueDate={t.dueDate}
+                              suggestedRoleId={t.suggestedRoleId}
+                              suggestedRoleName={t.suggestedRoleName}
                             />
                           </div>
                         ))}
@@ -291,7 +356,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               </strong>
             </div>
           )}
-          <AddLineForm bookingId={booking.id} services={services || []} extrasByService={extrasByService} currencyCode={currencyCode} />
+          <AddLineForm bookingId={booking.id} packages={packageOptions} variantsByPackage={variantsByPackage} currencyCode={currencyCode} />
         </Section>
 
         {/* Contract */}

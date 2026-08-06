@@ -1,0 +1,106 @@
+import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { getPackage, getIntakeQuestions, getLockedQuestionIds } from '@/modules/packages/interface';
+import { listActiveServices } from '@/modules/services/interface';
+import { listRoles } from '@/modules/team/interface';
+import { getStudioCurrency } from '@/kernel/organizations';
+import { formatMoney } from '@/kernel/currency';
+import { PackageFieldsEditor } from './PackageFieldsEditor';
+import { QuestionEditor } from './QuestionEditor';
+
+export const dynamic = 'force-dynamic';
+
+export default async function PackageDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  try {
+    await getAuthOrgId();
+  } catch {
+    redirect('/login');
+  }
+
+  const pkg = await getPackage(params.id);
+  if (!pkg) notFound();
+
+  const { listDeliverables } = await import('@/modules/services/interface');
+  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables] = await Promise.all([
+    listActiveServices(), listRoles(), getStudioCurrency(),
+    getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables()
+  ]);
+
+  const suggestedDeliverablesByService: Record<string, string[]> = {};
+  for (const s of (allServices as any[])) {
+    suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
+  }
+
+  const pricing: any = pkg.pricing || {};
+  const hasPrice = pricing.base_price != null;
+  const basePrice = Number(pricing.base_price || 0);
+  const paymentPolicy = pkg.payment_policy as 'deposit' | 'full' | null;
+  const depositPct = paymentPolicy === 'full' ? 100 : Number(pricing.deposit_percentage || 0);
+  const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
+
+  return (
+    <div className="q-page-narrow">
+      <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
+      <header className="q-page-header">
+        <div>
+          <h1 className="q-page-title">{pkg.name}</h1>
+          <p className="q-page-subtitle">What the client buys, and what it costs.</p>
+        </div>
+        <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
+      </header>
+
+      <div className="q-stack q-stack-lg">
+        <div className="q-card q-section">
+          <h2 className="q-section-title">At a glance</h2>
+          <div className="q-grid-3">
+            <div className="q-panel">
+              <div className="q-stat-label">Price</div>
+              <div className="q-stat-value">{hasPrice ? formatMoney(basePrice, currencyCode) : '—'}</div>
+              {variant && <span className="q-meta-sm">Varies by {variant.axis_label.toLowerCase()}</span>}
+            </div>
+            <div className="q-panel">
+              <div className="q-stat-label">Payment</div>
+              <div className="q-stat-value">{paymentPolicy === 'full' ? 'Full price' : paymentPolicy === 'deposit' ? `${depositPct}% deposit` : 'Not set'}</div>
+            </div>
+            <div className="q-panel">
+              <div className="q-stat-label">Bundles</div>
+              <div className="q-stat-value q-num">{(pkg as any).services?.length || 0} {(pkg as any).services?.length === 1 ? 'service' : 'services'}</div>
+            </div>
+          </div>
+        </div>
+
+        <PackageFieldsEditor
+          mode="edit"
+          packageId={pkg.id}
+          status={pkg.status}
+          currencyCode={currencyCode}
+          allServices={allServices as any}
+          allDeliverables={allDeliverables as any}
+          suggestedDeliverablesByService={suggestedDeliverablesByService}
+          roleOptions={(roles as any[]).map((r) => r.name)}
+          initial={{
+            name: pkg.name,
+            description: (pkg as any).description,
+            basePrice: hasPrice ? basePrice : null,
+            priceUnit: (pkg as any).price_unit,
+            paymentPolicy,
+            depositPercentage: depositPct,
+            durationMinutes: (pkg as any).duration_minutes,
+            serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
+            deliverableIds: ((pkg as any).deliverables || []).map((d: any) => d.id),
+            pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
+            extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
+          }}
+        />
+
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Intake questions</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>What a client is asked when they book this online.</p>
+          <QuestionEditor packageId={pkg.id} questions={questions} lockedIds={lockedIds} services={pkg.services as any} />
+        </div>
+      </div>
+    </div>
+  );
+}

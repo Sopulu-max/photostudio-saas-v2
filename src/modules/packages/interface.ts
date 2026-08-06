@@ -1,0 +1,28 @@
+/**
+ * Packages — public interface. The only door in.
+ *
+ * The marketing layer: how a studio sells what it does. Bookings reads the
+ * catalog through here to build lines; Production asks
+ * getProductionPlanForPackage() rather than touching services/packages
+ * tables itself — that plan is the union of every bundled Service's Process,
+ * so a multi-discipline Package's routing falls out of what it bundles.
+ */
+// The five classification dimensions — Subject, Occasion, Context, Purpose,
+// Client — are owned by Services (they apply to Service just as much as
+// Package). Re-exported here purely for this module's UI's convenience;
+// Packages never touches those tables itself.
+export {
+  DIMENSIONS as PACKAGE_DIMENSIONS,
+  getEnabledDimensions,
+} from '@/modules/services/interface';
+export type { Dimension as PackageDimension } from '@/modules/services/interface';
+
+export {
+  // Package
+  createPackage, updatePackage, duplicatePackage, setPackageStatus,
+  listPackages, listPackagesPublic, getPackage, getPackageForBooking,
+  getProductionPlanForPackage, getPaymentPoliciesForPackages,
+  // Intake questions
+  getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,
+} from './domain';
+export type { PaymentPolicy, PricingVariant } from './domain';

@@ -6,7 +6,7 @@ import { stageBadgeClass } from '@/components/stageBadge';
 import { formatMoney, formatDuration } from '@/kernel/currency';
 
 type Item =
-  | { kind: 'booking'; at: string; durationMinutes: number | null; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; services: string[] }
+  | { kind: 'booking'; at: string; durationMinutes: number | null; bookingId: string; title: string; stage: string | null; stageKind: string | null; stageColor: string | null; client: string | null; lines: string[] }
   | { kind: 'deadline'; at: string; taskId: string; title: string; status: string; bookingId: string; bookingTitle: string; lineTitle: string }
   | { kind: 'money'; at: string; transactionId: string; title: string; amount: number; currency: string; status: string; bookingId: string | null; bookingTitle: string | null };
 
@@ -178,7 +178,7 @@ export function CalendarClient({
                         </div>
                         <div className="q-meta">
                           {it.client || 'No client yet'}
-                          {it.services.length > 0 && <> · {it.services.join(', ')}</>}
+                          {it.lines.length > 0 && <> · {it.lines.join(', ')}</>}
                         </div>
                         <div className="q-row" style={{ marginTop: '9px' }}>
                           <span className={`q-badge ${stageBadgeClass({ kind: it.stageKind, color: it.stageColor })}`}>{it.stage}</span>

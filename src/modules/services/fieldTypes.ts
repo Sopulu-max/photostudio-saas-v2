@@ -36,6 +36,8 @@ export type IntakeQuestion = {
   help?: string;
   /** choice / multichoice only */
   options?: string[];
+  /** Optional reference to a bundled service this question specifically belongs to */
+  serviceId?: string;
 };
 
 export type FieldTypeDef = {

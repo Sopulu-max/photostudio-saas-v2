@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { getService, getProductionPlanForService, getPaymentPoliciesForServices, getServiceDefaults } from '@/modules/services/interface';
+import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { raiseInvoiceForBooking } from '@/modules/finances/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
@@ -16,7 +16,7 @@ import { revalidatePath } from 'next/cache';
  */
 export async function createBooking(input: {
   contactId?: string | null;
-  serviceId?: string | null;
+  packageId?: string | null;
   scheduledFor?: string | null;
   title?: string;
 }) {
@@ -41,14 +41,14 @@ export async function createBooking(input: {
       .from('contacts').select('display_name').eq('id', input.contactId).eq('organization_id', orgId).maybeSingle();
     clientName = c?.display_name ?? null;
   }
-  let serviceName: string | null = null;
-  if (input.serviceId) {
-    const svc = await getService(input.serviceId);
-    serviceName = svc?.name ?? null;
+  let packageName: string | null = null;
+  if (input.packageId) {
+    const pkg = await getPackageForBooking(input.packageId);
+    packageName = pkg?.name ?? null;
   }
   const title = custom || composeTitle({
     clientName,
-    serviceTitles: serviceName ? [serviceName] : [],
+    lineTitles: packageName ? [packageName] : [],
     scheduledFor: input.scheduledFor ?? null,
   });
 
@@ -79,9 +79,9 @@ export async function createBooking(input: {
     payload: { title },
   });
 
-  // A chosen service becomes the booking's first line straight away.
-  if (input.serviceId) {
-    await addBookingLine({ bookingId: booking.id, serviceId: input.serviceId, title: '' });
+  // A chosen package becomes the booking's first line straight away.
+  if (input.packageId) {
+    await addBookingLine({ bookingId: booking.id, packageId: input.packageId, title: '' });
   }
 
   revalidatePath('/bookings');
@@ -90,10 +90,94 @@ export async function createBooking(input: {
 }
 
 /**
+ * A booking arriving from outside — the public booking page. It is the same
+ * booking as any other; the only real difference is that nobody is logged in,
+ * so the organization comes in explicitly instead of from a session (the
+ * pattern draftContractForBooking and raiseInvoiceForBooking already use).
+ *
+ * This exists so the public path stops being a second implementation of
+ * booking creation. It was inserting bookings and lines itself and naming them
+ * its own way — meaning a booking made by a client and one made by an operator
+ * followed different naming rules, and only the operator's could ever be
+ * auto-renamed as facts arrived.
+ */
+export async function createBookingFromIntake(input: {
+  organizationId: string;
+  contactId: string;
+  clientName: string;
+  packageId: string;
+  packageName: string;
+  linePrice?: Record<string, unknown>;
+  answers?: Record<string, unknown>;
+  source?: string;
+}) {
+  const orgId = input.organizationId;
+
+  // Land on an enquiry-kind stage if the studio has one, but never require it —
+  // a studio may not use that idea at all. Then their default, then the first.
+  const { data: stages } = await supabaseAdmin
+    .from('booking_stages')
+    .select('id, kind, is_default, position')
+    .eq('organization_id', orgId)
+    .order('position');
+  const landingStage =
+    (stages || []).find((s: any) => s.kind === 'enquiry') ||
+    (stages || []).find((s: any) => s.is_default) ||
+    (stages || [])[0];
+  if (!landingStage) throw new Error('This studio has no booking stages configured.');
+
+  // The module's own naming, so an intake booking reads like every other one —
+  // and title_custom stays false, so it keeps improving as facts arrive.
+  const title = composeTitle({ clientName: input.clientName, lineTitles: [input.packageName] });
+
+  const { data: booking, error } = await supabaseAdmin
+    .from('bookings')
+    .insert({
+      organization_id: orgId,
+      contact_id: input.contactId,
+      title,
+      title_custom: false,
+      stage_id: landingStage.id,
+      metadata: { source: input.source || 'public_booking_page', form_responses: input.answers || {} },
+    })
+    .select('id')
+    .single();
+  if (error || !booking) {
+    console.error('Failed to create booking from intake:', error);
+    throw new Error('Failed to create your booking request.');
+  }
+
+  const { error: lineError } = await supabaseAdmin.from('booking_lines').insert({
+    organization_id: orgId,
+    booking_id: booking.id,
+    package_id: input.packageId,
+    title: input.packageName,
+    price: input.linePrice || {},
+  });
+  if (lineError) {
+    console.error('Failed to add intake booking line:', lineError);
+    throw new Error('Failed to create your booking request.');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: booking.id,
+    action: 'created',
+    actorId: input.contactId,
+    payload: { source: input.source || 'public_booking_page', packageId: input.packageId },
+  });
+
+  revalidatePath('/bookings');
+  revalidatePath('/calendar');
+  return { bookingId: booking.id };
+}
+
+/**
  * Attach (or change) the client on a booking, by contact id — the kernel-level
- * reference (à la sale.order.partner_id → res.partner). While Contracts and
- * kernel-level reference (à la sale.order.partner_id → res.partner).
- * contact's backfill link so those flows keep working mid-migration.
+ * reference (à la sale.order.partner_id → res.partner). The booking points at a
+ * contact, not at a Client record: someone can be on a booking before the studio
+ * has decided they're a client at all.
  */
 export async function setBookingClient(input: { bookingId: string; contactId: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
@@ -132,30 +216,30 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
 }
 
 /**
- * Add a service line to a booking. Optionally seeded from a service template
- * (which carries its price snapshot); or a free-form custom line.
+ * Add a package line to a booking. Optionally seeded from a Package (which
+ * carries its price snapshot); or a free-form custom line.
  */
 export async function addBookingLine(input: {
   bookingId: string;
-  serviceId?: string | null;
+  packageId?: string | null;
   title: string;
   price?: Record<string, unknown>;
   quantity?: number;
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
-  // If seeded from a service, snapshot its pricing/title now — asked of the
-  // Services module, not read from its tables.
+  // If seeded from a package, snapshot its pricing/title now — asked of the
+  // Packages module, not read from its tables.
   let title = (input.title || '').trim();
   let price = input.price ?? {};
-  if (input.serviceId) {
-    const svc = await getService(input.serviceId);
-    if (svc) {
-      if (!title) title = svc.name;
+  if (input.packageId) {
+    const pkg = await getPackageForBooking(input.packageId);
+    if (pkg) {
+      if (!title) title = pkg.name;
       if (!input.price) {
         // Snapshot the unit alongside the price: what it was sold as, at the
         // time it was sold.
-        price = { ...((svc.pricing as Record<string, unknown>) || {}), unit: (svc as any).price_unit ?? null };
+        price = { ...((pkg.pricing as Record<string, unknown>) || {}), unit: (pkg as any).price_unit ?? null };
       }
     }
   }
@@ -166,7 +250,7 @@ export async function addBookingLine(input: {
     .insert({
       organization_id: orgId,
       booking_id: input.bookingId,
-      service_id: input.serviceId ?? null,
+      package_id: input.packageId ?? null,
       title,
       price,
       quantity: input.quantity ?? 1,
@@ -212,7 +296,7 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('title, price, quantity, service_id')
+    .select('title, price, quantity, package_id')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
 
@@ -238,21 +322,23 @@ export async function createContractForBooking(bookingId: string) {
   });
 
   // What's due to book — resolved from what's actually being sold, not
-  // hardcoded. A service requiring full payment overrides everything else on
+  // hardcoded. A package requiring full payment overrides everything else on
   // the booking (you can't half-confirm a full-payment line); otherwise the
-  // largest deposit among the services involved applies. Lines with no
-  // service (custom lines only) fall back to the studio's own default.
-  const serviceIds = [...new Set((lines || []).map((l: any) => l.service_id).filter(Boolean))] as string[];
-  const policies = await getPaymentPoliciesForServices(serviceIds);
-  const resolved = Object.values(policies);
+  // largest deposit among the packages involved applies. Lines with no
+  // package at all (custom lines only, nothing catalogued yet) get the most
+  // conservative reading — nothing assumed due to book, the full amount
+  // invoiced later — rather than a studio-configurable default that no
+  // longer exists.
+  const packageIds = [...new Set((lines || []).map((l: any) => l.package_id).filter(Boolean))] as string[];
+  const policies = await getPaymentPoliciesForPackages(packageIds);
+  const resolved = Object.values(policies) as { policy: string; depositPercentage: number }[];
   let depositPercentage: number;
   if (resolved.some((p) => p.policy === 'full')) {
     depositPercentage = 100;
   } else if (resolved.length > 0) {
     depositPercentage = Math.max(...resolved.map((p) => p.depositPercentage));
   } else {
-    const defaults = await getServiceDefaults();
-    depositPercentage = defaults.paymentPolicy === 'full' ? 100 : defaults.depositPercentage;
+    depositPercentage = 0;
   }
 
   const terms = { base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems };
@@ -315,25 +401,26 @@ export async function addInvoiceToBooking(input: { bookingId: string; label: str
 
 /**
  * Start work on a line, when the studio chooses — no contract required (the
- * kernel is unlocked). The line IS the production unit: its tasks come from the
- * service's blueprint, asked of Services and handed to Production.
+ * kernel is unlocked). The line IS the production unit: its tasks come from
+ * the package's aggregated routing — the union of every Service it bundles —
+ * asked of Packages and handed to Production.
  */
 export async function startWorkForLine(input: { bookingId: string; lineId: string }) {
   const { orgId } = await getAuthOrgId();
 
   const { data: line } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, service_id')
+    .select('id, package_id')
     .eq('id', input.lineId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!line) throw new Error('Line not found');
 
-  // Ask the Services module for this line's production plan — never read its
-  // services/blueprints tables from here (seam discipline).
-  const plan = line.service_id
-    ? await getProductionPlanForService(line.service_id)
-    : { blueprintId: null, stages: [] };
+  // Ask the Packages module for this line's production plan — never read its
+  // tables from here (seam discipline).
+  const plan = line.package_id
+    ? await getProductionPlanForPackage(line.package_id)
+    : { stages: [] };
 
   // Production owns the work — Bookings asks, it doesn't write tasks itself.
   const { taskCount } = await startWorkForBookingLine({
@@ -384,6 +471,85 @@ export async function setBookingSchedule(input: {
 }
 
 /**
+ * One booking, with everything its hub renders. The surface asks for this
+ * rather than querying the table itself — same rule every other module's
+ * consumers already follow, and the reason it was being broken here is simply
+ * that this operation didn't exist yet.
+ *
+ * Contracts and transactions come back on the row because the booking IS where
+ * they cohere; they stay owned by their own modules, which is why nothing here
+ * writes them.
+ */
+export async function getBooking(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select(`
+      id, title, scheduled_for, duration_minutes, created_at, stage_id,
+      stage:booking_stages(id, name, kind, color),
+      contact:contacts(id, display_name, email),
+      booking_lines(id, title, price, quantity, package_id, status, created_at),
+      contracts(id, version, status, terms, created_at),
+      financial_transactions(id, type, amount, currency, status, direction)
+    `)
+    .eq('id', bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to load booking:', error);
+    throw new Error('Failed to load the booking');
+  }
+  if (!data) return null;
+
+  const b: any = data;
+  return {
+    ...b,
+    lines: (b.booking_lines || []).slice().sort((x: any, y: any) => String(x.created_at).localeCompare(String(y.created_at))),
+    contracts: b.contracts || [],
+    transactions: b.financial_transactions || [],
+  };
+}
+
+/** Every booking, newest first — the list surface. */
+export async function listBookings() {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select(`
+      id, title, created_at,
+      stage:booking_stages(name, kind, color),
+      contact:contacts(display_name),
+      booking_lines(id),
+      contracts(id, status),
+      financial_transactions(id, amount, status)
+    `)
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to list bookings:', error);
+    throw new Error('Failed to load bookings');
+  }
+
+  const rows = (data || []) as any[];
+  return rows.map((b) => ({
+    id: b.id,
+    title: b.title,
+    createdAt: b.created_at,
+    stage: b.stage || null,
+    clientName: b.contact?.display_name || null,
+    lineCount: (b.booking_lines || []).length,
+    hasContract: (b.contracts || []).length > 0,
+    pendingTotal: (b.financial_transactions || [])
+      .filter((t: any) => t.status === 'pending')
+      .reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
+  }));
+}
+
+/**
  * Bookings scheduled within a window — the calendar's shoot layer. Carries just
  * enough context to be readable without opening the booking.
  */
@@ -413,7 +579,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     stageKind: b.stage?.kind || null,
     stageColor: b.stage?.color || null,
     client: b.contact?.display_name || null,
-    services: (b.booking_lines || []).map((l: any) => l.title),
+    lines: (b.booking_lines || []).map((l: any) => l.title),
   }));
 }
 
@@ -765,23 +931,23 @@ function formatDay(iso: string | null) {
 
 /**
  * Compose a booking's name from what's actually known about it:
- *   client + service  →  "Amara Obi — Studio Headshots"
+ *   client + package  →  "Amara Obi — Wedding Gold"
  *   client            →  "Amara Obi"
- *   service + date    →  "Studio Headshots — 14 Jul"
+ *   package + date    →  "Wedding Gold — 14 Jul"
  *   nothing yet       →  "New booking"
- * Extra services are counted rather than listed, so the name stays readable.
+ * Extra lines are counted rather than listed, so the name stays readable.
  */
 function composeTitle(input: {
   clientName?: string | null;
-  serviceTitles?: string[];
+  lineTitles?: string[];
   scheduledFor?: string | null;
 }) {
   const client = (input.clientName || '').trim();
-  const services = (input.serviceTitles || []).filter(Boolean);
+  const lineTitles = (input.lineTitles || []).filter(Boolean);
   const day = formatDay(input.scheduledFor ?? null);
 
-  let what = services[0] || '';
-  if (services.length > 1) what += ` +${services.length - 1}`;
+  let what = lineTitles[0] || '';
+  if (lineTitles.length > 1) what += ` +${lineTitles.length - 1}`;
 
   if (client && what) return `${client} — ${what}`;
   if (client) return day ? `${client} — ${day}` : client;
@@ -810,7 +976,7 @@ export async function refreshBookingTitle(bookingId: string) {
 
   const title = composeTitle({
     clientName: (booking as any).contact?.display_name,
-    serviceTitles: lines.map((l: any) => l.title),
+    lineTitles: lines.map((l: any) => l.title),
     scheduledFor: booking.scheduled_for,
   });
 
@@ -886,21 +1052,21 @@ export async function setDefaultStage(stageId: string) {
 }
 
 /**
- * Which intake questions for a service already have answers on real bookings.
+ * Which intake questions for a package already have answers on real bookings.
  *
- * Services asks this before letting a studio change a question's TYPE: once a
+ * Packages asks this before letting a studio change a question's TYPE: once a
  * client has answered, changing the type would corrupt the stored value. The
- * answers live here (booking metadata), the questions live in Services — so
+ * answers live here (booking metadata), the questions live in Packages — so
  * this is the seam between them.
  */
-export async function getAnsweredQuestionIdsForService(serviceId: string): Promise<string[]> {
+export async function getAnsweredQuestionIdsForPackage(packageId: string): Promise<string[]> {
   const { orgId } = await getAuthOrgId();
 
   const { data: rows } = await supabaseAdmin
     .from('bookings')
-    .select('metadata, booking_lines!inner(service_id)')
+    .select('metadata, booking_lines!inner(package_id)')
     .eq('organization_id', orgId)
-    .eq('booking_lines.service_id', serviceId);
+    .eq('booking_lines.package_id', packageId);
 
   const ids = new Set<string>();
   for (const r of (rows || []) as any[]) {
@@ -922,7 +1088,7 @@ export async function getAnsweredQuestionIdsForService(serviceId: string): Promi
  *
  * This closes a loop that was half-built: intake answers were collected on the
  * public form and stored, but no surface ever showed them. Questions belong to
- * Services, so we ask for them per service; answers whose question has since
+ * Packages, so we ask for them per package; answers whose question has since
  * been removed are kept and marked, because a client genuinely said that.
  */
 export async function getIntakeAnswersForBooking(bookingId: string) {
@@ -930,7 +1096,7 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('metadata, booking_lines(service_id)')
+    .select('metadata, booking_lines(package_id)')
     .eq('id', bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -938,13 +1104,13 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
   const answers = (booking?.metadata as any)?.form_responses;
   if (!answers || typeof answers !== 'object') return [];
 
-  // The questions come from Services — never read its tables from here.
-  const { getIntakeQuestions } = await import('@/modules/services/interface');
-  const serviceIds = Array.from(
-    new Set(((booking as any).booking_lines || []).map((l: any) => l.service_id).filter(Boolean))
+  // The questions come from Packages — never read its tables from here.
+  const { getIntakeQuestions } = await import('@/modules/packages/interface');
+  const packageIds = Array.from(
+    new Set(((booking as any).booking_lines || []).map((l: any) => l.package_id).filter(Boolean))
   ) as string[];
 
-  const questions = (await Promise.all(serviceIds.map((id) => getIntakeQuestions(id)))).flat();
+  const questions = (await Promise.all(packageIds.map((id) => getIntakeQuestions(id)))).flat();
   const byId = new Map(questions.map((q) => [q.id, q]));
 
   const { fieldType } = await import('@/modules/services/fieldTypes');
@@ -969,8 +1135,83 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
 }
 
 /**
+ * Who this booking needs, derived from what was actually booked.
+ *
+ * The whole chain already exists in the data and used to die before reaching
+ * anyone: a Service's Blueprint routes each stage to a role → a Package
+ * inherits the union of its bundled Services' stages → a booking line points
+ * at that Package. So the booking already knows it needs a Photographer and a
+ * Video Editor; nothing ever said so out loud until work had been started and
+ * the roles were buried one-per-task.
+ *
+ * Surfaced, never acted on — the same discipline as reviewCascadeForCancel.
+ * This does not assign anyone, and a role going unfilled is not an error: a
+ * studio may well shoot it themselves. Roles are matched by id, not name, and
+ * stages the blueprints left unrouted are reported rather than hidden, because
+ * "the blueprint doesn't say who does this" is real information.
+ */
+export async function getStaffingNeedsForBooking(bookingId: string): Promise<{
+  roles: { roleId: string; roleName: string; stageCount: number; fromPackages: string[]; assigned: { employeeId: string; name: string }[] }[];
+  unroutedStages: number;
+}> {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines')
+    .select('package_id, title')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+
+  const withPackage = ((lines || []) as any[]).filter((l) => l.package_id);
+  if (withPackage.length === 0) return { roles: [], unroutedStages: 0 };
+
+  // Asked of Packages — its plan is already the union of every bundled
+  // Service's Process, so this never needs to know Services exist.
+  const { getProductionPlanForPackage } = await import('@/modules/packages/interface');
+
+  const byRole = new Map<string, { stageCount: number; fromPackages: Set<string> }>();
+  let unroutedStages = 0;
+
+  // A package booked twice genuinely needs its roles twice over, so this walks
+  // lines rather than distinct packages.
+  for (const line of withPackage) {
+    const plan = await getProductionPlanForPackage(line.package_id);
+    for (const stage of plan.stages) {
+      if (!stage.roleId) { unroutedStages += 1; continue; }
+      const entry = byRole.get(stage.roleId) ?? { stageCount: 0, fromPackages: new Set<string>() };
+      entry.stageCount += 1;
+      entry.fromPackages.add(line.title);
+      byRole.set(stage.roleId, entry);
+    }
+  }
+  if (byRole.size === 0) return { roles: [], unroutedStages };
+
+  // Names from Team, crew from Production — both through their interfaces.
+  const [{ listRoles }, { listCrewForBooking }] = await Promise.all([
+    import('@/modules/team/interface'),
+    import('@/modules/production/interface'),
+  ]);
+  const [allRoles, crew] = await Promise.all([listRoles(), listCrewForBooking(bookingId)]);
+  const roleName = new Map((allRoles as any[]).map((r) => [r.id, r.name as string]));
+
+  const roles = Array.from(byRole.entries())
+    .map(([roleId, v]) => ({
+      roleId,
+      roleName: roleName.get(roleId) || 'Unnamed role',
+      stageCount: v.stageCount,
+      fromPackages: Array.from(v.fromPackages),
+      assigned: (crew as any[])
+        .filter((m) => m.roleId === roleId)
+        .map((m) => ({ employeeId: m.employeeId as string, name: m.name as string })),
+    }))
+    .sort((a, b) => b.stageCount - a.stageCount || a.roleName.localeCompare(b.roleName));
+
+  return { roles, unroutedStages };
+}
+
+/**
  * What this booking's lines suggest it should run for — the longest of their
- * services' typical durations, since work on one day usually overlaps rather
+ * packages' typical durations, since work on one day usually overlaps rather
  * than stacking. A suggestion only: the studio sets the real figure.
  */
 export async function suggestedDurationForBooking(bookingId: string): Promise<number | null> {
@@ -978,14 +1219,14 @@ export async function suggestedDurationForBooking(bookingId: string): Promise<nu
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('service_id')
+    .select('package_id')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId);
 
-  const serviceIds = (lines || []).map((l: any) => l.service_id).filter(Boolean) as string[];
-  if (serviceIds.length === 0) return null;
+  const packageIds = (lines || []).map((l: any) => l.package_id).filter(Boolean) as string[];
+  if (packageIds.length === 0) return null;
 
-  const durations = await Promise.all(serviceIds.map(async (id) => (await getService(id))?.duration_minutes ?? null));
+  const durations = await Promise.all(packageIds.map(async (id) => (await getPackageForBooking(id))?.duration_minutes ?? null));
   const known = durations.filter((d): d is number => typeof d === 'number' && d > 0);
   return known.length ? Math.max(...known) : null;
 }

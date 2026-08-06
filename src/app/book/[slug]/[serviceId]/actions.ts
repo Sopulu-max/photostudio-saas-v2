@@ -1,28 +1,30 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getIntakeQuestionsPublic } from '@/modules/services/interface';
+import { getIntakeQuestionsPublic } from '@/modules/packages/interface';
+import { createBookingFromIntake } from '@/modules/bookings/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
 
 /**
- * Public booking intake. A lead is a booking in `inquiry` status — no separate
- * intent entity. The system: finds-or-creates the contact, records them as a
- * client, and opens a booking with one line for the requested service.
+ * Public booking intake — the outside world's way in. A lead is just a booking
+ * on an early stage; there is no separate intent entity. This finds-or-creates
+ * the contact, records them as a client, and hands the rest to Bookings.
  *
- * Public surface: the visitor is unauthenticated, so this uses the admin client
- * scoped to the org resolved from the page's slug (module interfaces assume an
- * authenticated operator).
+ * The visitor is unauthenticated, so the contact/client steps still use the
+ * admin client scoped to the org resolved from the page's slug — the Clients
+ * module's operations all assume a logged-in operator. The booking itself goes
+ * through Bookings' own intake operation, which takes the org explicitly.
  */
 export async function submitBookingForm(
   orgId: string,
-  serviceId: string,
+  packageId: string,
   formData: {
     firstName: string;
     lastName: string;
     email: string;
     phone: string;
     customFields: Record<string, any>;
-    extraIds?: string[];
+    tierIndex?: number;
   }
 ) {
   const displayName = `${formData.firstName} ${formData.lastName}`.trim();
@@ -88,95 +90,43 @@ export async function submitBookingForm(
       { onConflict: 'organization_id,contact_id' }
     );
 
-  // 3. The service, for the line's snapshot and the booking title
-  const { data: service } = await supabaseAdmin
-    .from('services')
-    .select('id, name, pricing')
-    .eq('id', serviceId)
+  // 3. The package, for the line's snapshot and the booking title
+  const { data: pkg } = await supabaseAdmin
+    .from('packages')
+    .select('id, name, pricing, pricing_variant')
+    .eq('id', packageId)
     .eq('organization_id', orgId)
     .maybeSingle();
-  if (!service) throw new Error('This service is no longer available.');
+  if (!pkg) throw new Error('This package is no longer available.');
 
-  // Never trust the browser: validate the answers against the service's own
+  // Never trust the browser for price: re-look-up the chosen tier server-side.
+  const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
+  const chosenTier = variant && formData.tierIndex != null ? variant.tiers[formData.tierIndex] : null;
+  const linePrice = chosenTier
+    ? { ...((pkg.pricing as any) || {}), base_price: chosenTier.price, unit: chosenTier.label }
+    : (pkg.pricing || {});
+
+  // Never trust the browser: validate the answers against the package's own
   // questions, and normalise them to each type's storage shape.
-  const questions = await getIntakeQuestionsPublic(service.id);
+  const questions = await getIntakeQuestionsPublic(pkg.id);
   const errors = validateAnswers(questions, formData.customFields || {});
   const firstError = Object.values(errors)[0];
   if (firstError) throw new Error(firstError);
   const storedAnswers = storeAnswers(questions, formData.customFields || {});
 
-  // 4. The booking lands on the studio's first enquiry-kind stage — whatever
-  //    they have chosen to call it.
-  // Prefer an enquiry-kind stage, but never REQUIRE one — a studio may not use
-  // that idea at all. Fall back to their default stage, then to the first.
-  const { data: stages } = await supabaseAdmin
-    .from('booking_stages')
-    .select('id, kind, is_default, position')
-    .eq('organization_id', orgId)
-    .order('position');
-  const landingStage =
-    (stages || []).find((s: any) => s.kind === 'enquiry') ||
-    (stages || []).find((s: any) => s.is_default) ||
-    (stages || [])[0];
-  if (!landingStage) throw new Error('This studio has no booking stages configured.');
-
-  const { data: booking, error: bookingError } = await supabaseAdmin
-    .from('bookings')
-    .insert({
-      organization_id: orgId,
-      contact_id: contactId,
-      title: `${displayName} — ${service.name}`,
-      stage_id: landingStage.id,
-      metadata: { source: 'public_booking_page', form_responses: storedAnswers },
-    })
-    .select('id')
-    .single();
-  if (bookingError || !booking) {
-    console.error('Error creating booking:', bookingError);
-    throw new Error('Failed to create your booking request.');
-  }
-
-  // 5. One line for the requested service
-  await supabaseAdmin.from('booking_lines').insert({
-    organization_id: orgId,
-    booking_id: booking.id,
-    service_id: service.id,
-    title: service.name,
-    price: service.pricing || {},
+  // 4. The booking itself — asked of the Bookings module, not inserted here.
+  // This is the same operation an operator's booking goes through, so intake
+  // bookings are staged, named and logged by exactly the same rules.
+  const { bookingId } = await createBookingFromIntake({
+    organizationId: orgId,
+    contactId,
+    clientName: displayName,
+    packageId: pkg.id,
+    packageName: pkg.name,
+    linePrice,
+    answers: storedAnswers,
+    source: 'public_booking_page',
   });
 
-  // 5b. Any add-ons the client picked — each becomes its own line, snapshotted
-  // at today's price, exactly like a custom line. Never trust the browser for
-  // the price: look extras up again by id, scoped to this service and org.
-  const extraIds = (formData.extraIds || []).filter(Boolean);
-  if (extraIds.length > 0) {
-    const { data: chosenExtras } = await supabaseAdmin
-      .from('service_extras')
-      .select('id, name, price, price_unit')
-      .in('id', extraIds)
-      .eq('service_id', service.id)
-      .eq('organization_id', orgId);
-
-    const currency = (service.pricing as any)?.currency;
-    for (const extra of chosenExtras || []) {
-      await supabaseAdmin.from('booking_lines').insert({
-        organization_id: orgId,
-        booking_id: booking.id,
-        title: extra.name,
-        price: { base_price: Number(extra.price), currency, unit: extra.price_unit },
-      });
-    }
-  }
-
-  // 6. Organizational memory
-  await supabaseAdmin.from('events').insert({
-    organization_id: orgId,
-    entity_type: 'booking',
-    entity_id: booking.id,
-    action: 'created',
-    actor_id: contactId,
-    payload: { source: 'public_booking_page', serviceId: service.id },
-  });
-
-  return { success: true, bookingId: booking.id };
+  return { success: true, bookingId };
 }

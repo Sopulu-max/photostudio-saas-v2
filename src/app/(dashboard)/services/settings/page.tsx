@@ -2,22 +2,32 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  listCategories,
-  listServices,
-  listBlueprints,
-  getServiceDefaults,
+  listServices, listBlueprints,
+  listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
+  listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
+  getEnabledDimensions,
+  listOccasions, createOccasion, renameOccasion, deleteOccasion,
+  listContexts, createContext, renameContext, deleteContext,
+  listSubjects, createSubject, renameSubject, deleteSubject,
+  listPurposes, createPurpose, renamePurpose, deletePurpose,
+  listClientTypes, createClientType, renameClientType, deleteClientType,
 } from '@/modules/services/interface';
-import { CategoryManager } from '../CategoryManager';
+import { listRoles } from '@/modules/team/interface';
+import { FacetManager } from '@/components/FacetManager';
 import { NewBlueprintForm } from '../NewBlueprintForm';
 import { BlueprintRow } from '../BlueprintRow';
-import { DefaultsForm } from './DefaultsForm';
+import { DimensionChooser } from '../DimensionChooser';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Services' own settings — the module owns its configuration, so groups,
- * blueprints and defaults sit with the thing they affect rather than in global
- * Settings. The catalogue page is left to be a catalogue.
+ * Services' own settings — the ontology layer's configuration. Domains and
+ * Deliverables are studio-editable vocabulary; Blueprints are the Processes
+ * a Service runs. The five classification dimensions (Subject, Occasion,
+ * Context, Purpose, Client) live here too — they apply to both Service and
+ * Package, and Services is the layer both depend on. Category and pricing
+ * stay in Packages' own settings — those describe how something's sold, not
+ * what it is.
  */
 export default async function ServiceSettingsPage() {
   try {
@@ -26,14 +36,26 @@ export default async function ServiceSettingsPage() {
     redirect('/login');
   }
 
-  const [categories, services, blueprints, defaults] = await Promise.all([
-    listCategories(), listServices(), listBlueprints(), getServiceDefaults(),
+  const [services, blueprints, domains, deliverables, roles, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
+    listServices(), listBlueprints(), listServiceDomains(), listDeliverables(), listRoles(),
+    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
   ]);
+  const roleOptions = (roles as any[]).map((r) => r.name);
 
-  const counts: Record<string, number> = {};
+  const domainCounts: Record<string, number> = {};
   for (const s of services as any[]) {
-    if (s.category_id) counts[s.category_id] = (counts[s.category_id] || 0) + 1;
+    if (s.service_domain_id) domainCounts[s.service_domain_id] = (domainCounts[s.service_domain_id] || 0) + 1;
   }
+
+  const countBy = (key: 'occasion' | 'context' | 'subject' | 'purpose' | 'client_type') => {
+    const counts: Record<string, number> = {};
+    for (const s of services as any[]) {
+      const id = s[key]?.id;
+      if (id) counts[id] = (counts[id] || 0) + 1;
+    }
+    return counts;
+  };
+
 
   return (
     <div className="q-page-narrow">
@@ -41,43 +63,96 @@ export default async function ServiceSettingsPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Service settings</h1>
-          <p className="q-page-subtitle">How your catalogue is organised, and what it starts from.</p>
+          <p className="q-page-subtitle">The vocabulary this studio&rsquo;s services are built from.</p>
         </div>
       </header>
 
       <div className="q-stack q-stack-lg">
-
         <section className="q-card q-section">
-          <h2 className="q-section-title">Groups</h2>
+          <h2 className="q-section-title">Which dimensions do you organize by?</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            How your catalogue is arranged. Nothing in the system reads these — they&rsquo;re for you.
+            Fashion Photography and Birthday Photography don&rsquo;t answer the same question — one&rsquo;s a subject, one&rsquo;s an
+            occasion. Turn on whichever of these actually matter to how you think about what you do. Applies to both Services and
+            the Packages you sell them in.
           </p>
-          <CategoryManager categories={categories} counts={counts} />
+          <DimensionChooser enabled={enabledDimensions} />
         </section>
 
         <section className="q-card q-section">
+          <h2 className="q-section-title">Service Domains</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>The broad capabilities this studio offers — Photography, Videography, Printing.</p>
+          <FacetManager
+            facets={domains} counts={domainCounts} noun="service" placeholder="e.g. Graphic Design"
+            onCreate={createServiceDomain} onRename={renameServiceDomain} onDelete={deleteServiceDomain}
+          />
+        </section>
+
+        <section className="q-card q-section">
+          <h2 className="q-section-title">Deliverables</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>What a service can directly produce — RAW images, edited video, a photobook.</p>
+          <FacetManager
+            facets={deliverables} counts={{}} noun="service" placeholder="e.g. Edited photographs"
+            onCreate={createDeliverable} onRename={renameDeliverable} onDelete={deleteDeliverable}
+          />
+        </section>
+
+        {enabledDimensions.includes('subject') && (
+          <section className="q-card q-section">
+            <h2 className="q-section-title">Subject</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>What is being photographed — Person, Product, Building, Real Estate.</p>
+            <FacetManager facets={subjects} counts={countBy('subject')} noun="service" placeholder="e.g. Real Estate"
+              onCreate={createSubject} onRename={renameSubject} onDelete={deleteSubject} countDim="subject" />
+          </section>
+        )}
+
+        {enabledDimensions.includes('occasion') && (
+          <section className="q-card q-section">
+            <h2 className="q-section-title">Occasion</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>Wedding, birthday, none in particular.</p>
+            <FacetManager facets={occasions} counts={countBy('occasion')} noun="service" placeholder="e.g. Anniversary"
+              onCreate={createOccasion} onRename={renameOccasion} onDelete={deleteOccasion} countDim="occasion" />
+          </section>
+        )}
+
+        {enabledDimensions.includes('context') && (
+          <section className="q-card q-section">
+            <h2 className="q-section-title">Context</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>Where and under what conditions — In-studio, Outdoor, On-location.</p>
+            <FacetManager facets={contexts} counts={countBy('context')} noun="service" placeholder="e.g. On-location"
+              onCreate={createContext} onRename={renameContext} onDelete={deleteContext} countDim="context" />
+          </section>
+        )}
+
+        {enabledDimensions.includes('purpose') && (
+          <section className="q-card q-section">
+            <h2 className="q-section-title">Purpose</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>What it&rsquo;s for — Passport, Advertising, Editorial.</p>
+            <FacetManager facets={purposes} counts={countBy('purpose')} noun="service" placeholder="e.g. Editorial"
+              onCreate={createPurpose} onRename={renamePurpose} onDelete={deletePurpose} countDim="purpose" />
+          </section>
+        )}
+
+        {enabledDimensions.includes('client') && (
+          <section className="q-card q-section">
+            <h2 className="q-section-title">Client</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>Who&rsquo;s buying — Individual, Family, Corporate.</p>
+            <FacetManager facets={clientTypes} counts={countBy('client_type')} noun="service" placeholder="e.g. Corporate"
+              onCreate={createClientType} onRename={renameClientType} onDelete={deleteClientType} countDim="client" />
+          </section>
+        )}
+
+        <section className="q-card q-section">
           <h2 className="q-section-title">Blueprints</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>
-            Reusable stage sets. Attach one to a service and its work starts from those stages.
-          </p>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>A Service&rsquo;s Process — the stages it runs through, each optionally routed to a role.</p>
           {blueprints.length === 0 ? (
             <p className="q-empty">No blueprints yet.</p>
           ) : (
             <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-              {blueprints.map((bp: any) => <BlueprintRow key={bp.id} blueprint={bp} />)}
+              {blueprints.map((bp: any) => <BlueprintRow key={bp.id} blueprint={bp} roleOptions={roleOptions} />)}
             </div>
           )}
-          <NewBlueprintForm />
+          <NewBlueprintForm roleOptions={roleOptions} />
         </section>
-
-        <section className="q-card q-section">
-          <h2 className="q-section-title">Defaults</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>
-            What a new service starts with. You can change it per service afterwards.
-          </p>
-          <DefaultsForm paymentPolicy={defaults.paymentPolicy} depositPercentage={defaults.depositPercentage} />
-        </section>
-
       </div>
     </div>
   );

@@ -55,6 +55,58 @@ export function AddCrewForm({ bookingId, candidates }: { bookingId: string; cand
   );
 }
 
+/**
+ * Fill one role the booked Packages' blueprints call for. The role is already
+ * decided by what was booked, so this only asks who — and offers the people who
+ * actually hold that role first, falling back to the whole roster rather than
+ * blocking (a studio can put anyone on anything; the blueprint routes, it
+ * doesn't rule).
+ */
+export function FillRoleForm({
+  bookingId, roleId, roleName, candidates,
+}: {
+  bookingId: string;
+  roleId: string;
+  roleName: string;
+  candidates: Candidate[];
+}) {
+  const { isPending, run } = useAction();
+  const [employeeId, setEmployeeId] = React.useState('');
+  const [showAll, setShowAll] = React.useState(false);
+
+  const qualified = candidates.filter((c) => c.roles.some((r) => r.id === roleId));
+  const offered = showAll || qualified.length === 0 ? candidates : qualified;
+
+  if (candidates.length === 0) {
+    return (
+      <p className="q-meta-sm" style={{ margin: 0 }}>
+        No one on the team yet — <a className="q-accent" href="/team">add people</a> to fill this.
+      </p>
+    );
+  }
+
+  return (
+    <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+      <select className="q-select q-select-sm" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ minWidth: '10rem' }}>
+        <option value="">{qualified.length > 0 ? `Assign a ${roleName}…` : 'Assign someone…'}</option>
+        {offered.map((c) => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}
+      </select>
+      <button
+        className="q-btn q-btn-secondary q-btn-xs"
+        disabled={isPending || !employeeId}
+        onClick={() => run(() => assignToBooking({ bookingId, employeeId, roleId }).then(() => setEmployeeId('')))}
+      >
+        {isPending ? 'Adding…' : 'Add'}
+      </button>
+      {!showAll && qualified.length > 0 && qualified.length < candidates.length && (
+        <button className="q-btn-ghost q-meta-sm" style={{ padding: 0 }} onClick={() => setShowAll(true)}>
+          show everyone
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function RemoveCrewButton({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) {
   const { isPending, run } = useAction();
   return (
