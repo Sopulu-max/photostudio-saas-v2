@@ -17,6 +17,7 @@ import { revalidatePath } from 'next/cache';
 export async function createBooking(input: {
   contactId?: string | null;
   packageId?: string | null;
+  linePrice?: Record<string, unknown>;
   scheduledFor?: string | null;
   title?: string;
 }) {
@@ -81,7 +82,7 @@ export async function createBooking(input: {
 
   // A chosen package becomes the booking's first line straight away.
   if (input.packageId) {
-    await addBookingLine({ bookingId: booking.id, packageId: input.packageId, title: '' });
+    await addBookingLine({ bookingId: booking.id, packageId: input.packageId, title: '', price: input.linePrice });
   }
 
   revalidatePath('/bookings');

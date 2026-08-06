@@ -41,7 +41,7 @@ export function AddLineForm({
         router.refresh();
       } catch (e) {
         console.error(e);
-        alert('Failed to add line.');
+        alert('Failed to add it.');
       }
     });
   };
@@ -62,7 +62,7 @@ export function AddLineForm({
         router.refresh();
       } catch (e) {
         console.error(e);
-        alert('Failed to add line.');
+        alert('Failed to add it.');
       } finally {
         setAddingTier(null);
       }
@@ -84,14 +84,17 @@ export function AddLineForm({
         <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-400)' }}>or</span>
         <input
           className="q-input"
-          placeholder="custom line"
+          placeholder="a one-off charge, e.g. Travel"
           value={custom}
           onChange={(e) => { setCustom(e.target.value); if (e.target.value) setPackageId(''); }}
-          style={{ minWidth: '10rem' }}
+          style={{ minWidth: '12rem' }}
         />
         {!variant && (
-          <button className="q-btn q-btn-secondary" onClick={add} disabled={isPending}>
-            {isPending ? 'Adding…' : 'Add line'}
+          // The label names what you're actually adding — a package or a
+          // one-off charge — rather than "line", which is the shape the two
+          // share, not a thing anyone books.
+          <button className="q-btn q-btn-secondary" onClick={add} disabled={isPending || (!packageId && !custom.trim())}>
+            {isPending ? 'Adding…' : custom.trim() ? 'Add charge' : 'Add package'}
           </button>
         )}
       </div>

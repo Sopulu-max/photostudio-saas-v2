@@ -44,7 +44,7 @@ export function LineActions({
   if (editing) {
     return (
       <div className="q-row" style={{ marginTop: '10px' }}>
-        <input className="q-input" value={t} onChange={(e) => setT(e.target.value)} placeholder="Line name" style={{ minWidth: '12rem' }} />
+        <input className="q-input" value={t} onChange={(e) => setT(e.target.value)} placeholder="Name" style={{ minWidth: '12rem' }} />
         <input className="q-input" type="number" min="0" step="0.01" value={p} onChange={(e) => setP(e.target.value)} placeholder="price" style={{ width: '8rem' }} />
         <input className="q-input" type="number" min="0" step="0.5" value={qty} onChange={(e) => setQty(e.target.value)}
           placeholder="qty" title={unit ? `How many ${unit}s` : 'How many'} style={{ width: '6rem' }} />

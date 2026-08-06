@@ -89,7 +89,7 @@ export function ScheduleForm({
 
       {suggestedMinutes && dur === 0 && (
         <span className="q-meta-sm">
-          These services usually take {formatDuration(suggestedMinutes)} —{' '}
+          What&rsquo;s booked usually takes {formatDuration(suggestedMinutes)} —{' '}
           <button className="q-btn-ghost q-link" onClick={() => setDur(suggestedMinutes)}>use that</button>
         </span>
       )}

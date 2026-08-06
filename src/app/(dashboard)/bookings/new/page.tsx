@@ -30,7 +30,18 @@ export default async function NewBookingPage() {
     
   const packageOptions = packageRows
     .filter((p: any) => p.status !== 'retired')
-    .map((p: any) => ({ id: p.id as string, name: p.name as string }));
+    .map((p: any) => ({ 
+      id: p.id as string, 
+      name: p.name as string,
+      description: p.description as string | null,
+      pricing: p.pricing as any,           
+      priceUnit: p.price_unit as string | null,       
+      pricingVariant: p.pricing_variant as any, 
+      durationMinutes: p.duration_minutes as number | null,
+      paymentPolicy: p.payment_policy as string | null,
+      services: (p.services || []).map((s: any) => s.name as string),  
+      deliverables: (p.deliverables || []).map((d: any) => d.name as string), 
+    }));
 
   return (
     <div className="q-page-narrow">
