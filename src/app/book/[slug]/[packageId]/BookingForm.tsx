@@ -7,14 +7,14 @@ import { submitBookingForm } from './actions';
 
 interface BookingFormProps {
   orgId: string;
-  serviceId: string;
-  serviceName: string;
+  packageId: string;
+  packageName: string;
   formSchema: any[];
   variant?: { axis_label: string; tiers: { label: string; price: number }[] } | null;
   currencyCode?: string;
 }
 
-export function BookingForm({ orgId, serviceId, serviceName, formSchema, variant, currencyCode = 'USD' }: BookingFormProps) {
+export function BookingForm({ orgId, packageId, packageName, formSchema, variant, currencyCode = 'USD' }: BookingFormProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -28,7 +28,7 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema, variant
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await submitBookingForm(orgId, serviceId, {
+      await submitBookingForm(orgId, packageId, {
         firstName,
         lastName,
         email,
@@ -50,7 +50,7 @@ export function BookingForm({ orgId, serviceId, serviceName, formSchema, variant
       <div className="q-card" style={{ textAlign: 'center', padding: '64px 32px' }}>
         <h2 style={{ fontSize: '2rem', marginBottom: '16px' }}>Request Submitted</h2>
         <p className="q-muted">
-          Thank you. We have received your booking request for <strong>{serviceName}</strong>. 
+          Thank you. We have received your booking request for <strong>{packageName}</strong>.
           We will be in touch shortly.
         </p>
       </div>

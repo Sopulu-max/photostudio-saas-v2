@@ -249,7 +249,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 <p className="q-meta-sm" style={{ marginTop: '10px' }}>
                   {staffing.unroutedStages} {staffing.unroutedStages === 1 ? 'stage' : 'stages'} on these packages
                   {staffing.unroutedStages === 1 ? " doesn't" : " don't"} name a role — route
-                  {' '}<Link href="/services/settings" className="q-accent">their blueprints</Link> if you want them staffed too.
+                  {' '}<Link href="/services" className="q-accent">their blueprints</Link> if you want them staffed too.
                 </p>
               )}
             </>
@@ -299,6 +299,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     <div className="q-row q-row-between">
                       <div>
                         <strong className="q-strong">{l.title}</strong>
+                        {(() => {
+                          const pkg = (packageRows as any[]).find((p) => p.id === l.package_id);
+                          const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
+                          return svcNames.length > 0
+                            ? <div className="q-meta-sm">{svcNames.join(' · ')}</div>
+                            : null;
+                        })()}
                         <div className="q-meta q-num">
                           {linePrice(l.price, l.quantity)}
                           {w && <> · {w.completed}/{w.total} done</>}

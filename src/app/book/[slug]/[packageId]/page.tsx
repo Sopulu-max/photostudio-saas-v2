@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { BookingForm } from './BookingForm';
 
 export default async function BookingPage(props: {
-  params: Promise<{ slug: string; serviceId: string }>
+  params: Promise<{ slug: string; packageId: string }>
 }) {
   const params = await props.params;
 
@@ -23,7 +23,7 @@ export default async function BookingPage(props: {
     .from('packages')
     .select('id, name, form_schema, pricing_variant')
     .eq('organization_id', org.id)
-    .eq('id', params.serviceId)
+    .eq('id', params.packageId)
     .single();
 
   if (!pkg) {
@@ -44,8 +44,8 @@ export default async function BookingPage(props: {
 
         <BookingForm
           orgId={org.id}
-          serviceId={pkg.id}
-          serviceName={pkg.name}
+          packageId={pkg.id}
+          packageName={pkg.name}
           formSchema={pkg.form_schema || []}
           variant={pkg.pricing_variant as any}
           currencyCode={(org as any).currency || 'USD'}

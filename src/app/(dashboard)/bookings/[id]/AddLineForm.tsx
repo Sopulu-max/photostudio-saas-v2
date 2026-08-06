@@ -56,7 +56,7 @@ export function AddLineForm({
           bookingId,
           packageId,
           title: '',
-          price: { base_price: tier.price, currency: currencyCode, unit: null },
+          price: { base_price: tier.price, currency: currencyCode, unit: tier.label },
         });
         setPackageId('');
         router.refresh();
