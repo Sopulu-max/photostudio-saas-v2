@@ -302,7 +302,7 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
               />
             </div>
             <div className="q-field">
-              <label className="q-label">Phone</label>
+              <label className="q-label">Phone <span className="q-danger">*</span></label>
               <input
                 className="q-input"
                 type="tel"
@@ -400,7 +400,7 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
       </div>
 
       <div className="q-row">
-        <button className="q-btn q-btn-primary" onClick={create} disabled={isPending}>
+        <button className="q-btn q-btn-primary" onClick={create} disabled={isPending || (!!newClientName && !newClientPhone.trim())}>
           {isPending ? 'Creating…' : 'Create booking'}
         </button>
         <button className="q-btn q-btn-secondary" onClick={() => router.back()} disabled={isPending}>Cancel</button>

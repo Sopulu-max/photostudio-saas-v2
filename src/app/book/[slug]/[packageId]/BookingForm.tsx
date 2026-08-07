@@ -110,7 +110,7 @@ export function BookingForm({
 
   const canGoNext = (): boolean => {
     if (activeStep.id === 'personal') {
-      return firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '';
+      return firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' && phone.trim() !== '';
     }
     if (activeStep.id === 'details') {
       if (isCustom) {
@@ -231,8 +231,8 @@ export function BookingForm({
                       <input className="q-input q-input-lg" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@example.com" />
                     </div>
                     <div>
-                      <label className="q-label">Phone Number <span style={{ color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span></label>
-                      <input className="q-input q-input-lg" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
+                      <label className="q-label">Phone Number</label>
+                      <input className="q-input q-input-lg" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
                     </div>
                   </div>
                 </div>
