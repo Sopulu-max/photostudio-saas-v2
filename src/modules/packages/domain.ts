@@ -242,7 +242,6 @@ export async function listPackages() {
   }));
 }
 
-/** The storefront — active packages only, no session. */
 export async function listPackagesPublic(orgId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
@@ -250,6 +249,64 @@ export async function listPackagesPublic(orgId: string) {
     .eq('organization_id', orgId).eq('status', 'active').order('created_at', { ascending: false });
   if (error) { console.error('Failed to list public packages:', error); return []; }
   return (data || []).map((p: any) => ({ ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean) }));
+}
+
+/**
+ * Public package listing with dimension data — used by the intake wizard to
+ * match what a client describes against what the studio offers. Each package
+ * carries the union of dimension IDs from all of its bundled services so the
+ * client-side matcher can score without a server round-trip per selection.
+ */
+export async function listPackagesPublicWithDimensions(orgId: string) {
+  const { data } = await supabaseAdmin
+    .from('packages')
+    .select(`
+      id, name, description, pricing, duration_minutes, price_unit, pricing_variant,
+      package_services(service:services(
+        id, name,
+        occasion:occasions(id),
+        context:service_contexts(id),
+        subject:subjects(id),
+        purpose:purposes(id),
+        client_type:client_types(id)
+      ))
+    `)
+    .eq('organization_id', orgId).eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  return ((data || []) as any[]).map((p) => {
+    const services = (p.package_services || []).map((ps: any) => ps.service).filter(Boolean);
+    return {
+      id: p.id as string,
+      name: p.name as string,
+      description: (p.description ?? null) as string | null,
+      pricing: p.pricing as any,
+      duration_minutes: (p.duration_minutes ?? null) as number | null,
+      price_unit: (p.price_unit ?? null) as string | null,
+      pricing_variant: p.pricing_variant as any,
+      services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
+      dimensionIds: {
+        occasion: [...new Set(services.map((s: any) => s.occasion?.id).filter(Boolean))] as string[],
+        context:  [...new Set(services.map((s: any) => s.context?.id).filter(Boolean))] as string[],
+        subject:  [...new Set(services.map((s: any) => s.subject?.id).filter(Boolean))] as string[],
+        purpose:  [...new Set(services.map((s: any) => s.purpose?.id).filter(Boolean))] as string[],
+        client:   [...new Set(services.map((s: any) => s.client_type?.id).filter(Boolean))] as string[],
+      } as Record<string, string[]>,
+    };
+  });
+}
+
+/** Public details for a specific package — used by public booking intake. */
+export async function getPackagePublic(orgId: string, packageId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('packages')
+    .select('id, name, pricing, pricing_variant')
+    .eq('id', packageId)
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error) { console.error('Failed to get public package:', error); return null; }
+  return data;
 }
 
 export async function getPackage(packageId: string) {

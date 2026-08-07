@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createContractForBooking, addInvoiceToBooking, startWorkForLine } from '@/modules/bookings/interface';
+import { createContractForBooking, addInvoiceToBooking, startWorkForLine, extractPackageFromEnquiry } from '@/modules/bookings/interface';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -13,6 +13,15 @@ function useAction() {
       catch (e: any) { alert(e?.message || 'Something went wrong.'); }
     });
   return { isPending, run };
+}
+
+export function ExtractPackageButton({ bookingId, label = 'Extract to package' }: { bookingId: string; label?: string }) {
+  const { isPending, run } = useAction();
+  return (
+    <button className="q-btn q-btn-secondary" style={{ marginTop: '12px' }} disabled={isPending} onClick={() => run(() => extractPackageFromEnquiry(bookingId))}>
+      {isPending ? 'Extracting…' : label}
+    </button>
+  );
 }
 
 export function CreateContractButton({ bookingId, label = 'Create a contract' }: { bookingId: string; label?: string }) {

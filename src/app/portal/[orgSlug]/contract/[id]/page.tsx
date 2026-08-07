@@ -47,8 +47,36 @@ export default async function ClientContractPortalPage(props: {
       signatureName,
       signatureDataUrl
     });
-    // In real app, redirect to a thank you or deposit payment page
-    redirect(`/portal/${params.orgSlug}/payment/${contract.id}`);
+
+    // Orchestrate deposit invoice generation
+    const depositPercentage = terms.deposit_percentage || 0;
+    const basePrice = terms.base_price || 0;
+    const depositAmount = basePrice * (depositPercentage / 100);
+
+    let txId = null;
+    if (depositAmount > 0) {
+      const { raiseInvoiceForBooking } = await import('@/modules/finances/domain');
+      try {
+        const result = await raiseInvoiceForBooking({
+          organizationId: org.id,
+          bookingId: contract.booking_id,
+          contactId: contract.contact_id,
+          contractId: contract.id,
+          label: 'deposit',
+          amount: depositAmount,
+          currency: terms.currency || 'USD',
+        });
+        txId = result.transactionId;
+      } catch (err) {
+        console.error('Failed to raise deposit invoice:', err);
+      }
+    }
+
+    if (txId) {
+      redirect(`/portal/${params.orgSlug}/payment/${txId}`);
+    } else {
+      redirect(`/storefront/${params.orgSlug}?success=contract_signed`);
+    }
   }
 
   return (

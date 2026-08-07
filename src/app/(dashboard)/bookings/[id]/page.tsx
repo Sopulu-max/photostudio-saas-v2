@@ -1,8 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { AddLineForm } from './AddLineForm';
-import { CreateContractButton, StartWorkButton, AddInvoiceForm } from './BookingActions';
+import { CreateContractButton, StartWorkButton, AddInvoiceForm, ExtractPackageButton } from './BookingActions';
 import { SetClientForm } from './SetClientForm';
 import { AddCrewForm, RemoveCrewButton, FillRoleForm } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
@@ -19,6 +20,7 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
+import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const booking = await getBooking(params.id);
   if (!booking) notFound();
 
+  // Get the org slug for public links
+  const { data: orgData } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
+  const orgSlug = orgData?.slug || '';
+
   // The catalogue of what can be added to this booking — asked of Packages,
   // never read from its table. Retired packages aren't offered for new lines.
   const packageRows = await listPackages();
@@ -81,7 +87,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
-    getWorkForLines(lineIds),
+    getWorkForLines(lineIds, booking.id),
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
@@ -289,7 +295,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* What they're booking — one line per Package */}
         <Section title="What they're booking">
           {lines.length === 0 ? (
-            <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+            <div>
+              <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+              {booking.metadata?.form_responses?.dimensions && (
+                <ExtractPackageButton bookingId={booking.id} />
+              )}
+            </div>
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
@@ -503,6 +514,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   </div>
                   <div className="q-row">
                     <span className="q-strong">{formatMoney(t.amount, t.currency)}</span>
+                    {t.status === 'pending' && (
+                      <CopyInvoiceLinkButton orgSlug={orgSlug} txId={t.id} />
+                    )}
                     <Link href={`/finances/${t.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.85rem' }}>Open</Link>
                   </div>
                 </div>

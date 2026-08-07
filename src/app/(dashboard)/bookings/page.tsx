@@ -5,8 +5,9 @@ import { stageBadgeClass } from '@/components/stageBadge';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { listBookings } from '@/modules/bookings/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
+import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
+import { StorefrontLink } from '../packages/StorefrontLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +20,8 @@ export default async function BookingsPage() {
   }
 
   // Everything here comes through a module interface — this surface owns no queries.
-  const [bookings, clientRows, packageRows, currencyCode] = await Promise.all([
-    listBookings(), listClients(), listPackages(), getStudioCurrency(),
+  const [bookings, clientRows, packageRows, currencyCode, org] = await Promise.all([
+    listBookings(), listClients(), listPackages(), getStudioCurrency(), getStudio(),
   ]);
   // Archived clients are not on offer for new work — same rule as retired packages below.
   const clientOptions = clientRows
@@ -34,7 +35,7 @@ export default async function BookingsPage() {
 
   return (
     <div>
-      <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Bookings</h1>
           <p className="q-page-subtitle">Every job, wherever it is. Start one with whatever you know — the rest fills in as you go.</p>
@@ -44,6 +45,17 @@ export default async function BookingsPage() {
           <Link href="/bookings/new" className="q-btn q-btn-primary">+ New booking</Link>
         </div>
       </header>
+
+      {/* Public booking link — always visible so the studio can share it */}
+      {org?.slug && (
+        <div className="q-card q-row q-row-between">
+          <div>
+            <div className="q-strong">Public booking page</div>
+            <div className="q-meta">Share this link so clients can book directly.</div>
+          </div>
+          <StorefrontLink slug={org.slug} />
+        </div>
+      )}
 
       {(!bookings || bookings.length === 0) ? (
         <div className="q-card" style={{ textAlign: 'center', padding: 'clamp(44px, 7vw, 76px) 24px', color: 'var(--q-color-ink-500)' }}>

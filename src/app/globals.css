@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;680&display=swap');
 
 /* ==========================================================================
-   LUMEN — the Studio OS design language
+   LUMEN â€” the Studio OS design language
    Motion-first, consistent, premium. This one file drives the whole app: it
    bridges the legacy `.q-*` class + token API so every screen adopts Lumen
-   from a single place (the Law of Centralization). Light-only for now — dark
+   from a single place (the Law of Centralization). Light-only for now â€” dark
    arrives once pages stop hardcoding light colours inline.
    ========================================================================== */
 
@@ -14,7 +14,7 @@
      light on a dark app, which is what made dropdowns look foreign. */
   color-scheme: light;
 
-  /* Neutrals — a warm, gallery-paper ramp (near-black → near-white) */
+  /* Neutrals â€” a warm, gallery-paper ramp (near-black â†’ near-white) */
   --q-color-ink-900: #1A1A1D;
   --q-color-ink-800: #2C2C31;
   --q-color-ink-700: #3E3E45;
@@ -32,7 +32,7 @@
   --q-color-paper:         #FFFFFF;
   --q-color-paper-default: #FFFFFF;
 
-  /* Accent — ultramarine, with a warm amber counterpoint */
+  /* Accent â€” ultramarine, with a warm amber counterpoint */
   --q-color-accent:       #3B47D6;
   --q-color-accent-hover: #2E39BE;
   --q-color-accent-hi:    #5561F0;
@@ -76,7 +76,7 @@
   --q-jewel-slate:   linear-gradient(150deg, #63708A, #333A4B);
   --q-jewel-amber:   linear-gradient(150deg, #F0A94B, #D97A1F);
 
-  /* Motion — one language for the whole app */
+  /* Motion â€” one language for the whole app */
   --q-ease:   cubic-bezier(0.22, 0.8, 0.28, 1);
   --q-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
   --q-dur-1: 130ms;
@@ -216,7 +216,7 @@ body {
   font-family: var(--q-font-sans);
   font-weight: 550;
   font-size: 0.875rem;
-  text-decoration: none; /* buttons are often <Link> anchors — never underline */
+  text-decoration: none; /* buttons are often <Link> anchors â€” never underline */
   border: 1px solid transparent;
   cursor: pointer;
   transition: transform var(--q-dur-1) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), filter var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
@@ -294,7 +294,7 @@ body {
 .q-input-lg { padding: 14px 16px; font-size: 1rem; }
 
 /* Selects: drop the OS arrow and draw our own, so the control matches the rest
-   of the UI in both themes. (The popup list itself is drawn by the OS — that is
+   of the UI in both themes. (The popup list itself is drawn by the OS â€” that is
    what `color-scheme` above governs.) */
 .q-select {
   appearance: none;
@@ -409,7 +409,7 @@ body {
 /* ---- Stage colours -------------------------------------------------------
    A studio picks its own colour per stage. A bounded palette rather than a free
    hex picker: every swatch is token-derived, so contrast holds in both themes
-   and the app stays coherent. Same principle as blueprints — choose, don't draw.
+   and the app stays coherent. Same principle as blueprints â€” choose, don't draw.
    -------------------------------------------------------------------------- */
 .q-badge-c-amber  { color: color-mix(in srgb, var(--q-hue-amber) 72%, var(--q-color-ink-900));  background: color-mix(in srgb, var(--q-hue-amber) 15%, transparent); }
 .q-badge-c-green  { color: color-mix(in srgb, var(--q-hue-green) 72%, var(--q-color-ink-900));  background: color-mix(in srgb, var(--q-hue-green) 15%, transparent); }
@@ -435,7 +435,7 @@ body {
 /* ============================================================
    LAYOUT VOCABULARY
    The primitives above say what a thing IS (button, card, badge).
-   These say how things SIT TOGETHER — the patterns that were being
+   These say how things SIT TOGETHER â€” the patterns that were being
    hand-rolled inline on every surface. Change spacing here, once.
    ============================================================ */
 
@@ -451,7 +451,7 @@ body {
 .q-row-nowrap { flex-wrap: nowrap; }
 .q-spacer     { flex: 1 1 auto; }
 
-/* A bordered list item — the repeated "row in a card" box. */
+/* A bordered list item â€” the repeated "row in a card" box. */
 .q-tile {
   padding: 14px 16px;
   border: 1px solid var(--q-color-ink-100);
@@ -478,7 +478,7 @@ body {
   color: var(--q-color-ink-500);
 }
 
-/* Empty state — every surface needs one; they should all look alike. */
+/* Empty state â€” every surface needs one; they should all look alike. */
 .q-empty {
   color: var(--q-color-ink-500);
   font-size: 0.9rem;
@@ -492,7 +492,7 @@ body {
 /* Page-level column with a comfortable reading measure. */
 .q-page-narrow { max-width: 820px; margin: 0 auto; padding-bottom: 64px; }
 
-/* Back link on a detail page. Sits ABOVE .q-page-header — that header is itself
+/* Back link on a detail page. Sits ABOVE .q-page-header â€” that header is itself
    a space-between row, so putting the link inside it fights its layout. */
 .q-back {
   display: inline-block;
@@ -518,7 +518,7 @@ body {
 }
 
 /* ==========================================================================
-   Landing (marketing) — Lumen, motion-first, dark-ready
+   Landing (marketing) â€” Lumen, motion-first, dark-ready
    ========================================================================== */
 .q-reveal { opacity: 0; transform: translateY(22px); transition: opacity var(--q-dur-3) var(--q-ease), transform var(--q-dur-3) var(--q-ease); }
 .q-reveal-in { opacity: 1; transform: none; }
@@ -576,7 +576,7 @@ body {
   .q-grid-2, .q-grid-3, .q-grid-4 { grid-template-columns: 1fr; }
 }
 
-/* A sunken block — the repeated "subtle panel inside a card". */
+/* A sunken block â€” the repeated "subtle panel inside a card". */
 .q-panel {
   padding: 16px;
   border-radius: 10px;
@@ -668,7 +668,7 @@ body {
 .q-cal-panel         { position: sticky; top: 16px; }
 .q-cal-kind          { font-family: var(--q-font-mono); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--q-color-ink-500); }
 
-/* Key/value row — "Client … Ada Okafor" */
+/* Key/value row â€” "Client â€¦ Ada Okafor" */
 .q-kv       { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .q-kv + .q-kv { margin-top: 14px; }
 .q-kv-key   { color: var(--q-color-ink-600); }
@@ -683,7 +683,7 @@ body {
 .q-link:hover { text-decoration: underline; }
 
 /* ---- Combobox: a search-as-you-type picker with a results menu ------------ */
-/* Used where a plain <select> can't carry enough to choose by — a package with
+/* Used where a plain <select> can't carry enough to choose by â€” a package with
    its price, duration and what it bundles; a client with their phone. Lives
    here rather than at the call site so both themes and the hover language come
    from the same palette as everything else. */
@@ -727,3 +727,131 @@ body {
 .q-tier-row { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px 0; }
 /* A form card that stays narrow but must not clip its own popovers. */
 .q-card-narrow-lg { width: 100%; max-width: 520px; overflow: visible; position: relative; }
+
+
+/* ---- Command Center layout ------------------------------------------------ */
+/* The main two-column split: wide content + narrow sidebar. Collapses on
+   narrow screens. Reuses the calendar's breakpoint logic. */
+.q-cc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 860px) { .q-cc-layout { grid-template-columns: 1fr; } }
+
+/* A sticky sidebar panel (activity feed). */
+.q-cc-sidebar { position: sticky; top: 24px; }
+
+/* Inbox item — a clickable row with an accent left-border. */
+.q-inbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--q-color-ink-100);
+  border-left: 3px solid var(--q-color-warm);
+  border-radius: 10px;
+  background: var(--q-color-paper-base);
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease);
+}
+.q-inbox-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--q-shadow-md);
+}
+.q-inbox-item-accent { border-left-color: var(--q-color-accent); }
+.q-inbox-item-danger { border-left-color: var(--q-color-danger); }
+
+/* Setup checklist item */
+.q-check-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--q-color-ink-200);
+  background: var(--q-color-ink-50);
+}
+.q-check-item-done {
+  background: color-mix(in srgb, var(--q-color-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--q-color-success) 28%, transparent);
+}
+.q-check-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  background: var(--q-color-ink-300);
+}
+.q-check-dot-done { background: var(--q-color-success); }
+
+/* Schedule chip — a compact row for upcoming shoots/tasks. */
+.q-sched-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 10px;
+  background: var(--q-color-paper-base);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--q-dur-1) var(--q-ease);
+}
+.q-sched-chip:hover { background: var(--q-color-ink-50); }
+
+/* ---- Launchpad jewel backgrounds ------------------------------------------ */
+.q-bg-jewel-indigo  { background: var(--q-jewel-indigo); }
+.q-bg-jewel-emerald { background: var(--q-jewel-emerald); }
+.q-bg-jewel-amber   { background: var(--q-jewel-amber); }
+.q-bg-jewel-rose    { background: var(--q-jewel-rose); }
+.q-bg-jewel-slate   { background: var(--q-jewel-slate); }
+
+/* Launchpad tile icon container */
+.q-lp-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--q-color-accent-text);
+  flex-shrink: 0;
+  box-shadow: var(--q-shadow-sm);
+}
+
+/* Launchpad tile text */
+.q-lp-tile-label {
+  font-weight: 600;
+  color: var(--q-color-ink-900);
+  letter-spacing: -0.01em;
+}
+.q-lp-tile-desc {
+  font-size: 0.8rem;
+  color: var(--q-color-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stat card — a compact metric block for the CC header. */
+.q-stat-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  box-shadow: var(--q-shadow-sm);
+}
+
+@media print { .hide-on-print { display: none !important; } }
+

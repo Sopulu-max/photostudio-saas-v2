@@ -124,8 +124,14 @@ export async function updateTaskStatus(
 /**
  * The work on a set of lines — what the booking hub renders. Tasks with their
  * assignees, grouped by line, plus a derived per-line summary.
+ *
+ * When bookingId is supplied the function also fetches the booking's direct
+ * crew and uses them as *implicit* assignees for tasks whose suggested role
+ * maps to exactly one crew member and that have no explicit assignment yet.
+ * This removes the need to separately assign someone to a task after they've
+ * already been put on the booking in the right role.
  */
-export async function getWorkForLines(lineIds: string[]) {
+export async function getWorkForLines(lineIds: string[], bookingId?: string) {
   if (lineIds.length === 0) return {} as Record<string, { tasks: any[]; total: number; completed: number }>;
   const { orgId } = await getAuthOrgId();
 
@@ -140,9 +146,52 @@ export async function getWorkForLines(lineIds: string[]) {
     throw new Error('Failed to load work');
   }
 
+  // Build a role → crew members map from the booking's direct assignments so
+  // tasks can derive their owner without a separate explicit assignment row.
+  const crewByRoleId = new Map<string, any[]>();
+  if (bookingId) {
+    const { data: bookingCrew } = await supabaseAdmin
+      .from('assignments')
+      .select('id, employee_id, role_id, employee:employees(id, contact:contacts(display_name)), role:roles(name)')
+      .eq('organization_id', orgId)
+      .eq('booking_id', bookingId)
+      .is('task_id', null);
+    for (const m of (bookingCrew || []) as any[]) {
+      if (!m.role_id) continue;
+      const bucket = crewByRoleId.get(m.role_id) ?? [];
+      bucket.push({
+        assignmentId: m.id,
+        employeeId: m.employee_id,
+        name: m.employee?.contact?.display_name || 'Unknown',
+        role: m.role?.name || null,
+        implicit: true,
+      });
+      crewByRoleId.set(m.role_id, bucket);
+    }
+  }
+
   const byLine: Record<string, { tasks: any[]; total: number; completed: number }> = {};
   for (const t of (tasks || []) as any[]) {
     const bucket = (byLine[t.booking_line_id] ??= { tasks: [], total: 0, completed: 0 });
+
+    const explicitAssignees = (t.assignments || []).map((a: any) => ({
+      assignmentId: a.id,
+      employeeId: a.employee?.id,
+      name: a.employee?.contact?.display_name,
+      role: a.role?.name || null,
+    }));
+
+    // Derive implicit assignees only when: no explicit assignment exists, the
+    // task has a suggested role, and exactly one crew member holds that role on
+    // this booking. Multiple matches are ambiguous — the studio must pick.
+    const implicitAssignees: any[] =
+      explicitAssignees.length === 0 && t.suggested_role_id
+        ? (() => {
+            const matches = crewByRoleId.get(t.suggested_role_id) ?? [];
+            return matches.length === 1 ? matches : [];
+          })()
+        : [];
+
     bucket.tasks.push({
       id: t.id,
       stageName: t.stage_name,
@@ -151,12 +200,7 @@ export async function getWorkForLines(lineIds: string[]) {
       suggestedRoleId: t.suggested_role_id,
       suggestedRoleName: t.suggested_role?.name || null,
       isFrontStage: t.is_front_stage,
-      assignees: (t.assignments || []).map((a: any) => ({
-        assignmentId: a.id,
-        employeeId: a.employee?.id,
-        name: a.employee?.contact?.display_name,
-        role: a.role?.name || null,
-      })),
+      assignees: [...explicitAssignees, ...implicitAssignees],
     });
     bucket.total += 1;
     if (t.status === 'completed') bucket.completed += 1;
@@ -348,8 +392,9 @@ export async function getMyEmployeeId(): Promise<string | null> {
 }
 
 /**
- * The logged-in person's task list: tasks they're assigned to, with the booking
- * for context.
+ * The logged-in person's task list: tasks they're assigned to (explicit), plus
+ * tasks they own implicitly because they're the sole crew member holding the
+ * task's suggested role on the booking.
  */
 export async function listMyTasks() {
   const { orgId, contactId } = await getAuthOrgId();
@@ -363,26 +408,7 @@ export async function listMyTasks() {
     .maybeSingle();
   if (!me) return [];
 
-  const { data: rows, error } = await supabaseAdmin
-    .from('assignments')
-    .select('task:tasks!inner(id, stage_name, status, due_date, line:booking_lines!inner(id, title, booking:bookings!inner(id, title)))')
-    .eq('organization_id', orgId)
-    .eq('employee_id', me.id)
-    .not('task_id', 'is', null);
-  if (error) {
-    console.error('Failed to load my tasks:', error);
-    throw new Error('Failed to load your tasks');
-  }
-
-  return ((rows || []) as any[]).map((r) => ({
-    taskId: r.task.id,
-    stageName: r.task.stage_name,
-    status: r.task.status,
-    dueDate: r.task.due_date,
-    lineTitle: r.task.line?.title,
-    bookingId: r.task.line?.booking?.id,
-    bookingTitle: r.task.line?.booking?.title,
-  }));
+  return _listTasksForEmployeeId(me.id, orgId);
 }
 
 /**
@@ -468,8 +494,17 @@ export async function listTaskDeadlinesInRange(fromISO: string, toISO: string) {
  */
 export async function listTasksForEmployee(employeeId: string) {
   const { orgId } = await getAuthOrgId();
+  return _listTasksForEmployeeId(employeeId, orgId);
+}
 
-  const { data: rows, error } = await supabaseAdmin
+/**
+ * Shared impl for listMyTasks and listTasksForEmployee. Returns both explicit
+ * task assignments and tasks the employee implicitly owns via booking-crew role
+ * matching (sole holder of the task's suggested role on that booking).
+ */
+async function _listTasksForEmployeeId(employeeId: string, orgId: string) {
+  // 1. Explicitly assigned tasks
+  const { data: explicitRows, error } = await supabaseAdmin
     .from('assignments')
     .select('task:tasks!inner(id, stage_name, status, due_date, line:booking_lines!inner(id, title, booking:bookings!inner(id, title)))')
     .eq('organization_id', orgId)
@@ -480,7 +515,8 @@ export async function listTasksForEmployee(employeeId: string) {
     throw new Error('Failed to load tasks');
   }
 
-  return ((rows || []) as any[]).map((r) => ({
+  const explicitTaskIds = new Set(((explicitRows || []) as any[]).map((r) => r.task.id));
+  const explicit = ((explicitRows || []) as any[]).map((r) => ({
     taskId: r.task.id,
     stageName: r.task.stage_name,
     status: r.task.status,
@@ -488,7 +524,77 @@ export async function listTasksForEmployee(employeeId: string) {
     lineTitle: r.task.line?.title,
     bookingId: r.task.line?.booking?.id,
     bookingTitle: r.task.line?.booking?.title,
+    implicit: false,
   }));
+
+  // 2. Booking-level assignments → derive implicit task ownership
+  const { data: bookingAssignments } = await supabaseAdmin
+    .from('assignments')
+    .select('booking_id, role_id')
+    .eq('organization_id', orgId)
+    .eq('employee_id', employeeId)
+    .not('booking_id', 'is', null)
+    .is('task_id', null);
+
+  const bookingRoles = ((bookingAssignments || []) as any[]).filter((a) => a.role_id);
+  if (bookingRoles.length === 0) return explicit;
+
+  // For each (booking, role) pair, find tasks with that suggested role. We then
+  // filter to the ones where this employee is the *only* crew member holding
+  // that role on the booking — ambiguous cases still need explicit assignment.
+  const roleIds = [...new Set(bookingRoles.map((a: any) => a.role_id as string))];
+
+  // Fetch all tasks that suggest a role this employee holds, then narrow in JS.
+  const { data: candidateTasks } = await supabaseAdmin
+    .from('tasks')
+    .select('id, stage_name, status, due_date, suggested_role_id, line:booking_lines!inner(id, title, booking_id, booking:bookings!inner(id, title))')
+    .eq('organization_id', orgId)
+    .in('suggested_role_id', roleIds);
+
+  // For each booking this employee is on, check how many people share that role.
+  // Only proceed if exactly one (them).
+  const bookingIdSet = new Set(bookingRoles.map((a: any) => a.booking_id as string));
+  const roleForBooking = new Map<string, string>(); // bookingId → roleId (their role)
+  for (const a of bookingRoles) roleForBooking.set(a.booking_id, a.role_id);
+
+  // Count how many crew members hold each role per booking
+  const { data: allCrewInBookings } = await supabaseAdmin
+    .from('assignments')
+    .select('booking_id, role_id, employee_id')
+    .eq('organization_id', orgId)
+    .in('booking_id', [...bookingIdSet])
+    .is('task_id', null)
+    .not('role_id', 'is', null);
+
+  // crewCount[bookingId+roleId] = number of people with that role on that booking
+  const crewCount = new Map<string, number>();
+  for (const a of (allCrewInBookings || []) as any[]) {
+    const key = `${a.booking_id}:${a.role_id}`;
+    crewCount.set(key, (crewCount.get(key) ?? 0) + 1);
+  }
+
+  const implicit = ((candidateTasks || []) as any[])
+    .filter((t) => {
+      if (explicitTaskIds.has(t.id)) return false;
+      const taskBookingId = t.line?.booking_id;
+      if (!taskBookingId || !bookingIdSet.has(taskBookingId)) return false;
+      if (roleForBooking.get(taskBookingId) !== t.suggested_role_id) return false;
+      // Only implicit when this employee is the sole holder of the role
+      const key = `${taskBookingId}:${t.suggested_role_id}`;
+      return (crewCount.get(key) ?? 0) === 1;
+    })
+    .map((t) => ({
+      taskId: t.id,
+      stageName: t.stage_name,
+      status: t.status,
+      dueDate: t.due_date,
+      lineTitle: t.line?.title,
+      bookingId: t.line?.booking?.id,
+      bookingTitle: t.line?.booking?.title,
+      implicit: true,
+    }));
+
+  return [...explicit, ...implicit];
 }
 
 /**

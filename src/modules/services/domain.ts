@@ -148,6 +148,39 @@ const DIMENSION_TABLE: Record<Dimension, NamedTable> = {
   subject: 'subjects', occasion: 'occasions', context: 'service_contexts', purpose: 'purposes', client: 'client_types',
 };
 
+/**
+ * Public version of the dimension config — no auth required. Returns only the
+ * dimensions the studio has enabled AND that have at least one defined value.
+ * A dimension with no values can't be used as an intake question, so it's
+ * filtered out before it reaches the client.
+ *
+ * Used by the public booking intake to build the "what are you looking for?"
+ * step, so the form adapts to whatever vocabulary each studio has set up.
+ */
+export async function getPublicIntakeDimensions(organizationId: string): Promise<{
+  activeDimensions: Dimension[];
+  values: Record<string, { id: string; name: string }[]>;
+}> {
+  const { data: org } = await supabaseAdmin
+    .from('organizations').select('enabled_dimensions').eq('id', organizationId).maybeSingle();
+  const enabled = ((org?.enabled_dimensions as string[]) || ['occasion', 'context'])
+    .filter((d): d is Dimension => (DIMENSIONS as readonly string[]).includes(d));
+
+  const values: Record<string, { id: string; name: string }[]> = {};
+  for (const dim of enabled) {
+    const { data } = await supabaseAdmin
+      .from(DIMENSION_TABLE[dim]).select('id, name')
+      .eq('organization_id', organizationId).order('position');
+    const entries = (data || []) as { id: string; name: string }[];
+    if (entries.length > 0) values[dim] = entries;
+  }
+
+  return {
+    activeDimensions: enabled.filter((d) => !!values[d]),
+    values,
+  };
+}
+
 /** Find-or-create a value on whichever dimension's table, without requiring one — Packages asks this rather than touching the tables directly. */
 export async function findOrCreateDimensionValue(dimension: Dimension, name: string): Promise<string | null> {
   const { orgId } = await getAuthOrgId();
@@ -426,6 +459,7 @@ export async function listActiveServices() {
   const all = await listServices();
   return all.filter((s: any) => s.status === 'active');
 }
+
 
 export async function getService(serviceId: string) {
   const { orgId } = await getAuthOrgId();

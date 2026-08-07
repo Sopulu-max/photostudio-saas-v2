@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const SECTIONS = [
   {
     label: 'Cockpit',
-    jewel: 'var(--q-jewel-indigo)',
+    jewel: 'q-bg-jewel-indigo',
     apps: [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
       { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
@@ -25,7 +25,7 @@ const SECTIONS = [
   },
   {
     label: 'Work',
-    jewel: 'var(--q-jewel-emerald)',
+    jewel: 'q-bg-jewel-emerald',
     apps: [
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
       { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
@@ -35,7 +35,7 @@ const SECTIONS = [
   },
   {
     label: 'Studio',
-    jewel: 'var(--q-jewel-amber)',
+    jewel: 'q-bg-jewel-amber',
     apps: [
       { label: 'Services', href: '/services', desc: 'What this studio knows how to do', icon: Layers },
       { label: 'Packages', href: '/packages', desc: 'What clients can book', icon: Package },
@@ -44,7 +44,7 @@ const SECTIONS = [
   },
   {
     label: 'Platform',
-    jewel: 'var(--q-jewel-slate)',
+    jewel: 'q-bg-jewel-slate',
     apps: [
       { label: 'Analytics', href: '/analytics', desc: 'Insights and metrics', icon: PieChart },
       { label: 'Settings', href: '/settings', desc: 'Studio configuration', icon: Settings },
@@ -74,10 +74,8 @@ export default async function LaunchpadPage() {
       <div className="q-stack q-stack-xl">
         {SECTIONS.map((section) => (
           <section key={section.label}>
-            <div style={{ fontFamily: 'var(--q-font-mono)', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--q-color-ink-500)', marginBottom: '16px' }}>
-              {section.label}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '16px' }}>
+            <div className="q-eyebrow">{section.label}</div>
+            <div className="q-grid-cards">
               {section.apps.map((app) => {
                 const Icon = app.icon;
                 return (
@@ -85,14 +83,13 @@ export default async function LaunchpadPage() {
                     key={app.href}
                     href={app.href}
                     className="q-card q-card-interactive q-plain-link q-row q-row-nowrap"
-                    style={{ gap: '15px', padding: '18px' }}
                   >
-                    <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: section.jewel, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--q-color-accent-text)', flexShrink: 0, boxShadow: 'var(--q-shadow-sm)' }}>
+                    <div className={`q-lp-icon ${section.jewel}`}>
                       <Icon size={22} />
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: 'var(--q-color-ink-900)', letterSpacing: '-0.01em' }}>{app.label}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.desc}</div>
+                    <div className="q-fill">
+                      <div className="q-lp-tile-label">{app.label}</div>
+                      <div className="q-lp-tile-desc">{app.desc}</div>
                     </div>
                   </Link>
                 );

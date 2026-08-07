@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getIntakeQuestionsPublic } from '@/modules/packages/interface';
+import { getIntakeQuestionsPublic, getPackagePublic } from '@/modules/packages/interface';
 import { createBookingFromIntake } from '@/modules/bookings/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
 
@@ -26,6 +26,7 @@ export async function submitBookingForm(
     customFields: Record<string, any>;
     tierIndex?: number;
     scheduledFor?: string;
+    fromCustomPath?: boolean;
   }
 ) {
   const displayName = `${formData.firstName} ${formData.lastName}`.trim();
@@ -98,16 +99,15 @@ export async function submitBookingForm(
   let resolvedPackageId: string | undefined = undefined;
 
   if (packageId === 'custom') {
-    // For custom enquiries, the user just supplied a free-form message.
-    storedAnswers = { message: formData.customFields?.message || '' };
+    // Client described what they want in their own words. The studio reviews
+    // this, creates the right package internally if needed, and responds.
+    storedAnswers = { 
+      message: formData.customFields?.message || '',
+      dimensions: formData.customFields?.dimensions || {}
+    };
   } else {
     // Standard package booking
-    const { data: pkg } = await supabaseAdmin
-      .from('packages')
-      .select('id, name, pricing, pricing_variant')
-      .eq('id', packageId)
-      .eq('organization_id', orgId)
-      .maybeSingle();
+    const pkg = await getPackagePublic(orgId, packageId);
     if (!pkg) throw new Error('This package is no longer available.');
 
     resolvedPackageId = pkg.id;

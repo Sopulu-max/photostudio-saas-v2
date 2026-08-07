@@ -6,6 +6,8 @@ import { formatMoney } from '@/kernel/currency';
 import { listRecentActivity } from '@/kernel/events';
 import { listBookings, listBookingsInRange } from '@/modules/bookings/interface';
 import { listTransactions } from '@/modules/finances/interface';
+import { listContracts } from '@/modules/contracts/interface';
+import { listTaskDeadlinesInRange } from '@/modules/production/interface';
 import { listServices } from '@/modules/services/interface';
 import { listPackages } from '@/modules/packages/interface';
 
@@ -16,6 +18,17 @@ function greeting() {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+function fmtDay(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function fmtTime(iso: string) {
@@ -34,33 +47,70 @@ async function getOverviewData() {
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    // Look ahead 7 days for the schedule
+    const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7).toISOString();
 
-    const [org, recentEvents, allBookings, transactions, todaysShoots, services, packages] = await Promise.all([
+    const [org, recentEvents, allBookings, transactions, weekShoots, services, packages, contracts, taskDeadlines] = await Promise.all([
       getStudio(),
-      listRecentActivity(8),
+      listRecentActivity(10),
       listBookings(),
       listTransactions(),
-      listBookingsInRange(todayStart, todayEnd),
+      listBookingsInRange(todayStart, weekEnd),
       listServices(),
       listPackages(),
+      listContracts(),
+      listTaskDeadlinesInRange(todayStart, weekEnd),
     ]);
     if (!org) return null;
 
-    // "Open" is a stage KIND, never a stage name — a studio can call its
-    // stages anything, so matching on names would break the moment they do.
-    const openBookings = allBookings
-      .filter((b) => b.stage?.kind === 'enquiry' || b.stage?.kind === 'booked')
+    // === ACTION INBOX ===
+    // New enquiries: bookings in enquiry stage — these need vetting
+    const enquiries = allBookings
+      .filter((b) => b.stage?.kind === 'enquiry')
+      .slice(0, 5);
+
+    // Pending contracts: awaiting client signature
+    const pendingContracts = (contracts as any[])
+      .filter((c) => c.status === 'proposed' || c.status === 'modified')
+      .slice(0, 5);
+
+    // Pending invoices: money left on the table
+    const pendingPayments = (transactions as any[])
+      .filter((t) => t.status === 'pending')
+      .slice(0, 5);
+
+    // === STATS ===
+    const activeBookings = allBookings.filter((b) => b.stage?.kind === 'enquiry' || b.stage?.kind === 'booked');
+    const totalPendingAmount = pendingPayments.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+    const pendingCurrency = pendingPayments[0]?.currency || 'NGN';
+
+    // === SCHEDULE ===
+    // Tasks due this week that are not yet completed
+    const upcomingTasks = (taskDeadlines as any[])
+      .filter((t) => t.status !== 'completed')
       .slice(0, 6);
 
-    const pendingPayments = (transactions as any[]).filter((t) => t.status === 'pending').slice(0, 5);
+    // Active bookings (booked stage) — shown in the "Open bookings" section
+    const bookedBookings = allBookings
+      .filter((b) => b.stage?.kind === 'booked')
+      .slice(0, 6);
 
     return {
       org,
       recentEvents,
-      openBookings,
+      enquiries,
+      pendingContracts,
       pendingPayments,
-      todaysShoots,
+      weekShoots,
+      upcomingTasks,
+      bookedBookings,
+      stats: {
+        activeBookings: activeBookings.length,
+        pendingInvoices: pendingPayments.length,
+        pendingAmount: totalPendingAmount,
+        pendingCurrency,
+        thisWeekShoots: weekShoots.length,
+      },
       onboarding: {
         hasService: services.length > 0,
         hasPackage: (packages as any[]).length > 0,
@@ -84,25 +134,13 @@ export default async function OverviewPage() {
   }
   if (!data) return null;
 
-  const { org, recentEvents, openBookings, pendingPayments, todaysShoots, onboarding } = data;
+  const { org, recentEvents, enquiries, pendingContracts, pendingPayments, weekShoots, upcomingTasks, bookedBookings, stats, onboarding } = data;
   const isOnboarding = !onboarding.hasService || !onboarding.hasPackage;
-
-  const CheckItem = ({ done, label, sub, href }: { done: boolean; label: string; sub: string; href: string }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: done ? 'color-mix(in srgb, var(--q-color-success) 10%, transparent)' : 'var(--q-color-ink-50)', border: `1px solid ${done ? 'color-mix(in srgb, var(--q-color-success) 28%, transparent)' : 'var(--q-color-ink-200)'}`, borderRadius: '10px' }}>
-      <div style={{ width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0, background: done ? 'var(--q-color-success)' : 'var(--q-color-ink-300)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>
-        {done ? '✓' : ''}
-      </div>
-      <div className="q-fill">
-        <div className="q-strong" style={{ opacity: done ? 0.6 : 1 }}>{label}</div>
-        <div className="q-meta">{sub}</div>
-      </div>
-      {!done && <Link href={href} className="q-btn q-btn-secondary q-btn-sm">Go →</Link>}
-    </div>
-  );
+  const hasInboxItems = enquiries.length > 0 || pendingContracts.length > 0 || pendingPayments.length > 0;
 
   return (
     <div>
-      <header className="q-page-header q-row q-row-between">
+      <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Command Center</h1>
           <p className="q-page-subtitle">{greeting()}. Here is what needs your attention.</p>
@@ -112,24 +150,32 @@ export default async function OverviewPage() {
 
       {/* Setup checklist — shown until the studio has at least one service and one package */}
       {isOnboarding && (
-        <div className="q-card" style={{ maxWidth: '580px', marginBottom: '40px' }}>
-          <h2 className="q-section-title" style={{ marginBottom: '20px' }}>Get started</h2>
+        <div className="q-card q-page-narrow">
+          <h2 className="q-section-title">Get started</h2>
           <div className="q-stack q-stack-sm">
-            <CheckItem
-              done={onboarding.hasService}
-              label="Define your first service"
-              sub="A service is what your studio actually does — the operational unit."
-              href="/services/new"
-            />
-            <CheckItem
-              done={onboarding.hasPackage}
-              label="Create a package to sell it"
-              sub="A package bundles one or more services into something a client can book."
-              href="/packages/new"
-            />
+            <div className={`q-check-item ${onboarding.hasService ? 'q-check-item-done' : ''}`}>
+              <div className={`q-check-dot ${onboarding.hasService ? 'q-check-dot-done' : ''}`}>
+                {onboarding.hasService ? '✓' : ''}
+              </div>
+              <div className="q-fill">
+                <div className="q-strong">Define your first service</div>
+                <div className="q-meta">A service is what your studio actually does — the operational unit.</div>
+              </div>
+              {!onboarding.hasService && <Link href="/services/new" className="q-btn q-btn-secondary q-btn-sm">Go →</Link>}
+            </div>
+            <div className={`q-check-item ${onboarding.hasPackage ? 'q-check-item-done' : ''}`}>
+              <div className={`q-check-dot ${onboarding.hasPackage ? 'q-check-dot-done' : ''}`}>
+                {onboarding.hasPackage ? '✓' : ''}
+              </div>
+              <div className="q-fill">
+                <div className="q-strong">Create a package to sell it</div>
+                <div className="q-meta">A package bundles one or more services into something a client can book.</div>
+              </div>
+              {!onboarding.hasPackage && <Link href="/packages/new" className="q-btn q-btn-secondary q-btn-sm">Go →</Link>}
+            </div>
           </div>
           {onboarding.hasService && onboarding.hasPackage && org.slug && (
-            <div className="q-meta" style={{ marginTop: '16px' }}>
+            <div className="q-meta q-divider">
               Your storefront is live at{' '}
               <Link href={`/book/${org.slug}`} className="q-accent">/book/{org.slug}</Link>
             </div>
@@ -137,42 +183,65 @@ export default async function OverviewPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
+      {/* Stat bar — quick pulse numbers */}
+      <div className="q-grid-4">
+        <div className="q-stat-card">
+          <div className="q-stat-label">Active bookings</div>
+          <div className="q-stat-value-lg">{stats.activeBookings}</div>
+        </div>
+        <div className="q-stat-card">
+          <div className="q-stat-label">This week</div>
+          <div className="q-stat-value-lg">{stats.thisWeekShoots} <span className="q-meta">shoots</span></div>
+        </div>
+        <div className="q-stat-card">
+          <div className="q-stat-label">Pending invoices</div>
+          <div className="q-stat-value-lg">{stats.pendingInvoices}</div>
+        </div>
+        <div className="q-stat-card">
+          <div className="q-stat-label">Outstanding</div>
+          <div className="q-stat-value-lg q-warm">{formatMoney(stats.pendingAmount, stats.pendingCurrency)}</div>
+        </div>
+      </div>
+
+      <div className="q-cc-layout q-divider">
 
         {/* Main column */}
         <div className="q-stack q-stack-lg">
 
-          {/* Today's shoots — only shown when there's something on the calendar */}
-          {todaysShoots.length > 0 && (
+          {/* === ACTION INBOX === */}
+          {hasInboxItems && (
             <div className="q-card">
-              <h2 className="q-section-title">Today</h2>
+              <h2 className="q-section-title">Needs attention</h2>
               <div className="q-stack q-stack-sm">
-                {todaysShoots.map((b) => (
-                  <Link key={b.bookingId} href={`/bookings/${b.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
+
+                {/* New enquiries */}
+                {enquiries.map((b) => (
+                  <Link key={b.id} href={`/bookings/${b.id}`} className="q-inbox-item">
                     <div>
                       <strong className="q-strong">{b.title}</strong>
-                      {b.client && <div className="q-meta">{b.client}</div>}
+                      {b.clientName && <div className="q-meta">{b.clientName}</div>}
                     </div>
-                    <span className="q-num q-meta-plain">{fmtTime(b.at)}</span>
+                    <span className={`q-badge ${stageBadgeClass(b.stage)}`}>New enquiry</span>
                   </Link>
                 ))}
-              </div>
-            </div>
-          )}
 
-          {/* Pending payments — action required */}
-          <div className="q-card">
-            <h2 className="q-section-title">Pending payments</h2>
-            {pendingPayments.length === 0 ? (
-              <p className="q-empty">No payments waiting.</p>
-            ) : (
-              <div className="q-stack q-stack-sm">
+                {/* Pending contracts */}
+                {pendingContracts.map((c: any) => (
+                  <Link key={c.id} href={`/contracts/${c.id}`} className="q-inbox-item q-inbox-item-accent">
+                    <div>
+                      <strong className="q-strong">{c.booking?.title || 'Contract'}</strong>
+                      <div className="q-meta">{c.person?.display_name || 'Client'} · awaiting signature</div>
+                    </div>
+                    <span className="q-badge q-badge-warning">{c.status}</span>
+                  </Link>
+                ))}
+
+                {/* Pending invoices */}
                 {pendingPayments.map((tx: any) => (
                   <Link
                     key={tx.id}
                     href={tx.booking?.id ? `/bookings/${tx.booking.id}` : '/finances'}
-                    className="q-tile q-row q-row-between q-plain-link"
-                    style={{ borderLeft: '3px solid var(--q-color-warm)' }}
+                    className="q-inbox-item"
                   >
                     <div>
                       <strong className="q-strong">{tx.booking?.title || tx.contact?.display_name || 'Client'}</strong>
@@ -184,21 +253,60 @@ export default async function OverviewPage() {
                   </Link>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* === THIS WEEK'S SCHEDULE === */}
+          <div className="q-card">
+            <div className="q-row q-row-between">
+              <h2 className="q-section-title">This week</h2>
+              <Link href="/calendar" className="q-meta q-accent">Calendar →</Link>
+            </div>
+
+            {weekShoots.length === 0 && upcomingTasks.length === 0 ? (
+              <p className="q-empty">Nothing scheduled this week.</p>
+            ) : (
+              <div className="q-stack q-stack-sm">
+                {/* Shoots */}
+                {weekShoots.map((b) => (
+                  <Link key={b.bookingId} href={`/bookings/${b.bookingId}`} className="q-sched-chip">
+                    <div>
+                      <strong className="q-strong">{b.title}</strong>
+                      {b.client && <div className="q-meta">{b.client}</div>}
+                    </div>
+                    <span className="q-num q-meta">{fmtDay(b.at)} · {fmtTime(b.at)}</span>
+                  </Link>
+                ))}
+
+                {/* Task deadlines */}
+                {upcomingTasks.length > 0 && weekShoots.length > 0 && (
+                  <div className="q-divider" />
+                )}
+                {upcomingTasks.map((t: any) => (
+                  <Link key={t.taskId} href={`/bookings/${t.bookingId}`} className="q-sched-chip">
+                    <div>
+                      <strong className="q-strong">{t.title}</strong>
+                      <div className="q-meta">{t.bookingTitle} · {t.lineTitle}</div>
+                    </div>
+                    <span className="q-num q-meta">{fmtDay(t.at)}</span>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Open bookings */}
+          {/* === OPEN BOOKINGS === */}
           <div className="q-card">
-            <div className="q-row q-row-between" style={{ marginBottom: '12px' }}>
-              <h2 className="q-section-title" style={{ margin: 0 }}>Open bookings</h2>
+            <div className="q-row q-row-between">
+              <h2 className="q-section-title">Open bookings</h2>
               <Link href="/bookings" className="q-meta q-accent">See all →</Link>
             </div>
-            {openBookings.length === 0 ? (
-              <p className="q-empty">No open bookings.</p>
+            {bookedBookings.length === 0 ? (
+              <p className="q-empty">No active bookings right now.</p>
             ) : (
               <div className="q-stack q-stack-sm">
-                {openBookings.map((b) => (
-                  <Link key={b.id} href={`/bookings/${b.id}`} className="q-tile q-row q-row-between q-plain-link">
+                {bookedBookings.map((b) => (
+                  <Link key={b.id} href={`/bookings/${b.id}`} className="q-sched-chip">
                     <div>
                       <strong className="q-strong">{b.title}</strong>
                       {b.clientName && <div className="q-meta">{b.clientName}</div>}
@@ -213,7 +321,7 @@ export default async function OverviewPage() {
         </div>
 
         {/* Activity feed sidebar */}
-        <div className="q-card" style={{ position: 'sticky', top: '24px' }}>
+        <div className="q-card q-cc-sidebar">
           <h2 className="q-section-title">Activity</h2>
           {recentEvents.length === 0 ? (
             <p className="q-empty">Nothing yet.</p>

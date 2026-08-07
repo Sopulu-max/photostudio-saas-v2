@@ -1158,12 +1158,108 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
   }
   // Then anything answered whose question has since been removed.
   for (const [qid, v] of Object.entries(answers)) {
+    if (qid === 'message' || qid === 'dimensions') continue;
     if (byId.has(qid)) continue;
     const empty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
     if (empty) continue;
     rows.push({ label: 'Question removed', value: Array.isArray(v) ? v.join(', ') : String(v), removed: true });
   }
+
+  // Handle custom enquiries that have direct message and/or dimensions
+  if (answers.message) {
+    rows.push({ label: 'Message', value: answers.message, removed: false });
+  }
+  
+  if (answers.dimensions && typeof answers.dimensions === 'object') {
+    // Read the display names for these UUIDs from the config
+    const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
+    const dimConfig = await getPublicIntakeDimensions(orgId);
+    
+    const LABELS: Record<string, string> = {
+      subject: 'Subject',
+      occasion: 'Occasion',
+      context: 'Setting',
+      purpose: 'Purpose',
+      client: 'Client type',
+    };
+    
+    for (const [dimKey, valueId] of Object.entries(answers.dimensions)) {
+      if (!valueId) continue;
+      const opts = dimConfig.values[dimKey] || [];
+      const opt = opts.find((o) => o.id === valueId);
+      if (opt) {
+        rows.push({ label: LABELS[dimKey] || dimKey, value: opt.name, removed: false });
+      }
+    }
+  }
+
   return rows;
+}
+
+export async function extractPackageFromEnquiry(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('id, metadata')
+    .eq('id', bookingId)
+    .eq('organization_id', orgId)
+    .single();
+
+  if (!booking) throw new Error('Booking not found');
+
+  const dimensions = (booking.metadata as any)?.form_responses?.dimensions;
+  if (!dimensions || typeof dimensions !== 'object') {
+    throw new Error('No dimensions found in custom request');
+  }
+
+  // Look up dimension names
+  const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
+  const dimConfig = await getPublicIntakeDimensions(orgId);
+
+  const resolveName = (key: string) => {
+    const id = dimensions[key];
+    if (!id) return null;
+    return dimConfig.values[key]?.find(v => v.id === id)?.name || null;
+  };
+
+  const occasion = resolveName('occasion');
+  const context = resolveName('context');
+  const subject = resolveName('subject');
+  const purpose = resolveName('purpose');
+  const clientType = resolveName('client');
+
+  // Build a smart name for the service
+  const serviceName = [occasion, subject, context].filter(Boolean).join(' ') || 'Custom Service';
+
+  // Create the Service
+  const { createService } = await import('@/modules/services/interface');
+  const { serviceId } = await createService({
+    name: serviceName,
+    occasion,
+    context,
+    subject,
+    purpose,
+    clientType,
+  });
+
+  // Create the Package
+  const { createPackage } = await import('@/modules/packages/interface');
+  const { packageId } = await createPackage({
+    name: `Custom: ${serviceName}`,
+    serviceIds: [serviceId],
+  });
+
+  // Add the package line to the booking
+  await addBookingLine({
+    bookingId: booking.id,
+    packageId,
+    title: `Custom: ${serviceName}`,
+  });
+
+  revalidatePath('/bookings');
+  revalidatePath(`/bookings/${booking.id}`);
+  return { packageId };
 }
 
 /**

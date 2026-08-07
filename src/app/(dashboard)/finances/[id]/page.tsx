@@ -3,7 +3,9 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getTransaction } from '@/modules/finances/interface';
 import { formatMoney } from '@/kernel/currency';
 import Link from 'next/link';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { SettleTransactionClient } from './client';
+import { CopyInvoiceLinkButton } from '../../bookings/[id]/CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,9 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
 
   const transaction: any = await getTransaction(params.id);
   if (!transaction) return notFound();
+
+  const { data: orgData } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
+  const orgSlug = orgData?.slug || '';
 
   const canSettle = transaction.status !== 'settled' && transaction.status !== 'voided';
 
@@ -25,9 +30,18 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
           <h1 className="q-page-title q-cap">{String(transaction.type).replace(/_/g, ' ')}</h1>
           <p className="q-page-subtitle">{transaction.contact?.display_name || 'No client attached'}</p>
         </div>
-        {canSettle && (
-          <SettleTransactionClient transactionId={transaction.id} orgId={orgId} actorId={actorId ?? ''} />
-        )}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {canSettle ? (
+            <>
+              <CopyInvoiceLinkButton orgSlug={orgSlug} txId={transaction.id} />
+              <SettleTransactionClient transactionId={transaction.id} orgId={orgId} actorId={actorId ?? ''} />
+            </>
+          ) : transaction.status === 'settled' ? (
+            <Link href={`/portal/${orgSlug}/payment/${transaction.id}`} target="_blank" className="q-btn q-btn-secondary">
+              View Receipt
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       <div className="q-stack q-stack-lg">

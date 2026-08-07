@@ -20,7 +20,7 @@ export type { Dimension as PackageDimension } from '@/modules/services/interface
 export {
   // Package
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
-  listPackages, listPackagesPublic, getPackage, getPackageForBooking,
+  listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   getProductionPlanForPackage, getPaymentPoliciesForPackages,
   // Intake questions
   getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,

@@ -21,6 +21,7 @@ export {
   deleteBooking,
   setBookingSchedule,
   suggestedDurationForBooking,
+  extractPackageFromEnquiry,
   // The staffing cascade: which roles the booked Packages' blueprints call for
   getStaffingNeedsForBooking,
   // Stages — the studio's own lifecycle

@@ -4,7 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { assignTask, removeAssignment, setTaskDueDate } from '@/modules/production/interface';
 
-type Assignee = { assignmentId: string; employeeId: string; name: string; role: string | null };
+type Assignee = { assignmentId: string; employeeId: string; name: string; role: string | null; implicit?: boolean };
 type Candidate = { employeeId: string; name: string; roles: { id: string; name: string }[] };
 
 /**
@@ -57,20 +57,27 @@ export function TaskAssignControl({
         <span className="q-meta-sm">Looking for: {suggestedRoleName}</span>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-        {assignees.map((a) => (
-          <span key={a.assignmentId} className="q-badge q-badge-neutral">
-            {a.name}{a.role ? ` · ${a.role}` : ''}
-            <button
-              className="q-btn-ghost"
-              style={{ padding: '0 0 0 6px', fontSize: '0.85em' }}
-              disabled={isPending}
-              aria-label={`Remove ${a.name}`}
-              onClick={() => run(() => removeAssignment({ bookingId, assignmentId: a.assignmentId }))}
-            >
-              ×
-            </button>
-          </span>
-        ))}
+        {assignees.map((a) =>
+          a.implicit ? (
+            <span key={a.assignmentId} className="q-badge q-badge-neutral" style={{ opacity: 0.75 }} title="Assigned via booking crew">
+              {a.name}{a.role ? ` · ${a.role}` : ''}
+              <span style={{ marginLeft: '4px', fontSize: '0.8em', opacity: 0.6 }}>via booking</span>
+            </span>
+          ) : (
+            <span key={a.assignmentId} className="q-badge q-badge-neutral">
+              {a.name}{a.role ? ` · ${a.role}` : ''}
+              <button
+                className="q-btn-ghost"
+                style={{ padding: '0 0 0 6px', fontSize: '0.85em' }}
+                disabled={isPending}
+                aria-label={`Remove ${a.name}`}
+                onClick={() => run(() => removeAssignment({ bookingId, assignmentId: a.assignmentId }))}
+              >
+                ×
+              </button>
+            </span>
+          )
+        )}
 
         {available.length > 0 && (
           <>

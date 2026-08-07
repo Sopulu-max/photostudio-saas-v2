@@ -28,7 +28,7 @@ export {
   getProductionPlanForService, getDeliverableIdsForServices,
   // Services — the specific transformation
   createService, updateService, duplicateService, setServiceStatus,
-  listServices, listActiveServices, getService,
+  listServices, listActiveServices, getService, getPublicIntakeDimensions,
 } from './domain';
 
 export { DIMENSIONS } from './dimensions';
