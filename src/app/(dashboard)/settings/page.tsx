@@ -5,6 +5,7 @@ import { getStudio, getStudioCurrency, listStudioLogins } from '@/kernel/organiz
 import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
 import { CurrencyForm } from './CurrencyForm';
+import { CopyLinkButton } from './CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,7 @@ export default async function SettingsPage() {
           <h2 className="q-section-title">Studio</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>Your name and the handle your public links use.</p>
           <StudioForm name={org.name} slug={org.slug || ''} />
+          {org.slug && <CopyLinkButton slug={org.slug} />}
         </section>
 
         <section className="q-card q-section">

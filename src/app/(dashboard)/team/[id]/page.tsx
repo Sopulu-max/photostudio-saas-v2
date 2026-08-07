@@ -1,12 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getEmployee, listRoles } from '@/modules/team/interface';
+import { getEmployee } from '@/modules/team/interface';
 import { listTasksForEmployee, listBookingAssignmentsForEmployee } from '@/modules/production/interface';
-import { AvatarUpload } from '@/components/AvatarUpload';
+import { ContactAvatar } from '@/components/ContactAvatar';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { EmployeeEditor } from './EmployeeEditor';
-import { EmployeeRoles } from './EmployeeRoles';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +21,7 @@ const TASK_LABEL: Record<string, string> = {
   blocked: 'Blocked', completed: 'Done',
 };
 
-export default async function EmployeeDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function EmployeeProfilePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
     await getAuthOrgId();
@@ -34,13 +32,6 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
   const employee: any = await getEmployee(params.id);
   if (!employee) notFound();
 
-  const allRoles = await listRoles();
-  const assignedRoles = (employee.employee_roles || [])
-    .map((er: any) => er.role)
-    .filter((r: any) => r?.id);
-  const assignedIds = new Set(assignedRoles.map((r: any) => r.id));
-  const availableRoles = (allRoles as any[]).filter((r) => !assignedIds.has(r.id));
-
   const [tasks, bookingAssignments] = await Promise.all([
     listTasksForEmployee(params.id),
     listBookingAssignmentsForEmployee(params.id),
@@ -49,54 +40,100 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
   const openTasks = tasks.filter((t) => t.status !== 'completed');
   const doneTasks = tasks.filter((t) => t.status === 'completed');
 
+  const contact = employee.contact || {};
+  const roles: { id: string; name: string }[] = (employee.employee_roles || [])
+    .map((er: any) => er.role)
+    .filter((r: any) => r?.id);
+  const skills: string[] = employee.skills || [];
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="q-card q-section">
+      <h2 className="q-section-title">{title}</h2>
+      {children}
+    </div>
+  );
+
   return (
     <div className="q-page-narrow">
       <Link href="/team" className="q-back">&larr; Back to Team</Link>
+
       <header className="q-page-header">
-        <div>
-          <h1 className="q-page-title">{employee.contact?.display_name}</h1>
-          <p className="q-page-subtitle">{employee.title || employee.contact?.email || 'No title set'}</p>
+        <div className="q-row" style={{ gap: '16px', alignItems: 'center' }}>
+          <ContactAvatar name={contact.display_name || ''} url={contact.avatar_url} size="lg" />
+          <div>
+            <h1 className="q-page-title" style={{ marginBottom: '2px' }}>{contact.display_name}</h1>
+            {employee.title && (
+              <p className="q-page-subtitle" style={{ margin: 0 }}>{employee.title}</p>
+            )}
+          </div>
         </div>
-        <span className={`q-badge ${employee.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
-          {employee.status}
-        </span>
+        <div className="q-row">
+          <span className={`q-badge ${employee.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
+            {employee.status}
+          </span>
+          <Link href={`/team/${params.id}/edit`} className="q-btn q-btn-secondary">
+            Edit profile
+          </Link>
+        </div>
       </header>
 
       <div className="q-stack q-stack-lg">
 
-        <div className="q-card q-section">
-          <AvatarUpload contactId={employee.contact.id} name={employee.contact?.display_name || ''} url={employee.contact?.avatar_url ?? null} />
-        </div>
-
-        <div className="q-card q-section">
-          <h2 className="q-section-title">Details</h2>
-          <EmployeeEditor
-            employeeId={employee.id}
-            name={employee.contact?.display_name || ''}
-            email={employee.contact?.email}
-            phone={employee.contact?.phone}
-            title={employee.title}
-            skills={employee.skills || []}
-            status={employee.status}
-          />
-        </div>
-
-        <div className="q-card q-section">
-          <h2 className="q-section-title">Roles</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>
-            What this person can be assigned to on a booking.
-          </p>
-          <EmployeeRoles employeeId={employee.id} assigned={assignedRoles} available={availableRoles} />
-        </div>
-
-        {/* Current task load */}
-        <div className="q-card q-section">
-          <h2 className="q-section-title">
-            Tasks
-            {openTasks.length > 0 && (
-              <span className="q-badge q-badge-warning" style={{ marginLeft: '10px' }}>{openTasks.length} open</span>
+        {/* Identity — read-only summary */}
+        <Section title="Profile">
+          <div className="q-stack q-stack-sm">
+            {contact.email && (
+              <div className="q-tile q-row q-row-between">
+                <span className="q-meta">Email</span>
+                <span>{contact.email}</span>
+              </div>
             )}
-          </h2>
+            {contact.phone && (
+              <div className="q-tile q-row q-row-between">
+                <span className="q-meta">Phone</span>
+                <span>{contact.phone}</span>
+              </div>
+            )}
+            {employee.title && (
+              <div className="q-tile q-row q-row-between">
+                <span className="q-meta">Title</span>
+                <span>{employee.title}</span>
+              </div>
+            )}
+            {!contact.email && !contact.phone && !employee.title && (
+              <p className="q-empty">No contact details yet. <Link href={`/team/${params.id}/edit`} className="q-accent">Add them →</Link></p>
+            )}
+          </div>
+        </Section>
+
+        {/* Capabilities */}
+        {(roles.length > 0 || skills.length > 0) && (
+          <Section title="Capabilities">
+            {roles.length > 0 && (
+              <div style={{ marginBottom: skills.length > 0 ? '16px' : 0 }}>
+                <div className="q-meta" style={{ marginBottom: '8px' }}>Roles</div>
+                <div className="q-row" style={{ flexWrap: 'wrap' }}>
+                  {roles.map((r) => (
+                    <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {skills.length > 0 && (
+              <div>
+                <div className="q-meta" style={{ marginBottom: '8px' }}>Skills</div>
+                <div className="q-row" style={{ flexWrap: 'wrap' }}>
+                  {skills.map((s) => (
+                    <span key={s} className="q-badge q-badge-neutral">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* Task load — current work */}
+        <Section title={`Tasks${openTasks.length > 0 ? ` · ${openTasks.length} open` : ''}`}>
           {tasks.length === 0 ? (
             <p className="q-empty">Nothing assigned yet.</p>
           ) : (
@@ -146,14 +183,11 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
               )}
             </>
           )}
-        </div>
+        </Section>
 
-        {/* Bookings they're on directly (shoot-level, before tasks exist) */}
+        {/* Booking-level assignments (shoot roster, before tasks exist) */}
         {bookingAssignments.length > 0 && (
-          <div className="q-card q-section">
-            <h2 className="q-section-title">
-              On {bookingAssignments.length} booking{bookingAssignments.length === 1 ? '' : 's'}
-            </h2>
+          <Section title={`On ${bookingAssignments.length} booking${bookingAssignments.length === 1 ? '' : 's'}`}>
             <div className="q-stack q-stack-sm">
               {bookingAssignments.map((a) => (
                 <Link key={a.assignmentId} href={`/bookings/${a.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
@@ -172,7 +206,7 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
                 </Link>
               ))}
             </div>
-          </div>
+          </Section>
         )}
 
       </div>

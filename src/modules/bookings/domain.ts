@@ -106,11 +106,12 @@ export async function createBookingFromIntake(input: {
   organizationId: string;
   contactId: string;
   clientName: string;
-  packageId: string;
+  packageId?: string | null;
   packageName: string;
   linePrice?: Record<string, unknown>;
   answers?: Record<string, unknown>;
   source?: string;
+  scheduledFor?: string | null;
 }) {
   const orgId = input.organizationId;
 
@@ -139,6 +140,7 @@ export async function createBookingFromIntake(input: {
       title,
       title_custom: false,
       stage_id: landingStage.id,
+      scheduled_for: input.scheduledFor || null,
       metadata: { source: input.source || 'public_booking_page', form_responses: input.answers || {} },
     })
     .select('id')

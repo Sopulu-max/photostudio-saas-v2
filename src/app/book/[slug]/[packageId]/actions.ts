@@ -25,6 +25,7 @@ export async function submitBookingForm(
     phone: string;
     customFields: Record<string, any>;
     tierIndex?: number;
+    scheduledFor?: string;
   }
 ) {
   const displayName = `${formData.firstName} ${formData.lastName}`.trim();
@@ -90,29 +91,42 @@ export async function submitBookingForm(
       { onConflict: 'organization_id,contact_id' }
     );
 
-  // 3. The package, for the line's snapshot and the booking title
-  const { data: pkg } = await supabaseAdmin
-    .from('packages')
-    .select('id, name, pricing, pricing_variant')
-    .eq('id', packageId)
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!pkg) throw new Error('This package is no longer available.');
+  // 3. Handle the package or custom enquiry
+  let pkgName = 'Custom Enquiry';
+  let linePrice = {};
+  let storedAnswers: any = {};
+  let resolvedPackageId: string | undefined = undefined;
 
-  // Never trust the browser for price: re-look-up the chosen tier server-side.
-  const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
-  const chosenTier = variant && formData.tierIndex != null ? variant.tiers[formData.tierIndex] : null;
-  const linePrice = chosenTier
-    ? { ...((pkg.pricing as any) || {}), base_price: chosenTier.price, unit: chosenTier.label }
-    : (pkg.pricing || {});
+  if (packageId === 'custom') {
+    // For custom enquiries, the user just supplied a free-form message.
+    storedAnswers = { message: formData.customFields?.message || '' };
+  } else {
+    // Standard package booking
+    const { data: pkg } = await supabaseAdmin
+      .from('packages')
+      .select('id, name, pricing, pricing_variant')
+      .eq('id', packageId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!pkg) throw new Error('This package is no longer available.');
 
-  // Never trust the browser: validate the answers against the package's own
-  // questions, and normalise them to each type's storage shape.
-  const questions = await getIntakeQuestionsPublic(pkg.id);
-  const errors = validateAnswers(questions, formData.customFields || {});
-  const firstError = Object.values(errors)[0];
-  if (firstError) throw new Error(firstError);
-  const storedAnswers = storeAnswers(questions, formData.customFields || {});
+    resolvedPackageId = pkg.id;
+    pkgName = pkg.name;
+
+    // Never trust the browser for price: re-look-up the chosen tier server-side.
+    const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
+    const chosenTier = variant && formData.tierIndex != null ? variant.tiers[formData.tierIndex] : null;
+    linePrice = chosenTier
+      ? { ...((pkg.pricing as any) || {}), base_price: chosenTier.price, unit: chosenTier.label }
+      : (pkg.pricing || {});
+
+    // Validate the answers against the package's own questions
+    const questions = await getIntakeQuestionsPublic(pkg.id);
+    const errors = validateAnswers(questions, formData.customFields || {});
+    const firstError = Object.values(errors)[0];
+    if (firstError) throw new Error(firstError);
+    storedAnswers = storeAnswers(questions, formData.customFields || {});
+  }
 
   // 4. The booking itself — asked of the Bookings module, not inserted here.
   // This is the same operation an operator's booking goes through, so intake
@@ -121,11 +135,12 @@ export async function submitBookingForm(
     organizationId: orgId,
     contactId,
     clientName: displayName,
-    packageId: pkg.id,
-    packageName: pkg.name,
+    packageId: resolvedPackageId,
+    packageName: pkgName,
     linePrice,
     answers: storedAnswers,
     source: 'public_booking_page',
+    scheduledFor: formData.scheduledFor,
   });
 
   return { success: true, bookingId };
