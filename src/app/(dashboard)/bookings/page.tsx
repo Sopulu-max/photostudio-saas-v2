@@ -50,10 +50,10 @@ export default async function BookingsPage() {
       {org?.slug && (
         <div className="q-card q-row q-row-between">
           <div>
-            <div className="q-strong">Public booking page</div>
+            <div className="q-strong">Public booking link</div>
             <div className="q-meta">Share this link so clients can book directly.</div>
           </div>
-          <StorefrontLink slug={org.slug} />
+          <StorefrontLink slug={org.slug} path={`/book/${org.slug}/custom`} />
         </div>
       )}
 

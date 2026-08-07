@@ -3,14 +3,17 @@
 import React, { useEffect, useState } from 'react';
 
 /** Your public catalogue — the one link a studio hands out to let a prospect pick from everything they sell. */
-export function StorefrontLink({ slug }: { slug: string }) {
+export function StorefrontLink({ slug, path }: { slug: string, path?: string }) {
   const [copied, setCopied] = useState(false);
+  
+  const targetPath = path || `/book/${slug}`;
+  
   // Relative first so server/client render match, then upgrade to the full
   // origin after mount — avoids a hydration mismatch (see ShareContractLink).
-  const [url, setUrl] = useState(`/book/${slug}`);
+  const [url, setUrl] = useState(targetPath);
   useEffect(() => {
-    setUrl(`${window.location.origin}/book/${slug}`);
-  }, [slug]);
+    setUrl(`${window.location.origin}${targetPath}`);
+  }, [targetPath]);
 
   const copy = () => {
     navigator.clipboard.writeText(url);
