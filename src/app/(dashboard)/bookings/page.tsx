@@ -68,7 +68,11 @@ export default async function BookingsPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 'auto' }}>
                 <span className="q-badge q-badge-neutral">{b.lineCount} {b.lineCount === 1 ? 'package' : 'packages'}</span>
                 {b.hasContract && <span className="q-badge q-badge-neutral">contract</span>}
-                {b.pendingTotal > 0 && <span className="q-badge q-badge-warning">{formatMoney(b.pendingTotal, currencyCode)} due</span>}
+                {b.pendingTotal > 0 && (
+                  <span className="q-badge q-badge-warning">
+                    {formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)} due
+                  </span>
+                )}
               </div>
             </Link>
           ))}

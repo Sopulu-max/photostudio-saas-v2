@@ -1,8 +1,13 @@
 import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { getStudio } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
+import { listRecentActivity } from '@/kernel/events';
+import { listBookings, listBookingsInRange } from '@/modules/bookings/interface';
+import { listTransactions } from '@/modules/finances/interface';
+import { listServices } from '@/modules/services/interface';
+import { listPackages } from '@/modules/packages/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,104 +22,48 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function describeEvent(evt: any): string {
-  const who = evt.person?.display_name || 'System';
-  const type = evt.entity_type as string;
-  const action = evt.action as string;
-  const key = `${type}.${action}`;
-  const map: Record<string, string> = {
-    'booking.created':              `${who} created a booking`,
-    'booking.stage_changed':        `${who} moved a booking`,
-    'booking.updated':              `${who} updated a booking`,
-    'booking_line.created':         `${who} added a package to a booking`,
-    'client.created':               `${who} added a client`,
-    'client.archived':              `${who} archived a client`,
-    'contract.created':             `${who} drafted a contract`,
-    'contract.activated':           `${who} activated a contract`,
-    'contract.cancelled':           `${who} cancelled a contract`,
-    'financial_transaction.created': `${who} raised an invoice`,
-    'financial_transaction.settled': `${who} settled a payment`,
-    'task.completed':               `${who} completed a task`,
-    'delivery.created':             `${who} created a delivery bundle`,
-    'delivery.shared':              `${who} shared a delivery`,
-    'package.created':              `${who} created a package`,
-    'package.retired':              `${who} retired a package`,
-    'service.created':              `${who} added a service`,
-    'employee.created':             `${who} added a team member`,
-    'employee.archived':            `${who} archived a team member`,
-  };
-  return map[key] ?? `${who} ${action.replace(/_/g, ' ')} ${type.replace(/_/g, ' ')}`;
-}
-
+/**
+ * The Command Center is a VIEW, not a module: it owns no data and queries no
+ * tables. Every figure here is asked of whichever module owns it — the same
+ * discipline the Calendar already follows — so this page can't drift from
+ * what those modules mean by "open booking" or "pending".
+ */
 async function getOverviewData() {
   try {
-    const { orgId } = await getAuthOrgId();
-
-    const { data: org } = await supabaseAdmin
-      .from('organizations')
-      .select('id, name, slug')
-      .eq('id', orgId)
-      .single();
-    if (!org) return null;
+    await getAuthOrgId();
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-    const [
-      { data: recentEvents },
-      { data: openBookings },
-      { data: pendingPayments },
-      { data: todaysShoots },
-      { count: serviceCount },
-      { count: packageCount },
-    ] = await Promise.all([
-      supabaseAdmin
-        .from('events')
-        .select('entity_type, action, created_at, person:contacts(display_name)')
-        .eq('organization_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(8),
-      supabaseAdmin
-        .from('bookings')
-        .select('id, title, stage:booking_stages!inner(name, kind, color), contact:contacts(display_name)')
-        .eq('organization_id', orgId)
-        .in('stage.kind', ['enquiry', 'booked'])
-        .order('created_at', { ascending: false })
-        .limit(6),
-      supabaseAdmin
-        .from('financial_transactions')
-        .select('id, amount, currency, booking:bookings(id, title), contact:contacts(display_name)')
-        .eq('organization_id', orgId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabaseAdmin
-        .from('bookings')
-        .select('id, title, scheduled_for, contact:contacts(display_name)')
-        .eq('organization_id', orgId)
-        .gte('scheduled_for', todayStart)
-        .lt('scheduled_for', todayEnd)
-        .order('scheduled_for'),
-      supabaseAdmin
-        .from('services')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', orgId),
-      supabaseAdmin
-        .from('packages')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', orgId),
+    const [org, recentEvents, allBookings, transactions, todaysShoots, services, packages] = await Promise.all([
+      getStudio(),
+      listRecentActivity(8),
+      listBookings(),
+      listTransactions(),
+      listBookingsInRange(todayStart, todayEnd),
+      listServices(),
+      listPackages(),
     ]);
+    if (!org) return null;
+
+    // "Open" is a stage KIND, never a stage name — a studio can call its
+    // stages anything, so matching on names would break the moment they do.
+    const openBookings = allBookings
+      .filter((b) => b.stage?.kind === 'enquiry' || b.stage?.kind === 'booked')
+      .slice(0, 6);
+
+    const pendingPayments = (transactions as any[]).filter((t) => t.status === 'pending').slice(0, 5);
 
     return {
       org,
-      recentEvents:    recentEvents    || [],
-      openBookings:    openBookings    || [],
-      pendingPayments: pendingPayments || [],
-      todaysShoots:    todaysShoots    || [],
+      recentEvents,
+      openBookings,
+      pendingPayments,
+      todaysShoots,
       onboarding: {
-        hasService: (serviceCount || 0) > 0,
-        hasPackage: (packageCount || 0) > 0,
+        hasService: services.length > 0,
+        hasPackage: (packages as any[]).length > 0,
       },
     };
   } catch (err: any) {
@@ -198,13 +147,13 @@ export default async function OverviewPage() {
             <div className="q-card">
               <h2 className="q-section-title">Today</h2>
               <div className="q-stack q-stack-sm">
-                {todaysShoots.map((b: any) => (
-                  <Link key={b.id} href={`/bookings/${b.id}`} className="q-tile q-row q-row-between q-plain-link">
+                {todaysShoots.map((b) => (
+                  <Link key={b.bookingId} href={`/bookings/${b.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
                     <div>
                       <strong className="q-strong">{b.title}</strong>
-                      {b.contact?.display_name && <div className="q-meta">{b.contact.display_name}</div>}
+                      {b.client && <div className="q-meta">{b.client}</div>}
                     </div>
-                    <span className="q-num q-meta-plain">{fmtTime(b.scheduled_for)}</span>
+                    <span className="q-num q-meta-plain">{fmtTime(b.at)}</span>
                   </Link>
                 ))}
               </div>
@@ -248,11 +197,11 @@ export default async function OverviewPage() {
               <p className="q-empty">No open bookings.</p>
             ) : (
               <div className="q-stack q-stack-sm">
-                {openBookings.map((b: any) => (
+                {openBookings.map((b) => (
                   <Link key={b.id} href={`/bookings/${b.id}`} className="q-tile q-row q-row-between q-plain-link">
                     <div>
                       <strong className="q-strong">{b.title}</strong>
-                      {b.contact?.display_name && <div className="q-meta">{b.contact.display_name}</div>}
+                      {b.clientName && <div className="q-meta">{b.clientName}</div>}
                     </div>
                     <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage?.name}</span>
                   </Link>
@@ -270,10 +219,12 @@ export default async function OverviewPage() {
             <p className="q-empty">Nothing yet.</p>
           ) : (
             <div className="q-stack q-stack-md">
-              {recentEvents.map((evt: any, i: number) => (
-                <div key={i} style={{ fontSize: '0.85rem' }}>
-                  <div style={{ color: 'var(--q-color-ink-700)' }}>{describeEvent(evt)}</div>
-                  <div className="q-meta">{new Date(evt.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              {recentEvents.map((evt) => (
+                <div key={evt.id} className="q-meta-plain">
+                  <div>{evt.description}</div>
+                  <div className="q-meta">
+                    {new Date(evt.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
               ))}
             </div>

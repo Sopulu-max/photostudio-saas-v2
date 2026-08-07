@@ -104,6 +104,17 @@ export async function updateOrganizationStatus(organizationId: string, status: '
   return org as Organization;
 }
 
+/** Who this studio is — name and storefront slug, for surfaces that greet or link to it. */
+export async function getStudio(): Promise<{ id: string; name: string; slug: string | null } | null> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, slug')
+    .eq('id', orgId)
+    .maybeSingle();
+  return (data as { id: string; name: string; slug: string | null }) ?? null;
+}
+
 /** The currency this studio bills in. Every money surface reads this. */
 export async function getStudioCurrency(): Promise<string> {
   const { orgId } = await getAuthOrgId();

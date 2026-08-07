@@ -525,7 +525,7 @@ export async function listBookings() {
       contact:contacts(display_name),
       booking_lines(id),
       contracts(id, status),
-      financial_transactions(id, amount, status)
+      financial_transactions(id, amount, status, currency)
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
@@ -536,18 +536,23 @@ export async function listBookings() {
   }
 
   const rows = (data || []) as any[];
-  return rows.map((b) => ({
-    id: b.id,
-    title: b.title,
-    createdAt: b.created_at,
-    stage: b.stage || null,
-    clientName: b.contact?.display_name || null,
-    lineCount: (b.booking_lines || []).length,
-    hasContract: (b.contracts || []).length > 0,
-    pendingTotal: (b.financial_transactions || [])
-      .filter((t: any) => t.status === 'pending')
-      .reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
-  }));
+  return rows.map((b) => {
+    // A transaction records the currency it was raised in. Summing them and
+    // then labelling the total with the studio's *current* currency would
+    // rename a dollar debt as naira, so the currency travels with the figure.
+    const pending = (b.financial_transactions || []).filter((t: any) => t.status === 'pending');
+    return {
+      id: b.id as string,
+      title: b.title as string,
+      createdAt: b.created_at as string,
+      stage: b.stage || null,
+      clientName: b.contact?.display_name || null,
+      lineCount: (b.booking_lines || []).length,
+      hasContract: (b.contracts || []).length > 0,
+      pendingTotal: pending.reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
+      pendingCurrency: (pending[0]?.currency as string | undefined) ?? null,
+    };
+  });
 }
 
 /**
@@ -570,9 +575,10 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     throw new Error('Failed to load the calendar');
   }
 
-  return (data || []).map((b: any) => ({
+  const rows = (data || []) as any[];
+  return rows.map((b) => ({
     kind: 'booking' as const,
-    at: b.scheduled_for,
+    at: b.scheduled_for as string,
     durationMinutes: b.duration_minutes ?? null,
     bookingId: b.id,
     title: b.title,
