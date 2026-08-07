@@ -291,6 +291,7 @@ body {
   box-shadow: 0 0 0 3px var(--q-color-accent-soft);
 }
 .q-textarea { resize: vertical; min-height: 96px; }
+.q-input-lg { padding: 14px 16px; font-size: 1rem; }
 
 /* Selects: drop the OS arrow and draw our own, so the control matches the rest
    of the UI in both themes. (The popup list itself is drawn by the OS — that is
@@ -505,6 +506,9 @@ body {
 /* Small inline action, for controls that sit inside a row of text. */
 .q-btn-xs { font-size: 0.75rem; padding: 3px 9px; }
 .q-btn-sm { font-size: 0.85rem; }
+.q-btn-lg { font-size: 1.05rem; padding: 14px 28px; }
+.q-btn-danger { background: var(--q-color-danger); color: #fff; border-color: var(--q-color-danger); }
+.q-btn-danger:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
 /* ---- Grid ---- */
 .q-grid-cards {
@@ -533,6 +537,8 @@ body {
 .q-lp-aurora i:nth-child(2) { width: 360px; height: 360px; left: 46%; top: 6%; background: var(--q-color-warm); opacity: 0.4; animation-delay: -5s; }
 .q-lp-aurora i:nth-child(3) { width: 300px; height: 300px; left: 72%; top: -6%; background: var(--q-color-accent-hi); opacity: 0.4; animation-delay: -9s; }
 @keyframes q-drift { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(34px, 24px, 0) scale(1.12); } }
+@keyframes q-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes q-slide-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .q-lp-hero-inner { position: relative; z-index: 1; }
 
 .q-lp-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--q-font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--q-color-accent); margin-bottom: 22px; }

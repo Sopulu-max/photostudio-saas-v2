@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { activateContract } from '@/modules/contracts/interface';
 import { formatMoney } from '@/kernel/currency';
 import { redirect } from 'next/navigation';
+import { SignaturePad } from './SignaturePad';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,9 +38,15 @@ export default async function ClientContractPortalPage(props: {
 
   const terms = contract.terms as any;
 
-  async function handleSign() {
+  async function handleSign(signatureName: string, signatureDataUrl: string) {
     'use server';
-    await activateContract(contract.id);
+    await activateContract({
+      contractId: contract.id,
+      organizationId: org.id,
+      actorId: contract.contact_id,
+      signatureName,
+      signatureDataUrl
+    });
     // In real app, redirect to a thank you or deposit payment page
     redirect(`/portal/${params.orgSlug}/payment/${contract.id}`);
   }
@@ -98,15 +105,19 @@ export default async function ClientContractPortalPage(props: {
           </div>
 
           {contract.status === 'active' ? (
-            <div className="q-note q-note-good q-center-text q-strong">
-              Contract Signed. Awaiting Deposit.
+            <div className="q-note q-note-good q-stack" style={{ textAlign: 'center' }}>
+              <div className="q-strong">Contract Signed. Awaiting Deposit.</div>
+              {terms.signature && (
+                <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--q-color-ground)', borderRadius: '8px', border: '1px solid var(--q-color-border)' }}>
+                  <img src={terms.signature.dataUrl} alt={`Signature of ${terms.signature.name}`} style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto', maxHeight: '100px' }} />
+                  <div className="q-meta-sm" style={{ marginTop: '12px' }}>
+                    Signed by {terms.signature.name} on {new Date(terms.signature.timestamp).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <form action={handleSign}>
-              <button type="submit" className="q-btn q-btn-primary" style={{ width: '100%', padding: '16px', fontSize: '1.125rem' }}>
-                Accept & Sign Contract
-              </button>
-            </form>
+            <SignaturePad onSign={handleSign} />
           )}
         </div>
       </main>

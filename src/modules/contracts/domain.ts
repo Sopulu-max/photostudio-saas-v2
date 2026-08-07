@@ -11,6 +11,8 @@ const ActivateContractSchema = z.object({
   contractId: z.string().uuid(),
   organizationId: z.string().uuid(),
   actorId: z.string().uuid(),
+  signatureName: z.string().optional(),
+  signatureDataUrl: z.string().optional(),
 });
 
 // ── The studio's own contract language ───────────────────────────────────
@@ -139,7 +141,7 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
   // STATE MACHINE GUARD
   const { data: currentContract, error: fetchError } = await supabaseAdmin
     .from('contracts')
-    .select('status, contact_id')
+    .select('status, contact_id, terms')
     .eq('id', params.contractId)
     .single();
 
@@ -152,12 +154,25 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
   }
 
   // Activate contract
+  const patch: any = {
+    status: 'active',
+    signed_at: new Date().toISOString()
+  };
+
+  if (params.signatureName || params.signatureDataUrl) {
+    patch.terms = {
+      ...((currentContract.terms as any) || {}),
+      signature: {
+        name: params.signatureName,
+        dataUrl: params.signatureDataUrl,
+        timestamp: patch.signed_at
+      }
+    };
+  }
+
   const { data: contract, error: updateError } = await supabaseAdmin
     .from('contracts')
-    .update({
-      status: 'active',
-      signed_at: new Date().toISOString()
-    })
+    .update(patch)
     .eq('id', params.contractId)
     .select()
     .single();

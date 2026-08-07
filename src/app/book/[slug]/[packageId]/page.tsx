@@ -48,7 +48,7 @@ export default async function BookingPage(props: {
 
         {/* Studio + back */}
         <div style={{ marginBottom: '40px' }}>
-          <a href={`/book/${params.slug}`} className="q-plain-link" style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--q-color-ink-500)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <a href={`/storefront/${params.slug}`} className="q-plain-link" style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--q-color-ink-500)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>&larr;</span> {org.name}
           </a>
         </div>

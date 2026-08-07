@@ -123,6 +123,15 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
                   <div className="q-stat-value">{formatMoney(depositAmount, currency)}</div>
                 </div>
               </div>
+
+              {terms.signature && (
+                <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--q-color-ground)', borderRadius: '8px', border: '1px dashed var(--q-color-border)' }}>
+                  <img src={terms.signature.dataUrl} alt={`Signature of ${terms.signature.name}`} style={{ display: 'block', maxWidth: '100%', height: 'auto', maxHeight: '100px' }} />
+                  <div className="q-meta-sm" style={{ marginTop: '12px' }}>
+                    Signed by {terms.signature.name} on {new Date(terms.signature.timestamp).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <TermsEditor
