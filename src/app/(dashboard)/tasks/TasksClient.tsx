@@ -6,6 +6,9 @@ import { CheckCircle2 } from 'lucide-react';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
 
+import { KanbanBoard } from './KanbanBoard';
+import { AlignLeft, LayoutDashboard } from 'lucide-react';
+
 type Task = {
   taskId: string;
   stageName: string;
@@ -41,6 +44,7 @@ export function TasksClient({
 }) {
   const [scope, setScope] = useState<'all' | 'mine'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
+  const [view, setView] = useState<'kanban' | 'list'>('kanban');
 
   const visible = useMemo(() => {
     return tasks.filter((t) => {
@@ -53,27 +57,49 @@ export function TasksClient({
   return (
     <div>
       <header className="q-page-header">
-        <h1 className="q-page-title">Tasks</h1>
+        <h1 className="q-page-title">Production</h1>
         <p className="q-page-subtitle">Every task, across every booking — who's doing what, and what's due.</p>
       </header>
 
       <div className="q-row" style={{ marginBottom: '20px', flexWrap: 'wrap' }}>
-        {myEmployeeId && (
-          <div className="q-row" style={{ gap: '4px' }}>
+        <div className="q-row" style={{ gap: '12px' }}>
+          <div className="q-row" style={{ gap: '0', backgroundColor: 'var(--q-color-ink-50)', padding: '2px', borderRadius: '8px' }}>
             <button
-              className={`q-btn q-btn-sm ${scope === 'all' ? 'q-btn-primary' : 'q-btn-secondary'}`}
-              onClick={() => setScope('all')}
+              className={`q-btn q-btn-sm ${view === 'kanban' ? 'q-btn-primary' : 'q-btn-secondary'}`}
+              style={{ border: 'none', boxShadow: view === 'kanban' ? 'var(--q-shadow-sm)' : 'none' }}
+              onClick={() => setView('kanban')}
+              title="Kanban View"
             >
-              Everyone
+              <LayoutDashboard size={14} style={{ marginRight: '6px' }} /> Board
             </button>
             <button
-              className={`q-btn q-btn-sm ${scope === 'mine' ? 'q-btn-primary' : 'q-btn-secondary'}`}
-              onClick={() => setScope('mine')}
+              className={`q-btn q-btn-sm ${view === 'list' ? 'q-btn-primary' : 'q-btn-secondary'}`}
+              style={{ border: 'none', boxShadow: view === 'list' ? 'var(--q-shadow-sm)' : 'none' }}
+              onClick={() => setView('list')}
+              title="List View"
             >
-              Assigned to me
+              <AlignLeft size={14} style={{ marginRight: '6px' }} /> List
             </button>
           </div>
-        )}
+
+          {myEmployeeId && (
+            <div className="q-row" style={{ gap: '4px' }}>
+              <button
+                className={`q-btn q-btn-sm ${scope === 'all' ? 'q-btn-primary' : 'q-btn-secondary'}`}
+                onClick={() => setScope('all')}
+              >
+                Everyone
+              </button>
+              <button
+                className={`q-btn q-btn-sm ${scope === 'mine' ? 'q-btn-primary' : 'q-btn-secondary'}`}
+                onClick={() => setScope('mine')}
+              >
+                Assigned to me
+              </button>
+            </div>
+          )}
+        </div>
+        
         <span className="q-spacer" />
         <label className="q-row q-meta-plain" style={{ gap: '6px' }}>
           <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
@@ -81,14 +107,16 @@ export function TasksClient({
         </label>
       </div>
 
-      <div className="q-stack q-stack-md">
-        {visible.length === 0 ? (
-          <div className="q-card" style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--q-color-ink-500)' }}>
-            <CheckCircle2 size={44} color="var(--q-color-ink-300)" style={{ margin: '0 auto 16px' }} />
-            {tasks.length === 0 ? 'No tasks yet — they appear once work starts on a booking.' : 'Nothing here.'}
-          </div>
-        ) : (
-          visible.map((t) => (
+      {visible.length === 0 ? (
+        <div className="q-card" style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--q-color-ink-500)' }}>
+          <CheckCircle2 size={44} color="var(--q-color-ink-300)" style={{ margin: '0 auto 16px' }} />
+          {tasks.length === 0 ? 'No tasks yet — they appear once work starts on a booking.' : 'Nothing here.'}
+        </div>
+      ) : view === 'kanban' ? (
+        <KanbanBoard tasks={visible} candidates={candidates} orgId={orgId} actorId={actorId} />
+      ) : (
+        <div className="q-stack q-stack-md">
+          {visible.map((t) => (
             <div key={t.taskId} className="q-card">
               <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                 <div>
@@ -115,9 +143,9 @@ export function TasksClient({
                 suggestedRoleName={t.suggestedRoleName}
               />
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
