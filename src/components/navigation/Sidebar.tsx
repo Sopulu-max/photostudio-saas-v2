@@ -22,28 +22,28 @@ import {
 
 const NAV_SECTIONS = [
   {
-    label: 'Studio Desk',
+    label: 'Cockpit',
     items: [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
-      { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
       { label: 'Calendar', href: '/calendar', icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+    ]
+  },
+  {
+    label: 'Work',
+    items: [
+      { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
+      { label: 'Clients', href: '/clients', icon: Users },
+      { label: 'Contracts', href: '/contracts', icon: FileSignature },
       { label: 'Finances', href: '/finances', icon: DollarSign },
     ]
   },
   {
-    label: 'Pipeline',
-    items: [
-      { label: 'Clients', href: '/clients', icon: Users },
-      { label: 'Contracts', href: '/contracts', icon: FileSignature },
-    ]
-  },
-  {
-    label: 'Configuration',
+    label: 'Studio',
     items: [
       { label: 'Services', href: '/services', icon: Layers },
       { label: 'Packages', href: '/packages', icon: Package },
-      { label: 'Team', href: '/team', icon: Users },
+      { label: 'Team', href: '/team', icon: Boxes },
     ]
   },
   {
