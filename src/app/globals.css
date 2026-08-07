@@ -675,3 +675,49 @@ body {
 .q-fill { flex: 1 1 auto; }
 .q-link { color: var(--q-color-accent); text-decoration: none; font-weight: 500; }
 .q-link:hover { text-decoration: underline; }
+
+/* ---- Combobox: a search-as-you-type picker with a results menu ------------ */
+/* Used where a plain <select> can't carry enough to choose by — a package with
+   its price, duration and what it bundles; a client with their phone. Lives
+   here rather than at the call site so both themes and the hover language come
+   from the same palette as everything else. */
+.q-combo        { position: relative; }
+.q-combo-menu {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 30;
+  margin-top: 6px; padding: 4px;
+  max-height: 20rem; overflow-y: auto;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-200);
+  border-radius: 12px;
+  box-shadow: var(--q-shadow-md);
+}
+.q-combo-option {
+  display: block; width: 100%; text-align: left;
+  padding: 9px 11px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+  transition: background var(--q-dur-1) var(--q-ease);
+}
+.q-combo-option:hover,
+.q-combo-option:focus-visible { background: var(--q-color-ink-50); }
+.q-combo-option + .q-combo-option { margin-top: 1px; }
+.q-combo-title  { font-weight: 550; }
+.q-combo-sub    { font-size: 0.8rem; color: var(--q-color-ink-500); margin-top: 2px; }
+.q-combo-facts  { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: var(--q-color-ink-500); margin-top: 4px; }
+.q-combo-create { color: var(--q-color-accent); font-weight: 500; }
+.q-combo-empty  { padding: 10px 12px; color: var(--q-color-ink-500); font-size: 0.875rem; }
+.q-combo-sep    { border-top: 1px solid var(--q-color-ink-100); margin: 4px 0; }
+
+/* The chosen thing, shown in place of the picker once it's been picked. */
+.q-picked        { padding: 14px; border: 1px solid var(--q-color-ink-100); border-radius: 12px; background: var(--q-color-paper-elevated); }
+.q-picked-accent { border-color: color-mix(in srgb, var(--q-color-accent) 45%, transparent); background: var(--q-color-accent-soft); }
+.q-picked-head   { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.q-picked-name   { font-weight: 600; font-size: 1.05rem; }
+.q-chip-row      { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.q-chip {
+  font-size: 0.75rem; padding: 2px 8px; border-radius: 999px;
+  background: var(--q-color-ink-50); border: 1px solid var(--q-color-ink-100);
+  color: var(--q-color-ink-700);
+}
+.q-tier-row { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px 0; }
+/* A form card that stays narrow but must not clip its own popovers. */
+.q-card-narrow-lg { width: 100%; max-width: 520px; overflow: visible; position: relative; }
