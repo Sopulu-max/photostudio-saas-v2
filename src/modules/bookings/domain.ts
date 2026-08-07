@@ -590,6 +590,29 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
   }));
 }
 
+/**
+ * How many bookings each contact has — the Clients list asks for this rather
+ * than counting the bookings table itself. Returned as a plain map so the
+ * caller doesn't need a query per row.
+ */
+export async function getBookingCountsByContact(): Promise<Record<string, number>> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select('contact_id')
+    .eq('organization_id', orgId)
+    .not('contact_id', 'is', null);
+  if (error) {
+    console.error('Failed to count bookings by contact:', error);
+    return {};
+  }
+  const counts: Record<string, number> = {};
+  for (const b of (data || []) as any[]) {
+    counts[b.contact_id] = (counts[b.contact_id] || 0) + 1;
+  }
+  return counts;
+}
+
 /** Every booking for one client — Clients asks this rather than reading the bookings table. */
 export async function listBookingsForContact(contactId: string) {
   const { orgId } = await getAuthOrgId();

@@ -460,3 +460,63 @@ export async function listTaskDeadlinesInRange(fromISO: string, toISO: string) {
     lineTitle: t.line?.title,
   }));
 }
+
+/**
+ * Tasks assigned to a specific employee — used by the employee detail page.
+ * Same shape as listMyTasks but parameterised rather than resolving from the
+ * logged-in session. Requires auth (tenant scope still needed).
+ */
+export async function listTasksForEmployee(employeeId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('assignments')
+    .select('task:tasks!inner(id, stage_name, status, due_date, line:booking_lines!inner(id, title, booking:bookings!inner(id, title)))')
+    .eq('organization_id', orgId)
+    .eq('employee_id', employeeId)
+    .not('task_id', 'is', null);
+  if (error) {
+    console.error('Failed to load employee tasks:', error);
+    throw new Error('Failed to load tasks');
+  }
+
+  return ((rows || []) as any[]).map((r) => ({
+    taskId: r.task.id,
+    stageName: r.task.stage_name,
+    status: r.task.status,
+    dueDate: r.task.due_date,
+    lineTitle: r.task.line?.title,
+    bookingId: r.task.line?.booking?.id,
+    bookingTitle: r.task.line?.booking?.title,
+  }));
+}
+
+/**
+ * Bookings an employee is assigned to directly (not via tasks) — the
+ * "on this shoot" level. A booking without any task yet still shows up here
+ * so the studio can see their full schedule at a glance.
+ */
+export async function listBookingAssignmentsForEmployee(employeeId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('assignments')
+    .select('id, role:roles(name), booking:bookings!inner(id, title, scheduled_for, stage:booking_stages(name, kind, color))')
+    .eq('organization_id', orgId)
+    .eq('employee_id', employeeId)
+    .not('booking_id', 'is', null)
+    .is('task_id', null);
+  if (error) {
+    console.error('Failed to load employee booking assignments:', error);
+    return [];
+  }
+
+  return ((rows || []) as any[]).map((r) => ({
+    assignmentId: r.id,
+    role: r.role?.name ?? null,
+    bookingId: r.booking.id,
+    bookingTitle: r.booking.title,
+    scheduledFor: r.booking.scheduled_for,
+    stage: r.booking.stage,
+  }));
+}

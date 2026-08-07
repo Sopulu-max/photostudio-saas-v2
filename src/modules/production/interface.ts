@@ -16,6 +16,8 @@ export {
   listAssignableEmployees,
   listMyTasks,
   listTasks,
+  listTasksForEmployee,
+  listBookingAssignmentsForEmployee,
   getMyEmployeeId,
   listTaskDeadlinesInRange,
 } from './domain';

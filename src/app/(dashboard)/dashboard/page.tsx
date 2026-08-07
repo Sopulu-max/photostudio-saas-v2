@@ -1,42 +1,44 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { getStudio } from '@/kernel/organizations';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
-  CalendarCheck, CalendarDays, FileSignature, FolderOpen,
-  Package, GitMerge, Users, Boxes,
-  PieChart, Settings,
+  CalendarCheck, CalendarDays, FileSignature,
+  Package, Users, PieChart, Settings,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
+// Mirrors the sidebar's grouping — Cockpit / Work / Studio / Platform. When
+// one moves, so does the other; two different answers to "where does this
+// live" is worse than either answer alone.
 const SECTIONS = [
   {
-    label: 'Studio Desk',
+    label: 'Cockpit',
     jewel: 'var(--q-jewel-indigo)',
     apps: [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
-      { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
       { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', desc: 'Who is doing what, across every booking', icon: CheckSquare },
+    ],
+  },
+  {
+    label: 'Work',
+    jewel: 'var(--q-jewel-emerald)',
+    apps: [
+      { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
+      { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
+      { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
     ],
   },
   {
-    label: 'Pipeline',
-    jewel: 'var(--q-jewel-emerald)',
-    apps: [
-      { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
-      { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
-    ],
-  },
-  {
-    label: 'Configuration',
+    label: 'Studio',
     jewel: 'var(--q-jewel-amber)',
     apps: [
-      { label: 'Services', href: '/services', desc: 'Your offerings and pricing', icon: Package },
-      
+      { label: 'Services', href: '/services', desc: 'What this studio knows how to do', icon: Layers },
+      { label: 'Packages', href: '/packages', desc: 'What clients can book', icon: Package },
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
     ],
   },
@@ -53,8 +55,8 @@ const SECTIONS = [
 export default async function LaunchpadPage() {
   let orgName = 'Your studio';
   try {
-    const { orgId } = await getAuthOrgId();
-    const { data: org } = await supabaseAdmin.from('organizations').select('name').eq('id', orgId).single();
+    await getAuthOrgId();
+    const org = await getStudio();
     if (org?.name) orgName = org.name;
   } catch {
     redirect('/login');

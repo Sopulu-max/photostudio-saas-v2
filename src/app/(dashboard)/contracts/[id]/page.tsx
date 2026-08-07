@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { getStudio } from '@/kernel/organizations';
+import { getContract } from '@/modules/contracts/interface';
+import { listTransactionsForContract } from '@/modules/finances/interface';
 import Link from 'next/link';
 import { Play } from 'lucide-react';
 import { ActivateContractButton, CancelContractButton } from './ContractActions';
@@ -16,28 +18,10 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
   const params = await props.params;
   const { orgId, personId } = await getAuthOrgId();
 
-  const [{ data: contract }, { data: org }] = await Promise.all([
-    supabaseAdmin
-      .from('contracts')
-      .select(`
-        *,
-        person:contacts(display_name, email),
-        booking:bookings(id, title)
-      `)
-      .eq('id', params.id)
-      .eq('organization_id', orgId)
-      .single(),
-    supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single(),
-  ]);
-
+  const [contract, org] = await Promise.all([getContract(params.id), getStudio()]);
   if (!contract) notFound();
 
-  const { data: transactions } = await supabaseAdmin
-    .from('financial_transactions')
-    .select('id, type, direction, amount, currency, status')
-    .eq('organization_id', orgId)
-    .eq('contract_id', contract.id)
-    .order('created_at', { ascending: true });
+  const transactions = await listTransactionsForContract(contract.id);
 
   const terms = contract.terms || {};
   const basePrice = terms.base_price || 0;

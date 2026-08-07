@@ -1,88 +1,101 @@
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { redirect } from 'next/navigation';
-
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { listBookings } from '@/modules/bookings/interface';
+import { listTransactions } from '@/modules/finances/interface';
+import { listTasks } from '@/modules/production/interface';
+import { listRecentActivity } from '@/kernel/events';
+import { getStudioCurrency } from '@/kernel/organizations';
+import { formatMoney } from '@/kernel/currency';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
-  const { orgId } = await getAuthOrgId();
+  await getAuthOrgId();
 
-  const [tasksRes, bookingsRes, txRes, eventsRes] = await Promise.all([
-    supabaseAdmin.from('tasks').select('id, status, created_at').eq('organization_id', orgId),
-    supabaseAdmin.from('bookings').select('id, created_at, stage:booking_stages(kind)', { count: 'exact' }).eq('organization_id', orgId),
-    supabaseAdmin.from('financial_transactions').select('amount, status, direction, created_at').eq('organization_id', orgId),
-    supabaseAdmin.from('events').select('action, entity_type, created_at').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(20),
+  const [allBookings, transactions, tasks, recentEvents, currencyCode] = await Promise.all([
+    listBookings(),
+    listTransactions(),
+    listTasks(),
+    listRecentActivity(20),
+    getStudioCurrency(),
   ]);
 
-  const totalSettled = txRes.data
-    ?.filter((t: any) => t.status === 'settled' && t.direction === 'inbound')
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
+  const totalSettled = transactions
+    .filter((t: any) => t.status === 'settled' && t.direction === 'inbound')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
-  const totalPending = txRes.data
-    ?.filter((t: any) => t.status === 'pending' && t.direction === 'inbound')
-    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
+  const totalPending = transactions
+    .filter((t: any) => t.status === 'pending' && t.direction === 'inbound')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
-  const activeTasks = tasksRes.data?.filter((t: any) => t.status === 'in_progress').length || 0;
-  const completedTasks = tasksRes.data?.filter((t: any) => t.status === 'completed').length || 0;
+  const activeTasks   = tasks.filter((t) => t.status === 'in_progress').length;
+  const completedTasks = tasks.filter((t) => t.status === 'completed').length;
 
-  const activeBookings = bookingsRes.data?.filter((b: any) => b.stage?.kind === 'booked').length || 0;
-  const conversionRate = bookingsRes.count
-    ? Math.round(activeBookings / bookingsRes.count * 100)
+  const activeBookings = allBookings.filter((b: any) => b.stage?.kind === 'booked').length;
+  const conversionRate = allBookings.length
+    ? Math.round((activeBookings / allBookings.length) * 100)
     : 0;
 
   return (
     <div>
       <header className="q-page-header">
-        <h1 className="q-page-title">Analytics</h1>
-        <p className="q-page-subtitle">Business intelligence and operational insights for your studio.</p>
+        <div>
+          <h1 className="q-page-title">Analytics</h1>
+          <p className="q-page-subtitle">Business intelligence and operational insights for your studio.</p>
+        </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-        <div className="q-card">
+      <div className="q-grid-3" style={{ marginBottom: '32px' }}>
+        <div className="q-panel">
           <div className="q-stat-label">Settled Revenue</div>
-          <div className="q-stat-value-lg">${totalSettled.toFixed(2)}</div>
+          <div className="q-stat-value-lg">{formatMoney(totalSettled, currencyCode)}</div>
         </div>
-        <div className="q-card">
+        <div className="q-panel">
           <div className="q-stat-label">Outstanding</div>
-          <div className="q-stat-value q-warm">${totalPending.toFixed(2)}</div>
+          <div className="q-stat-value-lg q-warm">{formatMoney(totalPending, currencyCode)}</div>
         </div>
-        <div className="q-card">
-          <div className="q-stat-label">Tasks In Progress</div>
-          <div className="q-stat-value-lg">{activeTasks}</div>
-        </div>
-        <div className="q-card">
-          <div className="q-stat-label">Tasks Completed</div>
-          <div className="q-stat-value-lg">{completedTasks}</div>
-        </div>
-        <div className="q-card">
+        <div className="q-panel">
           <div className="q-stat-label">Total Bookings</div>
-          <div className="q-stat-value-lg">{bookingsRes.count || 0}</div>
+          <div className="q-stat-value-lg q-num">{allBookings.length}</div>
         </div>
-        <div className="q-card">
-          <div className="q-stat-label">Conversion Rate</div>
-          <div className="q-stat-value-lg">{conversionRate}%</div>
-          <div className="q-meta">Inquiries → Active</div>
+        <div className="q-panel">
+          <div className="q-stat-label">Active Bookings</div>
+          <div className="q-stat-value-lg q-num">{activeBookings}</div>
+        </div>
+        <div className="q-panel">
+          <div className="q-stat-label">Tasks In Progress</div>
+          <div className="q-stat-value-lg q-num">{activeTasks}</div>
+        </div>
+        <div className="q-panel">
+          <div className="q-stat-label">Tasks Completed</div>
+          <div className="q-stat-value-lg q-num">{completedTasks}</div>
+        </div>
+      </div>
+
+      <div className="q-grid-2" style={{ marginBottom: '32px' }}>
+        <div className="q-panel">
+          <div className="q-stat-label">Enquiry → Active Conversion</div>
+          <div className="q-stat-value-lg q-num">{conversionRate}%</div>
+          <div className="q-meta">{activeBookings} of {allBookings.length} bookings are active</div>
+        </div>
+        <div className="q-panel">
+          <div className="q-stat-label">Transactions</div>
+          <div className="q-stat-value-lg q-num">{transactions.length}</div>
+          <div className="q-meta">{transactions.filter((t: any) => t.status === 'pending').length} pending</div>
         </div>
       </div>
 
       <div className="q-card">
-        <h3 style={{ marginTop: 0, fontSize: '1rem', fontWeight: 600, marginBottom: '16px' }}>Recent System Events</h3>
-        {!eventsRes.data || eventsRes.data.length === 0 ? (
-          <p className="q-meta">No events recorded yet.</p>
+        <h3 className="q-section-title" style={{ marginBottom: '16px' }}>Recent Activity</h3>
+        {recentEvents.length === 0 ? (
+          <p className="q-empty">No activity recorded yet.</p>
         ) : (
           <div className="q-stack q-stack-sm">
-            {eventsRes.data.map((ev: any, i: number) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--q-color-ink-100)', fontSize: '0.875rem' }}>
-                <div>
-                  <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{ev.entity_type}</span>
-                  <span style={{ color: 'var(--q-color-ink-500)', margin: '0 8px' }}>·</span>
-                  <span style={{ color: 'var(--q-color-ink-600)', fontFamily: 'monospace' }}>{ev.action}</span>
-                </div>
-                <div style={{ color: 'var(--q-color-ink-400)', fontSize: '0.75rem' }}>
-                  {new Date(ev.created_at).toLocaleString()}
-                </div>
+            {recentEvents.map((ev) => (
+              <div key={ev.id} className="q-tile q-row q-row-between">
+                <span className="q-meta-plain">{ev.description}</span>
+                <span className="q-meta">
+                  {new Date(ev.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
               </div>
             ))}
           </div>

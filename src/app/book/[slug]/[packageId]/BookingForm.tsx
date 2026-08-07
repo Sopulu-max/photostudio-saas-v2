@@ -48,10 +48,16 @@ export function BookingForm({ orgId, packageId, packageName, formSchema, variant
   if (isSuccess) {
     return (
       <div className="q-card" style={{ textAlign: 'center', padding: '64px 32px' }}>
-        <h2 style={{ fontSize: '2rem', marginBottom: '16px' }}>Request Submitted</h2>
-        <p className="q-muted">
-          Thank you. We have received your booking request for <strong>{packageName}</strong>.
-          We will be in touch shortly.
+        <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>✓</div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '12px', color: 'var(--q-color-ink-900)' }}>
+          Request received
+        </h2>
+        <p style={{ color: 'var(--q-color-ink-500)', maxWidth: '360px', margin: '0 auto 24px', lineHeight: 1.6 }}>
+          We&rsquo;ve got your request for <strong style={{ color: 'var(--q-color-ink-800)' }}>{packageName}</strong>.
+          We&rsquo;ll review the details and reach out to confirm everything.
+        </p>
+        <p style={{ fontSize: '0.825rem', color: 'var(--q-color-ink-400)' }}>
+          Keep an eye on {email} for next steps.
         </p>
       </div>
     );

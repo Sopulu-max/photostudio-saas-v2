@@ -115,6 +115,26 @@ export async function getStudio(): Promise<{ id: string; name: string; slug: str
   return (data as { id: string; name: string; slug: string | null }) ?? null;
 }
 
+/**
+ * Who can actually sign in to this studio — distinct from the Team roster,
+ * which is about who does the work. Identity is a kernel concern, so it is
+ * answered here rather than by any one module.
+ */
+export async function listStudioLogins(): Promise<{ id: string; name: string; email: string | null }[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('contacts')
+    .select('id, display_name, email')
+    .eq('organization_id', orgId)
+    .not('auth_user_id', 'is', null)
+    .order('display_name');
+  if (error) {
+    console.error('Failed to list studio logins:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map((c) => ({ id: c.id, name: c.display_name, email: c.email ?? null }));
+}
+
 /** The currency this studio bills in. Every money surface reads this. */
 export async function getStudioCurrency(): Promise<string> {
   const { orgId } = await getAuthOrgId();

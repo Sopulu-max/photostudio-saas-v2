@@ -1,33 +1,23 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listClients } from '@/modules/clients/interface';
+import { getBookingCountsByContact } from '@/modules/bookings/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { NewClientForm } from './NewClientForm';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ClientsPage() {
-  let orgId: string;
   try {
-    orgId = (await getAuthOrgId()).orgId;
+    await getAuthOrgId();
   } catch {
     redirect('/login');
   }
 
-  const clients = await listClients();
-
-  // Booking counts per contact, so the list shows real activity at a glance.
-  const { data: bookingRows } = await supabaseAdmin
-    .from('bookings')
-    .select('contact_id')
-    .eq('organization_id', orgId)
-    .not('contact_id', 'is', null);
-  const bookingCounts = new Map<string, number>();
-  for (const b of bookingRows || []) {
-    bookingCounts.set(b.contact_id, (bookingCounts.get(b.contact_id) || 0) + 1);
-  }
+  // How much work each client has is Bookings' answer to give, not something
+  // this page counts for itself.
+  const [clients, bookingCounts] = await Promise.all([listClients(), getBookingCountsByContact()]);
 
   return (
     <div>
@@ -71,7 +61,7 @@ export default async function ClientsPage() {
                     {c.contact?.email || c.contact?.phone || '—'}
                   </td>
                   <td className="q-table-td q-num">
-                    {bookingCounts.get(c.contact?.id) || 0}
+                    {bookingCounts[c.contact?.id] || 0}
                   </td>
                   <td className="q-table-td">
                     <span className={`q-badge ${c.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{c.status}</span>

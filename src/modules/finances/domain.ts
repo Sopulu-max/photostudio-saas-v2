@@ -147,6 +147,22 @@ export async function listTransactions() {
   return data || [];
 }
 
+/** The money raised against one contract, oldest first — deposit then balance. */
+export async function listTransactionsForContract(contractId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('id, type, direction, amount, currency, status, created_at')
+    .eq('organization_id', orgId)
+    .eq('contract_id', contractId)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('Failed to list transactions for contract:', error);
+    return [];
+  }
+  return (data || []) as any[];
+}
+
 /** One transaction, with what it's tied to. */
 export async function getTransaction(transactionId: string) {
   const { orgId } = await getAuthOrgId();

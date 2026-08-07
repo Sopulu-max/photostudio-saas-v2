@@ -11,6 +11,7 @@ export {
   // Reads — the surfaces ask for these rather than querying the tables
   getBooking,
   listBookings,
+  getBookingCountsByContact,
   // Commands
   createBooking,
   // Intake from the public booking page — takes an explicit org, no session

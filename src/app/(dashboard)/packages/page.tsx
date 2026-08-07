@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { listPackages } from '@/modules/packages/interface';
 import { getEnabledDimensions } from '@/modules/services/interface';
 import type { PackageDimension } from '@/modules/packages/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
+import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { PackagesClient } from './client';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +13,8 @@ const DIM_KEY: Record<PackageDimension, string> = {
 };
 
 export default async function PackagesPage(props: { searchParams: Promise<{ dim?: string; id?: string; label?: string }> }) {
-  let orgId: string;
   try {
-    orgId = (await getAuthOrgId()).orgId;
+    await getAuthOrgId();
   } catch {
     redirect('/login');
   }
@@ -27,8 +25,7 @@ export default async function PackagesPage(props: { searchParams: Promise<{ dim?
   const isFiltered = !!(dim && filterId && DIM_KEY[dim]);
 
   const [allPackages, enabledDimensions, currencyCode, org] = await Promise.all([
-    listPackages(), getEnabledDimensions(), getStudioCurrency(),
-    supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single().then((r: any) => r.data),
+    listPackages(), getEnabledDimensions(), getStudioCurrency(), getStudio(),
   ]);
 
   const packages = isFiltered ? (allPackages as any[]).filter((p) => p.services?.some((s: any) => s[DIM_KEY[dim]]?.id === filterId)) : allPackages;

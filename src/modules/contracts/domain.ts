@@ -21,6 +21,36 @@ const ActivateContractSchema = z.object({
 // the studio to write their own rather than silently shipping generic
 // legalese nobody reviewed.
 
+/**
+ * Every contract, newest first — the list surface. Carries the party and the
+ * booking it belongs to, so a row reads without opening it.
+ */
+export async function listContracts() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('contracts')
+    .select('id, version, status, terms, created_at, person:contacts(display_name), booking:bookings(id, title)')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to list contracts:', error);
+    return [];
+  }
+  return (data || []) as any[];
+}
+
+/** One contract, with its party and booking. Null when it isn't this studio's. */
+export async function getContract(contractId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('contracts')
+    .select('id, version, status, terms, created_at, person:contacts(display_name, email), booking:bookings(id, title)')
+    .eq('id', contractId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  return (data as any) ?? null;
+}
+
 export async function getContractTermsTemplate(): Promise<string> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).maybeSingle();

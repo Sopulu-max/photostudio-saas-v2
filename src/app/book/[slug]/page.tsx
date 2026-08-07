@@ -19,35 +19,61 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
   const packages = await listPackagesPublic(org.id);
   const currencyCode = org.currency || 'USD';
 
-  const PackageCard = ({ pkg }: { pkg: any }) => (
-    <Link href={`/book/${params.slug}/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack">
-      <h3 className="q-section-title" style={{ marginBottom: '4px' }}>{pkg.name}</h3>
-      {pkg.description && <p className="q-meta" style={{ margin: 0 }}>{pkg.description}</p>}
-      <div className="q-row q-row-between" style={{ marginTop: 'auto', paddingTop: '12px' }}>
-        <span className="q-strong q-num">
-          {formatMoney(pkg.pricing?.base_price, pkg.pricing?.currency || currencyCode)}
-          {pkg.price_unit ? <span className="q-meta-sm"> /{pkg.price_unit}</span> : null}
-        </span>
-        <span className="q-btn q-btn-secondary q-btn-sm">Request</span>
-      </div>
-    </Link>
-  );
-
   return (
     <div className="q-public">
       <header className="q-public-header">
         <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem, 4vw, 2.2rem)', fontWeight: 620, letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
           {org.name}
         </h1>
-        <p style={{ margin: '8px 0 0', color: 'var(--q-color-ink-500)' }}>What we offer — pick one to get started.</p>
+        <p style={{ margin: '8px 0 0', color: 'var(--q-color-ink-500)' }}>
+          Pick a package to get started — we&rsquo;ll reach out to confirm the details.
+        </p>
       </header>
 
       <main className="q-public-main q-public-wide">
         {packages.length === 0 ? (
-          <p className="q-center-text q-muted">Nothing available to book right now — check back soon.</p>
+          <div style={{ textAlign: 'center', padding: '80px 24px', color: 'var(--q-color-ink-400)' }}>
+            Nothing available to book right now — check back soon.
+          </div>
         ) : (
           <div className="q-grid-cards">
-            {packages.map((pkg: any) => <PackageCard key={pkg.id} pkg={pkg} />)}
+            {packages.map((pkg: any) => {
+              const services: string[] = (pkg.services || []).map((s: any) => s.name).filter(Boolean);
+              return (
+                <Link key={pkg.id} href={`/book/${params.slug}/${pkg.id}`} className="q-card q-card-interactive q-plain-link" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{pkg.name}</h3>
+                    {pkg.description && (
+                      <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--q-color-ink-500)', lineHeight: 1.5 }}>{pkg.description}</p>
+                    )}
+                  </div>
+
+                  {services.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {services.map((s) => (
+                        <span key={s} style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'var(--q-color-ink-100)', borderRadius: '20px', color: 'var(--q-color-ink-600)' }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '4px' }}>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--q-color-ink-900)', fontVariantNumeric: 'tabular-nums' }}>
+                        {pkg.pricing?.base_price != null
+                          ? formatMoney(pkg.pricing.base_price, pkg.pricing.currency || currencyCode)
+                          : 'Price on request'}
+                      </span>
+                      {pkg.price_unit && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-400)', marginLeft: '4px' }}>/{pkg.price_unit}</span>
+                      )}
+                    </div>
+                    <span className="q-btn q-btn-secondary q-btn-sm">Request →</span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </main>

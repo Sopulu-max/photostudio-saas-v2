@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { getStudio, getStudioCurrency, listStudioLogins } from '@/kernel/organizations';
 import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
 import { CurrencyForm } from './CurrencyForm';
@@ -15,33 +15,23 @@ export const dynamic = 'force-dynamic';
  * gets in.
  */
 export default async function SettingsPage() {
-  let orgId: string;
   try {
-    orgId = (await getAuthOrgId()).orgId;
+    await getAuthOrgId();
   } catch {
     redirect('/login');
   }
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, slug, currency')
-    .eq('id', orgId)
-    .single();
+  // Who can sign in is a kernel identity question, not a Team one — Team is
+  // about who does the work.
+  const [org, currencyCode, withLogins] = await Promise.all([
+    getStudio(), getStudioCurrency(), listStudioLogins(),
+  ]);
 
   if (!org) {
     return <div className="q-card q-empty-lg">No studio found.</div>;
   }
 
-  // Who can actually sign in — distinct from the Team roster, which is about
-  // who does the work.
-  const { data: withLogins } = await supabaseAdmin
-    .from('contacts')
-    .select('id, display_name, email')
-    .eq('organization_id', orgId)
-    .not('auth_user_id', 'is', null)
-    .order('display_name');
-
-  const currency = CURRENCIES.find((c) => c.code === (org.currency || 'USD'));
+  const currency = CURRENCIES.find((c) => c.code === currencyCode);
 
   return (
     <div className="q-page-narrow">
@@ -65,7 +55,7 @@ export default async function SettingsPage() {
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What you charge in. Currently <strong>{currency?.symbol} {currency?.code}</strong> — {currency?.label}.
           </p>
-          <CurrencyForm current={org.currency || 'USD'} />
+          <CurrencyForm current={currencyCode} />
         </section>
 
         <section className="q-card q-section">
@@ -78,9 +68,9 @@ export default async function SettingsPage() {
             <p className="q-empty">Nobody has a login yet.</p>
           ) : (
             <div className="q-stack q-stack-sm">
-              {withLogins.map((c: any) => (
+              {withLogins.map((c) => (
                 <div key={c.id} className="q-tile q-row q-row-between">
-                  <strong className="q-strong">{c.display_name}</strong>
+                  <strong className="q-strong">{c.name}</strong>
                   <span className="q-meta">{c.email}</span>
                 </div>
               ))}

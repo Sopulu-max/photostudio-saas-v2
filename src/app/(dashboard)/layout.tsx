@@ -1,8 +1,6 @@
 import { Sidebar } from '@/components/navigation/Sidebar';
 import TopBar from '@/components/navigation/TopBar';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
-
+import { getStudio } from '@/kernel/organizations';
 import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
 
 export const dynamic = 'force-dynamic';
@@ -10,17 +8,12 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let studioName = 'Studio OS';
   let orgSlug: string | undefined;
-  
+
+  // Optional auth here on purpose: the chrome renders either way, so a signed
+  // -out visitor gets the shell rather than an exception.
   const authOrg = await getOptionalAuthOrgId();
-  const orgId = authOrg?.orgId;
-
-  if (orgId) {
-    const { data: org } = await supabaseAdmin
-      .from('organizations')
-      .select('name, slug')
-      .eq('id', orgId)
-      .single();
-
+  if (authOrg?.orgId) {
+    const org = await getStudio();
     if (org?.name) studioName = org.name;
     if (org?.slug) orgSlug = org.slug;
   }

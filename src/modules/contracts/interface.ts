@@ -4,6 +4,8 @@
  * onto a booking through here; it never writes the contracts table itself.
  */
 export {
+  listContracts,
+  getContract,
   draftContractForBooking,
   activateContract,
   reviseContractTerms,
