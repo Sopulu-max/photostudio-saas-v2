@@ -111,10 +111,6 @@ async function getOverviewData() {
         pendingCurrency,
         thisWeekShoots: weekShoots.length,
       },
-      onboarding: {
-        hasService: services.length > 0,
-        hasPackage: (packages as any[]).length > 0,
-      },
     };
   } catch (err: any) {
     return { fatalError: err.message || 'Unknown error' };
@@ -134,8 +130,7 @@ export default async function OverviewPage() {
   }
   if (!data) return null;
 
-  const { org, recentEvents, enquiries, pendingContracts, pendingPayments, weekShoots, upcomingTasks, bookedBookings, stats, onboarding } = data;
-  const isOnboarding = !onboarding.hasService || !onboarding.hasPackage;
+  const { org, recentEvents, enquiries, pendingContracts, pendingPayments, weekShoots, upcomingTasks, bookedBookings, stats } = data;
   const hasInboxItems = enquiries.length > 0 || pendingContracts.length > 0 || pendingPayments.length > 0;
 
   return (
@@ -147,41 +142,6 @@ export default async function OverviewPage() {
         </div>
         <Link href="/bookings/new" className="q-btn q-btn-primary">+ New booking</Link>
       </header>
-
-      {/* Setup checklist — shown until the studio has at least one service and one package */}
-      {isOnboarding && (
-        <div className="q-card q-page-narrow">
-          <h2 className="q-section-title">Get started</h2>
-          <div className="q-stack q-stack-sm">
-            <div className={`q-check-item ${onboarding.hasService ? 'q-check-item-done' : ''}`}>
-              <div className={`q-check-dot ${onboarding.hasService ? 'q-check-dot-done' : ''}`}>
-                {onboarding.hasService ? '✓' : ''}
-              </div>
-              <div className="q-fill">
-                <div className="q-strong">Define your first service</div>
-                <div className="q-meta">A service is what your studio actually does — the operational unit.</div>
-              </div>
-              {!onboarding.hasService && <Link href="/services/new" className="q-btn q-btn-secondary q-btn-sm">Go →</Link>}
-            </div>
-            <div className={`q-check-item ${onboarding.hasPackage ? 'q-check-item-done' : ''}`}>
-              <div className={`q-check-dot ${onboarding.hasPackage ? 'q-check-dot-done' : ''}`}>
-                {onboarding.hasPackage ? '✓' : ''}
-              </div>
-              <div className="q-fill">
-                <div className="q-strong">Create a package to sell it</div>
-                <div className="q-meta">A package bundles one or more services into something a client can book.</div>
-              </div>
-              {!onboarding.hasPackage && <Link href="/packages/new" className="q-btn q-btn-secondary q-btn-sm">Go →</Link>}
-            </div>
-          </div>
-          {onboarding.hasService && onboarding.hasPackage && org.slug && (
-            <div className="q-meta q-divider">
-              Your storefront is live at{' '}
-              <Link href={`/book/${org.slug}`} className="q-accent">/book/{org.slug}</Link>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Stat bar — quick pulse numbers */}
       <div className="q-grid-4">
