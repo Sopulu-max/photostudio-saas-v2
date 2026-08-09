@@ -37,7 +37,7 @@ type StageInput = { name: string; roleName?: string | null; frontStage?: boolean
 // meaningfully as a Package can. Packages consumes these through this
 // module's interface, never the tables directly.
 
-type NamedTable = 'service_domains' | 'deliverables' | 'occasions' | 'service_contexts' | 'subjects' | 'purposes' | 'client_types';
+type NamedTable = 'service_domains' | 'deliverables' | 'delivery_containers' | 'occasions' | 'service_contexts' | 'subjects' | 'purposes' | 'client_types';
 
 async function findOrCreateNamed(table: NamedTable, orgId: string, name: string): Promise<string | null> {
   const clean = (name || '').trim();
@@ -92,12 +92,23 @@ export async function listDeliverables() { return listNamed('deliverables'); }
 export async function createDeliverable(name: string) {
   const { orgId } = await getAuthOrgId();
   const id = await findOrCreateNamed('deliverables', orgId, name);
-  if (!id) throw new Error('Give the deliverable a name.');
+  if (!id) throw new Error('Give the output type a name.');
   revalidatePath('/services');
-  return { deliverableId: id };
+  return { outputTypeId: id };
 }
-export async function renameDeliverable(id: string, name: string) { return renameNamed('deliverables', id, name, 'deliverable'); }
-export async function deleteDeliverable(id: string) { return deleteNamed('deliverables', id, 'deliverable'); }
+export async function renameDeliverable(id: string, name: string) { return renameNamed('deliverables', id, name, 'output type'); }
+export async function deleteDeliverable(id: string) { return deleteNamed('deliverables', id, 'output type'); }
+
+export async function listDeliveryContainers() { return listNamed('delivery_containers'); }
+export async function createDeliveryContainer(name: string) {
+  const { orgId } = await getAuthOrgId();
+  const id = await findOrCreateNamed('delivery_containers', orgId, name);
+  if (!id) throw new Error('Give the delivery container a name.');
+  revalidatePath('/services');
+  return { deliveryContainerId: id };
+}
+export async function renameDeliveryContainer(id: string, name: string) { return renameNamed('delivery_containers', id, name, 'delivery container'); }
+export async function deleteDeliveryContainer(id: string) { return deleteNamed('delivery_containers', id, 'delivery container'); }
 
 // ── The five classification dimensions: Subject, Occasion, Context, Purpose, Client ──
 // Not "does it change the process" — that test is for whether something
@@ -298,24 +309,22 @@ export async function createService(input: {
   name: string;
   description?: string | null;
   serviceDomain?: string | null;
-  blueprintId?: string | null;
+  requiredInputDeliverable?: string | null;
+  primaryDeliverable?: string | null;
   deliverables?: string[];
-  occasion?: string | null;
-  context?: string | null;
-  subject?: string | null;
-  purpose?: string | null;
-  clientType?: string | null;
+  occasions?: string[];
+  contexts?: string[];
+  subjects?: string[];
+  purposes?: string[];
+  clientTypes?: string[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('A service needs a name.');
 
   const domainId = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  const occasionId = await findOrCreateNamed('occasions', orgId, input.occasion || '');
-  const contextId = await findOrCreateNamed('service_contexts', orgId, input.context || '');
-  const subjectId = await findOrCreateNamed('subjects', orgId, input.subject || '');
-  const purposeId = await findOrCreateNamed('purposes', orgId, input.purpose || '');
-  const clientTypeId = await findOrCreateNamed('client_types', orgId, input.clientType || '');
+  const requiredInputDeliverableId = input.requiredInputDeliverable ? await findOrCreateNamed('deliverables', orgId, input.requiredInputDeliverable) : null;
+  const primaryDeliverableId = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
 
   const { data: service, error } = await supabaseAdmin
     .from('services')
@@ -324,18 +333,15 @@ export async function createService(input: {
       name,
       description: input.description || null,
       service_domain_id: domainId,
-      default_blueprint_id: input.blueprintId || null,
-      occasion_id: occasionId,
-      context_id: contextId,
-      subject_id: subjectId,
-      purpose_id: purposeId,
-      client_type_id: clientTypeId,
+      required_input_deliverable_id: requiredInputDeliverableId,
+      primary_deliverable_id: primaryDeliverableId,
       status: 'active',
     })
     .select('id')
     .single();
   if (error || !service) { console.error('Failed to create service:', error); throw new Error('Failed to create service'); }
 
+  // Insert general outputs (the assets this service can produce beyond its primary output)
   const deliverableIds: string[] = [];
   for (const d of input.deliverables || []) {
     const id = await findOrCreateNamed('deliverables', orgId, d);
@@ -344,6 +350,27 @@ export async function createService(input: {
   if (deliverableIds.length > 0) {
     await supabaseAdmin.from('service_deliverables').insert(deliverableIds.map((deliverable_id) => ({ organization_id: orgId, service_id: service.id, deliverable_id })));
   }
+
+  // Insert configuration schemas (the dimensions this service understands)
+  const insertSchema = async (table: string, items: string[] | undefined, column: string) => {
+    if (!items || items.length === 0) return;
+    const ids: string[] = [];
+    for (const item of items) {
+      const id = await findOrCreateNamed(table as NamedTable, orgId, item);
+      if (id) ids.push(id);
+    }
+    if (ids.length > 0) {
+      await supabaseAdmin.from(`service_schema_${table}`).insert(ids.map(id => ({ organization_id: orgId, service_id: service.id, [column]: id })));
+    }
+  };
+
+  await Promise.all([
+    insertSchema('occasions', input.occasions, 'occasion_id'),
+    insertSchema('service_contexts', input.contexts, 'context_id'),
+    insertSchema('subjects', input.subjects, 'subject_id'),
+    insertSchema('purposes', input.purposes, 'purpose_id'),
+    insertSchema('client_types', input.clientTypes, 'client_type_id'),
+  ]);
 
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: service.id, action: 'created', actorId: actorId ?? undefined, payload: { name } });
   revalidatePath('/services');
@@ -355,13 +382,14 @@ export async function updateService(input: {
   name?: string;
   description?: string | null;
   serviceDomain?: string | null;
-  blueprintId?: string | null;
+  requiredInputDeliverable?: string | null;
+  primaryDeliverable?: string | null;
   deliverables?: string[];
-  occasion?: string | null;
-  context?: string | null;
-  subject?: string | null;
-  purpose?: string | null;
-  clientType?: string | null;
+  occasions?: string[];
+  contexts?: string[];
+  subjects?: string[];
+  purposes?: string[];
+  clientTypes?: string[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin.from('services').select('id').eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
@@ -374,13 +402,9 @@ export async function updateService(input: {
     patch.name = name;
   }
   if (input.description !== undefined) patch.description = input.description || null;
-  if (input.blueprintId !== undefined) patch.default_blueprint_id = input.blueprintId || null;
   if (input.serviceDomain !== undefined) patch.service_domain_id = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  if (input.occasion !== undefined) patch.occasion_id = await findOrCreateNamed('occasions', orgId, input.occasion || '');
-  if (input.context !== undefined) patch.context_id = await findOrCreateNamed('service_contexts', orgId, input.context || '');
-  if (input.subject !== undefined) patch.subject_id = await findOrCreateNamed('subjects', orgId, input.subject || '');
-  if (input.purpose !== undefined) patch.purpose_id = await findOrCreateNamed('purposes', orgId, input.purpose || '');
-  if (input.clientType !== undefined) patch.client_type_id = await findOrCreateNamed('client_types', orgId, input.clientType || '');
+  if (input.requiredInputDeliverable !== undefined) patch.required_input_deliverable_id = input.requiredInputDeliverable ? await findOrCreateNamed('deliverables', orgId, input.requiredInputDeliverable) : null;
+  if (input.primaryDeliverable !== undefined) patch.primary_deliverable_id = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
 
   if (Object.keys(patch).length > 0) {
     const { error } = await supabaseAdmin.from('services').update(patch).eq('id', input.serviceId).eq('organization_id', orgId);
@@ -399,6 +423,28 @@ export async function updateService(input: {
     }
   }
 
+  const syncSchema = async (table: string, items: string[] | undefined, column: string) => {
+    if (items === undefined) return;
+    await supabaseAdmin.from(`service_schema_${table}`).delete().eq('service_id', input.serviceId).eq('organization_id', orgId);
+    if (items.length === 0) return;
+    const ids: string[] = [];
+    for (const item of items) {
+      const id = await findOrCreateNamed(table as NamedTable, orgId, item);
+      if (id) ids.push(id);
+    }
+    if (ids.length > 0) {
+      await supabaseAdmin.from(`service_schema_${table}`).insert(ids.map(id => ({ organization_id: orgId, service_id: input.serviceId, [column]: id })));
+    }
+  };
+
+  await Promise.all([
+    syncSchema('occasions', input.occasions, 'occasion_id'),
+    syncSchema('service_contexts', input.contexts, 'context_id'),
+    syncSchema('subjects', input.subjects, 'subject_id'),
+    syncSchema('purposes', input.purposes, 'purpose_id'),
+    syncSchema('client_types', input.clientTypes, 'client_type_id'),
+  ]);
+
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: input.serviceId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/services');
   revalidatePath(`/services/${input.serviceId}`);
@@ -408,20 +454,35 @@ export async function updateService(input: {
 /** Fork an existing Service — same domain, process, deliverables, a new id to edit from. */
 export async function duplicateService(serviceId: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { data: existing } = await supabaseAdmin.from('services').select('name, description, service_domain_id, default_blueprint_id, occasion_id, context_id, subject_id, purpose_id, client_type_id').eq('id', serviceId).eq('organization_id', orgId).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from('services').select('name, description, service_domain_id, required_input_deliverable_id, primary_deliverable_id').eq('id', serviceId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Service not found');
 
   const { data: copy, error } = await supabaseAdmin
     .from('services')
-    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, service_domain_id: existing.service_domain_id, default_blueprint_id: existing.default_blueprint_id, occasion_id: existing.occasion_id, context_id: existing.context_id, subject_id: existing.subject_id, purpose_id: existing.purpose_id, client_type_id: existing.client_type_id, status: 'active' })
+    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, service_domain_id: existing.service_domain_id, required_input_deliverable_id: existing.required_input_deliverable_id, primary_deliverable_id: existing.primary_deliverable_id, status: 'active' })
     .select('id')
     .single();
   if (error || !copy) { console.error('Failed to duplicate service:', error); throw new Error('Failed to duplicate the service'); }
 
-  const { data: deliverables } = await supabaseAdmin.from('service_deliverables').select('deliverable_id').eq('service_id', serviceId).eq('organization_id', orgId);
-  if (deliverables && deliverables.length > 0) {
-    await supabaseAdmin.from('service_deliverables').insert(deliverables.map((d: any) => ({ organization_id: orgId, service_id: copy.id, deliverable_id: d.deliverable_id })));
+  const { data: outputs } = await supabaseAdmin.from('service_deliverables').select('deliverable_id').eq('service_id', serviceId).eq('organization_id', orgId);
+  if (outputs && outputs.length > 0) {
+    await supabaseAdmin.from('service_deliverables').insert(outputs.map((d: any) => ({ organization_id: orgId, service_id: copy.id, deliverable_id: d.deliverable_id })));
   }
+
+  const copySchema = async (table: string, column: string) => {
+    const { data } = await supabaseAdmin.from(`service_schema_${table}`).select(column).eq('service_id', serviceId).eq('organization_id', orgId);
+    if (data && data.length > 0) {
+      await supabaseAdmin.from(`service_schema_${table}`).insert(data.map((d: any) => ({ organization_id: orgId, service_id: copy.id, [column]: d[column] })));
+    }
+  };
+
+  await Promise.all([
+    copySchema('occasions', 'occasion_id'),
+    copySchema('service_contexts', 'context_id'),
+    copySchema('subjects', 'subject_id'),
+    copySchema('purposes', 'purpose_id'),
+    copySchema('client_types', 'client_type_id'),
+  ]);
 
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromServiceId: serviceId } });
   revalidatePath('/services');
@@ -443,15 +504,29 @@ export async function listServices() {
   const { data, error } = await supabaseAdmin
     .from('services')
     .select(`
-      id, name, description, status, service_domain_id, default_blueprint_id,
-      domain:service_domains(id, name), blueprint:blueprints(id, name), service_deliverables(deliverable:deliverables(id, name)),
-      occasion:occasions(id, name), context:service_contexts(id, name),
-      subject:subjects(id, name), purpose:purposes(id, name), client_type:client_types(id, name)
+      id, name, description, status, service_domain_id,
+      domain:service_domains(id, name),
+      required_input_type:deliverables!services_required_input_deliverable_id_fkey(id, name),
+      primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
+      service_deliverables(deliverable:deliverables(id, name)),
+      schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
+      schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
+      schema_subjects:service_schema_subjects(subject:subjects(id, name)),
+      schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
+      schema_client_types:service_schema_client_types(client_type:client_types(id, name))
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
-  if (error) { console.error('Failed to list services:', error); throw new Error('Failed to load services'); }
-  return (data || []).map((s: any) => ({ ...s, deliverables: (s.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean) }));
+  if (error) { console.error('Failed to list services:', error.message, error.details, error.hint); throw new Error('Failed to load services'); }
+  return (data || []).map((s: any) => ({
+    ...s,
+    deliverables: (s.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+    occasions: (s.schema_occasions || []).map((sc: any) => sc.occasion).filter(Boolean),
+    contexts: (s.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
+    subjects: (s.schema_subjects || []).map((sc: any) => sc.subject).filter(Boolean),
+    purposes: (s.schema_purposes || []).map((sc: any) => sc.purpose).filter(Boolean),
+    clientTypes: (s.schema_client_types || []).map((sc: any) => sc.client_type).filter(Boolean),
+  }));
 }
 
 /** Active services only — for the Package builder's "which services am I bundling" picker. */
@@ -466,19 +541,32 @@ export async function getService(serviceId: string) {
   const { data } = await supabaseAdmin
     .from('services')
     .select(`
-      id, name, description, status, service_domain_id, default_blueprint_id,
-      domain:service_domains(id, name), service_deliverables(deliverable:deliverables(id, name)),
-      occasion:occasions(id, name), context:service_contexts(id, name),
-      subject:subjects(id, name), purpose:purposes(id, name), client_type:client_types(id, name)
+      id, name, description, status, service_domain_id,
+      domain:service_domains(id, name),
+      required_input_type:deliverables!services_required_input_deliverable_id_fkey(id, name),
+      primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
+      service_deliverables(deliverable:deliverables(id, name)),
+      schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
+      schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
+      schema_subjects:service_schema_subjects(subject:subjects(id, name)),
+      schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
+      schema_client_types:service_schema_client_types(client_type:client_types(id, name))
     `)
     .eq('id', serviceId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!data) return null;
-  return { ...data, deliverables: ((data as any).service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean) };
+  return {
+    ...data,
+    deliverables: ((data as any).service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+    occasions: ((data as any).schema_occasions || []).map((sc: any) => sc.occasion).filter(Boolean),
+    contexts: ((data as any).schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
+    subjects: ((data as any).schema_subjects || []).map((sc: any) => sc.subject).filter(Boolean),
+    purposes: ((data as any).schema_purposes || []).map((sc: any) => sc.purpose).filter(Boolean),
+    clientTypes: ((data as any).schema_client_types || []).map((sc: any) => sc.client_type).filter(Boolean),
+  };
 }
 
-/** Deliverable ids for many Services at once — Packages asks for this to seed a new Package's promised deliverables, rather than reading service_deliverables itself. */
 export async function getDeliverableIdsForServices(serviceIds: string[]): Promise<string[]> {
   if (serviceIds.length === 0) return [];
   const { orgId } = await getAuthOrgId();
@@ -487,19 +575,14 @@ export async function getDeliverableIdsForServices(serviceIds: string[]): Promis
 }
 
 /**
- * A Service's Process, resolved — what Packages asks for when composing the
- * aggregated routing of everything it bundles.
+ * Workflows are independent. A Service no longer owns a single hardcoded process.
+ * To get a production plan for a specific service, we must find a workflow that 
+ * matches its outputs. If it's part of a Package, the Package specifies the workflow.
+ * For now, this returns an empty plan since Packages will handle workflow selection.
  */
 export async function getProductionPlanForService(
   serviceId: string
 ): Promise<{ blueprintId: string | null; stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] }> {
-  const { orgId } = await getAuthOrgId();
-  const { data: service } = await supabaseAdmin.from('services').select('default_blueprint_id').eq('id', serviceId).eq('organization_id', orgId).maybeSingle();
-  if (!service?.default_blueprint_id) return { blueprintId: null, stages: [] };
-
-  const { data: blueprint } = await supabaseAdmin.from('blueprints').select('stages').eq('id', service.default_blueprint_id).maybeSingle();
-  return {
-    blueprintId: service.default_blueprint_id,
-    stages: ((blueprint?.stages as any[]) || []).map((s, i) => ({ name: s.name, order: s.order ?? i, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null })),
-  };
+  // Production plans are now assembled at the Package level using package_workflows
+  return { blueprintId: null, stages: [] };
 }

@@ -626,3 +626,57 @@ export async function listBookingAssignmentsForEmployee(employeeId: string) {
     stage: r.booking.stage,
   }));
 }
+
+// ── Physical Production Plane (Assets) ──────────────────────────────────────
+
+/**
+ * Register an asset produced by a task. This establishes the provenance graph:
+ * an Asset is produced by a Task, and optionally derived from an earlier Asset.
+ */
+export async function registerAssetForTask(input: {
+  bookingId: string;
+  taskId: string;
+  deliverableId?: string | null;
+  derivedFromAssetId?: string | null;
+  storagePath: string | null;
+  fileName: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  state?: string;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: asset, error } = await supabaseAdmin
+    .from('assets')
+    .insert({
+      organization_id: orgId,
+      booking_id: input.bookingId,
+      deliverable_id: input.deliverableId || null,
+      produced_by_task_id: input.taskId,
+      derived_from_asset_id: input.derivedFromAssetId || null,
+      storage_path: input.storagePath,
+      file_name: input.fileName,
+      mime_type: input.mimeType || null,
+      size_bytes: input.sizeBytes ?? null,
+      state: input.state || 'draft',
+    })
+    .select('id')
+    .single();
+
+  if (error || !asset) {
+    console.error('Failed to register asset:', error);
+    throw new Error('Failed to register production asset');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'task',
+    entityId: input.taskId,
+    action: 'asset_produced',
+    actorId: actorId ?? undefined,
+    payload: { assetId: asset.id, fileName: input.fileName },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { assetId: asset.id };
+}

@@ -24,7 +24,7 @@ export function buildDeliverableSuggestions(
 
   for (const { domain, templates } of templatesByDomain()) {
     if (!map.has(domain)) map.set(domain, new Set());
-    for (const t of templates) for (const d of t.primaryDeliverables) map.get(domain)!.add(d);
+    for (const t of templates) for (const d of t.deliverables) map.get(domain)!.add(d);
   }
 
   for (const s of services) {
@@ -82,14 +82,18 @@ export function buildDimensionSuggestions(
       values.forEach((v) => map.get(domain)!.add(v));
     }
 
-    const serviceProp = SERVICE_DIM_PROP[dim];
-    for (const s of services) {
-      const domainName = s.domain?.name;
-      const value = (s as any)[serviceProp]?.name as string | undefined;
-      if (!domainName || !value) continue;
-      if (!map.has(domainName)) map.set(domainName, new Set());
-      map.get(domainName)!.add(value);
-    }
+      const serviceProp = SERVICE_DIM_PROP[dim];
+      for (const s of services) {
+        const domainName = s.domain?.name;
+        // In the new schema, dimensions are arrays (e.g. s.occasions, s.subjects)
+        // so we need to map over them and add to the set.
+        const values = (s as any)[serviceProp + 's'] as { name: string }[] | undefined;
+        if (!domainName || !values || values.length === 0) continue;
+        if (!map.has(domainName)) map.set(domainName, new Set());
+        for (const v of values) {
+          if (v.name) map.get(domainName)!.add(v.name);
+        }
+      }
 
     const rec: Record<string, string[]> = {};
     for (const [k, v] of map) rec[k] = Array.from(v);

@@ -133,3 +133,82 @@ export interface MediaItem {
   alt?: string;
   kind: 'image' | 'video';
 }
+
+// ============================================================
+// SEMANTIC PLANE & COMMERCIAL PLANE (Ontology Types)
+// ============================================================
+
+export interface Service {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  service_domain_id: string;
+  required_input_deliverable_id: string | null;
+  primary_deliverable_id: string | null;
+  status: 'active' | 'archived';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Package {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  pricing: Record<string, unknown>;
+  status: string;
+  duration_minutes: number | null;
+  price_unit: string | null;
+  payment_policy: string | null;
+  pricing_variant: string | null;
+  extra_stages: any[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deliverable {
+  id: string;
+  organization_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Blueprint {
+  id: string;
+  organization_id: string;
+  name: string;
+  stages: WorkflowStageDefinition[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// PRODUCTION PLANE (Physical Assets)
+// ============================================================
+
+export interface Asset {
+  id: string;
+  organization_id: string;
+  booking_id: string;
+  deliverable_id: string | null;
+  produced_by_task_id: string | null;
+  derived_from_asset_id: string | null;
+  storage_path: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  state: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryAsset {
+  id: string;
+  organization_id: string;
+  delivery_id: string;
+  asset_id: string;
+  position: number;
+  created_at: string;
+}

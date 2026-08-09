@@ -14,9 +14,10 @@ export default async function NewPackagePage() {
     redirect('/login');
   }
 
-  const { listDeliverables } = await import('@/modules/services/interface');
-  const [allServices, roles, currencyCode, allDeliverables] = await Promise.all([
-    listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables()
+  const { listDeliverables, listDeliveryContainers, listBlueprints, getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes } = await import('@/modules/services/interface');
+  const [allServices, roles, currencyCode, allDeliverables, allContainers, allWorkflows, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
+    listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints(),
+    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes()
   ]);
 
   const suggestedDeliverablesByService: Record<string, string[]> = {};
@@ -37,7 +38,15 @@ export default async function NewPackagePage() {
         currencyCode={currencyCode}
         allServices={allServices as any}
         allDeliverables={allDeliverables as any}
+        allContainers={allContainers as any}
+        allWorkflows={allWorkflows as any}
         suggestedDeliverablesByService={suggestedDeliverablesByService}
+        enabledDimensions={enabledDimensions}
+        occasionOptions={occasions.map((o: any) => ({ id: o.id, name: o.name }))}
+        contextOptions={contexts.map((c: any) => ({ id: c.id, name: c.name }))}
+        subjectOptions={subjects.map((s: any) => ({ id: s.id, name: s.name }))}
+        purposeOptions={purposes.map((p: any) => ({ id: p.id, name: p.name }))}
+        clientTypeOptions={clientTypes.map((c: any) => ({ id: c.id, name: c.name }))}
         roleOptions={(roles as any[]).map((r) => r.name)}
         initial={{}}
       />

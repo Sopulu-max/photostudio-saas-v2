@@ -58,6 +58,13 @@ export async function createPackage(input: {
   durationMinutes?: number | null;
   serviceIds?: string[];
   deliverableIds?: string[];
+  containerIds?: string[];
+  workflowIds?: string[];
+  occasions?: string[];
+  contexts?: string[];
+  subjects?: string[];
+  purposes?: string[];
+  clientTypes?: string[];
   pricingVariant?: PricingVariant | null;
   formSchema?: any[];
   extraStages?: StageInput[];
@@ -106,15 +113,29 @@ export async function createPackage(input: {
   if (serviceIds.length > 0) {
     await supabaseAdmin.from('package_services').insert(serviceIds.map((service_id, i) => ({ organization_id: orgId, package_id: pkg.id, service_id, position: i })));
 
-    // Deliverables are explicitly chosen from the UI. If none are provided (e.g. from an API call),
-    // we could fallback to the union of bundled Services, but since the UI now handles it explicitly,
-    // we just use the provided array (or empty if they cleared it).
-    const finalDeliverables = input.deliverableIds ?? [];
-    if (finalDeliverables.length > 0) {
-      await supabaseAdmin.from('package_deliverables').insert(
-        finalDeliverables.map((deliverable_id) => ({ organization_id: orgId, package_id: pkg.id, deliverable_id }))
-      );
+    if (input.deliverableIds && input.deliverableIds.length > 0) {
+      await supabaseAdmin.from('package_deliverables').insert(input.deliverableIds.map((deliverable_id) => ({ organization_id: orgId, package_id: pkg.id, deliverable_id })));
     }
+    
+    if (input.containerIds && input.containerIds.length > 0) {
+      await supabaseAdmin.from('package_delivery_containers').insert(input.containerIds.map((container_id) => ({ organization_id: orgId, package_id: pkg.id, container_id })));
+    }
+    
+    if (input.workflowIds && input.workflowIds.length > 0) {
+      await supabaseAdmin.from('package_workflows').insert(input.workflowIds.map((blueprint_id, i) => ({ organization_id: orgId, package_id: pkg.id, blueprint_id, position: i })));
+    }
+
+    const insertConfig = async (table: string, items: string[] | undefined, column: string) => {
+      if (!items || items.length === 0) return;
+      await supabaseAdmin.from(`package_${table}`).insert(items.map(id => ({ organization_id: orgId, package_id: pkg.id, [column]: id })));
+    };
+    await Promise.all([
+      insertConfig('occasions', input.occasions, 'occasion_id'),
+      insertConfig('contexts', input.contexts, 'context_id'),
+      insertConfig('subjects', input.subjects, 'subject_id'),
+      insertConfig('purposes', input.purposes, 'purpose_id'),
+      insertConfig('client_types', input.clientTypes, 'client_type_id'),
+    ]);
   }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: pkg.id, action: 'created', actorId: actorId ?? undefined, payload: { name, serviceIds } });
@@ -133,6 +154,13 @@ export async function updatePackage(input: {
   durationMinutes?: number | null;
   serviceIds?: string[];
   deliverableIds?: string[];
+  containerIds?: string[];
+  workflowIds?: string[];
+  occasions?: string[];
+  contexts?: string[];
+  subjects?: string[];
+  purposes?: string[];
+  clientTypes?: string[];
   pricingVariant?: PricingVariant | null;
   extraStages?: StageInput[];
 }) {
@@ -171,12 +199,43 @@ export async function updatePackage(input: {
   }
 
   if (input.deliverableIds !== undefined) {
-    const dIds = [...new Set(input.deliverableIds)];
+    const oIds = [...new Set(input.deliverableIds)];
     await supabaseAdmin.from('package_deliverables').delete().eq('package_id', input.packageId).eq('organization_id', orgId);
-    if (dIds.length > 0) {
-      await supabaseAdmin.from('package_deliverables').insert(dIds.map((deliverable_id) => ({ organization_id: orgId, package_id: input.packageId, deliverable_id })));
+    if (oIds.length > 0) {
+      await supabaseAdmin.from('package_deliverables').insert(oIds.map((deliverable_id) => ({ organization_id: orgId, package_id: input.packageId, deliverable_id })));
     }
   }
+  
+  if (input.containerIds !== undefined) {
+    const cIds = [...new Set(input.containerIds)];
+    await supabaseAdmin.from('package_delivery_containers').delete().eq('package_id', input.packageId).eq('organization_id', orgId);
+    if (cIds.length > 0) {
+      await supabaseAdmin.from('package_delivery_containers').insert(cIds.map((container_id) => ({ organization_id: orgId, package_id: input.packageId, container_id })));
+    }
+  }
+  
+  if (input.workflowIds !== undefined) {
+    const wIds = [...new Set(input.workflowIds)];
+    await supabaseAdmin.from('package_workflows').delete().eq('package_id', input.packageId).eq('organization_id', orgId);
+    if (wIds.length > 0) {
+      await supabaseAdmin.from('package_workflows').insert(wIds.map((blueprint_id, i) => ({ organization_id: orgId, package_id: input.packageId, blueprint_id, position: i })));
+    }
+  }
+
+  const syncConfig = async (table: string, items: string[] | undefined, column: string) => {
+    if (items === undefined) return;
+    await supabaseAdmin.from(`package_${table}`).delete().eq('package_id', input.packageId).eq('organization_id', orgId);
+    if (items.length > 0) {
+      await supabaseAdmin.from(`package_${table}`).insert(items.map(id => ({ organization_id: orgId, package_id: input.packageId, [column]: id })));
+    }
+  };
+  await Promise.all([
+    syncConfig('occasions', input.occasions, 'occasion_id'),
+    syncConfig('contexts', input.contexts, 'context_id'),
+    syncConfig('subjects', input.subjects, 'subject_id'),
+    syncConfig('purposes', input.purposes, 'purpose_id'),
+    syncConfig('client_types', input.clientTypes, 'client_type_id'),
+  ]);
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: input.packageId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/packages');
@@ -201,8 +260,26 @@ export async function duplicatePackage(packageId: string) {
 
   const { data: services } = await supabaseAdmin.from('package_services').select('service_id, position').eq('package_id', packageId).eq('organization_id', orgId);
   if (services && services.length > 0) await supabaseAdmin.from('package_services').insert(services.map((s: any) => ({ organization_id: orgId, package_id: copy.id, service_id: s.service_id, position: s.position })));
-  const { data: deliverables } = await supabaseAdmin.from('package_deliverables').select('deliverable_id').eq('package_id', packageId).eq('organization_id', orgId);
-  if (deliverables && deliverables.length > 0) await supabaseAdmin.from('package_deliverables').insert(deliverables.map((d: any) => ({ organization_id: orgId, package_id: copy.id, deliverable_id: d.deliverable_id })));
+  const { data: outputs } = await supabaseAdmin.from('package_deliverables').select('deliverable_id').eq('package_id', packageId).eq('organization_id', orgId);
+  if (outputs && outputs.length > 0) await supabaseAdmin.from('package_deliverables').insert(outputs.map((d: any) => ({ organization_id: orgId, package_id: copy.id, deliverable_id: d.deliverable_id })));
+  
+  const { data: containers } = await supabaseAdmin.from('package_delivery_containers').select('container_id').eq('package_id', packageId).eq('organization_id', orgId);
+  if (containers && containers.length > 0) await supabaseAdmin.from('package_delivery_containers').insert(containers.map((d: any) => ({ organization_id: orgId, package_id: copy.id, container_id: d.container_id })));
+  
+  const { data: workflows } = await supabaseAdmin.from('package_workflows').select('blueprint_id, position').eq('package_id', packageId).eq('organization_id', orgId);
+  if (workflows && workflows.length > 0) await supabaseAdmin.from('package_workflows').insert(workflows.map((d: any) => ({ organization_id: orgId, package_id: copy.id, blueprint_id: d.blueprint_id, position: d.position })));
+
+  const copyConfig = async (table: string, column: string) => {
+    const { data } = await supabaseAdmin.from(`package_${table}`).select(column).eq('package_id', packageId).eq('organization_id', orgId);
+    if (data && data.length > 0) await supabaseAdmin.from(`package_${table}`).insert(data.map((d: any) => ({ organization_id: orgId, package_id: copy.id, [column]: d[column] })));
+  };
+  await Promise.all([
+    copyConfig('occasions', 'occasion_id'),
+    copyConfig('contexts', 'context_id'),
+    copyConfig('subjects', 'subject_id'),
+    copyConfig('purposes', 'purpose_id'),
+    copyConfig('client_types', 'client_type_id'),
+  ]);
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromPackageId: packageId } });
   revalidatePath('/packages');
@@ -221,7 +298,14 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
 
 const PACKAGE_SELECT = `
   id, name, description, pricing, status, duration_minutes, price_unit, payment_policy, pricing_variant, extra_stages,
-  package_services(service:services(id, name, domain:service_domains(id, name), occasion:occasions(id, name), context:service_contexts(id, name), subject:subjects(id, name), purpose:purposes(id, name), client_type:client_types(id, name)))
+  package_services(service:services(
+    id, name, domain:service_domains(id, name),
+    schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
+    schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
+    schema_subjects:service_schema_subjects(subject:subjects(id, name)),
+    schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
+    schema_client_types:service_schema_client_types(client_type:client_types(id, name))
+  ))
 `;
 
 export async function listPackages() {
@@ -231,7 +315,16 @@ export async function listPackages() {
   // would be a query per row.
   const { data, error } = await supabaseAdmin
     .from('packages')
-    .select(PACKAGE_SELECT + ', package_deliverables(deliverable:deliverables(id, name))')
+    .select(PACKAGE_SELECT + `,
+      package_deliverables(deliverable:deliverables(id, name)),
+      package_delivery_containers(container:delivery_containers(id, name)),
+      package_workflows(blueprint:blueprints(id, name, stages)),
+      package_occasions(occasion:occasions(id, name)),
+      package_contexts(context:service_contexts(id, name)),
+      package_subjects(subject:subjects(id, name)),
+      package_purposes(purpose:purposes(id, name)),
+      package_client_types(client_type:client_types(id, name))
+    `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) { console.error('Failed to list packages:', error); throw new Error('Failed to load packages'); }
@@ -239,6 +332,13 @@ export async function listPackages() {
     ...p,
     services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean),
     deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
+    containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
+    workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
+    occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),
+    contexts: (p.package_contexts || []).map((po: any) => po.context).filter(Boolean),
+    subjects: (p.package_subjects || []).map((po: any) => po.subject).filter(Boolean),
+    purposes: (p.package_purposes || []).map((po: any) => po.purpose).filter(Boolean),
+    clientTypes: (p.package_client_types || []).map((po: any) => po.client_type).filter(Boolean),
   }));
 }
 
@@ -263,13 +363,13 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
     .select(`
       id, name, description, pricing, duration_minutes, price_unit, pricing_variant,
       package_services(service:services(
-        id, name,
-        occasion:occasions(id),
-        context:service_contexts(id),
-        subject:subjects(id),
-        purpose:purposes(id),
-        client_type:client_types(id)
-      ))
+        id, name
+      )),
+      package_occasions(occasion:occasions(id)),
+      package_contexts(context:service_contexts(id)),
+      package_subjects(subject:subjects(id)),
+      package_purposes(purpose:purposes(id)),
+      package_client_types(client_type:client_types(id))
     `)
     .eq('organization_id', orgId).eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -286,11 +386,11 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       pricing_variant: p.pricing_variant as any,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
       dimensionIds: {
-        occasion: [...new Set(services.map((s: any) => s.occasion?.id).filter(Boolean))] as string[],
-        context:  [...new Set(services.map((s: any) => s.context?.id).filter(Boolean))] as string[],
-        subject:  [...new Set(services.map((s: any) => s.subject?.id).filter(Boolean))] as string[],
-        purpose:  [...new Set(services.map((s: any) => s.purpose?.id).filter(Boolean))] as string[],
-        client:   [...new Set(services.map((s: any) => s.client_type?.id).filter(Boolean))] as string[],
+        occasion: [...new Set((p.package_occasions || []).map((po: any) => po.occasion?.id).filter(Boolean))] as string[],
+        context:  [...new Set((p.package_contexts || []).map((po: any) => po.context?.id).filter(Boolean))] as string[],
+        subject:  [...new Set((p.package_subjects || []).map((po: any) => po.subject?.id).filter(Boolean))] as string[],
+        purpose:  [...new Set((p.package_purposes || []).map((po: any) => po.purpose?.id).filter(Boolean))] as string[],
+        client:   [...new Set((p.package_client_types || []).map((po: any) => po.client_type?.id).filter(Boolean))] as string[],
       } as Record<string, string[]>,
     };
   });
@@ -311,10 +411,30 @@ export async function getPackagePublic(orgId: string, packageId: string) {
 
 export async function getPackage(packageId: string) {
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select(PACKAGE_SELECT + ', package_deliverables(deliverable:deliverables(id, name))').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
+  const { data } = await supabaseAdmin.from('packages').select(PACKAGE_SELECT + `,
+    package_deliverables(deliverable:deliverables(id, name)),
+    package_delivery_containers(container:delivery_containers(id, name)),
+    package_workflows(blueprint:blueprints(id, name, stages)),
+    package_occasions(occasion:occasions(id, name)),
+    package_contexts(context:service_contexts(id, name)),
+    package_subjects(subject:subjects(id, name)),
+    package_purposes(purpose:purposes(id, name)),
+    package_client_types(client_type:client_types(id, name))
+  `).eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!data) return null;
   const p: any = data;
-  return { ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean), deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean) };
+  return { 
+    ...p, 
+    services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean),
+    deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
+    containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
+    workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
+    occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),
+    contexts: (p.package_contexts || []).map((po: any) => po.context).filter(Boolean),
+    subjects: (p.package_subjects || []).map((po: any) => po.subject).filter(Boolean),
+    purposes: (p.package_purposes || []).map((po: any) => po.purpose).filter(Boolean),
+    clientTypes: (p.package_client_types || []).map((po: any) => po.client_type).filter(Boolean),
+  };
 }
 
 /** What Bookings needs to build a line — id, price, and its aggregated routing inputs. */
@@ -334,16 +454,17 @@ export async function getProductionPlanForPackage(
   packageId: string
 ): Promise<{ stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] }> {
   const { orgId } = await getAuthOrgId();
-  const { getProductionPlanForService } = await import('@/modules/services/interface');
 
-  const { data: pkg } = await supabaseAdmin.from('packages').select('extra_stages').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-  const { data: bundled } = await supabaseAdmin.from('package_services').select('service_id').eq('package_id', packageId).eq('organization_id', orgId).order('position');
+  const { data: pkg } = await supabaseAdmin.from('packages').select('extra_stages, package_workflows(blueprint:blueprints(stages))').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
 
   const stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] = [];
-  for (const row of (bundled || []) as any[]) {
-    const plan = await getProductionPlanForService(row.service_id);
-    for (const s of plan.stages) stages.push({ name: s.name, order: stages.length, roleId: s.roleId, frontStage: s.frontStage });
+  
+  const workflows = ((pkg?.package_workflows as any[]) || []).map(pw => pw.blueprint).filter(Boolean);
+  for (const bp of workflows) {
+    const bpStages = (bp.stages || []).map((s: any, i: number) => ({ name: s.name, order: s.order ?? i, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null }));
+    for (const s of bpStages) stages.push({ name: s.name, order: stages.length, roleId: s.roleId, frontStage: s.frontStage });
   }
+
   for (const s of (pkg?.extra_stages as any[]) || []) {
     stages.push({ name: s.name, order: stages.length, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null });
   }

@@ -22,7 +22,7 @@ export default async function BookingPage(props: {
     .select(`
       id, name, description, pricing, pricing_variant, duration_minutes, form_schema,
       package_services(service:services(name)),
-      package_deliverables(deliverable:deliverables(name))
+      package_deliverables(output_type:output_types(name))
     `)
     .eq('organization_id', org.id)
     .eq('id', params.packageId)
@@ -31,7 +31,7 @@ export default async function BookingPage(props: {
 
   const currencyCode = (org as any).currency || 'USD';
   const services: string[] = ((pkg as any).package_services || []).map((ps: any) => ps.service?.name).filter(Boolean);
-  const deliverables: string[] = ((pkg as any).package_deliverables || []).map((pd: any) => pd.deliverable?.name).filter(Boolean);
+  const deliverables: string[] = ((pkg as any).package_deliverables || []).map((pd: any) => pd.output_type?.name).filter(Boolean);
   const pricing: any = (pkg as any).pricing || {};
   const variant: any = (pkg as any).pricing_variant || null;
   const durationMin: number | null = (pkg as any).duration_minutes ?? null;

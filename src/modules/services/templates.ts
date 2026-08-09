@@ -42,7 +42,7 @@ export type ServiceTemplate = {
   name: string;
   summary: string;
   /** What this transformation directly produces — Deliverables, studio vocabulary. */
-  primaryDeliverables: string[];
+  deliverables: string[];
   /** The Service's default Process. */
   blueprint?: { name: string; stages: TemplateStage[] };
   /** Suggested questions a Package bundling this service might ask a client. */
@@ -74,7 +74,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Portrait Photography',
     summary: 'A studio portrait session — individual, couple, or family.',
-    primaryDeliverables: ['Edited photographs'],
+    deliverables: ['Edited photographs'],
     blueprint: {
       name: 'Portrait Photography',
       stages: [
@@ -103,7 +103,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Event Photography',
     summary: 'Coverage for a celebration or gathering — birthdays, weddings, anniversaries, parties. One process; the occasion is what varies.',
-    primaryDeliverables: ['RAW images', 'Edited photographs'],
+    deliverables: ['RAW images', 'Edited photographs'],
     blueprint: {
       name: 'Event Photography',
       stages: [
@@ -127,7 +127,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Headshot Photography',
     summary: 'Professional headshots — the same process whether the sitter is solo or one of a whole team.',
-    primaryDeliverables: ['Edited photographs'],
+    deliverables: ['Edited photographs'],
     blueprint: {
       name: 'Headshot Photography',
       stages: [
@@ -147,7 +147,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Product Photography',
     summary: 'Commercial product photography for web or print — lighting rigs and still-life technique, no live subject.',
-    primaryDeliverables: ['Edited photographs'],
+    deliverables: ['Edited photographs'],
     blueprint: {
       name: 'Product Photography',
       stages: [
@@ -167,7 +167,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Passport Photography',
     summary: 'Exact framing, plain background, no expression — genuinely different technical constraints from a portrait session.',
-    primaryDeliverables: ['Printed photographs'],
+    deliverables: ['Printed photographs'],
     blueprint: {
       name: 'Passport Photography',
       stages: [{ name: 'Shoot & Print', roleName: 'Photographer', frontStage: true }],
@@ -183,7 +183,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Photography',
     name: 'Pet Photography',
     summary: 'A pet portrait session — no posing cooperation, different pacing, its own technique.',
-    primaryDeliverables: ['Edited photographs'],
+    deliverables: ['Edited photographs'],
     blueprint: {
       name: 'Pet Photography',
       stages: [
@@ -206,7 +206,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Videography',
     name: 'Event Videography',
     summary: 'Video coverage for a gathering, wedding, or conference — recorded and edited, not live. One process; the occasion is what varies.',
-    primaryDeliverables: ['RAW footage', 'Edited video'],
+    deliverables: ['RAW footage', 'Edited video'],
     blueprint: {
       name: 'Event Videography',
       stages: [
@@ -228,7 +228,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Videography',
     name: 'Live Streaming',
     summary: 'Real-time broadcast — the value is delivered the moment it happens, not edited afterward. A genuinely different process from recorded video.',
-    primaryDeliverables: ['Live broadcast'],
+    deliverables: ['Live broadcast'],
     blueprint: {
       name: 'Live Streaming',
       stages: [{ name: 'Broadcast', roleName: 'Videographer', frontStage: true }],
@@ -244,7 +244,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Videography',
     name: 'Commercial Videography',
     summary: 'A brand or promotional video — recorded and edited, purpose is the client\'s, not the process\'s.',
-    primaryDeliverables: ['Edited video'],
+    deliverables: ['Edited video'],
     blueprint: {
       name: 'Commercial Videography',
       stages: [
@@ -265,7 +265,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Printing',
     name: 'Fine Art Printing',
     summary: 'A physical print, made from a digital image — its own transformation, which is why it is a separate Service, not a property of the photography that produced the original.',
-    primaryDeliverables: ['Printed photographs'],
+    deliverables: ['Printed photographs'],
     blueprint: { name: 'Fine Art Printing', stages: [{ name: 'Print', roleName: 'Print Technician', frontStage: false }] },
     questions: [
       { type: 'text', label: 'Which image (reference or file name)' },
@@ -277,7 +277,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Printing',
     name: 'Framing',
     summary: 'A framed, display-ready print — depends on a print already existing, its own process of materials and assembly.',
-    primaryDeliverables: ['Framed print'],
+    deliverables: ['Framed print'],
     blueprint: { name: 'Framing', stages: [{ name: 'Frame', roleName: 'Print Technician', frontStage: false }] },
     questions: [
       { type: 'choice', label: 'Frame finish', options: ['Black', 'White', 'Natural wood'] },
@@ -288,7 +288,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     domain: 'Graphic Design',
     name: 'Album Design',
     summary: 'A designed photobook — depends on edited photographs already existing, a layout and print process of its own.',
-    primaryDeliverables: ['Photobook'],
+    deliverables: ['Photobook'],
     blueprint: { name: 'Album Design', stages: [{ name: 'Design', roleName: 'Graphic Designer', frontStage: false }] },
     questions: [
       { type: 'number', label: 'Number of pages' },

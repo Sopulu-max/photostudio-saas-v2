@@ -83,17 +83,16 @@ export async function updateDelivery(input: { deliveryId: string; bookingId: str
 export async function deleteDelivery(input: { deliveryId: string; bookingId: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
-  const { data: files } = await supabaseAdmin
-    .from('delivery_files')
-    .select('storage_path')
+  const { data: deliveryAssets } = await supabaseAdmin
+    .from('delivery_assets')
+    .select('asset:assets(storage_path)')
     .eq('delivery_id', input.deliveryId)
     .eq('organization_id', orgId);
 
-  const paths = (files || []).map((f: any) => f.storage_path).filter(Boolean);
-  if (paths.length > 0) {
-    await supabaseAdmin.storage.from('deliveries').remove(paths);
-  }
-  await supabaseAdmin.from('delivery_files').delete().eq('delivery_id', input.deliveryId).eq('organization_id', orgId);
+  // We do NOT delete the underlying assets from storage when a delivery is deleted.
+  // The asset belongs to the production graph; the delivery is just a container.
+  
+  await supabaseAdmin.from('delivery_assets').delete().eq('delivery_id', input.deliveryId).eq('organization_id', orgId);
 
   const { error } = await supabaseAdmin
     .from('deliveries')
@@ -111,7 +110,7 @@ export async function deleteDelivery(input: { deliveryId: string; bookingId: str
     entityId: input.deliveryId,
     action: 'deleted',
     actorId: actorId ?? undefined,
-    payload: { bookingId: input.bookingId, fileCount: paths.length },
+    payload: { bookingId: input.bookingId, fileCount: deliveryAssets?.length ?? 0 },
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
@@ -164,7 +163,9 @@ export async function getUploadTarget(deliveryId: string, fileName: string) {
   return { bucket: 'deliveries', path: `${orgId}/${deliveryId}/${randomUUID()}-${safeName}` };
 }
 
-/** Record an uploaded file against the delivery (called after the upload lands). */
+/** Record an uploaded file against the delivery (called after the upload lands). 
+ * This creates a Production Asset and then links it to the Delivery Container.
+ */
 export async function registerFile(input: {
   deliveryId: string;
   bookingId: string;
@@ -175,20 +176,39 @@ export async function registerFile(input: {
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
-  const { data: file, error } = await supabaseAdmin
-    .from('delivery_files')
+  // 1. Register the Production Asset
+  const { data: asset, error: assetError } = await supabaseAdmin
+    .from('assets')
     .insert({
       organization_id: orgId,
-      delivery_id: input.deliveryId,
+      booking_id: input.bookingId,
       storage_path: input.storagePath,
       file_name: input.fileName,
       mime_type: input.mimeType || null,
       size_bytes: input.sizeBytes ?? null,
+      state: 'final', // Directly uploaded to delivery implies it's final
     })
     .select('id')
     .single();
-  if (error || !file) {
-    console.error('Failed to register file:', error);
+
+  if (assetError || !asset) {
+    console.error('Failed to create asset:', assetError);
+    throw new Error('Failed to save the file as an asset');
+  }
+
+  // 2. Link it to the Delivery Container
+  const { data: deliveryAsset, error } = await supabaseAdmin
+    .from('delivery_assets')
+    .insert({
+      organization_id: orgId,
+      delivery_id: input.deliveryId,
+      asset_id: asset.id,
+    })
+    .select('id')
+    .single();
+
+  if (error || !deliveryAsset) {
+    console.error('Failed to link asset to delivery:', error);
     throw new Error('Failed to save the file');
   }
 
@@ -198,26 +218,27 @@ export async function registerFile(input: {
     entityId: input.deliveryId,
     action: 'file_added',
     actorId: actorId ?? undefined,
-    payload: { fileName: input.fileName },
+    payload: { fileName: input.fileName, assetId: asset.id },
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
-  return { fileId: file.id };
+  return { fileId: deliveryAsset.id };
 }
 
 export async function removeFile(input: { fileId: string; bookingId: string }) {
   const { orgId } = await getAuthOrgId();
 
-  const { data: file } = await supabaseAdmin
-    .from('delivery_files')
-    .select('id, storage_path')
+  // Removing from the delivery just unlinks it. The asset remains.
+  // The UI currently passes what it thinks is the 'fileId', which is now the 'delivery_asset.id'.
+  const { data: deliveryAsset } = await supabaseAdmin
+    .from('delivery_assets')
+    .select('id, asset_id')
     .eq('id', input.fileId)
     .eq('organization_id', orgId)
     .maybeSingle();
-  if (!file) throw new Error('File not found');
+  if (!deliveryAsset) throw new Error('File link not found');
 
-  await supabaseAdmin.storage.from('deliveries').remove([file.storage_path]);
-  await supabaseAdmin.from('delivery_files').delete().eq('id', input.fileId).eq('organization_id', orgId);
+  await supabaseAdmin.from('delivery_assets').delete().eq('id', input.fileId).eq('organization_id', orgId);
 
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
@@ -228,7 +249,7 @@ export async function shareDelivery(input: { deliveryId: string; bookingId: stri
   const { orgId, personId: actorId } = await getAuthOrgId();
 
   const { count } = await supabaseAdmin
-    .from('delivery_files')
+    .from('delivery_assets')
     .select('id', { count: 'exact', head: true })
     .eq('delivery_id', input.deliveryId)
     .eq('organization_id', orgId);
@@ -287,11 +308,10 @@ export async function listDeliveriesForBooking(bookingId: string) {
 
   const { data, error } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_files(id, file_name, mime_type, size_bytes)')
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_assets(id, position, asset:assets(id, file_name, mime_type, size_bytes))')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId)
-    .order('created_at', { ascending: false })
-    .order('created_at', { foreignTable: 'delivery_files', ascending: true });
+    .order('created_at', { ascending: false });
   if (error) {
     console.error('Failed to list deliveries:', error);
     throw new Error('Failed to load deliveries');
@@ -305,7 +325,13 @@ export async function listDeliveriesForBooking(bookingId: string) {
     sharedAt: d.shared_at,
     lastViewedAt: d.last_viewed_at,
     archivedAt: d.archived_at,
-    files: d.delivery_files || [],
+    files: (d.delivery_assets || []).sort((a: any, b: any) => a.position - b.position).map((da: any) => ({
+      id: da.id, // ID of the link, used for deletion
+      file_name: da.asset?.file_name,
+      mime_type: da.asset?.mime_type,
+      size_bytes: da.asset?.size_bytes,
+      asset_id: da.asset?.id,
+    })),
   }));
 }
 
@@ -318,9 +344,8 @@ export async function getGalleryByToken(token: string) {
 
   const { data: delivery } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, organization_id, booking:bookings(title), delivery_files(id, file_name, mime_type, storage_path)')
+    .select('id, title, status, organization_id, booking:bookings(title), delivery_assets(id, position, asset:assets(id, file_name, mime_type, storage_path))')
     .eq('share_token', token)
-    .order('created_at', { foreignTable: 'delivery_files', ascending: true })
     .maybeSingle();
 
   if (!delivery || delivery.status !== 'shared') return null;
@@ -331,17 +356,21 @@ export async function getGalleryByToken(token: string) {
     .eq('id', delivery.organization_id)
     .maybeSingle();
 
+  const sortedAssets = ((delivery as any).delivery_assets || []).sort((a: any, b: any) => a.position - b.position);
   const files = await Promise.all(
-    ((delivery as any).delivery_files || []).map(async (f: any) => {
+    sortedAssets.map(async (da: any) => {
+      const f = da.asset;
+      if (!f || !f.storage_path) return null;
       const { data: signed, error: signError } = await supabaseAdmin.storage
         .from('deliveries')
         .createSignedUrl(f.storage_path, SIGNED_URL_TTL_SECONDS);
       // A file that fails to sign was silently dropping out of the gallery
       // with no trace anywhere — at least log it, so a missing file is
       // diagnosable instead of just "the gallery looked a bit short."
-      if (signError) console.error(`Failed to sign delivery file ${f.id} (${f.storage_path}):`, signError);
+      if (signError) console.error(`Failed to sign delivery asset ${f.id} (${f.storage_path}):`, signError);
       return {
-        id: f.id,
+        id: da.id, // Delivery Asset Link ID
+        assetId: f.id,
         name: f.file_name,
         mimeType: f.mime_type,
         url: signed?.signedUrl || null,
@@ -349,6 +378,8 @@ export async function getGalleryByToken(token: string) {
       };
     })
   );
+  
+  const validFiles = files.filter(Boolean);
 
   // Stamp the view so the studio can see it landed.
   await supabaseAdmin
@@ -360,6 +391,6 @@ export async function getGalleryByToken(token: string) {
     title: delivery.title,
     studioName: org?.name || 'Studio',
     bookingTitle: (delivery as any).booking?.title || null,
-    files,
+    files: validFiles,
   };
 }

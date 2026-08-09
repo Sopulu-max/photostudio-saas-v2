@@ -12,8 +12,9 @@
 export {
   // Service Domains — the broad capability
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
-  // Deliverables — the vocabulary of what a Service produces
+  // Deliverables and Delivery Containers — the vocabulary of what a Service produces
   listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
+  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
   // The five classification dimensions — Subject, Occasion, Context, Purpose,
   // Client. Apply to both Service and Package; owned here since Packages
   // already depends on Services one-way, never the reverse.

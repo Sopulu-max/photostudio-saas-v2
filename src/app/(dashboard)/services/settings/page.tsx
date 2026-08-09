@@ -5,6 +5,7 @@ import {
   listServices, listBlueprints,
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
   listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
+  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
   getEnabledDimensions,
   listOccasions, createOccasion, renameOccasion, deleteOccasion,
   listContexts, createContext, renameContext, deleteContext,
@@ -36,8 +37,8 @@ export default async function ServiceSettingsPage() {
     redirect('/login');
   }
 
-  const [services, blueprints, domains, deliverables, roles, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
-    listServices(), listBlueprints(), listServiceDomains(), listDeliverables(), listRoles(),
+  const [services, blueprints, domains, deliverables, containers, roles, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
+    listServices(), listBlueprints(), listServiceDomains(), listDeliverables(), listDeliveryContainers(), listRoles(),
     getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
   ]);
   const roleOptions = (roles as any[]).map((r) => r.name);
@@ -88,11 +89,20 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">Deliverables</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>What a service can directly produce — RAW images, edited video, a photobook.</p>
+          <h2 className="q-section-title">Output Types (Assets)</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>What a service can directly produce — RAW images, edited video, a 3D model.</p>
           <FacetManager
             facets={deliverables} counts={{}} noun="service" placeholder="e.g. Edited photographs"
             onCreate={createDeliverable} onRename={renameDeliverable} onDelete={deleteDeliverable}
+          />
+        </section>
+
+        <section className="q-card q-section">
+          <h2 className="q-section-title">Delivery Containers</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>How deliverables are handed to the client — Online Gallery, USB Drive, Photobook.</p>
+          <FacetManager
+            facets={containers} counts={{}} noun="package" placeholder="e.g. Online Gallery"
+            onCreate={createDeliveryContainer} onRename={renameDeliveryContainer} onDelete={deleteDeliveryContainer}
           />
         </section>
 

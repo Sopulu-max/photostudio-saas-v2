@@ -4,10 +4,9 @@ import React, { useState } from 'react';
 import { templatesByDomain } from '@/modules/services/interface';
 import type { ServiceTemplate } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../[id]/ServiceFieldsEditor';
-import { createBlueprint } from '@/modules/services/interface';
+import { createService } from '@/modules/services/interface';
 import type { Dimension, DeliverableSuggestions, DimensionSuggestions } from '@/modules/services/interface';
 
-type Blueprint = { id: string; name: string };
 
 /**
  * Templates are a fast path, not a gate: picking one pre-fills the same
@@ -22,52 +21,34 @@ type Blueprint = { id: string; name: string };
  * minimal data, not just with a curated one.
  */
 export function TemplatePicker({
-  blueprints,
   domainOptions,
-  deliverableOptions,
+  outputOptions,
   enabledDimensions,
   occasionOptions,
   contextOptions,
   subjectOptions,
   purposeOptions,
   clientTypeOptions,
-  deliverableSuggestionsByDomain,
+  outputSuggestionsByDomain,
   dimensionSuggestionsByDomain,
 }: {
-  blueprints: Blueprint[];
   domainOptions: string[];
-  deliverableOptions: string[];
+  outputOptions: string[];
   enabledDimensions: Dimension[];
   occasionOptions: string[];
   contextOptions: string[];
   subjectOptions: string[];
   purposeOptions: string[];
   clientTypeOptions: string[];
-  deliverableSuggestionsByDomain: DeliverableSuggestions;
+  outputSuggestionsByDomain: DeliverableSuggestions;
   dimensionSuggestionsByDomain: DimensionSuggestions;
 }) {
   const [chosen, setChosen] = useState<ServiceTemplate | null>(null);
   const [custom, setCustom] = useState(false);
-  const [resolvedBlueprintId, setResolvedBlueprintId] = useState<string | null | undefined>(undefined);
   const groups = templatesByDomain();
 
   const pick = async (t: ServiceTemplate) => {
     setChosen(t);
-    if (t.blueprint) {
-      const existing = blueprints.find((b) => b.name === t.blueprint!.name);
-      if (existing) { setResolvedBlueprintId(existing.id); return; }
-      try {
-        const { blueprintId } = await createBlueprint({
-          name: t.blueprint.name,
-          stages: t.blueprint.stages.map((s) => ({ name: s.name, roleName: s.roleName || null, frontStage: s.frontStage })),
-        });
-        setResolvedBlueprintId(blueprintId);
-      } catch {
-        setResolvedBlueprintId(null);
-      }
-    } else {
-      setResolvedBlueprintId(null);
-    }
   };
 
   if (custom) {
@@ -84,16 +65,15 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
-          blueprints={blueprints}
           domainOptions={domainOptions}
-          deliverableOptions={deliverableOptions}
+          outputOptions={outputOptions}
           enabledDimensions={enabledDimensions}
           occasionOptions={occasionOptions}
           contextOptions={contextOptions}
           subjectOptions={subjectOptions}
           purposeOptions={purposeOptions}
           clientTypeOptions={clientTypeOptions}
-          deliverableSuggestionsByDomain={deliverableSuggestionsByDomain}
+          outputSuggestionsByDomain={outputSuggestionsByDomain}
           dimensionSuggestionsByDomain={dimensionSuggestionsByDomain}
           initial={{}}
         />
@@ -102,15 +82,9 @@ export function TemplatePicker({
   }
 
   if (chosen) {
-    // Wait for the suggested blueprint to actually resolve (found or created)
-    // before mounting the editor — its blueprint selection is only set from
-    // this once, on mount, so mounting early would show it as unset.
-    if (resolvedBlueprintId === undefined) {
-      return <div className="q-page-narrow"><p className="q-meta">Setting up…</p></div>;
-    }
     return (
       <div className="q-page-narrow">
-        <button className="q-back" style={{ background: 'none', border: 0, cursor: 'pointer' }} onClick={() => { setChosen(null); setResolvedBlueprintId(undefined); }}>
+        <button className="q-back" style={{ background: 'none', border: 0, cursor: 'pointer' }} onClick={() => { setChosen(null); }}>
           &larr; Choose a different starting point
         </button>
         <header className="q-page-header">
@@ -121,23 +95,27 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
-          blueprints={resolvedBlueprintId && !blueprints.find((b) => b.id === resolvedBlueprintId) ? [...blueprints, { id: resolvedBlueprintId, name: chosen.blueprint?.name || '' }] : blueprints}
           domainOptions={domainOptions}
-          deliverableOptions={deliverableOptions}
+          outputOptions={outputOptions}
           enabledDimensions={enabledDimensions}
           occasionOptions={occasionOptions}
           contextOptions={contextOptions}
           subjectOptions={subjectOptions}
           purposeOptions={purposeOptions}
           clientTypeOptions={clientTypeOptions}
-          deliverableSuggestionsByDomain={deliverableSuggestionsByDomain}
+          outputSuggestionsByDomain={outputSuggestionsByDomain}
           dimensionSuggestionsByDomain={dimensionSuggestionsByDomain}
           initial={{
             name: chosen.name,
             description: chosen.summary,
             serviceDomain: chosen.domain,
-            blueprintId: resolvedBlueprintId || null,
-            deliverables: chosen.primaryDeliverables,
+            primaryDeliverable: chosen.deliverables?.[0] || null,
+            deliverables: chosen.deliverables,
+            occasions: chosen.occasions || [],
+            contexts: chosen.contexts || [],
+            subjects: chosen.subjects || [],
+            purposes: chosen.purposes || [],
+            clientTypes: chosen.clientTypes || [],
           }}
         />
       </div>
@@ -162,7 +140,7 @@ export function TemplatePicker({
                 <button key={t.id} className="q-card q-stack" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--q-color-ink-100)' }} onClick={() => pick(t)}>
                   <strong className="q-strong">{t.name}</strong>
                   <p className="q-meta" style={{ margin: 0 }}>{t.summary}</p>
-                  <span className="q-meta-sm">Produces: {t.primaryDeliverables.join(', ')}</span>
+                  <span className="q-meta-sm">Produces: {t.deliverables.join(', ')}</span>
                 </button>
               ))}
             </div>

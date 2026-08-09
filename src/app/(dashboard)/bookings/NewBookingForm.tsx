@@ -355,19 +355,18 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
               </span>
               {selectedPackage.durationMinutes && <span>· {selectedPackage.durationMinutes} min</span>}
             </div>
-
             {selectedPackage.services.length > 0 && (
               <div className="q-meta-sm">Includes: {selectedPackage.services.join(', ')}</div>
             )}
 
             {selectedPackage.deliverables.length > 0 && (
-              <div>
-                <div className="q-meta-sm">They get:</div>
-                <div className="q-chip-row">
+              <div style={{ marginTop: '24px' }}>
+                <div className="q-label">Deliverables</div>
+                <ul className="q-meta" style={{ paddingLeft: '1rem', marginTop: '4px' }}>
                   {selectedPackage.deliverables.map(d => (
-                    <span key={d} className="q-chip">{d}</span>
+                    <li key={d}>{d}</li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
 

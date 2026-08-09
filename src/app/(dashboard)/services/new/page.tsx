@@ -16,24 +16,23 @@ export default async function NewServicePage() {
     redirect('/login');
   }
 
-  const [blueprints, domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
-    listBlueprints(), listServiceDomains(), listDeliverables(),
+  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
+    listServiceDomains(), listDeliverables(),
     getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
     listServices(),
   ]);
 
   return (
     <TemplatePicker
-      blueprints={blueprints}
       domainOptions={domains.map((d: any) => d.name)}
-      deliverableOptions={deliverables.map((d: any) => d.name)}
+      outputOptions={deliverables.map((d: any) => d.name)}
       enabledDimensions={enabledDimensions}
       occasionOptions={occasions.map((o: any) => o.name)}
       contextOptions={contexts.map((c: any) => c.name)}
       subjectOptions={subjects.map((s: any) => s.name)}
       purposeOptions={purposes.map((p: any) => p.name)}
       clientTypeOptions={clientTypes.map((c: any) => c.name)}
-      deliverableSuggestionsByDomain={buildDeliverableSuggestions(services)}
+      outputSuggestionsByDomain={buildDeliverableSuggestions(services)}
       dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
     />
   );

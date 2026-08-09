@@ -1236,11 +1236,11 @@ export async function extractPackageFromEnquiry(bookingId: string) {
   const { createService } = await import('@/modules/services/interface');
   const { serviceId } = await createService({
     name: serviceName,
-    occasion,
-    context,
-    subject,
-    purpose,
-    clientType,
+    occasions: occasion ? [occasion] : [],
+    contexts: context ? [context] : [],
+    subjects: subject ? [subject] : [],
+    purposes: purpose ? [purpose] : [],
+    clientTypes: clientType ? [clientType] : [],
   });
 
   // Create the Package

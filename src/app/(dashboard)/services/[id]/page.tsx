@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  getService, listBlueprints, listServiceDomains, listDeliverables, listServices,
+  getService, listServiceDomains, listDeliverables, listServices,
   getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
   buildDeliverableSuggestions, buildDimensionSuggestions,
 } from '@/modules/services/interface';
@@ -23,8 +23,8 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const [blueprints, domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
-    listBlueprints(), listServiceDomains(), listDeliverables(),
+  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
+    listServiceDomains(), listDeliverables(),
     getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
     listServices(),
   ]);
@@ -58,28 +58,28 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         mode="edit"
         serviceId={service.id}
         status={service.status}
-        blueprints={blueprints}
         domainOptions={domains.map((d: any) => d.name)}
-        deliverableOptions={deliverables.map((d: any) => d.name)}
+        outputOptions={deliverables.map((d: any) => d.name)}
         enabledDimensions={enabledDimensions}
         occasionOptions={occasions.map((o: any) => o.name)}
         contextOptions={contexts.map((c: any) => c.name)}
         subjectOptions={subjects.map((s: any) => s.name)}
         purposeOptions={purposes.map((p: any) => p.name)}
         clientTypeOptions={clientTypes.map((c: any) => c.name)}
-        deliverableSuggestionsByDomain={buildDeliverableSuggestions(services)}
+        outputSuggestionsByDomain={buildDeliverableSuggestions(services)}
         dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
         initial={{
           name: service.name,
           description: (service as any).description,
           serviceDomain: (service as any).domain?.name || '',
-          blueprintId: (service as any).default_blueprint_id,
+          requiredInputDeliverable: (service as any).required_input_type?.name || null,
+          primaryDeliverable: (service as any).primary_output_type?.name || null,
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
-          occasion: (service as any).occasion?.name || '',
-          context: (service as any).context?.name || '',
-          subject: (service as any).subject?.name || '',
-          purpose: (service as any).purpose?.name || '',
-          clientType: (service as any).client_type?.name || '',
+          occasions: ((service as any).occasions || []).map((d: any) => d.name),
+          contexts: ((service as any).contexts || []).map((d: any) => d.name),
+          subjects: ((service as any).subjects || []).map((d: any) => d.name),
+          purposes: ((service as any).purposes || []).map((d: any) => d.name),
+          clientTypes: ((service as any).clientTypes || []).map((d: any) => d.name),
         }}
       />
     </div>
