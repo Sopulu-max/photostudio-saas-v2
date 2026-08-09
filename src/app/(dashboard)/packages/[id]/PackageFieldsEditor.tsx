@@ -6,7 +6,18 @@ import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from
 import type { PaymentPolicy, PricingVariant } from '@/modules/packages/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
 
-type ServiceOption = { id: string; name: string; domain?: { name: string } | null };
+type ServiceOption = { 
+  id: string; 
+  name: string; 
+  domain?: { name: string } | null;
+  description?: string | null;
+  deliverables?: { id: string; name: string }[];
+  occasions?: { id: string; name: string }[];
+  contexts?: { id: string; name: string }[];
+  subjects?: { id: string; name: string }[];
+  purposes?: { id: string; name: string }[];
+  clientTypes?: { id: string; name: string }[];
+};
 type Tier = { label: string; price: string };
 type Stage = { name: string; roleName: string; frontStage: boolean };
 
@@ -165,7 +176,11 @@ export function PackageFieldsEditor({
 
   const submit = () => {
     if (packageId) startTransition(async () => {
-      try { await updatePackage({ packageId, ...buildPayload() }); router.refresh(); }
+      try { 
+        await updatePackage({ packageId, ...buildPayload() }); 
+        router.refresh(); 
+        router.push(`/packages/${packageId}`);
+      }
       catch (e: any) { alert(e?.message || 'Something went wrong.'); }
     });
   };
@@ -214,13 +229,51 @@ export function PackageFieldsEditor({
       <div className="q-card q-section">
         <h2 className="q-section-title">What it bundles</h2>
         <p className="q-meta" style={{ marginBottom: '12px' }}>Pick the real Services this offering is built from — one, or several.</p>
-        <div className="q-stack q-stack-sm">
-          {allServices.map((s) => (
-            <label key={s.id} className="q-row q-meta-plain" style={{ gap: '8px' }}>
-              <input type="checkbox" checked={serviceIds.includes(s.id)} onChange={() => toggleService(s.id)} />
-              {s.name}{s.domain?.name ? ` (${s.domain.name})` : ''}
-            </label>
-          ))}
+        <div className="q-grid-cards">
+          {allServices.map((s) => {
+            const isSelected = serviceIds.includes(s.id);
+            const allTags = [
+              ...(s.subjects || []), ...(s.occasions || []), ...(s.contexts || []), 
+              ...(s.purposes || []), ...(s.clientTypes || [])
+            ];
+            return (
+              <div 
+                key={s.id} 
+                className={`q-card q-stack`} 
+                onClick={() => toggleService(s.id)} 
+                style={{ 
+                  cursor: 'pointer', 
+                  borderColor: isSelected ? 'var(--q-color-primary)' : 'var(--q-color-ink-100)',
+                  backgroundColor: isSelected ? 'var(--q-color-primary-light)' : undefined,
+                  transition: 'all var(--q-ease) 0.2s'
+                }}
+              >
+                <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 className="q-section-title">{s.name}</h3>
+                    <div className="q-meta-sm">{s.domain?.name || 'No domain'}</div>
+                  </div>
+                  <input type="checkbox" checked={isSelected} readOnly style={{ pointerEvents: 'none', marginTop: '4px' }} />
+                </div>
+                {s.description && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
+                
+                <div style={{ marginTop: '8px' }}>
+                  {s.deliverables && s.deliverables.length > 0 && (
+                    <div className="q-meta-sm" style={{ marginBottom: '4px' }}>
+                      <strong>Produces:</strong> {s.deliverables.map(d => d.name).join(', ')}
+                    </div>
+                  )}
+                  {allTags.length > 0 && (
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
+                      {allTags.map(t => (
+                        <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           {allServices.length === 0 && <p className="q-empty">No services yet — create one first.</p>}
         </div>
       </div>
@@ -445,6 +498,7 @@ export function PackageFieldsEditor({
         ) : (
           <>
             <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
+            <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/packages/${packageId}`)}>Cancel</button>
             <button className="q-btn q-btn-secondary" disabled={isPending}
               onClick={() => startTransition(async () => {
                 try { const { packageId: copyId } = await duplicatePackage(packageId!); router.push(`/packages/${copyId}`); }

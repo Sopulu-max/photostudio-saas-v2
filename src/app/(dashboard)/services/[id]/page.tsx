@@ -1,14 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import {
-  getService, listServiceDomains, listDeliverables, listServices,
-  getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
-  buildDeliverableSuggestions, buildDimensionSuggestions,
-} from '@/modules/services/interface';
+import { getService, getEnabledDimensions } from '@/modules/services/interface';
 import type { Dimension } from '@/modules/services/interface';
-import { ServiceFieldsEditor } from './ServiceFieldsEditor';
 import { DimensionTag } from '../DimensionTag';
+import { CheckCircle2, CircleDashed } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +19,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
-    listServiceDomains(), listDeliverables(),
-    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
-    listServices(),
-  ]);
+  const enabledDimensions = await getEnabledDimensions();
 
   const dims = service as any;
   const tags: [Dimension, { id: string; name: string } | null][] = [
@@ -38,50 +30,77 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   return (
     <div className="q-page-narrow">
       <Link className="q-back" href="/services">&larr; Back to Services</Link>
-      <header className="q-page-header">
+      
+      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1 className="q-page-title">{service.name}</h1>
-          <p className="q-page-subtitle">What this transformation is, and how it&rsquo;s carried out.</p>
+          <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
+            <h1 className="q-page-title">{service.name}</h1>
+            <span className={`q-badge ${service.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
+              {service.status}
+            </span>
+          </div>
+          <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
+            {dims.domain?.name || 'No domain'}
+          </p>
         </div>
-        <span className={`q-badge ${service.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{service.status}</span>
+        <Link href={`/services/${service.id}/edit`} className="q-btn q-btn-secondary">
+          Edit service
+        </Link>
       </header>
 
+      {dims.description && (
+        <p className="q-text-body" style={{ marginBottom: '24px', fontSize: '1.05rem', color: 'var(--q-color-ink-700)' }}>
+          {dims.description}
+        </p>
+      )}
+
       {tags.some(([, v]) => v) && (
-        <div className="q-row" style={{ flexWrap: 'wrap', marginTop: '-8px', marginBottom: '16px' }}>
+        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: '32px', gap: '6px' }}>
           {tags.filter(([dim]) => enabledDimensions.includes(dim)).map(([dim, value]) => (
             <DimensionTag key={dim} dim={dim} value={value} />
           ))}
         </div>
       )}
 
-      <ServiceFieldsEditor
-        mode="edit"
-        serviceId={service.id}
-        status={service.status}
-        domainOptions={domains.map((d: any) => d.name)}
-        outputOptions={deliverables.map((d: any) => d.name)}
-        enabledDimensions={enabledDimensions}
-        occasionOptions={occasions.map((o: any) => o.name)}
-        contextOptions={contexts.map((c: any) => c.name)}
-        subjectOptions={subjects.map((s: any) => s.name)}
-        purposeOptions={purposes.map((p: any) => p.name)}
-        clientTypeOptions={clientTypes.map((c: any) => c.name)}
-        outputSuggestionsByDomain={buildDeliverableSuggestions(services)}
-        dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
-        initial={{
-          name: service.name,
-          description: (service as any).description,
-          serviceDomain: (service as any).domain?.name || '',
-          requiredInputDeliverable: (service as any).required_input_type?.name || null,
-          primaryDeliverable: (service as any).primary_output_type?.name || null,
-          deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
-          occasions: ((service as any).occasions || []).map((d: any) => d.name),
-          contexts: ((service as any).contexts || []).map((d: any) => d.name),
-          subjects: ((service as any).subjects || []).map((d: any) => d.name),
-          purposes: ((service as any).purposes || []).map((d: any) => d.name),
-          clientTypes: ((service as any).clientTypes || []).map((d: any) => d.name),
-        }}
-      />
+      <div className="q-stack q-stack-lg">
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Inputs & Deliverables</h2>
+          <div className="q-grid-2">
+            <div className="q-panel">
+              <div className="q-stat-label">Required Input</div>
+              <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>
+                {dims.required_input_type ? (
+                  <span className="q-row" style={{ gap: '8px' }}><CircleDashed size={18} className="q-text-meta" /> {dims.required_input_type.name}</span>
+                ) : (
+                  <span className="q-text-meta">None</span>
+                )}
+              </div>
+            </div>
+            
+            <div className="q-panel">
+              <div className="q-stat-label">Primary Output</div>
+              <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>
+                {dims.primary_output_type ? (
+                  <span className="q-row" style={{ gap: '8px', color: 'var(--q-color-primary)' }}><CheckCircle2 size={18} /> {dims.primary_output_type.name}</span>
+                ) : (
+                  <span className="q-text-meta">None</span>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {dims.deliverables && dims.deliverables.length > 0 && (
+            <div style={{ marginTop: '24px' }}>
+              <div className="q-stat-label" style={{ marginBottom: '8px' }}>Additional Deliverables</div>
+              <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
+                {dims.deliverables.map((d: any) => (
+                  <li key={d.id} style={{ marginBottom: '4px' }}>{d.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,13 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getPackage, getIntakeQuestions, getLockedQuestionIds } from '@/modules/packages/interface';
-import { listActiveServices } from '@/modules/services/interface';
-import { listRoles } from '@/modules/team/interface';
+import { getPackage, getIntakeQuestions } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
-import { PackageFieldsEditor } from './PackageFieldsEditor';
-import { QuestionEditor } from './QuestionEditor';
+import { Package, HelpCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,17 +19,10 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes } = await import('@/modules/services/interface');
-  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
-    listActiveServices(), listRoles(), getStudioCurrency(),
-    getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(), listDeliveryContainers(), listBlueprints(),
-    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes()
+  const [currencyCode, questions] = await Promise.all([
+    getStudioCurrency(),
+    getIntakeQuestions(params.id)
   ]);
-
-  const suggestedDeliverablesByService: Record<string, string[]> = {};
-  for (const s of (allServices as any[])) {
-    suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
-  }
 
   const pricing: any = pkg.pricing || {};
   const hasPrice = pricing.base_price != null;
@@ -41,16 +31,38 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const depositPct = paymentPolicy === 'full' ? 100 : Number(pricing.deposit_percentage || 0);
   const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
 
+  const services = (pkg as any).services || [];
+  const deliverables = (pkg as any).deliverables || [];
+  const containers = (pkg as any).containers || [];
+  const workflows = (pkg as any).workflows || [];
+  const extraStages = (pkg as any).extra_stages || [];
+
   return (
     <div className="q-page-narrow">
       <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
-      <header className="q-page-header">
+      
+      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1 className="q-page-title">{pkg.name}</h1>
-          <p className="q-page-subtitle">What the client buys, and what it costs.</p>
+          <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
+            <h1 className="q-page-title">{pkg.name}</h1>
+            <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
+              {pkg.status}
+            </span>
+          </div>
+          <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
+            What the client buys, and what it costs.
+          </p>
         </div>
-        <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
+        <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">
+          Edit package
+        </Link>
       </header>
+
+      {pkg.description && (
+        <p className="q-text-body" style={{ marginBottom: '24px', fontSize: '1.05rem', color: 'var(--q-color-ink-700)' }}>
+          {pkg.description}
+        </p>
+      )}
 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
@@ -66,56 +78,132 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               <div className="q-stat-value">{paymentPolicy === 'full' ? 'Full price' : paymentPolicy === 'deposit' ? `${depositPct}% deposit` : 'Not set'}</div>
             </div>
             <div className="q-panel">
-              <div className="q-stat-label">Bundles</div>
-              <div className="q-stat-value q-num">{(pkg as any).services?.length || 0} {(pkg as any).services?.length === 1 ? 'service' : 'services'}</div>
+              <div className="q-stat-label">Duration</div>
+              <div className="q-stat-value">{(pkg as any).duration_minutes ? `${(pkg as any).duration_minutes} min` : 'Not set'}</div>
             </div>
           </div>
         </div>
 
-        <PackageFieldsEditor
-          mode="edit"
-          packageId={pkg.id}
-          status={pkg.status}
-          currencyCode={currencyCode}
-          allServices={allServices as any}
-          allDeliverables={allDeliverables as any}
-          allContainers={allContainers as any}
-          allWorkflows={allWorkflows as any}
-          suggestedDeliverablesByService={suggestedDeliverablesByService}
-          enabledDimensions={enabledDimensions}
-          occasionOptions={occasions.map((o: any) => ({ id: o.id, name: o.name }))}
-          contextOptions={contexts.map((c: any) => ({ id: c.id, name: c.name }))}
-          subjectOptions={subjects.map((s: any) => ({ id: s.id, name: s.name }))}
-          purposeOptions={purposes.map((p: any) => ({ id: p.id, name: p.name }))}
-          clientTypeOptions={clientTypes.map((c: any) => ({ id: c.id, name: c.name }))}
-          roleOptions={(roles as any[]).map((r) => r.name)}
-          initial={{
-            name: pkg.name,
-            description: (pkg as any).description,
-            basePrice: hasPrice ? basePrice : null,
-            priceUnit: (pkg as any).price_unit,
-            paymentPolicy,
-            depositPercentage: depositPct,
-            durationMinutes: (pkg as any).duration_minutes,
-            serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
-            deliverableIds: ((pkg as any).deliverables || []).map((d: any) => d.id),
-            containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
-            workflowIds: ((pkg as any).workflows || []).map((d: any) => d.id),
-            occasions: ((pkg as any).occasions || []).map((d: any) => d.id),
-            contexts: ((pkg as any).contexts || []).map((d: any) => d.id),
-            subjects: ((pkg as any).subjects || []).map((d: any) => d.id),
-            purposes: ((pkg as any).purposes || []).map((d: any) => d.id),
-            clientTypes: ((pkg as any).clientTypes || []).map((d: any) => d.id),
-            pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
-            extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
-          }}
-        />
-
         <div className="q-card q-section">
-          <h2 className="q-section-title">Intake questions</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>What a client is asked when they book this online.</p>
-          <QuestionEditor packageId={pkg.id} questions={questions} lockedIds={lockedIds} services={pkg.services as any} />
+          <h2 className="q-section-title">Bundled Services</h2>
+          {services.length === 0 ? (
+            <p className="q-text-meta">No services bundled.</p>
+          ) : (
+            <div className="q-grid-cards">
+              {services.map((s: any) => {
+                const allTags = [
+                  ...(s.subjects || []), ...(s.occasions || []), ...(s.contexts || []), 
+                  ...(s.purposes || []), ...(s.clientTypes || [])
+                ];
+                return (
+                  <div key={s.id} className="q-card q-stack" style={{ borderColor: 'var(--q-color-primary-light)', backgroundColor: 'var(--q-color-paper)' }}>
+                    <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                      <div>
+                        <h3 className="q-section-title">{s.name}</h3>
+                        <div className="q-meta-sm">{s.domain?.name || 'No domain'}</div>
+                      </div>
+                      <Package size={20} color="var(--q-color-primary)" />
+                    </div>
+                    {s.description && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
+                    
+                    <div style={{ marginTop: '8px' }}>
+                      {s.deliverables && s.deliverables.length > 0 && (
+                        <div className="q-meta-sm" style={{ marginBottom: '4px' }}>
+                          <strong>Produces:</strong> {s.deliverables.map((d: any) => d.name).join(', ')}
+                        </div>
+                      )}
+                      {allTags.length > 0 && (
+                        <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
+                          {allTags.map((t: any) => (
+                            <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
+        
+        <div className="q-grid-2">
+          <div className="q-card q-section">
+            <h2 className="q-section-title">Deliverables</h2>
+            {deliverables.length === 0 && containers.length === 0 ? (
+              <p className="q-text-meta">No deliverables explicitly defined.</p>
+            ) : (
+              <div className="q-stack q-stack-sm">
+                {deliverables.length > 0 && (
+                  <div>
+                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Outputs</div>
+                    <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
+                      {deliverables.map((d: any) => <li key={d.id} style={{ marginBottom: '4px' }}>{d.name}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {containers.length > 0 && (
+                  <div style={{ marginTop: deliverables.length > 0 ? '16px' : '0' }}>
+                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Delivery Method</div>
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                      {containers.map((d: any) => <span key={d.id} className="q-badge q-badge-neutral">{d.name}</span>)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="q-card q-section">
+            <h2 className="q-section-title">Production Plan</h2>
+            {workflows.length === 0 && extraStages.length === 0 ? (
+              <p className="q-text-meta">No standard blueprints or extra stages set.</p>
+            ) : (
+              <div className="q-stack q-stack-sm">
+                {workflows.length > 0 && (
+                  <div>
+                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Blueprints</div>
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                      {workflows.map((w: any) => <span key={w.id} className="q-badge q-badge-primary">{w.name}</span>)}
+                    </div>
+                  </div>
+                )}
+                {extraStages.length > 0 && (
+                  <div style={{ marginTop: workflows.length > 0 ? '16px' : '0' }}>
+                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Extra Stages</div>
+                    <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
+                      {extraStages.map((s: any, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>
+                          {s.name} {s.roleName && <span className="q-text-meta">— {s.roleName}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {questions.length > 0 && (
+          <div className="q-card q-section">
+            <div className="q-row" style={{ alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <HelpCircle size={20} className="q-text-meta" />
+              <h2 className="q-section-title" style={{ margin: 0 }}>Intake Questions ({questions.length})</h2>
+            </div>
+            <div className="q-stack q-stack-sm">
+              {questions.map((q: any, i: number) => (
+                <div key={q.id || i} className="q-panel" style={{ padding: '12px' }}>
+                  <div style={{ fontWeight: 500, color: 'var(--q-color-ink-900)' }}>{q.question}</div>
+                  <div className="q-row" style={{ marginTop: '4px', gap: '12px' }}>
+                    <span className="q-meta-sm">Type: {q.type}</span>
+                    {q.required && <span className="q-badge q-badge-neutral" style={{ padding: '0 4px', fontSize: '0.65rem' }}>Required</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

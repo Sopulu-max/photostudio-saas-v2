@@ -120,7 +120,11 @@ export function ServiceFieldsEditor({
     if (!name.trim()) { alert('A service needs a name.'); return; }
     if (mode === 'edit' && serviceId) {
       startTransition(async () => {
-        try { await updateService({ serviceId, ...buildPayload() }); router.refresh(); }
+        try { 
+          await updateService({ serviceId, ...buildPayload() }); 
+          router.refresh(); 
+          router.push(`/services/${serviceId}`);
+        }
         catch (e: any) { alert(e?.message || 'Something went wrong.'); }
       });
     }
@@ -254,12 +258,13 @@ export function ServiceFieldsEditor({
         </div>
       </div>
 
-      <div className="q-row">
+      <div className="q-row" style={{ marginTop: '16px' }}>
         {mode === 'create' ? (
           <button className="q-btn q-btn-primary" disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create service'}</button>
         ) : (
           <>
             <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
+            <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/services/${serviceId}`)}>Cancel</button>
             <button className="q-btn q-btn-secondary" disabled={isPending}
               onClick={() => startTransition(async () => {
                 try { const { serviceId: copyId } = await duplicateService(serviceId!); router.push(`/services/${copyId}`); }

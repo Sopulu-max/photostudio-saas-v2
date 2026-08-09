@@ -299,7 +299,8 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
 const PACKAGE_SELECT = `
   id, name, description, pricing, status, duration_minutes, price_unit, payment_policy, pricing_variant, extra_stages,
   package_services(service:services(
-    id, name, domain:service_domains(id, name),
+    id, name, description, domain:service_domains(id, name),
+    service_deliverables(deliverable:deliverables(id, name)),
     schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
     schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
     schema_subjects:service_schema_subjects(subject:subjects(id, name)),
@@ -330,7 +331,15 @@ export async function listPackages() {
   if (error) { console.error('Failed to list packages:', error); throw new Error('Failed to load packages'); }
   return (data || []).map((p: any) => ({
     ...p,
-    services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean),
+    services: (p.package_services || []).map((ps: any) => ({
+      ...ps.service,
+      deliverables: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+      occasions: (ps.service?.schema_occasions || []).map((so: any) => so.occasion).filter(Boolean),
+      contexts: (ps.service?.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
+      subjects: (ps.service?.schema_subjects || []).map((ss: any) => ss.subject).filter(Boolean),
+      purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
+      clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
+    })).filter((s: any) => s.id),
     deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
@@ -425,7 +434,15 @@ export async function getPackage(packageId: string) {
   const p: any = data;
   return { 
     ...p, 
-    services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean),
+    services: (p.package_services || []).map((ps: any) => ({
+      ...ps.service,
+      deliverables: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+      occasions: (ps.service?.schema_occasions || []).map((so: any) => so.occasion).filter(Boolean),
+      contexts: (ps.service?.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
+      subjects: (ps.service?.schema_subjects || []).map((ss: any) => ss.subject).filter(Boolean),
+      purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
+      clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
+    })).filter((s: any) => s.id),
     deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),

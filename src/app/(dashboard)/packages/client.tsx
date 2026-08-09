@@ -59,7 +59,7 @@ export function PackagesClient({
           </div>
         )}
         <div className="q-tile-sub">
-          <Link href={`/packages/${pkg.id}`} className="q-btn q-btn-secondary q-fill q-center-text">Manage package</Link>
+          <Link href={`/packages/${pkg.id}`} className="q-btn q-btn-secondary q-fill q-center-text">View package</Link>
         </div>
       </div>
     );

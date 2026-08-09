@@ -44,7 +44,7 @@ export function ServicesClient({
         </div>
       )}
       <div className="q-tile-sub">
-        <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary q-fill q-center-text">Manage service</Link>
+        <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary q-fill q-center-text">View service</Link>
       </div>
     </div>
   );
