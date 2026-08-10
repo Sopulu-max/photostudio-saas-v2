@@ -23,8 +23,9 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 // Now import the domain functions
 import { createRole } from '@/modules/team/domain';
-import { createServiceDomain, createDeliverable, createService, createBlueprint } from '@/modules/services/domain';
-import { createPackage, getPackageForBooking } from '@/modules/packages/domain';
+import { createServiceDomain, createDeliverable, createService, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
+import { formatVariableValue } from '@/modules/services/variableTypes';
+import { createPackage, updatePackage, getPackage, getPackageForBooking } from '@/modules/packages/domain';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 
@@ -48,8 +49,9 @@ export const PURGE_ORDER = [
   'bookings',
   'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
   'package_occasions', 'package_contexts', 'package_subjects', 'package_purposes', 'package_client_types',
+  'package_variable_values',
   'packages',
-  'service_deliverables',
+  'service_deliverables', 'service_variables',
   'service_schema_occasions', 'service_schema_contexts', 'service_schema_subjects',
   'service_schema_purposes', 'service_schema_client_types',
   'services',
@@ -134,6 +136,18 @@ describe('Core Loop Verification', () => {
     const { outputTypeId } = await createDeliverable('Edited Photos');
     expect(outputTypeId).toBeDefined();
 
+    // The service declares what may vary. These are quantities, not dimensions:
+    // shared vocabulary like Occasion lives elsewhere.
+    await setServiceVariables({
+      serviceId,
+      variables: [
+        { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit', min: 1, max: 10 },
+        { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image' },
+      ],
+    });
+    const variables = await listServiceVariables(serviceId);
+    expect(variables.map((v) => v.key)).toEqual(['outfits', 'edited_images']);
+
     // ---------------------------------------------------------
     // 2. PACKAGES (Marketing & Pricing)
     // ---------------------------------------------------------
@@ -148,8 +162,30 @@ describe('Core Loop Verification', () => {
       deliverableIds: [outputTypeId],
       // The process lives here now — this is what startWorkForLine resolves.
       workflowIds: [blueprintId],
+      // The package SELECTS from what the service declared. Fixing outfits but
+      // not edited_images is the point: an unset variable stays open, a
+      // question for the client rather than part of the offer.
+      variableValues: [{ serviceVariableId: variables[0].id, value: 2 }],
     });
     expect(packageId).toBeDefined();
+
+    // The gap this closes: "2 outfits" was previously unstorable anywhere.
+    const pkg = await getPackage(packageId);
+    expect(pkg?.variableValues).toHaveLength(1);
+    expect(pkg?.variableValues[0]).toMatchObject({ key: 'outfits', value: 2, unit: 'outfit' });
+    expect(formatVariableValue(pkg!.variableValues[0])).toBe('2 outfits');
+
+    // And the rule that gives the schema its meaning: a package cannot invent a
+    // variable belonging to a service it does not bundle.
+    const { serviceId: otherServiceId } = await createService({ serviceDomain: 'Printing', name: 'Fine Art Printing' });
+    await setServiceVariables({
+      serviceId: otherServiceId,
+      variables: [{ key: 'print_size', label: 'Print size', kind: 'choice', options: ['8x10', '16x20'] }],
+    });
+    const [foreignVariable] = await listServiceVariables(otherServiceId);
+    await expect(
+      updatePackage({ packageId, variableValues: [{ serviceVariableId: foreignVariable.id, value: '8x10' }] })
+    ).rejects.toThrow(/does not include/i);
 
     // ---------------------------------------------------------
     // 3. BOOKINGS (Public Intake)

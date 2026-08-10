@@ -31,6 +31,8 @@ export {
   // Blueprints — a Service's Process
   createBlueprint, updateBlueprint, deleteBlueprint, listBlueprints,
   getProductionPlanForService, getDeliverableIdsForServices,
+  // Service Variables — the quantities that scope a service (outfits, hours)
+  listServiceVariables, listVariablesForServices, setServiceVariables,
   // Services — the specific transformation
   createService, updateService, duplicateService, setServiceStatus,
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
@@ -38,6 +40,9 @@ export {
 
 export { DIMENSIONS } from './dimensions';
 export type { Dimension } from './dimensions';
+
+export { SERVICE_VARIABLE_KINDS, formatVariableValue } from './variableTypes';
+export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue } from './variableTypes';
 
 export {
   // Intake question field-type registry — shared vocabulary, used wherever a

@@ -48,6 +48,53 @@ async function buildExtraStages(raw: StageInput[]): Promise<{ name: string; orde
   return stages;
 }
 
+/**
+ * Write what a package fixes.
+ *
+ * This is where "packages select, they never redefine" stops being a sentence
+ * in a doc. A value aimed at a variable outside the bundled services is
+ * rejected outright rather than dropped, because silently dropping it would let
+ * a package claim a scope it does not actually have.
+ *
+ * A variable the package says nothing about is deliberately open — it stays a
+ * question for the client rather than part of the offer.
+ */
+async function writePackageVariableValues(
+  orgId: string,
+  packageId: string,
+  serviceIds: string[],
+  values?: { serviceVariableId: string; value: unknown }[]
+) {
+  await supabaseAdmin
+    .from('package_variable_values')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('package_id', packageId);
+
+  const wanted = (values || []).filter((v) => v.serviceVariableId && v.value !== undefined && v.value !== null);
+  if (wanted.length === 0) return;
+
+  // Asked of the Services module — never read from its tables directly.
+  const { listVariablesForServices } = await import('@/modules/services/interface');
+  const allowed = new Set((await listVariablesForServices(serviceIds)).map((v: any) => v.id));
+
+  const stray = wanted.find((v) => !allowed.has(v.serviceVariableId));
+  if (stray) throw new Error('That option belongs to a service this package does not include.');
+
+  const { error } = await supabaseAdmin.from('package_variable_values').insert(
+    wanted.map((v) => ({
+      organization_id: orgId,
+      package_id: packageId,
+      service_variable_id: v.serviceVariableId,
+      value: v.value,
+    }))
+  );
+  if (error) {
+    console.error('Failed to save package variable values:', error);
+    throw new Error('Failed to save what this package includes');
+  }
+}
+
 export async function createPackage(input: {
   name?: string;
   description?: string | null;
@@ -60,6 +107,8 @@ export async function createPackage(input: {
   deliverableIds?: string[];
   containerIds?: string[];
   workflowIds?: string[];
+  /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
+  variableValues?: { serviceVariableId: string; value: unknown }[];
   occasions?: string[];
   contexts?: string[];
   subjects?: string[];
@@ -121,6 +170,8 @@ export async function createPackage(input: {
       await supabaseAdmin.from('package_delivery_containers').insert(input.containerIds.map((container_id) => ({ organization_id: orgId, package_id: pkg.id, container_id })));
     }
     
+    await writePackageVariableValues(orgId, pkg.id, serviceIds, input.variableValues);
+
     if (input.workflowIds && input.workflowIds.length > 0) {
       await supabaseAdmin.from('package_workflows').insert(input.workflowIds.map((blueprint_id, i) => ({ organization_id: orgId, package_id: pkg.id, blueprint_id, position: i })));
     }
@@ -156,6 +207,8 @@ export async function updatePackage(input: {
   deliverableIds?: string[];
   containerIds?: string[];
   workflowIds?: string[];
+  /** What this package fixes. Omit to leave untouched; pass [] to clear. */
+  variableValues?: { serviceVariableId: string; value: unknown }[];
   occasions?: string[];
   contexts?: string[];
   subjects?: string[];
@@ -236,6 +289,20 @@ export async function updatePackage(input: {
     syncConfig('purposes', input.purposes, 'purpose_id'),
     syncConfig('client_types', input.clientTypes, 'client_type_id'),
   ]);
+
+  // Validated against whatever the package bundles *now* — which may have just
+  // changed above, so this reads the current set rather than trusting input.
+  if (input.variableValues !== undefined) {
+    const { data: bundled } = await supabaseAdmin
+      .from('package_services').select('service_id')
+      .eq('package_id', input.packageId).eq('organization_id', orgId);
+    await writePackageVariableValues(
+      orgId,
+      input.packageId,
+      ((bundled || []) as any[]).map((r) => r.service_id),
+      input.variableValues
+    );
+  }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: input.packageId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/packages');
@@ -428,7 +495,8 @@ export async function getPackage(packageId: string) {
     package_contexts(context:service_contexts(id, name)),
     package_subjects(subject:subjects(id, name)),
     package_purposes(purpose:purposes(id, name)),
-    package_client_types(client_type:client_types(id, name))
+    package_client_types(client_type:client_types(id, name)),
+    package_variable_values(value, variable:service_variables(id, key, label, unit, kind))
   `).eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!data) return null;
   const p: any = data;
@@ -451,6 +519,17 @@ export async function getPackage(packageId: string) {
     subjects: (p.package_subjects || []).map((po: any) => po.subject).filter(Boolean),
     purposes: (p.package_purposes || []).map((po: any) => po.purpose).filter(Boolean),
     clientTypes: (p.package_client_types || []).map((po: any) => po.client_type).filter(Boolean),
+    // What this package fixes — "2 outfits", "5 edited images". A variable the
+    // package says nothing about stays open, so it is simply absent here.
+    variableValues: (p.package_variable_values || [])
+      .filter((pv: any) => pv.variable)
+      .map((pv: any) => ({
+        serviceVariableId: pv.variable.id,
+        key: pv.variable.key,
+        label: pv.variable.label,
+        unit: pv.variable.unit ?? null,
+        value: pv.value,
+      })),
   };
 }
 

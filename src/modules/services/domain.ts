@@ -5,6 +5,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { DIMENSIONS, type Dimension } from './dimensions';
+import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
 
 /**
  * Services — the ontology layer: what this studio actually knows how to do,
@@ -650,6 +651,130 @@ export async function getService(serviceId: string) {
     purposes: ((data as any).schema_purposes || []).map((sc: any) => sc.purpose).filter(Boolean),
     clientTypes: ((data as any).schema_client_types || []).map((sc: any) => sc.client_type).filter(Boolean),
   };
+}
+
+// ── Service Variables: the per-service half of the configuration schema ─────
+// Dimensions are shared vocabulary; variables are the quantities that scope
+// this particular service — outfits, edited images, coverage hours. The
+// service declares what may vary; a package fixes a value (see Packages).
+
+function rowToVariable(r: any): ServiceVariable {
+  return {
+    id: r.id,
+    serviceId: r.service_id,
+    key: r.key,
+    label: r.label,
+    kind: r.kind,
+    unit: r.unit ?? null,
+    options: Array.isArray(r.options) ? r.options : [],
+    defaultValue: r.default_value ?? null,
+    min: r.min_value ?? null,
+    max: r.max_value ?? null,
+    position: r.position ?? 0,
+  };
+}
+
+export async function listServiceVariables(serviceId: string): Promise<ServiceVariable[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_variables')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('service_id', serviceId)
+    .order('position');
+  if (error) {
+    console.error('Failed to list service variables:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map(rowToVariable);
+}
+
+/** Variables for several services at once — what a Package builder needs. */
+export async function listVariablesForServices(serviceIds: string[]): Promise<ServiceVariable[]> {
+  if (serviceIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_variables')
+    .select('*')
+    .eq('organization_id', orgId)
+    .in('service_id', serviceIds)
+    .order('position');
+  if (error) {
+    console.error('Failed to list variables for services:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map(rowToVariable);
+}
+
+/**
+ * Replace a service's variables wholesale — the editor sends the full list it
+ * wants, so removals are expressed by absence rather than a separate delete.
+ *
+ * A removed variable takes any package values with it (FK cascade), which is
+ * correct: a package cannot hold a value for something the service no longer
+ * recognizes.
+ */
+export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: service } = await supabaseAdmin
+    .from('services').select('id').eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
+  if (!service) throw new Error('Service not found');
+
+  const clean = (input.variables || [])
+    .map((v, i) => ({
+      raw: v,
+      key: (v.key || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, ''),
+      label: (v.label || '').trim(),
+      position: i,
+    }))
+    .filter((v) => v.key && v.label);
+
+  const keys = clean.map((v) => v.key);
+  const dupe = keys.find((k, i) => keys.indexOf(k) !== i);
+  if (dupe) throw new Error(`Two variables share the name "${dupe}" — each needs its own.`);
+
+  // Anything not in the incoming list is gone.
+  const keptIds = clean.map((v) => v.raw.id).filter(Boolean) as string[];
+  let removal = supabaseAdmin.from('service_variables').delete().eq('organization_id', orgId).eq('service_id', input.serviceId);
+  if (keptIds.length > 0) removal = removal.not('id', 'in', `(${keptIds.join(',')})`);
+  await removal;
+
+  for (const v of clean) {
+    const row = {
+      organization_id: orgId,
+      service_id: input.serviceId,
+      key: v.key,
+      label: v.label,
+      kind: v.raw.kind || 'number',
+      unit: (v.raw.unit || '').trim() || null,
+      options: v.raw.options || [],
+      default_value: v.raw.defaultValue ?? null,
+      min_value: v.raw.min ?? null,
+      max_value: v.raw.max ?? null,
+      position: v.position,
+    };
+    const { error } = v.raw.id
+      ? await supabaseAdmin.from('service_variables').update(row).eq('id', v.raw.id).eq('organization_id', orgId)
+      : await supabaseAdmin.from('service_variables').insert(row);
+    if (error) {
+      console.error('Failed to save service variable:', error);
+      throw new Error(`Failed to save "${v.label}"`);
+    }
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'variables_updated',
+    actorId: actorId ?? undefined,
+    payload: { count: clean.length },
+  });
+
+  revalidatePath('/services');
+  revalidatePath(`/services/${input.serviceId}`);
+  return { ok: true, count: clean.length };
 }
 
 export async function getDeliverableIdsForServices(serviceIds: string[]): Promise<string[]> {
