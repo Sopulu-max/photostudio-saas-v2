@@ -34,10 +34,29 @@ export type TemplateQuestion = {
  */
 export type TemplateStage = { name: string; roleName?: string; frontStage: boolean };
 
+/**
+ * Whether a service brings something into existence or acts on something that
+ * already exists. This is general knowledge the app holds about every service,
+ * in every domain — not a photography detail:
+ *
+ *   generative      reality → new asset          a shoot, a broadcast, a logo
+ *   transformative  existing asset → new asset   editing, restoring, printing,
+ *                                                framing, digitising, binding
+ *
+ * It matters because a transformative service cannot start until its input
+ * exists. That dependency has no home in the schema right now
+ * (`services.required_input_deliverable_id` was dropped in 20260810000001 in
+ * favour of dynamic intake forms), so this flag is the only place the system
+ * knows it at all.
+ */
+export type ServiceMode = 'generative' | 'transformative';
+
 export type ServiceTemplate = {
   id: string;
   /** Service Domain — Photography, Videography, Printing. */
   domain: string;
+  /** Defaults to 'generative' when unset — see serviceMode(). */
+  mode?: ServiceMode;
   /** The specific transformation's name — what gets created as the Service. */
   name: string;
   summary: string;
@@ -199,6 +218,95 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     contexts: ['In-studio', 'Outdoor'],
   },
 
+  // ── Photography: work on images that already exist ───────────────────────
+  // Everything above creates new photographs. These transform ones that are
+  // already there — the client brings the material. That is a different
+  // transformation, which is the whole reason they are separate services and
+  // not stages inside a shoot's blueprint. It is also why a restoration studio
+  // can exist without ever owning a camera.
+  //
+  // NOTE: the schema cannot currently express "this service consumes an
+  // existing deliverable" — services.required_input_deliverable_id was dropped
+  // in 20260810000001 in favour of dynamic intake forms. So the dependency
+  // below is stated in prose and carried by the questions, not by structure.
+  {
+    id: 'photo-retouching',
+    domain: 'Photography',
+    mode: 'transformative',
+    name: 'Photo Retouching',
+    summary: 'Refining photographs that already exist — the client supplies the images. Distinct from the editing pass inside a shoot, because here there was no shoot.',
+    deliverables: ['Edited photographs'],
+    blueprint: {
+      name: 'Photo Retouching',
+      stages: [
+        { name: 'Review & Quote', frontStage: true },
+        { name: 'Retouch', roleName: 'Photo Editor', frontStage: false },
+        { name: 'Delivery', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'number', label: 'Number of images' },
+      { type: 'choice', label: 'Depth of work', options: ['Basic clean-up', 'Full retouch', 'Composite / heavy edit'] },
+      { type: 'url', label: 'Link to the images' },
+    ],
+  },
+  {
+    id: 'photo-restoration',
+    domain: 'Photography',
+    mode: 'transformative',
+    name: 'Photo Restoration',
+    summary: 'Repairing damaged, faded or torn photographs. The input is usually a physical print, so this often depends on digitisation first.',
+    deliverables: ['Restored photographs'],
+    blueprint: {
+      name: 'Photo Restoration',
+      stages: [
+        { name: 'Assess Damage', frontStage: true },
+        { name: 'Restore', roleName: 'Photo Editor', frontStage: false },
+        { name: 'Delivery', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'number', label: 'Number of photographs' },
+      { type: 'text', label: 'What kind of damage' },
+      { type: 'boolean', label: 'Original is a physical print?' },
+    ],
+    purposes: ['Archival'],
+  },
+  {
+    id: 'photo-digitisation',
+    domain: 'Photography',
+    mode: 'transformative',
+    name: 'Photo Digitisation',
+    summary: 'Scanning physical photographs, negatives or slides into digital files. Produces nothing new — it moves an existing image into another medium.',
+    deliverables: ['Digital scans'],
+    blueprint: {
+      name: 'Photo Digitisation',
+      stages: [{ name: 'Scan', roleName: 'Print Technician', frontStage: false }],
+    },
+    questions: [
+      { type: 'number', label: 'Number of items' },
+      { type: 'choice', label: 'Source material', options: ['Prints', 'Negatives', 'Slides'] },
+    ],
+    purposes: ['Archival'],
+  },
+  {
+    id: 'film-developing',
+    domain: 'Photography',
+    mode: 'transformative',
+    name: 'Film Developing',
+    summary: 'Processing exposed film into developed negatives. This is the step that makes film the reverse of digital: here the physical original comes first, and the digital file is derived from it.',
+    deliverables: ['Developed film'],
+    blueprint: {
+      name: 'Film Developing',
+      stages: [{ name: 'Develop', roleName: 'Darkroom Technician', frontStage: false }],
+    },
+    questions: [
+      { type: 'number', label: 'Number of rolls' },
+      { type: 'choice', label: 'Film type', options: ['Colour negative', 'Black & white', 'Slide / E-6'] },
+      { type: 'boolean', label: 'Scan after developing?' },
+    ],
+  },
+
   // ── Videography ──────────────────────────────────────────────────────────
   // No "Wedding Videography" either, same reasoning as photography.
   {
@@ -259,10 +367,74 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     purposes: ['Advertising'],
   },
 
+  // ── Videography: work on footage that already exists ─────────────────────
+  // The same split as photography, for the same reason. An edit suite with no
+  // camera is a real business; so is a studio that only transfers old tapes.
+  {
+    id: 'video-editing',
+    domain: 'Videography',
+    name: 'Video Editing',
+    summary: 'Cutting footage the client already has into a finished piece. Distinct from the edit inside a shoot, because here the studio never filmed anything.',
+    mode: 'transformative',
+    deliverables: ['Edited video'],
+    blueprint: {
+      name: 'Video Editing',
+      stages: [
+        { name: 'Review Footage', frontStage: true },
+        { name: 'Edit', roleName: 'Video Editor', frontStage: false },
+        { name: 'Delivery', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'choice', label: 'Finished length', options: ['Under 1 minute', '1–3 minutes', '3–10 minutes', 'Longer'] },
+      { type: 'url', label: 'Link to the footage' },
+      { type: 'boolean', label: 'Music or voiceover supplied?' },
+    ],
+  },
+  {
+    id: 'video-restoration',
+    domain: 'Videography',
+    name: 'Video Restoration',
+    summary: 'Repairing degraded footage — noise, colour loss, damaged tape. The video equivalent of photo restoration.',
+    mode: 'transformative',
+    deliverables: ['Restored video'],
+    blueprint: {
+      name: 'Video Restoration',
+      stages: [
+        { name: 'Assess Footage', frontStage: true },
+        { name: 'Restore', roleName: 'Video Editor', frontStage: false },
+        { name: 'Delivery', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'number', label: 'Total minutes of footage' },
+      { type: 'text', label: 'What is wrong with it' },
+    ],
+    purposes: ['Archival'],
+  },
+  {
+    id: 'tape-transfer',
+    domain: 'Videography',
+    name: 'Tape Transfer',
+    summary: 'Moving VHS, MiniDV, 8mm and other tape formats to digital files. Produces nothing new — it carries existing footage into another medium.',
+    mode: 'transformative',
+    deliverables: ['Digital video files'],
+    blueprint: {
+      name: 'Tape Transfer',
+      stages: [{ name: 'Transfer', roleName: 'Video Editor', frontStage: false }],
+    },
+    questions: [
+      { type: 'number', label: 'Number of tapes' },
+      { type: 'choice', label: 'Source format', options: ['VHS', 'MiniDV', '8mm / Hi8', 'Betamax', 'Other'] },
+    ],
+    purposes: ['Archival'],
+  },
+
   // ── Printing / Design — deliverables that require their own process ────
   {
     id: 'printing',
     domain: 'Printing',
+    mode: 'transformative',
     name: 'Fine Art Printing',
     summary: 'A physical print, made from a digital image — its own transformation, which is why it is a separate Service, not a property of the photography that produced the original.',
     deliverables: ['Printed photographs'],
@@ -275,6 +447,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
   {
     id: 'framing',
     domain: 'Printing',
+    mode: 'transformative',
     name: 'Framing',
     summary: 'A framed, display-ready print — depends on a print already existing, its own process of materials and assembly.',
     deliverables: ['Framed print'],
@@ -286,6 +459,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
   {
     id: 'album-design',
     domain: 'Graphic Design',
+    mode: 'transformative',
     name: 'Album Design',
     summary: 'A designed photobook — depends on edited photographs already existing, a layout and print process of its own.',
     deliverables: ['Photobook'],
@@ -295,10 +469,101 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       { type: 'choice', label: 'Cover material', options: ['Linen', 'Leather', 'Acrylic'] },
     ],
   },
+
+  // ── Graphic Design: work made from a brief ───────────────────────────────
+  // Album Design above is transformative — it needs photographs to already
+  // exist. These are the other half of the domain: they create from a brief
+  // rather than from an asset, which is why their first stage is a
+  // conversation and not a file. A studio doing branding work had nothing to
+  // select before these.
+  {
+    id: 'logo-design',
+    domain: 'Graphic Design',
+    name: 'Logo Design',
+    summary: 'A mark for a business, made from a brief. Iterative by nature — concepts, a chosen direction, then final files.',
+    deliverables: ['Logo files'],
+    blueprint: {
+      name: 'Logo Design',
+      stages: [
+        { name: 'Brief', frontStage: true },
+        { name: 'Concepts', roleName: 'Graphic Designer', frontStage: false },
+        { name: 'Revisions', roleName: 'Graphic Designer', frontStage: true },
+        { name: 'Final Files', roleName: 'Graphic Designer', frontStage: false },
+      ],
+    },
+    questions: [
+      { type: 'text', label: 'Business or brand name', required: true },
+      { type: 'number', label: 'Number of initial concepts' },
+      { type: 'number', label: 'Rounds of revision included' },
+      { type: 'url', label: 'Reference or moodboard link' },
+    ],
+    clientTypes: ['Business'],
+    purposes: ['Branding'],
+  },
+  {
+    id: 'brand-identity',
+    domain: 'Graphic Design',
+    name: 'Brand Identity',
+    summary: 'The full system around a mark — colour, type, usage rules. Broader than a logo, and usually delivered as a guideline document.',
+    deliverables: ['Brand guidelines', 'Logo files'],
+    blueprint: {
+      name: 'Brand Identity',
+      stages: [
+        { name: 'Discovery', frontStage: true },
+        { name: 'Direction', roleName: 'Graphic Designer', frontStage: true },
+        { name: 'Build System', roleName: 'Graphic Designer', frontStage: false },
+        { name: 'Handover', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'text', label: 'Business or brand name', required: true },
+      { type: 'boolean', label: 'Existing logo to work from?' },
+      { type: 'multichoice', label: 'What the system should cover', options: ['Logo', 'Colour palette', 'Typography', 'Usage rules', 'Stationery', 'Social templates'] },
+    ],
+    clientTypes: ['Business'],
+    purposes: ['Branding'],
+  },
+  {
+    id: 'flyer-design',
+    domain: 'Graphic Design',
+    name: 'Flyer Design',
+    summary: 'A single piece of promotional artwork — flyer, poster, or social graphic. Short turnaround, one deliverable.',
+    deliverables: ['Print-ready artwork'],
+    blueprint: {
+      name: 'Flyer Design',
+      stages: [
+        { name: 'Brief', frontStage: true },
+        { name: 'Design', roleName: 'Graphic Designer', frontStage: false },
+        { name: 'Delivery', frontStage: true },
+      ],
+    },
+    questions: [
+      { type: 'text', label: 'What is it promoting' },
+      { type: 'choice', label: 'Intended output', options: ['Print', 'Social media', 'Both'] },
+      { type: 'boolean', label: 'Copy and images supplied?' },
+    ],
+    purposes: ['Advertising'],
+  },
 ];
 
 export function getTemplate(id: string): ServiceTemplate | undefined {
   return SERVICE_TEMPLATES.find((t) => t.id === id);
+}
+
+/**
+ * Creating something new is the default reading of a service, so only the
+ * templates that act on existing material declare themselves. Anything
+ * unmarked is generative.
+ */
+export function serviceMode(t: ServiceTemplate): ServiceMode {
+  return t.mode ?? 'generative';
+}
+
+/** The services in a domain that need something to already exist before they can start. */
+export function transformativeTemplates(domain?: string): ServiceTemplate[] {
+  return SERVICE_TEMPLATES.filter(
+    (t) => serviceMode(t) === 'transformative' && (!domain || t.domain === domain)
+  );
 }
 
 /** Grouped by domain, for the picker. */
