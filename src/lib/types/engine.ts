@@ -144,7 +144,6 @@ export interface Service {
   name: string;
   description: string | null;
   service_domain_id: string;
-  required_input_deliverable_id: string | null;
   primary_deliverable_id: string | null;
   status: 'active' | 'archived';
   created_at: string;

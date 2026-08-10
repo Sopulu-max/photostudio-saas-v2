@@ -29,8 +29,6 @@ export function TemplatePicker({
   subjectOptions,
   purposeOptions,
   clientTypeOptions,
-  outputSuggestionsByDomain,
-  dimensionSuggestionsByDomain,
 }: {
   domainOptions: string[];
   outputOptions: string[];
@@ -40,8 +38,6 @@ export function TemplatePicker({
   subjectOptions: string[];
   purposeOptions: string[];
   clientTypeOptions: string[];
-  outputSuggestionsByDomain: DeliverableSuggestions;
-  dimensionSuggestionsByDomain: DimensionSuggestions;
 }) {
   const [chosen, setChosen] = useState<ServiceTemplate | null>(null);
   const [custom, setCustom] = useState(false);
@@ -73,8 +69,6 @@ export function TemplatePicker({
           subjectOptions={subjectOptions}
           purposeOptions={purposeOptions}
           clientTypeOptions={clientTypeOptions}
-          outputSuggestionsByDomain={outputSuggestionsByDomain}
-          dimensionSuggestionsByDomain={dimensionSuggestionsByDomain}
           initial={{}}
         />
       </div>
@@ -103,8 +97,6 @@ export function TemplatePicker({
           subjectOptions={subjectOptions}
           purposeOptions={purposeOptions}
           clientTypeOptions={clientTypeOptions}
-          outputSuggestionsByDomain={outputSuggestionsByDomain}
-          dimensionSuggestionsByDomain={dimensionSuggestionsByDomain}
           initial={{
             name: chosen.name,
             description: chosen.summary,

@@ -32,8 +32,6 @@ export default async function NewServicePage() {
       subjectOptions={subjects.map((s: any) => s.name)}
       purposeOptions={purposes.map((p: any) => p.name)}
       clientTypeOptions={clientTypes.map((c: any) => c.name)}
-      outputSuggestionsByDomain={buildDeliverableSuggestions(services)}
-      dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
     />
   );
 }

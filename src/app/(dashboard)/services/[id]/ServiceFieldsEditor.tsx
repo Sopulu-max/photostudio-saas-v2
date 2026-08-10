@@ -3,59 +3,19 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createService, updateService, setServiceStatus, duplicateService } from '@/modules/services/interface';
-import type { Dimension, DeliverableSuggestions, DimensionSuggestions } from '@/modules/services/interface';
+import type { Dimension } from '@/modules/services/interface';
+import { CheckCircle2, ChevronRight, Settings } from 'lucide-react';
 
-/**
- * A Service is what the studio actually knows how to do — the ontology
- * layer. Name, which Service Domain it belongs to, its inputs and deliverables.
- * Not a commercial thing: no price, no payment terms, no intake questions — those
- * belong to a Package built from this Service.
- */
 export function ServiceFieldsEditor({
-  mode,
-  serviceId,
-  status,
-  domainOptions,
-  outputOptions,
-  enabledDimensions,
-  occasionOptions,
-  contextOptions,
-  subjectOptions,
-  purposeOptions,
-  clientTypeOptions,
-  outputSuggestionsByDomain,
-  dimensionSuggestionsByDomain,
+  mode, serviceId, status, domainOptions, outputOptions, enabledDimensions,
+  occasionOptions, contextOptions, subjectOptions, purposeOptions, clientTypeOptions,
   initial,
 }: {
-  mode: 'create' | 'edit';
-  serviceId?: string;
-  status?: string;
-  domainOptions: string[];
-  outputOptions: string[];
-  /** Which of the five possible dimensions this studio has chosen to organize by — only these render. */
-  enabledDimensions: Dimension[];
-  occasionOptions: string[];
-  contextOptions: string[];
-  subjectOptions: string[];
-  purposeOptions: string[];
-  clientTypeOptions: string[];
-  /** What this studio already produces per Domain (plus curated fallback) — the form morphs its output suggestions to whichever Domain is typed. */
-  outputSuggestionsByDomain: DeliverableSuggestions;
-  /** Same, per classification dimension — picking a Domain reorganizes Subject/Occasion/Context/Purpose/Client suggestions too. */
-  dimensionSuggestionsByDomain: DimensionSuggestions;
-  initial: {
-    name?: string;
-    description?: string | null;
-    serviceDomain?: string;
-    requiredInputDeliverable?: string | null;
-    primaryDeliverable?: string | null;
-    deliverables?: string[];
-    occasions?: string[];
-    contexts?: string[];
-    subjects?: string[];
-    purposes?: string[];
-    clientTypes?: string[];
-  };
+  mode: 'create' | 'edit'; serviceId?: string; status?: string;
+  domainOptions: string[]; outputOptions: string[]; enabledDimensions: Dimension[];
+  occasionOptions: string[]; contextOptions: string[]; subjectOptions: string[];
+  purposeOptions: string[]; clientTypeOptions: string[];
+  initial: any;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -63,233 +23,185 @@ export function ServiceFieldsEditor({
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
   const [domain, setDomain] = useState(initial.serviceDomain ?? '');
-  
-  const [requiredInputDeliverable, setRequiredInputType] = useState(initial.requiredInputDeliverable ?? '');
   const [primaryDeliverable, setPrimaryOutputType] = useState(initial.primaryDeliverable ?? '');
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
   const [newOutput, setNewOutput] = useState('');
-
-  // Configuration schemas (arrays)
+  
+  // Dimensional Restrictions
   const [occasions, setOccasions] = useState<string[]>(initial.occasions || []);
   const [newOccasion, setNewOccasion] = useState('');
-  
-  const [contexts, setContexts] = useState<string[]>(initial.contexts || []);
-  const [newContext, setNewContext] = useState('');
-  
   const [subjects, setSubjects] = useState<string[]>(initial.subjects || []);
   const [newSubject, setNewSubject] = useState('');
-  
-  const [purposes, setPurposes] = useState<string[]>(initial.purposes || []);
-  const [newPurpose, setNewPurpose] = useState('');
-  
-  const [clientTypes, setClientTypes] = useState<string[]>(initial.clientTypes || []);
-  const [newClientType, setNewClientType] = useState('');
 
-  // The Service Domain someone's typed changes what renders here, not just
-  // what gets stored: the output quick-suggestions are this studio's
-  // own accumulated vocabulary for that Domain.
-  const domainKey = Object.keys(outputSuggestionsByDomain).find((k) => k.toLowerCase() === domain.trim().toLowerCase());
-  const suggestedDeliverables = (domainKey ? outputSuggestionsByDomain[domainKey] : []).filter((d) => !deliverables.includes(d) && d !== primaryDeliverable);
+  const handleSave = () => {
+    if (!name.trim()) return alert('Name is required.');
+    if (!domain.trim()) return alert('Service Domain is required.');
 
-  // Same reorganization for the five classification dimensions.
-  const dimSuggestions = (dim: Dimension, current: string[]): string[] => {
-    const byDomain = dimensionSuggestionsByDomain[dim] || {};
-    const key = Object.keys(byDomain).find((k) => k.toLowerCase() === domain.trim().toLowerCase());
-    return (key ? byDomain[key] : []).filter((v) => !current.includes(v));
-  };
-
-  const addDeliverableValue = (d: string) => { if (d && !deliverables.includes(d) && d !== primaryDeliverable) setDeliverables((ds) => [...ds, d]); };
-  const addDeliverable = () => { addDeliverableValue(newOutput.trim()); setNewOutput(''); };
-  const removeDeliverable = (d: string) => setDeliverables((ds) => ds.filter((x) => x !== d));
-
-  const buildPayload = () => ({
-    name: name.trim(),
-    description: description.trim() || null,
-    serviceDomain: domain.trim() || null,
-    requiredInputDeliverable: requiredInputDeliverable.trim() || null,
-    primaryDeliverable: primaryDeliverable.trim() || null,
-    deliverables,
-    occasions,
-    contexts,
-    subjects,
-    purposes,
-    clientTypes,
-  });
-
-  const submit = () => {
-    if (!name.trim()) { alert('A service needs a name.'); return; }
-    if (mode === 'edit' && serviceId) {
-      startTransition(async () => {
-        try { 
-          await updateService({ serviceId, ...buildPayload() }); 
-          router.refresh(); 
-          router.push(`/services/${serviceId}`);
-        }
-        catch (e: any) { alert(e?.message || 'Something went wrong.'); }
-      });
-    }
-  };
-
-  const submitCreate = () => {
-    if (!name.trim()) { alert('A service needs a name.'); return; }
     startTransition(async () => {
       try {
-        const { serviceId: newId } = await createService(buildPayload());
-        router.push(`/services/${newId}`);
-      } catch (e: any) {
-        alert(e?.message || 'Failed to create the service.');
-      }
+        const payload = {
+          name, description, serviceDomain: domain,
+          primaryDeliverable: primaryDeliverable || null,
+          deliverables, occasions, subjects, 
+          contexts: initial.contexts || [], 
+          purposes: initial.purposes || [], 
+          clientTypes: initial.clientTypes || []
+        };
+        if (mode === 'create') {
+          const newId = await createService(payload);
+          router.push(`/services/${newId}`);
+        } else {
+          await updateService({ serviceId: serviceId!, ...payload });
+          router.push(`/services/${serviceId}`);
+        }
+      } catch (err: any) { alert(err?.message || 'Failed to save service.'); }
     });
   };
 
-  const retired = status === 'retired';
+  const toggleArray = (arr: string[], val: string, setter: (v: string[]) => void) => {
+    if (arr.includes(val)) setter(arr.filter((x) => x !== val));
+    else setter([...arr, val]);
+  };
 
-  const renderMultiDim = (
-    label: string, 
-    items: string[], 
-    setItems: React.Dispatch<React.SetStateAction<string[]>>, 
-    newItem: string, 
-    setNewItem: React.Dispatch<React.SetStateAction<string>>, 
-    options: string[], 
-    suggestions: string[]
-  ) => {
-    const addItemValue = (v: string) => { if (v && !items.includes(v)) setItems(prev => [...prev, v]); };
-    const addItem = () => { addItemValue(newItem.trim()); setNewItem(''); };
-    return (
-      <div className="q-field">
-        <label className="q-label">{label}</label>
-        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: items.length > 0 ? '8px' : '0' }}>
-          {items.map((item) => (
-            <span key={item} className="q-badge q-badge-neutral">
-              {item} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setItems(prev => prev.filter(x => x !== item))}>×</button>
-            </span>
-          ))}
-        </div>
-        <div className="q-row">
-          <input className="q-input" list={`options-${label}`} value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }} placeholder={`e.g. ${options[0] || '...'}`} />
-          <datalist id={`options-${label}`}>{options.map(o => <option key={o} value={o} />)}</datalist>
-          <button className="q-btn q-btn-secondary q-btn-xs" onClick={addItem}>+ Add</button>
-        </div>
-        {suggestions.length > 0 && (
-          <div className="q-row" style={{ flexWrap: 'wrap', marginTop: '6px' }}>
-            {suggestions.map((v) => (
-              <button key={v} type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addItemValue(v)}>+ {v}</button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+  const addArray = (val: string, arr: string[], setter: (v: string[]) => void, reset: () => void) => {
+    const t = val.trim();
+    if (t && !arr.includes(t)) setter([...arr, t]);
+    reset();
   };
 
   return (
-    <div className="q-stack q-stack-lg">
-      <div className="q-card q-section">
-        <h2 className="q-section-title">What it is</h2>
-        <div className="q-stack q-stack-md">
-          <div className="q-field">
-            <label className="q-label">Name</label>
-            <input className="q-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Portrait Photography" />
-          </div>
-          <div className="q-field">
-            <label className="q-label">Description</label>
-            <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this transformation is, in general." />
-          </div>
-          <div className="q-field">
-            <label className="q-label">Service Domain</label>
-            <input className="q-input" list="domain-options" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. Photography" />
-            <datalist id="domain-options">{domainOptions.map((d) => <option key={d} value={d} />)}</datalist>
-            <span className="q-meta-sm">The broad capability this belongs to — the strongest, but not the only, way to classify it.</span>
-          </div>
-          {(enabledDimensions.length > 0) && (
-            <div className="q-grid-2">
-              {enabledDimensions.includes('subject') && renderMultiDim('Subjects', subjects, setSubjects, newSubject, setNewSubject, subjectOptions, dimSuggestions('subject', subjects))}
-              {enabledDimensions.includes('occasion') && renderMultiDim('Occasions', occasions, setOccasions, newOccasion, setNewOccasion, occasionOptions, dimSuggestions('occasion', occasions))}
-              {enabledDimensions.includes('context') && renderMultiDim('Contexts', contexts, setContexts, newContext, setNewContext, contextOptions, dimSuggestions('context', contexts))}
-              {enabledDimensions.includes('purpose') && renderMultiDim('Purposes', purposes, setPurposes, newPurpose, setNewPurpose, purposeOptions, dimSuggestions('purpose', purposes))}
-              {enabledDimensions.includes('client') && renderMultiDim('Client Types', clientTypes, setClientTypes, newClientType, setNewClientType, clientTypeOptions, dimSuggestions('client', clientTypes))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">Inputs & Deliverables</h2>
-        <p className="q-meta" style={{ marginBottom: '12px' }}>What this service requires to start, and what it produces at the end.</p>
+    <div className="q-stack" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+      
+      {/* 1. Core Service Information */}
+      <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)' }}>
+        <h3 className="q-section-title">Core Capability</h3>
         
-        <div className="q-stack q-stack-md">
-          <div className="q-field">
-            <label className="q-label">Required Input Type</label>
-            <input className="q-input" list="input-options" value={requiredInputDeliverable} onChange={(e) => setRequiredInputType(e.target.value)} placeholder="e.g. RAW Images (leave blank if none required)" />
-            <datalist id="input-options">{outputOptions.map((d) => <option key={d} value={d} />)}</datalist>
-            <span className="q-meta-sm">Does this service depend on the output of a previous service? (e.g. Photo Editing requires RAW Images)</span>
-          </div>
-          
-          <div className="q-field">
-            <label className="q-label">Primary Output Type</label>
-            <input className="q-input" list="output-options" value={primaryDeliverable} onChange={(e) => setPrimaryOutputType(e.target.value)} placeholder="e.g. Edited photographs" />
-            <span className="q-meta-sm">The main asset this service produces. (e.g. Photography produces RAW images)</span>
-          </div>
+        <div className="q-row q-gap-md" style={{ alignItems: 'flex-start' }}>
+          <label className="q-label" style={{ flex: 1 }}>
+            Service Domain (Parent)
+            <input className="q-input q-fill" list="domains-list" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. Photography" disabled={isPending} />
+            <datalist id="domains-list">{domainOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
+            <span className="q-meta-sm" style={{ marginTop: '4px', opacity: 0.7 }}>Determines available DNA dimensions.</span>
+          </label>
         </div>
 
-        <div style={{ marginTop: '24px' }}>
-          <label className="q-label">Additional Deliverables</label>
-          <div className="q-row" style={{ flexWrap: 'wrap' }}>
-            {deliverables.map((d) => (
-              <span key={d} className="q-badge q-badge-neutral">
-                {d} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeDeliverable(d)}>×</button>
-              </span>
-            ))}
+        <label className="q-label" style={{ marginTop: '8px' }}>
+          Service Name
+          <input className="q-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wedding Photography" disabled={isPending} />
+        </label>
+        
+        <label className="q-label" style={{ marginTop: '8px' }}>
+          Description
+          <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} disabled={isPending} />
+        </label>
+      </div>
+
+      {/* 2. Internal Restrictions (Derived from Domain DNA) */}
+      <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
+        <div className="q-row q-row-between">
+          <div>
+            <h3 className="q-section-title">Internal Restrictions</h3>
+            <span className="q-meta-sm" style={{ opacity: 0.7 }}>Dimensions constrained by this service. Any unconstrained dimension is asked of the client.</span>
           </div>
-          <div className="q-row" style={{ marginTop: '8px' }}>
-            <input className="q-input" list="output-options" value={newOutput} onChange={(e) => setNewOutput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDeliverable(); } }}
-              placeholder="e.g. Behind the scenes video" style={{ minWidth: '12rem' }} />
-            <datalist id="output-options">{outputOptions.map((d) => <option key={d} value={d} />)}</datalist>
-            <button className="q-btn q-btn-secondary q-btn-xs" onClick={addDeliverable}>+ Add</button>
-          </div>
-          {domain.trim() && suggestedDeliverables.length > 0 && (
-            <div className="q-row" style={{ flexWrap: 'wrap', marginTop: '8px', alignItems: 'center' }}>
-              <span className="q-meta-sm">Common for {domain.trim()}:</span>
-              {suggestedDeliverables.map((d) => (
-                <button key={d} type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addDeliverableValue(d)}>+ {d}</button>
-              ))}
-            </div>
+          <Settings size={20} color="var(--q-color-primary)" opacity={0.5} />
+        </div>
+
+        <div className="q-stack q-gap-md" style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
+          {enabledDimensions.length === 0 ? (
+            <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>No dimensional DNA inherited from the selected domain.</span>
+          ) : (
+            <>
+              {enabledDimensions.includes('subject') && (
+                <div className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
+                  <label className="q-label">Restrict Subjects</label>
+                  <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                    {subjects.map((s: string) => (
+                      <span key={s} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => toggleArray(subjects, s, setSubjects)}>
+                        {s} &times;
+                      </span>
+                    ))}
+                    <div className="q-row q-gap-sm">
+                      <input className="q-input" style={{ width: '160px', padding: '4px 12px', fontSize: '0.85rem' }} list="subjects-list" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addArray(newSubject, subjects, setSubjects, () => setNewSubject('')); }} placeholder="+ Add constraint" />
+                      <datalist id="subjects-list">{subjectOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {enabledDimensions.includes('occasion') && (
+                <div className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
+                  <label className="q-label">Restrict Occasions</label>
+                  <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                    {occasions.map((s: string) => (
+                      <span key={s} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => toggleArray(occasions, s, setOccasions)}>
+                        {s} &times;
+                      </span>
+                    ))}
+                    <div className="q-row q-gap-sm">
+                      <input className="q-input" style={{ width: '160px', padding: '4px 12px', fontSize: '0.85rem' }} list="occasions-list" value={newOccasion} onChange={(e) => setNewOccasion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addArray(newOccasion, occasions, setOccasions, () => setNewOccasion('')); }} placeholder="+ Add constraint" />
+                      <datalist id="occasions-list">{occasionOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      <div className="q-row" style={{ marginTop: '16px' }}>
-        {mode === 'create' ? (
-          <button className="q-btn q-btn-primary" disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create service'}</button>
-        ) : (
-          <>
-            <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
-            <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/services/${serviceId}`)}>Cancel</button>
-            <button className="q-btn q-btn-secondary" disabled={isPending}
-              onClick={() => startTransition(async () => {
-                try { const { serviceId: copyId } = await duplicateService(serviceId!); router.push(`/services/${copyId}`); }
-                catch (e: any) { alert(e?.message || 'Failed to duplicate the service.'); }
-              })}>
-              Duplicate
-            </button>
-            <span className="q-spacer" />
-            <button className="q-btn q-btn-secondary" disabled={isPending}
-              onClick={() => startTransition(async () => {
-                try { await setServiceStatus({ serviceId: serviceId!, status: retired ? 'active' : 'retired' }); router.refresh(); }
-                catch (e: any) { alert(e?.message || 'Something went wrong.'); }
-              })}>
-              {retired ? 'Make available again' : 'Retire this service'}
-            </button>
-          </>
+      {/* 3. Output Configuration */}
+      <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
+        <h3 className="q-section-title">Produces (Outputs)</h3>
+        
+        <div className="q-stack q-gap-sm" style={{ marginTop: '16px' }}>
+          <label className="q-label">
+            Primary Asset
+            <input className="q-input q-fill" style={{ fontSize: '1rem', fontWeight: 500, padding: '12px' }} list="outputs-list" value={primaryDeliverable} onChange={(e) => setPrimaryOutputType(e.target.value)} placeholder="e.g. Edited Photograph" disabled={isPending} />
+            <datalist id="outputs-list">{outputOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
+          </label>
+
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
+            <label className="q-label" style={{ marginBottom: '8px' }}>Additional Deliverables</label>
+            <div className="q-stack q-gap-sm">
+              {deliverables.map((d: string) => (
+                <div key={d} className="q-panel q-row q-row-between" style={{ padding: '12px 16px', backgroundColor: 'var(--q-color-ground)' }}>
+                  <span className="q-strong">{d}</span>
+                  <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => toggleArray(deliverables, d, setDeliverables)}>&times;</button>
+                </div>
+              ))}
+              
+              <div className="q-row q-gap-sm" style={{ marginTop: '8px' }}>
+                <input className="q-input q-fill" list="outputs-list" value={newOutput} onChange={(e) => setNewOutput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addArray(newOutput, deliverables, setDeliverables, () => setNewOutput('')); }} placeholder="+ Add another asset..." />
+                <button className="q-btn q-btn-secondary" onClick={() => addArray(newOutput, deliverables, setDeliverables, () => setNewOutput(''))}>Add Deliverable</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Actions */}
+      <div className="q-row q-row-between" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--q-color-border)' }}>
+        <div className="q-row">
+          <button className="q-btn q-btn-primary" onClick={handleSave} disabled={isPending}>
+            <CheckCircle2 size={16} style={{ marginRight: '8px' }} />
+            {isPending ? 'Saving...' : 'Save Capability Engine'}
+          </button>
+          <button className="q-btn q-btn-secondary" onClick={() => router.push(mode === 'create' ? '/services' : `/services/${serviceId}`)}>
+            Cancel
+          </button>
+        </div>
+        {mode === 'edit' && (
+          <div className="q-row">
+            {status === 'active' ? (
+              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'retired' }).then(() => router.refresh()))} disabled={isPending}>Archive Engine</button>
+            ) : (
+              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'active' }).then(() => router.refresh()))} disabled={isPending}>Restore Engine</button>
+            )}
+            <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => duplicateService(serviceId!).then((newId) => router.push(`/services/${newId}/edit`)))} disabled={isPending}>Duplicate</button>
+          </div>
         )}
       </div>
-      {mode === 'edit' && (
-        retired ? (
-          <div className="q-note q-note-warn"><span className="q-meta-plain">Retired — it won&rsquo;t appear when bundling a new Package.</span></div>
-        ) : (
-          <span className="q-meta-sm">Retiring hides it from new Packages. Packages already built from it are untouched — nothing is deleted.</span>
-        )
-      )}
+
     </div>
   );
 }

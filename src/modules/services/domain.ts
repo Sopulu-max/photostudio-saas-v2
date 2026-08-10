@@ -77,7 +77,61 @@ async function deleteNamed(table: NamedTable, id: string, label: string) {
   return { ok: true };
 }
 
-export async function listServiceDomains() { return listNamed('service_domains'); }
+export async function listServiceDomains() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_domains')
+    .select(`
+      id, name,
+      domain_deliverables:service_domain_deliverables(deliverable:deliverables(id, name)),
+      domain_occasions:service_domain_occasions(occasion:occasions(id, name)),
+      domain_contexts:service_domain_contexts(context:service_contexts(id, name)),
+      domain_subjects:service_domain_subjects(subject:subjects(id, name)),
+      domain_purposes:service_domain_purposes(purpose:purposes(id, name)),
+      domain_client_types:service_domain_client_types(client_type:client_types(id, name))
+    `)
+    .eq('organization_id', orgId)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: false });
+  if (error) { console.error('listServiceDomains error:', error); return []; }
+  return (data || []).map((d: any) => ({
+    id: d.id, name: d.name,
+    deliverables: (d.domain_deliverables || []).map((x: any) => x.deliverable).filter(Boolean),
+    occasions: (d.domain_occasions || []).map((x: any) => x.occasion).filter(Boolean),
+    contexts: (d.domain_contexts || []).map((x: any) => x.context).filter(Boolean),
+    subjects: (d.domain_subjects || []).map((x: any) => x.subject).filter(Boolean),
+    purposes: (d.domain_purposes || []).map((x: any) => x.purpose).filter(Boolean),
+    clientTypes: (d.domain_client_types || []).map((x: any) => x.client_type).filter(Boolean),
+  }));
+}
+
+export async function getServiceDomain(id: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_domains')
+    .select(`
+      id, name,
+      domain_deliverables:service_domain_deliverables(deliverable:deliverables(id, name)),
+      domain_occasions:service_domain_occasions(occasion:occasions(id, name)),
+      domain_contexts:service_domain_contexts(context:service_contexts(id, name)),
+      domain_subjects:service_domain_subjects(subject:subjects(id, name)),
+      domain_purposes:service_domain_purposes(purpose:purposes(id, name)),
+      domain_client_types:service_domain_client_types(client_type:client_types(id, name))
+    `)
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (error || !data) { console.error('getServiceDomain error:', error); return null; }
+  return {
+    id: data.id, name: data.name,
+    deliverables: ((data as any).domain_deliverables || []).map((x: any) => x.deliverable).filter(Boolean),
+    occasions: ((data as any).domain_occasions || []).map((x: any) => x.occasion).filter(Boolean),
+    contexts: ((data as any).domain_contexts || []).map((x: any) => x.context).filter(Boolean),
+    subjects: ((data as any).domain_subjects || []).map((x: any) => x.subject).filter(Boolean),
+    purposes: ((data as any).domain_purposes || []).map((x: any) => x.purpose).filter(Boolean),
+    clientTypes: ((data as any).domain_client_types || []).map((x: any) => x.client_type).filter(Boolean),
+  };
+}
 export async function createServiceDomain(name: string) {
   const { orgId } = await getAuthOrgId();
   const id = await findOrCreateNamed('service_domains', orgId, name);
@@ -87,6 +141,44 @@ export async function createServiceDomain(name: string) {
 }
 export async function renameServiceDomain(id: string, name: string) { return renameNamed('service_domains', id, name, 'service domain'); }
 export async function deleteServiceDomain(id: string) { return deleteNamed('service_domains', id, 'service domain'); }
+
+export async function updateServiceDomainDNA(
+  domainId: string, 
+  dna: { 
+    deliverables?: string[]; 
+    occasions?: string[]; 
+    contexts?: string[]; 
+    subjects?: string[]; 
+    purposes?: string[]; 
+    clientTypes?: string[] 
+  }
+) {
+  const { orgId } = await getAuthOrgId();
+  
+  // Helper to sync a many-to-many junction table
+  const syncJunction = async (tableName: string, idColumn: string, ids: string[] | undefined) => {
+    if (!ids) return;
+    await supabaseAdmin.from(tableName).delete().eq('service_domain_id', domainId).eq('organization_id', orgId);
+    if (ids.length > 0) {
+      await supabaseAdmin.from(tableName).insert(
+        ids.map(id => ({
+          organization_id: orgId,
+          service_domain_id: domainId,
+          [idColumn]: id
+        }))
+      );
+    }
+  };
+
+  await Promise.all([
+    syncJunction('service_domain_deliverables', 'deliverable_id', dna.deliverables),
+    syncJunction('service_domain_occasions', 'occasion_id', dna.occasions),
+    syncJunction('service_domain_contexts', 'context_id', dna.contexts),
+    syncJunction('service_domain_subjects', 'subject_id', dna.subjects),
+    syncJunction('service_domain_purposes', 'purpose_id', dna.purposes),
+    syncJunction('service_domain_client_types', 'client_type_id', dna.clientTypes),
+  ]);
+}
 
 export async function listDeliverables() { return listNamed('deliverables'); }
 export async function createDeliverable(name: string) {
@@ -309,7 +401,6 @@ export async function createService(input: {
   name: string;
   description?: string | null;
   serviceDomain?: string | null;
-  requiredInputDeliverable?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
   occasions?: string[];
@@ -323,7 +414,6 @@ export async function createService(input: {
   if (!name) throw new Error('A service needs a name.');
 
   const domainId = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  const requiredInputDeliverableId = input.requiredInputDeliverable ? await findOrCreateNamed('deliverables', orgId, input.requiredInputDeliverable) : null;
   const primaryDeliverableId = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
 
   const { data: service, error } = await supabaseAdmin
@@ -333,7 +423,6 @@ export async function createService(input: {
       name,
       description: input.description || null,
       service_domain_id: domainId,
-      required_input_deliverable_id: requiredInputDeliverableId,
       primary_deliverable_id: primaryDeliverableId,
       status: 'active',
     })
@@ -382,7 +471,6 @@ export async function updateService(input: {
   name?: string;
   description?: string | null;
   serviceDomain?: string | null;
-  requiredInputDeliverable?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
   occasions?: string[];
@@ -403,7 +491,6 @@ export async function updateService(input: {
   }
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.serviceDomain !== undefined) patch.service_domain_id = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  if (input.requiredInputDeliverable !== undefined) patch.required_input_deliverable_id = input.requiredInputDeliverable ? await findOrCreateNamed('deliverables', orgId, input.requiredInputDeliverable) : null;
   if (input.primaryDeliverable !== undefined) patch.primary_deliverable_id = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
 
   if (Object.keys(patch).length > 0) {
@@ -454,12 +541,12 @@ export async function updateService(input: {
 /** Fork an existing Service — same domain, process, deliverables, a new id to edit from. */
 export async function duplicateService(serviceId: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { data: existing } = await supabaseAdmin.from('services').select('name, description, service_domain_id, required_input_deliverable_id, primary_deliverable_id').eq('id', serviceId).eq('organization_id', orgId).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from('services').select('name, description, service_domain_id, primary_deliverable_id').eq('id', serviceId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Service not found');
 
   const { data: copy, error } = await supabaseAdmin
     .from('services')
-    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, service_domain_id: existing.service_domain_id, required_input_deliverable_id: existing.required_input_deliverable_id, primary_deliverable_id: existing.primary_deliverable_id, status: 'active' })
+    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, service_domain_id: existing.service_domain_id, primary_deliverable_id: existing.primary_deliverable_id, status: 'active' })
     .select('id')
     .single();
   if (error || !copy) { console.error('Failed to duplicate service:', error); throw new Error('Failed to duplicate the service'); }
@@ -506,7 +593,6 @@ export async function listServices() {
     .select(`
       id, name, description, status, service_domain_id,
       domain:service_domains(id, name),
-      required_input_type:deliverables!services_required_input_deliverable_id_fkey(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
       schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
@@ -543,7 +629,6 @@ export async function getService(serviceId: string) {
     .select(`
       id, name, description, status, service_domain_id,
       domain:service_domains(id, name),
-      required_input_type:deliverables!services_required_input_deliverable_id_fkey(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
       schema_occasions:service_schema_occasions(occasion:occasions(id, name)),

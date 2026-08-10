@@ -18,6 +18,7 @@ import { FacetManager } from '@/components/FacetManager';
 import { NewBlueprintForm } from '../NewBlueprintForm';
 import { BlueprintRow } from '../BlueprintRow';
 import { DimensionChooser } from '../DimensionChooser';
+import { DomainManager } from './DomainManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,9 +83,9 @@ export default async function ServiceSettingsPage() {
         <section className="q-card q-section">
           <h2 className="q-section-title">Service Domains</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>The broad capabilities this studio offers — Photography, Videography, Printing.</p>
-          <FacetManager
-            facets={domains} counts={domainCounts} noun="service" placeholder="e.g. Graphic Design"
-            onCreate={createServiceDomain} onRename={renameServiceDomain} onDelete={deleteServiceDomain}
+          <DomainManager
+            domains={domains} counts={domainCounts}
+            onCreate={createServiceDomain} onDelete={deleteServiceDomain}
           />
         </section>
 

@@ -65,18 +65,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
           <h2 className="q-section-title">Inputs & Deliverables</h2>
-          <div className="q-grid-2">
-            <div className="q-panel">
-              <div className="q-stat-label">Required Input</div>
-              <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>
-                {dims.required_input_type ? (
-                  <span className="q-row" style={{ gap: '8px' }}><CircleDashed size={18} className="q-text-meta" /> {dims.required_input_type.name}</span>
-                ) : (
-                  <span className="q-text-meta">None</span>
-                )}
-              </div>
-            </div>
-            
+          <div className="q-grid-1">
             <div className="q-panel">
               <div className="q-stat-label">Primary Output</div>
               <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>

@@ -56,13 +56,10 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         subjectOptions={subjects.map((s: any) => s.name)}
         purposeOptions={purposes.map((p: any) => p.name)}
         clientTypeOptions={clientTypes.map((c: any) => c.name)}
-        outputSuggestionsByDomain={buildDeliverableSuggestions(services)}
-        dimensionSuggestionsByDomain={buildDimensionSuggestions(services)}
         initial={{
           name: service.name,
           description: (service as any).description,
           serviceDomain: (service as any).domain?.name || '',
-          requiredInputDeliverable: (service as any).required_input_type?.name || null,
           primaryDeliverable: (service as any).primary_output_type?.name || null,
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
           occasions: ((service as any).occasions || []).map((d: any) => d.name),
