@@ -1,4 +1,5 @@
 import type { FieldTypeKey } from './fieldTypes';
+import type { ServiceVariableInput } from './variableTypes';
 
 /**
  * The curated starting-point library — engine-authored, not a database
@@ -64,7 +65,17 @@ export type ServiceTemplate = {
   deliverables: string[];
   /** The Service's default Process. */
   blueprint?: { name: string; stages: TemplateStage[] };
-  /** Suggested questions a Package bundling this service might ask a client. */
+  /**
+   * What may vary about this service — outfits, images, coverage, revisions.
+   * A package fixes a value; anything it leaves open becomes a question for
+   * the client. That is why these are NOT duplicated in `questions` below:
+   * the question is generated from the unset variable rather than stored twice.
+   */
+  variables?: ServiceVariableInput[];
+  /**
+   * Facts about a particular engagement that no package could fix in advance —
+   * the event date, the venue, a link to the client's own files.
+   */
   questions: TemplateQuestion[];
   // Curated hints for the five classification dimensions — only set where the
   // template's own summary/questions already ground it (never invented). Not
@@ -101,10 +112,13 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'people', label: 'Number of people', kind: 'number', unit: 'person', min: 1 },
+      { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit', min: 1 },
+      { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image', min: 1 },
+    ],
     questions: [
       { type: 'choice', label: 'Setting', options: ['In-studio', 'Outdoor', "Client's home"] },
-      { type: 'number', label: 'Number of people' },
-      { type: 'number', label: 'Number of outfits' },
       { type: 'url', label: 'Moodboard link' },
     ],
     subjects: ['Person'],
@@ -131,11 +145,15 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'coverage_hours', label: 'Hours of coverage', kind: 'number', unit: 'hour', min: 1 },
+      { key: 'photographers', label: 'Photographers', kind: 'number', unit: 'photographer', min: 1, defaultValue: 1 },
+      { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image', min: 1 },
+    ],
     questions: [
       { type: 'date', label: 'Event date', required: true },
       { type: 'text', label: 'Venue' },
       { type: 'number', label: 'Guest count' },
-      { type: 'boolean', label: 'Second shooter needed?' },
       { type: 'multichoice', label: 'Style preference', options: ['Candid', 'Traditional', 'Editorial'] },
     ],
     subjects: ['Person'],
@@ -154,8 +172,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'people', label: 'Number of people', kind: 'number', unit: 'person', min: 1 },
+      { key: 'looks', label: 'Looks per person', kind: 'number', unit: 'look', min: 1, defaultValue: 1 },
+      { key: 'edited_images', label: 'Edited images per person', kind: 'number', unit: 'image', min: 1 },
+    ],
     questions: [
-      { type: 'number', label: 'Number of people' },
       { type: 'choice', label: 'Background', options: ['Studio backdrop', 'On-location', 'Office'] },
     ],
     subjects: ['Person'],
@@ -174,8 +196,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'products', label: 'Number of products', kind: 'number', unit: 'product', min: 1 },
+      { key: 'angles', label: 'Angles per product', kind: 'number', unit: 'angle', min: 1 },
+      { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image', min: 1 },
+    ],
     questions: [
-      { type: 'number', label: 'Number of products' },
       { type: 'choice', label: 'Usage', options: ['Web', 'Print', 'Both'] },
       { type: 'url', label: 'Reference or brand guide link' },
     ],
@@ -191,6 +217,9 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       name: 'Passport Photography',
       stages: [{ name: 'Shoot & Print', roleName: 'Photographer', frontStage: true }],
     },
+    variables: [
+      { key: 'prints', label: 'Printed copies', kind: 'number', unit: 'copy', min: 1 },
+    ],
     questions: [
       { type: 'text', label: 'Destination country / document type' },
     ],
@@ -210,9 +239,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'pets', label: 'Number of pets', kind: 'number', unit: 'pet', min: 1 },
+      { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image', min: 1 },
+    ],
     questions: [
       { type: 'choice', label: 'Setting', options: ['In-studio', 'Outdoor'] },
-      { type: 'number', label: 'Number of pets' },
     ],
     subjects: ['Pet'],
     contexts: ['In-studio', 'Outdoor'],
@@ -244,9 +276,11 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'images', label: 'Number of images', kind: 'number', unit: 'image', min: 1 },
+      { key: 'depth', label: 'Depth of work', kind: 'choice', options: ['Basic clean-up', 'Full retouch', 'Composite / heavy edit'] },
+    ],
     questions: [
-      { type: 'number', label: 'Number of images' },
-      { type: 'choice', label: 'Depth of work', options: ['Basic clean-up', 'Full retouch', 'Composite / heavy edit'] },
       { type: 'url', label: 'Link to the images' },
     ],
   },
@@ -265,8 +299,10 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'photographs', label: 'Number of photographs', kind: 'number', unit: 'photograph', min: 1 },
+    ],
     questions: [
-      { type: 'number', label: 'Number of photographs' },
       { type: 'text', label: 'What kind of damage' },
       { type: 'boolean', label: 'Original is a physical print?' },
     ],
@@ -283,8 +319,11 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       name: 'Photo Digitisation',
       stages: [{ name: 'Scan', roleName: 'Print Technician', frontStage: false }],
     },
+    variables: [
+      { key: 'items', label: 'Number of items', kind: 'number', unit: 'item', min: 1 },
+      { key: 'resolution', label: 'Scan resolution', kind: 'choice', options: ['Standard', 'High', 'Archival'] },
+    ],
     questions: [
-      { type: 'number', label: 'Number of items' },
       { type: 'choice', label: 'Source material', options: ['Prints', 'Negatives', 'Slides'] },
     ],
     purposes: ['Archival'],
@@ -300,10 +339,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       name: 'Film Developing',
       stages: [{ name: 'Develop', roleName: 'Darkroom Technician', frontStage: false }],
     },
+    variables: [
+      { key: 'rolls', label: 'Number of rolls', kind: 'number', unit: 'roll', min: 1 },
+      { key: 'scan_included', label: 'Scanning included', kind: 'boolean', defaultValue: false },
+    ],
     questions: [
-      { type: 'number', label: 'Number of rolls' },
       { type: 'choice', label: 'Film type', options: ['Colour negative', 'Black & white', 'Slide / E-6'] },
-      { type: 'boolean', label: 'Scan after developing?' },
     ],
   },
 
@@ -323,11 +364,13 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'coverage_hours', label: 'Hours of coverage', kind: 'number', unit: 'hour', min: 1 },
+      { key: 'cameras', label: 'Cameras', kind: 'number', unit: 'camera', min: 1, defaultValue: 1 },
+      { key: 'drone', label: 'Drone coverage', kind: 'boolean', defaultValue: false },
+    ],
     questions: [
       { type: 'text', label: 'Event type' },
-      { type: 'choice', label: 'Coverage', options: ['4 hours', '8 hours', 'Full day'] },
-      { type: 'boolean', label: 'Multi-camera needed?' },
-      { type: 'boolean', label: 'Drone footage wanted?' },
     ],
     occasions: ['Wedding', 'Conference'],
   },
@@ -341,10 +384,13 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       name: 'Live Streaming',
       stages: [{ name: 'Broadcast', roleName: 'Videographer', frontStage: true }],
     },
+    variables: [
+      { key: 'broadcast_hours', label: 'Hours of broadcast', kind: 'number', unit: 'hour', min: 1 },
+      { key: 'cameras', label: 'Cameras', kind: 'number', unit: 'camera', min: 1, defaultValue: 1 },
+    ],
     questions: [
       { type: 'date', label: 'Event date', required: true },
       { type: 'text', label: 'Platform (YouTube, Zoom, etc.)' },
-      { type: 'boolean', label: 'Multi-camera needed?' },
     ],
   },
   {
@@ -360,9 +406,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Video Edit', roleName: 'Video Editor', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'length', label: 'Finished length', kind: 'choice', options: ['Under 1 minute', '1–3 minutes', '3+ minutes'] },
+      { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
+    ],
     questions: [
       { type: 'boolean', label: 'Script or storyboard provided?' },
-      { type: 'choice', label: 'Deliverable length', options: ['Under 1 minute', '1–3 minutes', '3+ minutes'] },
     ],
     purposes: ['Advertising'],
   },
@@ -385,8 +434,11 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'length', label: 'Finished length', kind: 'choice', options: ['Under 1 minute', '1–3 minutes', '3–10 minutes', 'Longer'] },
+      { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
+    ],
     questions: [
-      { type: 'choice', label: 'Finished length', options: ['Under 1 minute', '1–3 minutes', '3–10 minutes', 'Longer'] },
       { type: 'url', label: 'Link to the footage' },
       { type: 'boolean', label: 'Music or voiceover supplied?' },
     ],
@@ -406,8 +458,10 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'footage_minutes', label: 'Minutes of footage', kind: 'number', unit: 'minute', min: 1 },
+    ],
     questions: [
-      { type: 'number', label: 'Total minutes of footage' },
       { type: 'text', label: 'What is wrong with it' },
     ],
     purposes: ['Archival'],
@@ -423,8 +477,10 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
       name: 'Tape Transfer',
       stages: [{ name: 'Transfer', roleName: 'Video Editor', frontStage: false }],
     },
+    variables: [
+      { key: 'tapes', label: 'Number of tapes', kind: 'number', unit: 'tape', min: 1 },
+    ],
     questions: [
-      { type: 'number', label: 'Number of tapes' },
       { type: 'choice', label: 'Source format', options: ['VHS', 'MiniDV', '8mm / Hi8', 'Betamax', 'Other'] },
     ],
     purposes: ['Archival'],
@@ -439,9 +495,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'A physical print, made from a digital image — its own transformation, which is why it is a separate Service, not a property of the photography that produced the original.',
     deliverables: ['Printed photographs'],
     blueprint: { name: 'Fine Art Printing', stages: [{ name: 'Print', roleName: 'Print Technician', frontStage: false }] },
+    variables: [
+      { key: 'prints', label: 'Number of prints', kind: 'number', unit: 'print', min: 1 },
+      { key: 'size', label: 'Print size', kind: 'choice', options: ['8x10', '11x14', '16x20'] },
+    ],
     questions: [
       { type: 'text', label: 'Which image (reference or file name)' },
-      { type: 'choice', label: 'Size', options: ['8x10', '11x14', '16x20'] },
     ],
   },
   {
@@ -452,9 +511,11 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'A framed, display-ready print — depends on a print already existing, its own process of materials and assembly.',
     deliverables: ['Framed print'],
     blueprint: { name: 'Framing', stages: [{ name: 'Frame', roleName: 'Print Technician', frontStage: false }] },
-    questions: [
-      { type: 'choice', label: 'Frame finish', options: ['Black', 'White', 'Natural wood'] },
+    variables: [
+      { key: 'frames', label: 'Number of frames', kind: 'number', unit: 'frame', min: 1 },
+      { key: 'finish', label: 'Frame finish', kind: 'choice', options: ['Black', 'White', 'Natural wood'] },
     ],
+    questions: [],
   },
   {
     id: 'album-design',
@@ -464,10 +525,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'A designed photobook — depends on edited photographs already existing, a layout and print process of its own.',
     deliverables: ['Photobook'],
     blueprint: { name: 'Album Design', stages: [{ name: 'Design', roleName: 'Graphic Designer', frontStage: false }] },
-    questions: [
-      { type: 'number', label: 'Number of pages' },
-      { type: 'choice', label: 'Cover material', options: ['Linen', 'Leather', 'Acrylic'] },
+    variables: [
+      { key: 'pages', label: 'Number of pages', kind: 'number', unit: 'page', min: 1 },
+      { key: 'cover', label: 'Cover material', kind: 'choice', options: ['Linen', 'Leather', 'Acrylic'] },
+      { key: 'copies', label: 'Copies', kind: 'number', unit: 'copy', min: 1, defaultValue: 1 },
     ],
+    questions: [],
   },
 
   // ── Graphic Design: work made from a brief ───────────────────────────────
@@ -491,10 +554,12 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Final Files', roleName: 'Graphic Designer', frontStage: false },
       ],
     },
+    variables: [
+      { key: 'concepts', label: 'Initial concepts', kind: 'number', unit: 'concept', min: 1 },
+      { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
+    ],
     questions: [
       { type: 'text', label: 'Business or brand name', required: true },
-      { type: 'number', label: 'Number of initial concepts' },
-      { type: 'number', label: 'Rounds of revision included' },
       { type: 'url', label: 'Reference or moodboard link' },
     ],
     clientTypes: ['Business'],
@@ -537,6 +602,10 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
         { name: 'Delivery', frontStage: true },
       ],
     },
+    variables: [
+      { key: 'concepts', label: 'Initial concepts', kind: 'number', unit: 'concept', min: 1, defaultValue: 1 },
+      { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
+    ],
     questions: [
       { type: 'text', label: 'What is it promoting' },
       { type: 'choice', label: 'Intended output', options: ['Print', 'Social media', 'Both'] },

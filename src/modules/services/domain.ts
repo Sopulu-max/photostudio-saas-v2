@@ -404,6 +404,8 @@ export async function createService(input: {
   serviceDomain?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
+  /** What may vary about this service — declared up front so a template's service arrives usable. */
+  variables?: ServiceVariableInput[];
   occasions?: string[];
   contexts?: string[];
   subjects?: string[];
@@ -461,6 +463,10 @@ export async function createService(input: {
     insertSchema('purposes', input.purposes, 'purpose_id'),
     insertSchema('client_types', input.clientTypes, 'client_type_id'),
   ]);
+
+  if (input.variables && input.variables.length > 0) {
+    await setServiceVariables({ serviceId: service.id, variables: input.variables });
+  }
 
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: service.id, action: 'created', actorId: actorId ?? undefined, payload: { name } });
   revalidatePath('/services');

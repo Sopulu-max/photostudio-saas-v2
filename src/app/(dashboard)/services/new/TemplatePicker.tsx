@@ -103,6 +103,9 @@ export function TemplatePicker({
             serviceDomain: chosen.domain,
             primaryDeliverable: chosen.deliverables?.[0] || null,
             deliverables: chosen.deliverables,
+            // The service arrives knowing what may vary about it, so a package
+            // built from it can fix outfits or coverage without hand-entry.
+            variables: chosen.variables || [],
             occasions: chosen.occasions || [],
             contexts: chosen.contexts || [],
             subjects: chosen.subjects || [],

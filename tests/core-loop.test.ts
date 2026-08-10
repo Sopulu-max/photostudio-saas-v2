@@ -25,6 +25,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createRole } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
 import { formatVariableValue } from '@/modules/services/variableTypes';
+import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking } from '@/modules/packages/domain';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
@@ -257,5 +258,28 @@ describe('Core Loop Verification', () => {
     const finalBooking = await getBooking(bookingId);
     expect(finalBooking?.contracts.length).toBe(1);
     expect(finalBooking?.transactions.length).toBe(1);
+  }, 30000);
+
+  it('gives a template-created service its variables without hand-entry', async () => {
+    const template = getTemplate('portrait-photography')!;
+    expect(template.variables?.length).toBe(3);
+
+    const { serviceId } = await createService({
+      name: template.name,
+      serviceDomain: template.domain,
+      deliverables: template.deliverables,
+      variables: template.variables,
+    });
+
+    const declared = await listServiceVariables(serviceId);
+    expect(declared.map((v) => v.key)).toEqual(['people', 'outfits', 'edited_images']);
+    expect(declared.find((v) => v.key === 'outfits')).toMatchObject({ kind: 'number', unit: 'outfit', min: 1 });
+
+    // A scope variable must not also survive as an intake question, or the
+    // studio would be asked for the same number twice.
+    const questionLabels = template.questions.map((q) => q.label.toLowerCase());
+    for (const v of template.variables!) {
+      expect(questionLabels).not.toContain(v.label.toLowerCase());
+    }
   }, 30000);
 });
