@@ -6,6 +6,7 @@ import { listActiveServices } from '@/modules/services/interface';
 import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { PackageFieldsEditor } from '../PackageFieldsEditor';
+import { PackageVariablesEditor } from '../PackageVariablesEditor';
 import { QuestionEditor } from '../QuestionEditor';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes } = await import('@/modules/services/interface');
+  const { listDeliverables, listDeliveryContainers, listBlueprints, getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes, listVariablesForServices } = await import('@/modules/services/interface');
   const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
     getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(), listDeliveryContainers(), listBlueprints(),
@@ -32,6 +33,13 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   for (const s of (allServices as any[])) {
     suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
   }
+
+  // Only the variables of the services this package actually bundles — the
+  // editor cannot offer anything the package has no right to fix.
+  const bundledServices = ((pkg as any).services || []) as { id: string; name: string }[];
+  const serviceNameById = new Map(bundledServices.map((s) => [s.id, s.name]));
+  const bundledVariables = (await listVariablesForServices(bundledServices.map((s) => s.id)))
+    .map((v: any) => ({ ...v, serviceName: serviceNameById.get(v.serviceId) || 'Service' }));
 
   const pricing: any = pkg.pricing || {};
   const hasPrice = pricing.base_price != null;
@@ -87,6 +95,12 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
           }}
+        />
+
+        <PackageVariablesEditor
+          packageId={pkg.id}
+          variables={bundledVariables as any}
+          initial={((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value }))}
         />
 
         <div className="q-card q-section">

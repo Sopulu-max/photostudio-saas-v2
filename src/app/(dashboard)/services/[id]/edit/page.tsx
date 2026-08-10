@@ -2,12 +2,13 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  getService, listServiceDomains, listDeliverables, listServices,
+  getService, listServiceDomains, listDeliverables, listServices, listServiceVariables,
   getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
   buildDeliverableSuggestions, buildDimensionSuggestions,
 } from '@/modules/services/interface';
 import type { Dimension } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
+import { ServiceVariablesEditor } from '../ServiceVariablesEditor';
 import { DimensionTag } from '../../DimensionTag';
 
 export const dynamic = 'force-dynamic';
@@ -23,10 +24,10 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
+  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services, variables] = await Promise.all([
     listServiceDomains(), listDeliverables(),
     getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
-    listServices(),
+    listServices(), listServiceVariables(params.id),
   ]);
 
   const dims = service as any;
@@ -69,6 +70,10 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
           clientTypes: ((service as any).clientTypes || []).map((d: any) => d.name),
         }}
       />
+
+      <div style={{ maxWidth: '800px', margin: '16px auto 0', width: '100%' }}>
+        <ServiceVariablesEditor serviceId={service.id} initial={variables} />
+      </div>
     </div>
   );
 }

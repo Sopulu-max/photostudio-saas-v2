@@ -4,6 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getPackage, getIntakeQuestions } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
+import { formatVariableValue } from '@/modules/services/interface';
 import { Package, HelpCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -127,6 +128,21 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           )}
         </div>
         
+        {/* What this package fixes. Anything the services declare but the
+            package leaves open is asked at booking, so it is absent here. */}
+        {((pkg as any).variableValues || []).length > 0 && (
+          <div className="q-card q-section">
+            <h2 className="q-section-title">What&rsquo;s included</h2>
+            <div className="q-row" style={{ flexWrap: 'wrap', marginTop: '12px' }}>
+              {((pkg as any).variableValues as any[]).map((v) => (
+                <span key={v.serviceVariableId} className="q-badge q-badge-neutral">
+                  {v.label}: {formatVariableValue(v)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="q-grid-2">
           <div className="q-card q-section">
             <h2 className="q-section-title">Deliverables</h2>
