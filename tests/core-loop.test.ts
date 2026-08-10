@@ -28,6 +28,50 @@ import { createPackage, getPackageForBooking } from '@/modules/packages/domain';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 
+/**
+ * Remove a test organization and everything under it.
+ *
+ * Not every org-scoped table cascades from `organizations` — `events` and
+ * `contacts` both refuse the delete, which is defensible in production (the app
+ * archives studios, it never deletes them) but means a test must clean up after
+ * itself explicitly. The previous cleanup ignored the delete's result, so it had
+ * silently never worked and left an organization behind on every single run.
+ *
+ * Order is child-first. Tables that do cascade are harmless to include.
+ */
+export const PURGE_ORDER = [
+  'events',
+  'assignments', 'tasks', 'booking_lines',
+  // financial_transactions before contracts: a transaction points at the
+  // contract it settles, so contracts cannot go first.
+  'financial_transactions', 'deliveries', 'contracts',
+  'bookings',
+  'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
+  'package_occasions', 'package_contexts', 'package_subjects', 'package_purposes', 'package_client_types',
+  'packages',
+  'service_deliverables',
+  'service_schema_occasions', 'service_schema_contexts', 'service_schema_subjects',
+  'service_schema_purposes', 'service_schema_client_types',
+  'services',
+  'service_domain_deliverables', 'service_domain_occasions', 'service_domain_contexts',
+  'service_domain_subjects', 'service_domain_purposes', 'service_domain_client_types',
+  'blueprints',
+  'employee_roles', 'employees', 'clients',
+  'contacts',
+  'roles', 'booking_stages', 'delivery_containers', 'deliverables', 'service_domains',
+  'occasions', 'service_contexts', 'subjects', 'purposes', 'client_types',
+] as const;
+
+async function purgeOrg(orgId: string) {
+  for (const table of PURGE_ORDER) {
+    await supabaseAdmin.from(table).delete().eq('organization_id', orgId);
+  }
+  // Fail loudly: a silently dirty database is how eleven test studios
+  // accumulated before anyone noticed.
+  const { error } = await supabaseAdmin.from('organizations').delete().eq('id', orgId);
+  if (error) throw new Error(`Test cleanup failed, database left dirty: ${error.message}`);
+}
+
 describe('Core Loop Verification', () => {
   
   beforeAll(async () => {
@@ -55,11 +99,11 @@ describe('Core Loop Verification', () => {
     });
   });
 
+  // Generous timeout: the purge is ~45 sequential round trips, well past
+  // vitest's 10s hook default.
   afterAll(async () => {
-    // Cleanup: deletes cascade in postgres if setup properly, otherwise we just delete the org and rely on cascading or manual cleanup.
-    // Given we are testing, let's clean up the org, which cascades to everything else.
-    await supabaseAdmin.from('organizations').delete().eq('id', TEST_ORG_ID);
-  });
+    await purgeOrg(TEST_ORG_ID);
+  }, 120000);
 
   it('verifies the full interconnected core loop', async () => {
     // ---------------------------------------------------------
@@ -77,15 +121,18 @@ describe('Core Loop Verification', () => {
     });
     expect(blueprintId).toBeDefined();
 
+    // A Service no longer carries a blueprint. It is the transformation; the
+    // process that carries it out is attached to the Package below, via
+    // package_workflows. See docs/architecture/02-ONTOLOGY.md.
     const { serviceId } = await createService({
       serviceDomain: 'Photography',
       name: 'Portrait Session',
       description: 'A 1 hour portrait session',
-      blueprintId
     });
     expect(serviceId).toBeDefined();
 
-    const { deliverableId } = await createDeliverable('Edited Photos');
+    const { outputTypeId } = await createDeliverable('Edited Photos');
+    expect(outputTypeId).toBeDefined();
 
     // ---------------------------------------------------------
     // 2. PACKAGES (Marketing & Pricing)
@@ -98,7 +145,9 @@ describe('Core Loop Verification', () => {
       depositPercentage: 50,
       durationMinutes: 60,
       serviceIds: [serviceId],
-      deliverableIds: [deliverableId]
+      deliverableIds: [outputTypeId],
+      // The process lives here now — this is what startWorkForLine resolves.
+      workflowIds: [blueprintId],
     });
     expect(packageId).toBeDefined();
 
@@ -133,7 +182,10 @@ describe('Core Loop Verification', () => {
     // ---------------------------------------------------------
     // 5. PRODUCTION (Work Seeding)
     // ---------------------------------------------------------
-    // We start work on the line. It should ask Packages for the plan, which asks Services for the blueprint, which creates Tasks.
+    // Start work on the line. Bookings asks Packages for the plan; Packages
+    // assembles it from its own package_workflows (plus any extra_stages) and
+    // hands the stages to Production, which seeds the tasks. Two tasks here
+    // proves the whole chain resolved, including the role routing below.
     const { taskCount } = await startWorkForLine({ bookingId, lineId });
     expect(taskCount).toBe(2); // Shoot and Edit
 
