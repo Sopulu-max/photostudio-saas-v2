@@ -48,7 +48,12 @@ export default async function SettingsPage() {
         <section className="q-card q-section">
           <h2 className="q-section-title">Studio</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>Your name and the handle your public links use.</p>
-          <StudioForm name={org.name} slug={org.slug || ''} />
+          <StudioForm 
+            name={org.name} 
+            slug={org.slug || ''} 
+            logoUrl={org.metadata?.logo_url as string | undefined}
+            coverUrl={org.metadata?.cover_url as string | undefined}
+          />
           {org.slug && <CopyLinkButton slug={org.slug} />}
         </section>
 

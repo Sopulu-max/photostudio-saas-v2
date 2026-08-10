@@ -105,14 +105,14 @@ export async function updateOrganizationStatus(organizationId: string, status: '
 }
 
 /** Who this studio is — name and storefront slug, for surfaces that greet or link to it. */
-export async function getStudio(): Promise<{ id: string; name: string; slug: string | null } | null> {
+export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; metadata?: Record<string, any> } | null> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, metadata')
     .eq('id', orgId)
     .maybeSingle();
-  return (data as { id: string; name: string; slug: string | null }) ?? null;
+  return (data as { id: string; name: string; slug: string | null; metadata?: Record<string, any> }) ?? null;
 }
 
 /**
@@ -165,7 +165,7 @@ export async function setStudioCurrency(code: string) {
  * The slug is in every public URL (/book/<slug>/…), so changing it breaks links
  * already shared with clients — the UI says so before you do it.
  */
-export async function updateStudio(input: { name?: string; slug?: string }) {
+export async function updateStudio(input: { name?: string; slug?: string; logoUrl?: string; coverUrl?: string }) {
   const { orgId } = await getAuthOrgId();
 
   const patch: Record<string, unknown> = {};
@@ -179,6 +179,18 @@ export async function updateStudio(input: { name?: string; slug?: string }) {
     if (!slug) throw new Error('The handle needs at least one letter or number.');
     patch.slug = slug;
   }
+  
+  if (input.logoUrl !== undefined || input.coverUrl !== undefined) {
+    // Fetch existing metadata to merge
+    const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).single();
+    const existingMeta = (org?.metadata as Record<string, any>) || {};
+    patch.metadata = {
+      ...existingMeta,
+      ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
+      ...(input.coverUrl !== undefined && { cover_url: input.coverUrl }),
+    };
+  }
+
   if (Object.keys(patch).length === 0) return { ok: true };
 
   const { error } = await supabaseAdmin

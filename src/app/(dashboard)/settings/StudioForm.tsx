@@ -4,13 +4,15 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateStudio } from '@/kernel/organizations';
 
-export function StudioForm({ name: initialName, slug: initialSlug }: { name: string; slug: string }) {
+export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: initialLogo, coverUrl: initialCover }: { name: string; slug: string; logoUrl?: string; coverUrl?: string }) {
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
+  const [logoUrl, setLogoUrl] = useState(initialLogo || '');
+  const [coverUrl, setCoverUrl] = useState(initialCover || '');
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const dirty = name.trim() !== initialName || slug.trim() !== initialSlug;
+  const dirty = name.trim() !== initialName || slug.trim() !== initialSlug || logoUrl.trim() !== (initialLogo || '') || coverUrl.trim() !== (initialCover || '');
   const slugChanged = slug.trim() !== initialSlug;
 
   return (
@@ -28,6 +30,18 @@ export function StudioForm({ name: initialName, slug: initialSlug }: { name: str
           Your booking links look like <code>/book/{slug || 'your-studio'}/…</code>
         </span>
       </div>
+      
+      <div className="q-field">
+        <label className="q-label">Logo Image URL</label>
+        <input className="q-input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
+        <span className="q-meta-sm">URL of your studio logo (shown on your storefront and invoices).</span>
+      </div>
+
+      <div className="q-field">
+        <label className="q-label">Cover Image URL</label>
+        <input className="q-input" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://example.com/cover.jpg" />
+        <span className="q-meta-sm">URL of a banner image for your booking storefront.</span>
+      </div>
 
       {slugChanged && (
         <div className="q-note q-note-warn">
@@ -43,13 +57,16 @@ export function StudioForm({ name: initialName, slug: initialSlug }: { name: str
             className="q-btn q-btn-primary"
             disabled={isPending}
             onClick={() => startTransition(async () => {
-              try { await updateStudio({ name, slug }); router.refresh(); }
+              try { 
+                await updateStudio({ name, slug, logoUrl, coverUrl }); 
+                router.refresh(); 
+              }
               catch (e: any) { alert(e?.message || 'Could not save.'); }
             })}
           >
             {isPending ? 'Saving…' : 'Save'}
           </button>
-          <button className="q-btn q-btn-secondary" onClick={() => { setName(initialName); setSlug(initialSlug); }}>
+          <button className="q-btn q-btn-secondary" onClick={() => { setName(initialName); setSlug(initialSlug); setLogoUrl(initialLogo || ''); setCoverUrl(initialCover || ''); }}>
             Cancel
           </button>
         </div>

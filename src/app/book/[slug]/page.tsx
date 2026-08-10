@@ -11,17 +11,25 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, currency')
+    .select('id, name, currency, metadata')
     .eq('slug', params.slug)
     .maybeSingle();
   if (!org) notFound();
 
   const packages = await listPackagesPublic(org.id);
   const currencyCode = org.currency || 'USD';
+  const meta = (org.metadata || {}) as Record<string, any>;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)' }}>
-      <header style={{ padding: 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
+      {meta.cover_url && (
+        <div style={{ width: '100%', height: '240px', backgroundImage: `url(${meta.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+      )}
+      
+      <header style={{ padding: meta.cover_url ? '32px 24px 64px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
+        {meta.logo_url && (
+          <div style={{ width: '96px', height: '96px', borderRadius: '50%', backgroundColor: 'var(--q-color-paper)', border: '4px solid var(--q-color-paper-subtle)', backgroundImage: `url(${meta.logo_url})`, backgroundSize: 'cover', backgroundPosition: 'center', margin: meta.cover_url ? '-80px auto 24px' : '0 auto 24px', boxShadow: 'var(--q-shadow-md)' }} />
+        )}
         <h1 style={{ margin: 0, fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--q-color-ink-900)' }}>
           {org.name}
         </h1>
