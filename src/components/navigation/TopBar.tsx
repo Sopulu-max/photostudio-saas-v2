@@ -2,8 +2,18 @@
 
 import React from 'react';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
+import type { Notification } from '@/kernel/notifications';
 
-export default function TopBar({ studioName }: { studioName?: string }) {
+export default function TopBar({
+  studioName,
+  notifications = [],
+  unreadCount = 0,
+}: {
+  studioName?: string;
+  notifications?: Notification[];
+  unreadCount?: number;
+}) {
   return (
     <header style={{
       height: '52px',
@@ -30,6 +40,7 @@ export default function TopBar({ studioName }: { studioName?: string }) {
       }}>
         Search ⌘K
       </div>
+      <NotificationBell items={notifications} unreadCount={unreadCount} />
       <ThemeToggle />
       <div style={{
         width: '30px',

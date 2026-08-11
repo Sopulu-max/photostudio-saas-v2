@@ -713,6 +713,74 @@ body {
 .q-combo-empty  { padding: 10px 12px; color: var(--q-color-ink-500); font-size: 0.875rem; }
 .q-combo-sep    { border-top: 1px solid var(--q-color-ink-100); margin: 4px 0; }
 
+/* ---- Notifications: the bell, and what it opens ---- */
+/* Deliberately not a positioning context: the panel hangs off the top bar, not
+   off the button. The bar spans the content column, so anchoring there is what
+   keeps the panel inside it — the column clips its overflow, and a panel wider
+   than the column would otherwise be sliced off at the sidebar. */
+.q-bell-wrap { display: flex; align-items: center; }
+.q-bell {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  border: 1px solid var(--q-color-ink-100); border-radius: 50%;
+  background: var(--q-color-paper-subtle); color: var(--q-color-ink-600);
+  cursor: pointer;
+  transition: transform var(--q-dur-1) var(--q-spring), background var(--q-dur-1) var(--q-ease), color var(--q-dur-1) var(--q-ease);
+}
+.q-bell:hover  { background: var(--q-color-ink-50); color: var(--q-color-ink-900); }
+.q-bell:active { transform: scale(0.94); }
+/* The count sits on the rim rather than inside it, so a two-character count
+   never has to shrink the icon to fit. */
+.q-bell-dot {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: var(--q-color-accent); color: #fff;
+  font-size: 0.62rem; font-weight: 700; line-height: 1;
+  border: 2px solid var(--q-color-paper);
+}
+.q-bell-panel {
+  /* Anchored to the sticky top bar. The width is capped by the bar's own
+     width, so it shrinks with the column instead of being clipped by it. */
+  position: absolute; top: 100%; right: 24px; z-index: 40;
+  margin-top: 8px; width: min(22rem, calc(100% - 48px));
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-200);
+  border-radius: 14px;
+  box-shadow: var(--q-shadow-lg);
+  overflow: hidden;
+}
+.q-bell-head {
+  padding: 11px 14px; border-bottom: 1px solid var(--q-color-ink-100);
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--q-color-ink-400);
+}
+.q-bell-list  { max-height: 22rem; overflow-y: auto; }
+.q-bell-empty { padding: 22px 16px; color: var(--q-color-ink-500); font-size: 0.875rem; line-height: 1.5; }
+.q-bell-item {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 11px 14px; text-decoration: none; color: inherit;
+  border-left: 2px solid transparent;
+  transition: background var(--q-dur-1) var(--q-ease);
+}
+.q-bell-item:hover { background: var(--q-color-ink-50); }
+.q-bell-item + .q-bell-item { border-top: 1px solid var(--q-color-ink-100); }
+/* Unread is a weight and an edge, not a colour wash — the panel stays legible
+   when everything in it is new. */
+.q-bell-item-new { border-left-color: var(--q-color-accent); background: var(--q-color-accent-soft); }
+.q-bell-item-new .q-bell-text { font-weight: 600; }
+.q-bell-text { font-size: 0.875rem; line-height: 1.4; }
+.q-bell-time { font-size: 0.72rem; color: var(--q-color-ink-400); white-space: nowrap; flex-shrink: 0; }
+.q-bell-foot {
+  display: block; padding: 10px 14px;
+  border-top: 1px solid var(--q-color-ink-100);
+  background: var(--q-color-paper-subtle);
+  font-size: 0.8rem; font-weight: 500; color: var(--q-color-accent); text-decoration: none;
+}
+.q-bell-foot:hover { background: var(--q-color-ink-50); }
+
 /* The chosen thing, shown in place of the picker once it's been picked. */
 .q-picked        { padding: 14px; border: 1px solid var(--q-color-ink-100); border-radius: 12px; background: var(--q-color-paper-elevated); }
 .q-picked-accent { border-color: color-mix(in srgb, var(--q-color-accent) 45%, transparent); background: var(--q-color-accent-soft); }

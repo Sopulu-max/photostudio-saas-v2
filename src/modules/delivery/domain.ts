@@ -286,7 +286,7 @@ export async function shareDelivery(input: { deliveryId: string; bookingId: stri
     entityId: input.deliveryId,
     action: 'shared',
     actorId: actorId ?? undefined,
-    payload: { fileCount: count },
+    payload: { bookingId: input.bookingId, fileCount: count },
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
@@ -474,7 +474,7 @@ export async function getGalleryByToken(token: string) {
 
   const { data: delivery } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, organization_id, booking:bookings(title), delivery_assets(id, position, asset:assets(id, file_name, mime_type, storage_path))')
+    .select('id, title, status, organization_id, booking_id, last_viewed_at, booking:bookings(title, contact_id), delivery_assets(id, position, asset:assets(id, file_name, mime_type, storage_path))')
     .eq('share_token', token)
     .maybeSingle();
 
@@ -512,10 +512,26 @@ export async function getGalleryByToken(token: string) {
   const validFiles = files.filter(Boolean);
 
   // Stamp the view so the studio can see it landed.
+  const firstView = !(delivery as any).last_viewed_at;
   await supabaseAdmin
     .from('deliveries')
     .update({ last_viewed_at: new Date().toISOString() })
     .eq('id', delivery.id);
+
+  // The client opening the gallery is the studio finding out the work landed —
+  // one of the few things that happens entirely outside the app. Only the first
+  // view is an event: every refresh after that is the same news repeated, and a
+  // notification feed that repeats itself stops being read.
+  if (firstView) {
+    await logEvent({
+      organizationId: delivery.organization_id,
+      entityType: 'delivery',
+      entityId: delivery.id,
+      action: 'viewed',
+      actorId: (delivery as any).booking?.contact_id || undefined,
+      payload: { bookingId: (delivery as any).booking_id, title: delivery.title },
+    });
+  }
 
   return {
     title: delivery.title,

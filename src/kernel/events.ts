@@ -51,6 +51,8 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'booking.created':        'created a booking',
   'booking.client_set':     'attached a client to a booking',
   'booking.stage_changed':  'moved a booking to a new stage',
+  'booking.scheduled':      'put a date on a booking',
+  'booking.unscheduled':    'took the date off a booking',
   'booking.renamed':        'renamed a booking',
   'booking.deleted':        'deleted a booking',
   'booking.crew_assigned':  'put someone on a booking',
@@ -66,6 +68,7 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'service.duplicated': 'duplicated a service',
   'service.retired':    'retired a service',
   'service.restored':   'brought a service back',
+  'service.variables_updated': 'changed what varies on a service',
   'blueprint.created':  'created a blueprint',
   'blueprint.updated':  'changed a blueprint',
   'blueprint.deleted':  'removed a blueprint',
@@ -82,6 +85,7 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'task.created':        'started work on a booking',
   'task.status_updated': 'moved a task along',
   'task.assigned':       'assigned a task',
+  'task.asset_produced': 'produced a file from a task',
 
   // Money
   'financial_transaction.created':        'raised an invoice',
@@ -95,11 +99,13 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'contract.cancelled':     'cancelled a contract',
 
   // Delivery
-  'delivery.created':    'created a delivery',
-  'delivery.file_added': 'added files to a delivery',
-  'delivery.shared':     'shared a delivery',
-  'delivery.unshared':   'stopped sharing a delivery',
-  'delivery.deleted':    'deleted a delivery',
+  'delivery.created':        'created a delivery',
+  'delivery.file_added':     'added files to a delivery',
+  'delivery.shared':         'shared a delivery',
+  'delivery.unshared':       'stopped sharing a delivery',
+  'delivery.deleted':        'deleted a delivery',
+  'delivery.fulfilment_set': 'marked what a delivery covers',
+  'delivery.viewed':         'opened the gallery',
 
   // People
   'client.created':         'added a client',

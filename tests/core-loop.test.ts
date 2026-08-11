@@ -30,6 +30,7 @@ import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpen
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
+import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
 
 /**
  * Remove a test organization and everything under it.
@@ -383,6 +384,44 @@ describe('Core Loop Verification', () => {
     fulfilment = await getFulfilmentForBooking(bookingId);
     expect(fulfilment.find((f) => f.name === 'Edited Photos')!.shared).toBe(true);
     expect(fulfilment.find((f) => f.name === 'Album')!.shared).toBe(false);
+  }, 120000);
+
+  it('notifies the studio about the outside world, not about itself', async () => {
+    // Start from a clean watermark so this test's own events are the only
+    // thing that can be unread.
+    await markNotificationsSeen();
+
+    // The operator's own doing. Actor is the test contact — i.e. "me".
+    const { bookingId: myBookingId } = await createBooking({ title: 'Something I did myself' });
+
+    // A client booking. createBookingFromIntake attributes the event to the
+    // client's contact, which is what makes it news.
+    const { contactId: clientContactId } = await createClient({ name: 'Ada Notify', email: 'ada.notify@example.com' });
+    const { bookingId: theirBookingId } = await createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId: clientContactId,
+      clientName: 'Ada Notify',
+      packageName: 'Custom Enquiry',
+    });
+
+    const items = await listNotifications(20);
+    const hrefs = items.map((n) => n.href);
+
+    // Rule 1 + 2: their booking arrives, mine does not.
+    expect(hrefs).toContain(`/bookings/${theirBookingId}`);
+    expect(hrefs).not.toContain(`/bookings/${myBookingId}`);
+
+    const theirs = items.find((n) => n.href === `/bookings/${theirBookingId}`)!;
+    expect(theirs.description).toBe('Ada Notify booked');
+    expect(theirs.unread).toBe(true);
+
+    // Catalog work is activity, never a notification.
+    await createService({ serviceDomain: 'Photography', name: 'Quietly Defined Service' });
+    expect((await listNotifications(20)).some((n) => n.description.includes('service'))).toBe(false);
+
+    // Looking is what clears it.
+    await markNotificationsSeen();
+    expect((await listNotifications(20)).every((n) => !n.unread)).toBe(true);
   }, 120000);
 
   it('gives a template-created service its variables without hand-entry', async () => {
