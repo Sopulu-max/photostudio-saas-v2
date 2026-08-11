@@ -9,10 +9,14 @@ export default function TopBar({
   studioName,
   notifications = [],
   unreadCount = 0,
+  organizationId,
+  contactId,
 }: {
   studioName?: string;
   notifications?: Notification[];
   unreadCount?: number;
+  organizationId?: string;
+  contactId?: string | null;
 }) {
   return (
     <header style={{
@@ -40,7 +44,12 @@ export default function TopBar({
       }}>
         Search ⌘K
       </div>
-      <NotificationBell items={notifications} unreadCount={unreadCount} />
+      <NotificationBell
+        items={notifications}
+        unreadCount={unreadCount}
+        organizationId={organizationId}
+        contactId={contactId}
+      />
       <ThemeToggle />
       <div style={{
         width: '30px',
