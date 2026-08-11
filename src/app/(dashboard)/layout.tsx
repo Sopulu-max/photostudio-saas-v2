@@ -2,7 +2,7 @@ import { Sidebar } from '@/components/navigation/Sidebar';
 import TopBar from '@/components/navigation/TopBar';
 import { getStudio } from '@/kernel/organizations';
 import { listNotifications } from '@/kernel/notifications';
-import type { Notification } from '@/kernel/notifications';
+import type { Notification } from '@/kernel/notificationKinds';
 import { getOptionalAuthOrgId } from '@/lib/supabase/getOrgId';
 
 export const dynamic = 'force-dynamic';

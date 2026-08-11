@@ -3,7 +3,7 @@
 import React from 'react';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
-import type { Notification } from '@/kernel/notifications';
+import type { Notification } from '@/kernel/notificationKinds';
 
 export default function TopBar({
   studioName,

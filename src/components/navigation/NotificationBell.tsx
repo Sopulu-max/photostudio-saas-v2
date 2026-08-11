@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Bell, Volume2, VolumeX } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { markNotificationsSeen } from '@/kernel/notifications';
-import type { Notification } from '@/kernel/notifications';
+import { isNotifiable } from '@/kernel/notificationKinds';
+import type { Notification } from '@/kernel/notificationKinds';
 
 const SOUND_KEY = 'q.notifications.sound';
 
@@ -95,30 +96,66 @@ export function NotificationBell({
     } catch { /* private mode — silence is the safe default */ }
   }, []);
 
+  /**
+   * An AudioContext, created on demand and kept.
+   *
+   * Browsers only allow audio after the user has interacted with *this* page
+   * load — the preference persisting across reloads does not carry the
+   * permission with it. So this is called both from the toggle (a click, which
+   * always qualifies) and from the unlock effect below.
+   */
+  const ensureAudio = useCallback((): AudioContext | null => {
+    try {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctor) return null;
+      if (!audioRef.current) audioRef.current = new Ctor();
+      audioRef.current.resume?.();
+      return audioRef.current;
+    } catch {
+      return null; // no audio available; the preference still records the intent
+    }
+  }, []);
+
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
     soundOnRef.current = next;
     try { localStorage.setItem(SOUND_KEY, next ? 'on' : 'off'); } catch { /* not worth failing over */ }
+    // Turning it on plays it once: that click is the permission browsers want,
+    // and hearing it is the only way to know what you just agreed to.
     if (next) {
-      // This click is the gesture browsers require before audio may play, so
-      // the context is created here and reused. Turning it on also previews
-      // the sound, which is the only way to know what you agreed to.
-      try {
-        const Ctor = window.AudioContext || (window as any).webkitAudioContext;
-        if (Ctor) {
-          audioRef.current = audioRef.current || new Ctor();
-          audioRef.current!.resume?.();
-          playChime(audioRef.current!);
-        }
-      } catch { /* no audio available; the toggle still records the intent */ }
+      const ctx = ensureAudio();
+      if (ctx) playChime(ctx);
     }
   };
 
+  /**
+   * Arm the audio on the first interaction of each page load, so a preference
+   * set yesterday still makes a sound today. Without this the context only
+   * ever existed in the session where the toggle was flipped, and every
+   * reload silently turned the sound off while still showing it as on.
+   */
+  useEffect(() => {
+    if (!soundOn || audioRef.current) return;
+    const arm = () => { ensureAudio(); };
+    const opts = { once: true, passive: true } as const;
+    window.addEventListener('pointerdown', arm, opts);
+    window.addEventListener('keydown', arm, opts);
+    return () => {
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
+    };
+  }, [soundOn, ensureAudio]);
+
   const chime = useCallback(() => {
-    if (!soundOnRef.current || !audioRef.current) return;
-    try { audioRef.current.resume?.(); playChime(audioRef.current); } catch { /* ignore */ }
-  }, []);
+    if (!soundOnRef.current) return;
+    // Late creation covers the case where an arrival lands after the page has
+    // been interacted with but the listener above already fired and was
+    // removed. A context made without any gesture stays suspended and is
+    // simply silent, which is the correct failure.
+    const ctx = ensureAudio();
+    if (ctx) playChime(ctx);
+  }, [ensureAudio]);
 
   // Live arrivals. The filter is server-side on organization_id, and RLS on
   // events means another studio's rows are not deliverable here in any case.
@@ -144,10 +181,16 @@ export function NotificationBell({
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'events', filter: `organization_id=eq.${organizationId}` },
           (payload: any) => {
+            const row = payload?.new;
+            if (!row) return;
             // Your own doing is not news — the same rule the server applies, so
             // the badge never flickers for your own click before the refresh
             // lands and removes it again.
-            if (contactId && payload?.new?.actor_id === contactId) return;
+            if (contactId && row.actor_id === contactId) return;
+            // And the same registry the panel is built from, so a sound can
+            // never fire for something that will not appear in it. Most events
+            // a studio writes are catalog work, which is activity, not news.
+            if (!isNotifiable(row.entity_type, row.action)) return;
             // A burst — a booking writes several events in a row — should be
             // one refresh and one sound, not one of each per row.
             if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -184,8 +227,11 @@ export function NotificationBell({
     setOpen(next);
     if (next && count > 0) {
       setCount(0);
+      // Mark seen only up to the newest item actually on screen. Anything that
+      // lands while the panel is open is genuinely unseen and keeps its mark.
+      const newest = items[0]?.at;
       startTransition(async () => {
-        try { await markNotificationsSeen(); router.refresh(); } catch { /* the badge is not worth an alert */ }
+        try { await markNotificationsSeen(newest); router.refresh(); } catch { /* the badge is not worth an alert */ }
       });
     }
   };

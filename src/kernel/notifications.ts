@@ -2,6 +2,8 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { NOTIFIABLE_ACTIONS, notifiableFor } from './notificationKinds';
+import type { Notification } from './notificationKinds';
 
 /**
  * Notifications — a projection of the event log, not a second log.
@@ -23,51 +25,6 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
  * they always pass. A colleague's action passes for you and not for them. Your
  * own clicks never come back at you as news.
  */
-
-type Notifiable = {
-  /** Reads as "<who> <phrase>" — the same voice as the activity feed. */
-  phrase: string;
-  /** Where clicking it should land. Payload carries what the entity id can't. */
-  href: (e: { entityId: string; payload: Record<string, any> }) => string;
-};
-
-/**
- * What is worth interrupting someone for.
- *
- * Deliberately excluded: everything in the catalog (services, packages,
- * blueprints, roles) and every rename. Defining what the studio does is
- * considered work, not news — it belongs in the activity feed. What arrives
- * here is the outside world acting, or a colleague changing something already
- * in motion.
- */
-const NOTIFIABLE: Record<string, Notifiable> = {
-  // The outside world. Actor is a client contact, so these always pass rule 2.
-  'booking.created':                       { phrase: 'booked', href: (e) => `/bookings/${e.entityId}` },
-  'contract.activated':                    { phrase: 'signed a contract', href: (e) => `/contracts/${e.entityId}` },
-  'financial_transaction.payment_settled': { phrase: 'paid an invoice', href: () => `/finances` },
-  'delivery.viewed':                       { phrase: 'opened the gallery', href: (e) => e.payload?.bookingId ? `/bookings/${e.payload.bookingId}` : `/bookings` },
-
-  // In motion — a colleague moved something that is already live.
-  'booking.stage_changed':  { phrase: 'moved a booking along',        href: (e) => `/bookings/${e.entityId}` },
-  'booking.scheduled':      { phrase: 'put a date on a booking',      href: (e) => `/bookings/${e.entityId}` },
-  'booking.deleted':        { phrase: 'deleted a booking',            href: () => `/bookings` },
-  'booking.crew_assigned':  { phrase: 'put someone on a booking',     href: (e) => `/bookings/${e.entityId}` },
-  'booking_line.created':   { phrase: 'added a package to a booking', href: (e) => e.payload?.bookingId ? `/bookings/${e.payload.bookingId}` : `/bookings` },
-  'task.assigned':          { phrase: 'assigned a task',              href: () => `/tasks` },
-  'financial_transaction.created': { phrase: 'raised an invoice',     href: () => `/finances` },
-  'contract.cancelled':     { phrase: 'cancelled a contract',         href: (e) => `/contracts/${e.entityId}` },
-  'delivery.shared':        { phrase: 'shared a delivery',            href: (e) => e.payload?.bookingId ? `/bookings/${e.payload.bookingId}` : `/bookings` },
-};
-
-const NOTIFIABLE_ACTIONS = [...new Set(Object.keys(NOTIFIABLE).map((k) => k.split('.')[1]))];
-
-export type Notification = {
-  id: string;
-  at: string;
-  description: string;
-  href: string;
-  unread: boolean;
-};
 
 /**
  * The studio's notifications, newest first, each marked against this
@@ -96,7 +53,7 @@ export async function listNotifications(limit = 20): Promise<Notification[]> {
   for (const e of ((rows || []) as any[])) {
     // The action filter above is deliberately loose — PostgREST can't express
     // "this entity type with this action" — so the pair is checked here.
-    const spec = NOTIFIABLE[`${e.entity_type}.${e.action}`];
+    const spec = notifiableFor(e.entity_type, e.action);
     if (!spec) continue;
     // Rule 2: your own doing is not news.
     if (contactId && e.actor_id === contactId) continue;
@@ -121,13 +78,38 @@ export async function listNotifications(limit = 20): Promise<Notification[]> {
  * There is no separate unread count: the caller derives it from the list it
  * already has, so the badge can never disagree with the panel it opens.
  */
-export async function markNotificationsSeen() {
-  const { contactId } = await getAuthOrgId();
+export async function markNotificationsSeen(upTo?: string) {
+  const { orgId, contactId } = await getAuthOrgId();
   if (!contactId) return { ok: false };
+
+  // The watermark must come from the same clock that stamps the events, which
+  // is the database's, never this process's. They run on different machines:
+  // a watermark written from here can land *behind* a row Postgres stamped a
+  // moment earlier, and that notification then stays unread forever however
+  // many times you look at it.
+  //
+  // `upTo` is the newest item the operator was actually shown. Falling back to
+  // the newest that exists is only for callers with no list in hand — it can
+  // mark something seen that arrived between render and click, which is the
+  // lesser of the two wrongs.
+  let seenAt = upTo;
+  if (!seenAt) {
+    const { data } = await supabaseAdmin
+      .from('events')
+      .select('created_at')
+      .eq('organization_id', orgId)
+      .in('action', NOTIFIABLE_ACTIONS)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    seenAt = (data as any)?.created_at;
+  }
+  // Nothing has ever happened, so there is nothing to have seen.
+  if (!seenAt) return { ok: true };
 
   const { error } = await supabaseAdmin
     .from('contacts')
-    .update({ notifications_seen_at: new Date().toISOString() })
+    .update({ notifications_seen_at: seenAt })
     .eq('id', contactId);
   if (error) {
     console.error('Failed to mark notifications seen:', error);
