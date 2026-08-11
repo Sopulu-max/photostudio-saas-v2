@@ -24,6 +24,8 @@ export async function submitBookingForm(
     email: string;
     phone: string;
     customFields: Record<string, any>;
+    /** Answers to variables the package left open — structured, unlike customFields. */
+    variableAnswers?: { serviceVariableId: string; value: unknown }[];
     tierIndex?: number;
     scheduledFor?: string;
     fromCustomPath?: boolean;
@@ -139,6 +141,7 @@ export async function submitBookingForm(
     packageName: pkgName,
     linePrice,
     answers: storedAnswers,
+    variableAnswers: formData.variableAnswers,
     source: 'public_booking_page',
     scheduledFor: formData.scheduledFor,
   });

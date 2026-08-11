@@ -20,6 +20,7 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
+import { formatVariableValue } from '@/modules/services/interface';
 import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -84,6 +85,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // Crew, roster and work through Production's interface.
   const lineIds = booking.lines.map((l: any) => l.id);
+
+  // What each line is actually configured as — the package's scope plus
+  // whatever the client answered. Keyed by line so it renders inline.
+  const { getLineConfiguration } = await import('@/modules/bookings/interface');
+  const configByLine: Record<string, any[]> = {};
+  for (const id of lineIds) configByLine[id] = await getLineConfiguration(id);
   const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
@@ -319,6 +326,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         })()}
                         <div className="q-meta q-num">
                           {linePrice(l.price, l.quantity)}
+                          {(configByLine[l.id] || []).length > 0 && (
+                            <span>
+                              {' · '}
+                              {(configByLine[l.id] || [])
+                                .map((c: any) => `${c.label}: ${formatVariableValue(c)}${c.source === 'client' ? ' (asked for)' : ''}`)
+                                .join(' · ')}
+                            </span>
+                          )}
                           {w && <> · {w.completed}/{w.total} done</>}
                         </div>
                       </div>

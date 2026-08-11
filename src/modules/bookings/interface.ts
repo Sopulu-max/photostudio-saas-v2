@@ -12,6 +12,9 @@ export {
   getBooking,
   listBookings,
   getBookingCountsByContact,
+  // What a line is actually configured as — the offer plus the client's answers
+  setLineConfiguration,
+  getLineConfiguration,
   // Commands
   createBooking,
   // Intake from the public booking page — takes an explicit org, no session

@@ -29,6 +29,11 @@ export default async function BookingPage(props: {
     .single();
   if (!pkg) notFound();
 
+  // What this package deliberately left open becomes the questions asked below.
+  // Public path, so this takes the org explicitly rather than a session.
+  const { getOpenVariablesForPackagePublic } = await import('@/modules/packages/interface');
+  const openVariables = await getOpenVariablesForPackagePublic(org.id, params.packageId);
+
   const currencyCode = (org as any).currency || 'USD';
   const services: string[] = ((pkg as any).package_services || []).map((ps: any) => ps.service?.name).filter(Boolean);
   const deliverables: string[] = ((pkg as any).package_deliverables || []).map((pd: any) => pd.output_type?.name).filter(Boolean);
@@ -71,6 +76,7 @@ export default async function BookingPage(props: {
               packageId={(pkg as any).id}
               packageName={(pkg as any).name}
               formSchema={(pkg as any).form_schema || []}
+              openVariables={openVariables}
               variant={variant}
               currencyCode={currencyCode}
             />

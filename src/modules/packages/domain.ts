@@ -533,6 +533,63 @@ export async function getPackage(packageId: string) {
   };
 }
 
+/**
+ * What this package deliberately did NOT fix.
+ *
+ * The counterpart to variableValues: those are the offer, these are what is
+ * still to be agreed. An open variable is the reason the booking form has a
+ * question to ask, so this is what turns "left blank in the editor" into a real
+ * field in front of a client.
+ *
+ * Public-safe: takes an explicit org and never touches a session, because the
+ * storefront calls it.
+ */
+export async function getOpenVariablesForPackagePublic(orgId: string, packageId: string) {
+  const { data: rows } = await supabaseAdmin
+    .from('package_services')
+    .select('service:services(id, name, service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position))')
+    .eq('package_id', packageId)
+    .eq('organization_id', orgId)
+    .order('position');
+
+  const { data: fixed } = await supabaseAdmin
+    .from('package_variable_values')
+    .select('service_variable_id')
+    .eq('package_id', packageId)
+    .eq('organization_id', orgId);
+  const fixedIds = new Set(((fixed || []) as any[]).map((f) => f.service_variable_id));
+
+  const open: any[] = [];
+  for (const row of ((rows || []) as any[])) {
+    const service = row.service;
+    if (!service) continue;
+    for (const v of (service.service_variables || [])) {
+      if (fixedIds.has(v.id)) continue;
+      open.push({
+        id: v.id,
+        serviceId: service.id,
+        serviceName: service.name,
+        key: v.key,
+        label: v.label,
+        kind: v.kind,
+        unit: v.unit ?? null,
+        options: Array.isArray(v.options) ? v.options : [],
+        defaultValue: v.default_value ?? null,
+        min: v.min_value ?? null,
+        max: v.max_value ?? null,
+        position: v.position ?? 0,
+      });
+    }
+  }
+  return open.sort((a, b) => a.position - b.position);
+}
+
+/** The same, for an authenticated operator. */
+export async function getOpenVariablesForPackage(packageId: string) {
+  const { orgId } = await getAuthOrgId();
+  return getOpenVariablesForPackagePublic(orgId, packageId);
+}
+
 /** What Bookings needs to build a line — id, price, and its aggregated routing inputs. */
 export async function getPackageForBooking(packageId: string) {
   const { orgId } = await getAuthOrgId();

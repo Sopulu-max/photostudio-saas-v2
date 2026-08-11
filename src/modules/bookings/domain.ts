@@ -110,6 +110,8 @@ export async function createBookingFromIntake(input: {
   packageName: string;
   linePrice?: Record<string, unknown>;
   answers?: Record<string, unknown>;
+  /** What the client chose for whatever the package left open. */
+  variableAnswers?: { serviceVariableId: string; value: unknown }[];
   source?: string;
   scheduledFor?: string | null;
 }) {
@@ -150,16 +152,29 @@ export async function createBookingFromIntake(input: {
     throw new Error('Failed to create your booking request.');
   }
 
-  const { error: lineError } = await supabaseAdmin.from('booking_lines').insert({
+  const { data: intakeLine, error: lineError } = await supabaseAdmin.from('booking_lines').insert({
     organization_id: orgId,
     booking_id: booking.id,
     package_id: input.packageId,
     title: input.packageName,
     price: input.linePrice || {},
-  });
-  if (lineError) {
+  }).select('id').single();
+  if (lineError || !intakeLine) {
     console.error('Failed to add intake booking line:', lineError);
     throw new Error('Failed to create your booking request.');
+  }
+
+  // The line is configured the moment it exists: the package's own scope, plus
+  // whatever the client answered for what it left open. Without this an intake
+  // booking would arrive knowing less than the package it came from.
+  if (input.packageId) {
+    await setLineConfiguration({
+      bookingId: booking.id,
+      lineId: intakeLine.id,
+      answers: input.variableAnswers,
+      source: 'client',
+      organizationId: orgId,
+    });
   }
 
   await logEvent({
@@ -174,6 +189,117 @@ export async function createBookingFromIntake(input: {
   revalidatePath('/bookings');
   revalidatePath('/calendar');
   return { bookingId: booking.id };
+}
+
+/**
+ * Record what a line is actually configured as.
+ *
+ * A line's configuration is the package's offer plus whatever the client chose
+ * for what the package left open. Both are written here, tagged by where they
+ * came from, so the studio can later tell "we sold them 2 outfits" apart from
+ * "they asked for 6 hours".
+ *
+ * Package values are copied rather than referenced on purpose. They are a
+ * snapshot, exactly like the line's price: repricing or re-scoping a package
+ * next month must not silently rewrite what an existing client agreed to.
+ */
+export async function setLineConfiguration(input: {
+  bookingId: string;
+  lineId: string;
+  /** Only what the client (or an operator on their behalf) chose. */
+  answers?: { serviceVariableId: string; value: unknown }[];
+  /** Defaults to 'client'; pass 'studio' when an operator fills it in. */
+  source?: 'client' | 'studio';
+  organizationId?: string;
+}) {
+  const orgId = input.organizationId ?? (await getAuthOrgId()).orgId;
+
+  const { data: line } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, package_id')
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!line) throw new Error('Line not found');
+
+  await supabaseAdmin
+    .from('booking_line_variable_values')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('booking_line_id', input.lineId);
+
+  const rows: { organization_id: string; booking_line_id: string; service_variable_id: string; value: unknown; source: string }[] = [];
+
+  // Whatever the package fixed comes along, snapshotted.
+  if (line.package_id) {
+    const { data: fixed } = await supabaseAdmin
+      .from('package_variable_values')
+      .select('service_variable_id, value')
+      .eq('organization_id', orgId)
+      .eq('package_id', line.package_id);
+    for (const f of ((fixed || []) as any[])) {
+      rows.push({
+        organization_id: orgId,
+        booking_line_id: input.lineId,
+        service_variable_id: f.service_variable_id,
+        value: f.value,
+        source: 'package',
+      });
+    }
+  }
+
+  // Then the answers, which win if they collide with a package value — an
+  // operator overriding the offer for this one client is legitimate.
+  const answered = new Set<string>();
+  for (const a of (input.answers || [])) {
+    if (!a.serviceVariableId || a.value === undefined || a.value === null || a.value === '') continue;
+    answered.add(a.serviceVariableId);
+    rows.push({
+      organization_id: orgId,
+      booking_line_id: input.lineId,
+      service_variable_id: a.serviceVariableId,
+      value: a.value,
+      source: input.source || 'client',
+    });
+  }
+  const deduped = rows.filter((r) => r.source !== 'package' || !answered.has(r.service_variable_id));
+
+  if (deduped.length > 0) {
+    const { error } = await supabaseAdmin.from('booking_line_variable_values').insert(deduped);
+    if (error) {
+      console.error('Failed to save line configuration:', error);
+      throw new Error('Failed to save what was chosen');
+    }
+  }
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true, count: deduped.length };
+}
+
+/** What a line is configured as — the offer and the client's answers, in one list. */
+export async function getLineConfiguration(lineId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('booking_line_variable_values')
+    .select('value, source, variable:service_variables(id, key, label, unit, position)')
+    .eq('organization_id', orgId)
+    .eq('booking_line_id', lineId);
+  if (error) {
+    console.error('Failed to load line configuration:', error);
+    return [];
+  }
+  return ((data || []) as any[])
+    .filter((r) => r.variable)
+    .map((r) => ({
+      serviceVariableId: r.variable.id,
+      key: r.variable.key,
+      label: r.variable.label,
+      unit: r.variable.unit ?? null,
+      value: r.value,
+      source: r.source as 'package' | 'client' | 'studio',
+      position: r.variable.position ?? 0,
+    }))
+    .sort((a, b) => a.position - b.position);
 }
 
 /**
@@ -264,6 +390,12 @@ export async function addBookingLine(input: {
   if (error || !line) {
     console.error('Failed to add booking line:', error);
     throw new Error('Failed to add line');
+  }
+
+  // A line added from a package inherits that package's scope immediately, so
+  // the booking says what was sold without waiting for anyone to confirm it.
+  if (input.packageId) {
+    await setLineConfiguration({ bookingId: input.bookingId, lineId: line.id, source: 'studio', organizationId: orgId });
   }
 
   await logEvent({

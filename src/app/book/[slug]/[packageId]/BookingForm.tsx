@@ -45,6 +45,13 @@ interface BookingFormProps {
   packageId: string | 'custom';
   packageName: string;
   formSchema: any[];
+  /**
+   * What the package deliberately did not fix — outfits, coverage hours. These
+   * are not free-text questions: each one is a variable the service declared,
+   * so the answer comes back structured and lands on the booking line rather
+   * than in a bag of form responses.
+   */
+  openVariables?: any[];
   variant?: { axis_label: string; tiers: { label: string; price: number }[] } | null;
   currencyCode?: string;
   triggerLabel?: string;
@@ -57,6 +64,7 @@ export function BookingForm({
   packageId,
   packageName,
   formSchema,
+  openVariables = [],
   variant,
   currencyCode = 'USD',
   triggerLabel = 'Book this package',
@@ -71,6 +79,9 @@ export function BookingForm({
   const [phone, setPhone] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
+  // Kept apart from customFields: these are answers to declared variables, not
+  // free-form form fields, and they are stored somewhere different.
+  const [variableAnswers, setVariableAnswers] = useState<Record<string, string>>({});
   const [tierIndex, setTierIndex] = useState<number | null>(variant ? 0 : null);
   const [dimensionSelections, setDimensionSelections] = useState<Record<string, string>>({});
   const [resolvedPackageId, setResolvedPackageId] = useState<string | null>(null);
@@ -99,8 +110,9 @@ export function BookingForm({
   const hasSelections = Object.values(dimensionSelections).some(v => v);
   const hasMatches = scoredPackages.some(p => p.score > 0);
 
+  const hasOpenVariables = !isCustom && openVariables.length > 0;
   const steps: { title: string; id: string }[] = [{ title: 'You', id: 'personal' }];
-  if (hasFormSchema || isCustom) steps.push({ title: 'Details', id: 'details' });
+  if (hasFormSchema || hasOpenVariables || isCustom) steps.push({ title: 'Details', id: 'details' });
   if (hasMatchStep) steps.push({ title: 'Packages', id: 'match' });
   if (hasVariant && !isCustom) steps.push({ title: 'Options', id: 'tiers' });
   steps.push({ title: 'Review', id: 'review' });
@@ -152,6 +164,17 @@ export function BookingForm({
         email,
         phone,
         customFields: effectiveCustomFields,
+        // Structured, unlike customFields: each answers a variable the service
+        // declared, so it lands on the line rather than in form_responses.
+        variableAnswers: openVariables
+          .filter((v) => (variableAnswers[v.id] ?? '') !== '')
+          .map((v) => ({
+            serviceVariableId: v.id,
+            value:
+              v.kind === 'number' ? Number(variableAnswers[v.id])
+              : v.kind === 'boolean' ? variableAnswers[v.id] === 'true'
+              : variableAnswers[v.id],
+          })),
         tierIndex: tierIndex ?? undefined,
         scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
         fromCustomPath: isCustom,
@@ -289,6 +312,44 @@ export function BookingForm({
                       </>
                     ) : (
                       <div className="q-stack q-stack-lg">
+                        {/* What the package left open. Asked first because these
+                            decide the shape of the job, not just its context. */}
+                        {openVariables.map((v: any) => {
+                          const val = variableAnswers[v.id] ?? '';
+                          const set = (raw: string) => setVariableAnswers({ ...variableAnswers, [v.id]: raw });
+                          return (
+                            <div className="q-field" key={v.id}>
+                              <label className="q-label">
+                                {v.label}
+                                {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
+                              </label>
+                              {v.kind === 'number' && (
+                                <input
+                                  className="q-input q-input-lg" type="number" value={val}
+                                  min={v.min ?? undefined} max={v.max ?? undefined}
+                                  onChange={(e) => set(e.target.value)}
+                                  placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
+                                />
+                              )}
+                              {v.kind === 'choice' && (
+                                <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                                  <option value="">Choose…</option>
+                                  {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                </select>
+                              )}
+                              {v.kind === 'boolean' && (
+                                <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                                  <option value="">Choose…</option>
+                                  <option value="true">Yes</option>
+                                  <option value="false">No</option>
+                                </select>
+                              )}
+                              {v.kind === 'text' && (
+                                <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
+                              )}
+                            </div>
+                          );
+                        })}
                         {formSchema.map((field: any) => {
                           const def = fieldType(field.type);
                           const value = customFields[field.id];

@@ -26,8 +26,8 @@ import { createRole } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
-import { createPackage, updatePackage, getPackage, getPackageForBooking } from '@/modules/packages/domain';
-import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking } from '@/modules/bookings/domain';
+import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
+import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 
 /**
@@ -43,7 +43,7 @@ import { createClient } from '@/modules/clients/domain';
  */
 export const PURGE_ORDER = [
   'events',
-  'assignments', 'tasks', 'booking_lines',
+  'assignments', 'tasks', 'booking_line_variable_values', 'booking_lines',
   // financial_transactions before contracts: a transaction points at the
   // contract it settles, so contracts cannot go first.
   'financial_transactions', 'deliveries', 'contracts',
@@ -258,6 +258,54 @@ describe('Core Loop Verification', () => {
     const finalBooking = await getBooking(bookingId);
     expect(finalBooking?.contracts.length).toBe(1);
     expect(finalBooking?.transactions.length).toBe(1);
+  }, 30000);
+
+  it('carries a configuration from service to package to booking', async () => {
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Configured Session' });
+    await setServiceVariables({
+      serviceId,
+      variables: [
+        { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit', min: 1 },
+        { key: 'hours', label: 'Hours of coverage', kind: 'number', unit: 'hour', min: 1 },
+      ],
+    });
+    const [outfits, hours] = await listServiceVariables(serviceId);
+
+    // The package fixes one and deliberately leaves the other open.
+    const { packageId } = await createPackage({
+      name: 'Half-fixed Package',
+      basePrice: 300,
+      serviceIds: [serviceId],
+      variableValues: [{ serviceVariableId: outfits.id, value: 2 }],
+    });
+
+    const open = await getOpenVariablesForPackage(packageId);
+    expect(open.map((v: any) => v.key)).toEqual(['hours']);
+
+    // A client books it and answers what was left open.
+    const { contactId } = await createClient({ name: 'Ada Config', email: 'ada.config@example.com' });
+    const { bookingId } = await createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId,
+      clientName: 'Ada Config',
+      packageId,
+      packageName: 'Half-fixed Package',
+      variableAnswers: [{ serviceVariableId: hours.id, value: 6 }],
+    });
+
+    const booking = await getBooking(bookingId);
+    const config = await getLineConfiguration(booking!.lines[0].id);
+
+    // The line now knows both halves, and where each came from.
+    expect(config).toHaveLength(2);
+    expect(config.find((c) => c.key === 'outfits')).toMatchObject({ value: 2, source: 'package' });
+    expect(config.find((c) => c.key === 'hours')).toMatchObject({ value: 6, source: 'client' });
+
+    // The package's scope is a snapshot: re-scoping it later must not rewrite
+    // what this client already agreed to.
+    await updatePackage({ packageId, variableValues: [{ serviceVariableId: outfits.id, value: 5 }] });
+    const after = await getLineConfiguration(booking!.lines[0].id);
+    expect(after.find((c) => c.key === 'outfits')?.value).toBe(2);
   }, 30000);
 
   it('gives a template-created service its variables without hand-entry', async () => {

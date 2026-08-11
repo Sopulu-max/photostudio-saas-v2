@@ -22,6 +22,8 @@ export {
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   getProductionPlanForPackage, getPaymentPoliciesForPackages,
+  // What a package left open — the questions a client still has to answer
+  getOpenVariablesForPackage, getOpenVariablesForPackagePublic,
   // Intake questions
   getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,
 } from './domain';
