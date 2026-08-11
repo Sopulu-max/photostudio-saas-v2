@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages } from '@/modules/packages/interface';
+import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { raiseInvoiceForBooking } from '@/modules/finances/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
@@ -208,6 +208,12 @@ export async function setLineConfiguration(input: {
   lineId: string;
   /** Only what the client (or an operator on their behalf) chose. */
   answers?: { serviceVariableId: string; value: unknown }[];
+  /**
+   * Variables to drop entirely. An empty answer means "nothing said here",
+   * which is not the same as "we agreed on nothing" — clearing has to be
+   * asked for, or every edit would erase the values it didn't touch.
+   */
+  clear?: string[];
   /** Defaults to 'client'; pass 'studio' when an operator fills it in. */
   source?: 'client' | 'studio';
   organizationId?: string;
@@ -222,23 +228,49 @@ export async function setLineConfiguration(input: {
     .maybeSingle();
   if (!line) throw new Error('Line not found');
 
+  // What this line already holds. Its presence is what tells us whether the
+  // package's scope still needs inheriting.
+  const { data: existingRows } = await supabaseAdmin
+    .from('booking_line_variable_values')
+    .select('service_variable_id, value, source')
+    .eq('organization_id', orgId)
+    .eq('booking_line_id', input.lineId);
+  const existing = (existingRows || []) as any[];
+
   await supabaseAdmin
     .from('booking_line_variable_values')
     .delete()
     .eq('organization_id', orgId)
     .eq('booking_line_id', input.lineId);
 
-  const rows: { organization_id: string; booking_line_id: string; service_variable_id: string; value: unknown; source: string }[] = [];
+  type Row = { organization_id: string; booking_line_id: string; service_variable_id: string; value: unknown; source: string };
 
-  // Whatever the package fixed comes along, snapshotted.
-  if (line.package_id) {
+  // What the line starts from before this call's answers are applied.
+  const inherited: Row[] = [];
+
+  if (existing.length > 0) {
+    // Already configured, so this is an edit. Carry the existing values
+    // forward untouched — re-reading the package here is exactly how a
+    // re-scoped package would silently rewrite what a client already agreed
+    // to, which is the thing the snapshot exists to prevent.
+    for (const e of existing) {
+      inherited.push({
+        organization_id: orgId,
+        booking_line_id: input.lineId,
+        service_variable_id: e.service_variable_id,
+        value: e.value,
+        source: e.source,
+      });
+    }
+  } else if (line.package_id) {
+    // First configuration: inherit whatever the package fixed, snapshotted.
     const { data: fixed } = await supabaseAdmin
       .from('package_variable_values')
       .select('service_variable_id, value')
       .eq('organization_id', orgId)
       .eq('package_id', line.package_id);
     for (const f of ((fixed || []) as any[])) {
-      rows.push({
+      inherited.push({
         organization_id: orgId,
         booking_line_id: input.lineId,
         service_variable_id: f.service_variable_id,
@@ -248,13 +280,15 @@ export async function setLineConfiguration(input: {
     }
   }
 
-  // Then the answers, which win if they collide with a package value — an
-  // operator overriding the offer for this one client is legitimate.
+  // Then the answers, which win over anything already held — an operator
+  // overriding the offer for this one client is legitimate, and so is a
+  // client revising what they asked for.
+  const answers: Row[] = [];
   const answered = new Set<string>();
   for (const a of (input.answers || [])) {
     if (!a.serviceVariableId || a.value === undefined || a.value === null || a.value === '') continue;
     answered.add(a.serviceVariableId);
-    rows.push({
+    answers.push({
       organization_id: orgId,
       booking_line_id: input.lineId,
       service_variable_id: a.serviceVariableId,
@@ -262,10 +296,14 @@ export async function setLineConfiguration(input: {
       source: input.source || 'client',
     });
   }
-  const deduped = rows.filter((r) => r.source !== 'package' || !answered.has(r.service_variable_id));
+  const cleared = new Set(input.clear || []);
+  const rows = [
+    ...inherited.filter((r) => !answered.has(r.service_variable_id) && !cleared.has(r.service_variable_id)),
+    ...answers.filter((r) => !cleared.has(r.service_variable_id)),
+  ];
 
-  if (deduped.length > 0) {
-    const { error } = await supabaseAdmin.from('booking_line_variable_values').insert(deduped);
+  if (rows.length > 0) {
+    const { error } = await supabaseAdmin.from('booking_line_variable_values').insert(rows);
     if (error) {
       console.error('Failed to save line configuration:', error);
       throw new Error('Failed to save what was chosen');
@@ -273,7 +311,7 @@ export async function setLineConfiguration(input: {
   }
 
   revalidatePath(`/bookings/${input.bookingId}`);
-  return { ok: true, count: deduped.length };
+  return { ok: true, count: rows.length };
 }
 
 /** What a line is configured as — the offer and the client's answers, in one list. */
@@ -300,6 +338,72 @@ export async function getLineConfiguration(lineId: string) {
       position: r.variable.position ?? 0,
     }))
     .sort((a, b) => a.position - b.position);
+}
+
+/**
+ * Everything a line could be configured as, with what it currently is — the
+ * shape an operator edits against. Unlike getLineConfiguration (which reports
+ * only what was recorded), this includes variables nobody has answered yet, so
+ * a studio can fill in what a client skipped at booking.
+ */
+export async function getLineConfigurationForm(lineId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: line } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, package_id')
+    .eq('id', lineId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!line) return [];
+
+  const held = await getLineConfiguration(lineId);
+  const byId = new Map(held.map((h) => [h.serviceVariableId, h]));
+
+  // A line without a package can still hold values (the package was removed
+  // after the fact), so what's held is the floor, not the package's list.
+  const declared = line.package_id ? await getPackageVariables(line.package_id) : [];
+  const seen = new Set<string>();
+  const fields = declared.map((v: any) => {
+    seen.add(v.id);
+    const current = byId.get(v.id);
+    return {
+      serviceVariableId: v.id,
+      key: v.key,
+      label: v.label,
+      kind: v.kind as string,
+      unit: v.unit as string | null,
+      options: v.options as string[],
+      min: v.min as number | null,
+      max: v.max as number | null,
+      serviceName: v.serviceName as string,
+      value: current ? current.value : null,
+      source: current ? current.source : null,
+      position: v.position as number,
+    };
+  });
+
+  // Anything held but no longer declared still shows, so it can be seen and
+  // cleared rather than silently haunting the line.
+  for (const h of held) {
+    if (seen.has(h.serviceVariableId)) continue;
+    fields.push({
+      serviceVariableId: h.serviceVariableId,
+      key: h.key,
+      label: h.label,
+      kind: 'text',
+      unit: h.unit,
+      options: [],
+      min: null,
+      max: null,
+      serviceName: '',
+      value: h.value,
+      source: h.source,
+      position: h.position,
+    });
+  }
+
+  return fields.sort((a, b) => a.position - b.position);
 }
 
 /**

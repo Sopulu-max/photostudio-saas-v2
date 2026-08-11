@@ -13,6 +13,7 @@ import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
 import { LineActions } from './LineActions';
+import { LineConfigForm } from './LineConfigForm';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
@@ -20,7 +21,6 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { ScheduleForm } from './ScheduleForm';
 import { listDeliveriesForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
-import { formatVariableValue } from '@/modules/services/interface';
 import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -88,9 +88,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // What each line is actually configured as — the package's scope plus
   // whatever the client answered. Keyed by line so it renders inline.
-  const { getLineConfiguration } = await import('@/modules/bookings/interface');
+  const { getLineConfigurationForm } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
-  for (const id of lineIds) configByLine[id] = await getLineConfiguration(id);
+  for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
   const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
@@ -326,16 +326,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         })()}
                         <div className="q-meta q-num">
                           {linePrice(l.price, l.quantity)}
-                          {(configByLine[l.id] || []).length > 0 && (
-                            <span>
-                              {' · '}
-                              {(configByLine[l.id] || [])
-                                .map((c: any) => `${c.label}: ${formatVariableValue(c)}${c.source === 'client' ? ' (asked for)' : ''}`)
-                                .join(' · ')}
-                            </span>
-                          )}
                           {w && <> · {w.completed}/{w.total} done</>}
                         </div>
+                        <LineConfigForm
+                          bookingId={booking.id}
+                          lineId={l.id}
+                          fields={configByLine[l.id] || []}
+                        />
                       </div>
                       <div className="q-row">
                         {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}

@@ -24,6 +24,8 @@ export {
   getProductionPlanForPackage, getPaymentPoliciesForPackages,
   // What a package left open — the questions a client still has to answer
   getOpenVariablesForPackage, getOpenVariablesForPackagePublic,
+  // Everything the bundle declares, fixed or not — what an operator edits against
+  getPackageVariables, getPackageVariablesPublic,
   // Intake questions
   getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,
 } from './domain';

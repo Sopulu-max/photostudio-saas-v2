@@ -15,6 +15,7 @@ export {
   // What a line is actually configured as — the offer plus the client's answers
   setLineConfiguration,
   getLineConfiguration,
+  getLineConfigurationForm,
   // Commands
   createBooking,
   // Intake from the public booking page — takes an explicit org, no session

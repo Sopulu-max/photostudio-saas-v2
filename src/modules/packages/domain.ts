@@ -545,6 +545,17 @@ export async function getPackage(packageId: string) {
  * storefront calls it.
  */
 export async function getOpenVariablesForPackagePublic(orgId: string, packageId: string) {
+  const all = await getPackageVariablesPublic(orgId, packageId);
+  return all.filter((v) => !v.fixed);
+}
+
+/**
+ * Every variable the package's bundled services declare, each marked with
+ * whether the package already fixed it. The open ones become the storefront's
+ * questions; the whole list is what an operator edits against, since they can
+ * legitimately change a fixed value for one client.
+ */
+export async function getPackageVariablesPublic(orgId: string, packageId: string) {
   const { data: rows } = await supabaseAdmin
     .from('package_services')
     .select('service:services(id, name, service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position))')
@@ -559,13 +570,12 @@ export async function getOpenVariablesForPackagePublic(orgId: string, packageId:
     .eq('organization_id', orgId);
   const fixedIds = new Set(((fixed || []) as any[]).map((f) => f.service_variable_id));
 
-  const open: any[] = [];
+  const all: any[] = [];
   for (const row of ((rows || []) as any[])) {
     const service = row.service;
     if (!service) continue;
     for (const v of (service.service_variables || [])) {
-      if (fixedIds.has(v.id)) continue;
-      open.push({
+      all.push({
         id: v.id,
         serviceId: service.id,
         serviceName: service.name,
@@ -578,10 +588,17 @@ export async function getOpenVariablesForPackagePublic(orgId: string, packageId:
         min: v.min_value ?? null,
         max: v.max_value ?? null,
         position: v.position ?? 0,
+        fixed: fixedIds.has(v.id),
       });
     }
   }
-  return open.sort((a, b) => a.position - b.position);
+  return all.sort((a, b) => a.position - b.position);
+}
+
+/** The same, for an authenticated operator. */
+export async function getPackageVariables(packageId: string) {
+  const { orgId } = await getAuthOrgId();
+  return getPackageVariablesPublic(orgId, packageId);
 }
 
 /** The same, for an authenticated operator. */

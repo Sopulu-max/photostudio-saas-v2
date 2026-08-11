@@ -27,7 +27,7 @@ import { createServiceDomain, createDeliverable, createService, createBlueprint,
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
-import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration } from '@/modules/bookings/domain';
+import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 
 /**
@@ -306,6 +306,19 @@ describe('Core Loop Verification', () => {
     await updatePackage({ packageId, variableValues: [{ serviceVariableId: outfits.id, value: 5 }] });
     const after = await getLineConfiguration(booking!.lines[0].id);
     expect(after.find((c) => c.key === 'outfits')?.value).toBe(2);
+
+    // And the snapshot survives being touched. The client emails asking for 8
+    // hours instead of 6; the operator records it. Rewriting the line must not
+    // be an opportunity for the re-scoped package to leak back in.
+    await setLineConfiguration({
+      bookingId,
+      lineId: booking!.lines[0].id,
+      answers: [{ serviceVariableId: hours.id, value: 8 }],
+      source: 'studio',
+    });
+    const edited = await getLineConfiguration(booking!.lines[0].id);
+    expect(edited.find((c) => c.key === 'hours')).toMatchObject({ value: 8, source: 'studio' });
+    expect(edited.find((c) => c.key === 'outfits')?.value).toBe(2);
   }, 30000);
 
   it('gives a template-created service its variables without hand-entry', async () => {
