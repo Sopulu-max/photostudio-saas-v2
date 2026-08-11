@@ -61,7 +61,7 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
           name: service.name,
           description: (service as any).description,
           serviceDomain: (service as any).domain?.name || '',
-          primaryDeliverable: (service as any).primary_output_type?.name || null,
+          primaryDeliverable: (service as any).primary_deliverable?.name || null,
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
           occasions: ((service as any).occasions || []).map((d: any) => d.name),
           contexts: ((service as any).contexts || []).map((d: any) => d.name),

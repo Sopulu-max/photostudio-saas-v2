@@ -116,6 +116,22 @@ export async function getStudio(): Promise<{ id: string; name: string; slug: str
 }
 
 /**
+ * The studio behind a storefront slug. The public path has no session to read
+ * an org from, so the slug is the only identifier a visitor carries — this is
+ * the one place that resolves it, rather than every public page doing its own.
+ */
+export async function getStudioBySlug(slug: string): Promise<{ id: string; name: string; slug: string; currency: string; metadata: Record<string, any> } | null> {
+  const { data } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, slug, currency, metadata')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (!data) return null;
+  const o = data as any;
+  return { id: o.id, name: o.name, slug: o.slug, currency: o.currency || 'USD', metadata: o.metadata || {} };
+}
+
+/**
  * Who can actually sign in to this studio — distinct from the Team roster,
  * which is about who does the work. Identity is a kernel concern, so it is
  * answered here rather than by any one module.

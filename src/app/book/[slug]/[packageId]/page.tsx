@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { formatMoney } from '@/kernel/currency';
+import { getStudioBySlug } from '@/kernel/organizations';
+import { getPackagePublic, getOpenVariablesForPackagePublic } from '@/modules/packages/interface';
 import { BookingForm } from './BookingForm';
 
 export const dynamic = 'force-dynamic';
@@ -10,36 +11,23 @@ export default async function BookingPage(props: {
 }) {
   const params = await props.params;
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, currency')
-    .eq('slug', params.slug)
-    .single();
+  // The public path carries a slug, not a session, so the org is resolved from
+  // it and then passed explicitly to everything below.
+  const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const { data: pkg } = await supabaseAdmin
-    .from('packages')
-    .select(`
-      id, name, description, pricing, pricing_variant, duration_minutes, form_schema,
-      package_services(service:services(name)),
-      package_deliverables(output_type:output_types(name))
-    `)
-    .eq('organization_id', org.id)
-    .eq('id', params.packageId)
-    .single();
+  const pkg = await getPackagePublic(org.id, params.packageId);
   if (!pkg) notFound();
 
   // What this package deliberately left open becomes the questions asked below.
-  // Public path, so this takes the org explicitly rather than a session.
-  const { getOpenVariablesForPackagePublic } = await import('@/modules/packages/interface');
   const openVariables = await getOpenVariablesForPackagePublic(org.id, params.packageId);
 
-  const currencyCode = (org as any).currency || 'USD';
-  const services: string[] = ((pkg as any).package_services || []).map((ps: any) => ps.service?.name).filter(Boolean);
-  const deliverables: string[] = ((pkg as any).package_deliverables || []).map((pd: any) => pd.output_type?.name).filter(Boolean);
-  const pricing: any = (pkg as any).pricing || {};
-  const variant: any = (pkg as any).pricing_variant || null;
-  const durationMin: number | null = (pkg as any).duration_minutes ?? null;
+  const currencyCode = org.currency;
+  const services = pkg.serviceNames;
+  const deliverables = pkg.deliverableNames;
+  const pricing: any = pkg.pricing || {};
+  const variant: any = pkg.pricing_variant || null;
+  const durationMin: number | null = pkg.durationMinutes;
 
   const durationLabel = durationMin
     ? durationMin >= 60
@@ -61,11 +49,11 @@ export default async function BookingPage(props: {
         {/* Package summary — what they're requesting */}
         <div className="q-card" style={{ marginBottom: '32px', padding: '32px', borderRadius: '16px' }}>
           <h1 style={{ margin: '0 0 8px', fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 700, color: 'var(--q-color-ink-900)', letterSpacing: '-0.02em' }}>
-            {(pkg as any).name}
+            {pkg.name}
           </h1>
-          {(pkg as any).description && (
+          {pkg.description && (
             <p style={{ margin: '0 0 24px', color: 'var(--q-color-ink-500)', fontSize: '1rem', lineHeight: 1.6 }}>
-              {(pkg as any).description}
+              {pkg.description}
             </p>
           )}
 
@@ -73,9 +61,9 @@ export default async function BookingPage(props: {
             {/* The form (which now renders a button that opens a wizard) */}
             <BookingForm
               orgId={org.id}
-              packageId={(pkg as any).id}
-              packageName={(pkg as any).name}
-              formSchema={(pkg as any).form_schema || []}
+              packageId={pkg.id}
+              packageName={pkg.name}
+              formSchema={pkg.formSchema}
               openVariables={openVariables}
               variant={variant}
               currencyCode={currencyCode}

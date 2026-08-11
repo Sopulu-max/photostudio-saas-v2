@@ -476,13 +476,29 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
 export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
-    .select('id, name, pricing, pricing_variant')
+    .select(`
+      id, name, description, pricing, pricing_variant, duration_minutes, form_schema,
+      package_services(service:services(name)),
+      package_deliverables(deliverable:deliverables(name))
+    `)
     .eq('id', packageId)
     .eq('organization_id', orgId)
     .eq('status', 'active')
     .maybeSingle();
   if (error) { console.error('Failed to get public package:', error); return null; }
-  return data;
+  if (!data) return null;
+  const p: any = data;
+  return {
+    id: p.id as string,
+    name: p.name as string,
+    description: (p.description ?? null) as string | null,
+    pricing: p.pricing,
+    pricing_variant: p.pricing_variant,
+    durationMinutes: (p.duration_minutes ?? null) as number | null,
+    formSchema: (p.form_schema || []) as any[],
+    serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
+    deliverableNames: ((p.package_deliverables || []) as any[]).map((pd) => pd.deliverable?.name).filter(Boolean) as string[],
+  };
 }
 
 export async function getPackage(packageId: string) {

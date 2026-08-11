@@ -1,24 +1,20 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { listPackagesPublic } from '@/modules/packages/interface';
 import { formatMoney } from '@/kernel/currency';
+import { getStudioBySlug } from '@/kernel/organizations';
 
 export const dynamic = 'force-dynamic';
 
 export default async function StorefrontPage(props: { params: Promise<{ slug: string }> }) {
   const params = await props.params;
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, currency, metadata')
-    .eq('slug', params.slug)
-    .maybeSingle();
+  const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
   const packages = await listPackagesPublic(org.id);
-  const currencyCode = org.currency || 'USD';
-  const meta = (org.metadata || {}) as Record<string, any>;
+  const currencyCode = org.currency;
+  const meta = org.metadata;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)' }}>

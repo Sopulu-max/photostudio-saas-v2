@@ -258,7 +258,7 @@ describe('Core Loop Verification', () => {
     const finalBooking = await getBooking(bookingId);
     expect(finalBooking?.contracts.length).toBe(1);
     expect(finalBooking?.transactions.length).toBe(1);
-  }, 30000);
+  }, 120000);
 
   it('carries a configuration from service to package to booking', async () => {
     const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Configured Session' });

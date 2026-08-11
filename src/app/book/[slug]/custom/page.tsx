@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getStudioBySlug } from '@/kernel/organizations';
 import { getPublicIntakeDimensions } from '@/modules/services/interface';
 import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
 import { BookingForm } from '../[packageId]/BookingForm';
@@ -11,11 +11,7 @@ export default async function CustomBookingPage(props: {
 }) {
   const params = await props.params;
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name, currency')
-    .eq('slug', params.slug)
-    .maybeSingle();
+  const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
   const [dimensionConfig, packages] = await Promise.all([

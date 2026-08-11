@@ -69,8 +69,8 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
             <div className="q-panel">
               <div className="q-stat-label">Primary Output</div>
               <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>
-                {dims.primary_output_type ? (
-                  <span className="q-row" style={{ gap: '8px', color: 'var(--q-color-primary)' }}><CheckCircle2 size={18} /> {dims.primary_output_type.name}</span>
+                {dims.primary_deliverable ? (
+                  <span className="q-row" style={{ gap: '8px', color: 'var(--q-color-primary)' }}><CheckCircle2 size={18} /> {dims.primary_deliverable.name}</span>
                 ) : (
                   <span className="q-text-meta">None</span>
                 )}
