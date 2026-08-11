@@ -17,4 +17,8 @@ export {
   unshareDelivery,
   listDeliveriesForBooking,
   getGalleryByToken,
+  // The promise a booking made, and whether it has been kept
+  setDeliveryFulfils,
+  getPromisedDeliverables,
+  getFulfilmentForBooking,
 } from './domain';

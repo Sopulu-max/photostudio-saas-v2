@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
+import { getDeliverablesForPackages } from '@/modules/packages/interface';
 
 /**
  * Delivery — handing finished work to the client.
@@ -176,6 +177,17 @@ export async function registerFile(input: {
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
+  // If the delivery covers exactly one promised type, every file in it is that
+  // type and we can say so. With two or more, nothing here knows which file is
+  // the album and which is a photo, so the asset stays untyped rather than
+  // guessing — a wrong type is worse than none.
+  const { data: covers } = await supabaseAdmin
+    .from('delivery_deliverables')
+    .select('deliverable_id')
+    .eq('organization_id', orgId)
+    .eq('delivery_id', input.deliveryId);
+  const deliverableId = (covers || []).length === 1 ? (covers as any[])[0].deliverable_id : null;
+
   // 1. Register the Production Asset
   const { data: asset, error: assetError } = await supabaseAdmin
     .from('assets')
@@ -186,6 +198,7 @@ export async function registerFile(input: {
       file_name: input.fileName,
       mime_type: input.mimeType || null,
       size_bytes: input.sizeBytes ?? null,
+      deliverable_id: deliverableId,
       state: 'final', // Directly uploaded to delivery implies it's final
     })
     .select('id')
@@ -302,13 +315,126 @@ export async function unshareDelivery(input: { deliveryId: string; bookingId: st
   return { ok: true };
 }
 
+/**
+ * Declare which promised deliverable types this bundle satisfies. Replace-
+ * wholesale, so removals are expressed by absence.
+ *
+ * This is a claim about fulfilment, not about file contents — the studio is
+ * saying "this is the album we owed them". Nothing infers it from the files,
+ * because no file extension knows what was sold.
+ */
+export async function setDeliveryFulfils(input: {
+  deliveryId: string;
+  bookingId: string;
+  deliverableIds: string[];
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: delivery } = await supabaseAdmin
+    .from('deliveries')
+    .select('id')
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!delivery) throw new Error('Delivery not found');
+
+  // A delivery can only claim what the booking actually promised — otherwise
+  // the outstanding list could be cleared by pointing at something nobody sold.
+  const promised = await getPromisedDeliverables(input.bookingId);
+  const promisedIds = new Set(promised.map((p) => p.id));
+  const ids = [...new Set(input.deliverableIds)].filter(Boolean);
+  const stray = ids.find((id) => !promisedIds.has(id));
+  if (stray) throw new Error('That deliverable is not part of what this booking promised.');
+
+  await supabaseAdmin
+    .from('delivery_deliverables')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('delivery_id', input.deliveryId);
+
+  if (ids.length > 0) {
+    const { error } = await supabaseAdmin.from('delivery_deliverables').insert(
+      ids.map((deliverable_id) => ({ organization_id: orgId, delivery_id: input.deliveryId, deliverable_id }))
+    );
+    if (error) {
+      console.error('Failed to set what this delivery fulfils:', error);
+      throw new Error('Failed to save what this delivery covers');
+    }
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'delivery',
+    entityId: input.deliveryId,
+    action: 'fulfilment_set',
+    actorId: actorId ?? undefined,
+    payload: { bookingId: input.bookingId, count: ids.length },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/** Every deliverable type this booking's packages promised, deduplicated. */
+export async function getPromisedDeliverables(bookingId: string): Promise<{ id: string; name: string }[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('booking_lines')
+    .select('package_id')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+  const packageIds = [...new Set(((data || []) as any[]).map((l) => l.package_id).filter(Boolean))];
+  return getDeliverablesForPackages(packageIds);
+}
+
+/**
+ * What was promised and whether it has been handed over — the answer to
+ * "is anything still outstanding on this booking?".
+ *
+ * Archived deliveries still count as fulfilment. Archiving means superseded
+ * bookkeeping, not undelivered; a studio that supersedes a preview gallery
+ * with the finals has not un-delivered the photos.
+ */
+export async function getFulfilmentForBooking(bookingId: string) {
+  const promised = await getPromisedDeliverables(bookingId);
+  if (promised.length === 0) return [];
+
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('delivery_deliverables')
+    .select('deliverable_id, delivery:deliveries!inner(id, title, status, booking_id)')
+    .eq('organization_id', orgId)
+    .eq('delivery.booking_id', bookingId);
+
+  const byDeliverable = new Map<string, { id: string; title: string; status: string }[]>();
+  for (const row of ((data || []) as any[])) {
+    if (!row.delivery) continue;
+    const list = byDeliverable.get(row.deliverable_id) || [];
+    list.push({ id: row.delivery.id, title: row.delivery.title, status: row.delivery.status });
+    byDeliverable.set(row.deliverable_id, list);
+  }
+
+  return promised.map((p) => {
+    const covering = byDeliverable.get(p.id) || [];
+    return {
+      id: p.id,
+      name: p.name,
+      deliveries: covering,
+      // Bundled but not yet sent is not delivered. The client has to be able
+      // to reach it for the promise to be kept.
+      shared: covering.some((d) => d.status === 'shared'),
+      covered: covering.length > 0,
+    };
+  });
+}
+
 /** The deliveries on a booking, with their files — what the hub renders. */
 export async function listDeliveriesForBooking(bookingId: string) {
   const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_assets(id, position, asset:assets(id, file_name, mime_type, size_bytes))')
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_assets(id, position, asset:assets(id, file_name, mime_type, size_bytes)), delivery_deliverables(deliverable:deliverables(id, name))')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId)
     .order('created_at', { ascending: false });
@@ -325,6 +451,10 @@ export async function listDeliveriesForBooking(bookingId: string) {
     sharedAt: d.shared_at,
     lastViewedAt: d.last_viewed_at,
     archivedAt: d.archived_at,
+    fulfils: (d.delivery_deliverables || [])
+      .map((dd: any) => dd.deliverable)
+      .filter(Boolean)
+      .map((x: any) => ({ id: x.id, name: x.name })),
     files: (d.delivery_assets || []).sort((a: any, b: any) => a.position - b.position).map((da: any) => ({
       id: da.id, // ID of the link, used for deletion
       file_name: da.asset?.file_name,

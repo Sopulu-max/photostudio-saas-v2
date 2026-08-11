@@ -22,6 +22,8 @@ export {
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   getProductionPlanForPackage, getPaymentPoliciesForPackages,
+  // What these packages promise the client will end up with
+  getDeliverablesForPackages,
   // What a package left open — the questions a client still has to answer
   getOpenVariablesForPackage, getOpenVariablesForPackagePublic,
   // Everything the bundle declares, fixed or not — what an operator edits against

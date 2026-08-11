@@ -14,6 +14,7 @@ import {
   removeFile,
   shareDelivery,
   unshareDelivery,
+  setDeliveryFulfils,
 } from '@/modules/delivery/interface';
 
 function useAction() {
@@ -187,6 +188,67 @@ export function RemoveFileButton({ fileId, bookingId }: { fileId: string; bookin
     >
       Remove
     </button>
+  );
+}
+
+/**
+ * Which of the booking's promises this bundle keeps. Only what was actually
+ * sold is offered — a delivery can't tick off something nobody bought.
+ */
+export function FulfilsControl({
+  deliveryId,
+  bookingId,
+  promised,
+  fulfils,
+}: {
+  deliveryId: string;
+  bookingId: string;
+  promised: { id: string; name: string }[];
+  fulfils: { id: string; name: string }[];
+}) {
+  const { isPending, run } = useAction();
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>(fulfils.map((f) => f.id));
+
+  if (promised.length === 0) return null;
+
+  const toggle = (id: string) =>
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  if (!open) {
+    return (
+      <div className="q-row" style={{ marginTop: '8px' }}>
+        {fulfils.length > 0 ? (
+          <span className="q-meta">Covers {fulfils.map((f) => f.name).join(' · ')}</span>
+        ) : (
+          <span className="q-meta-sm">Not marked against anything promised</span>
+        )}
+        <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => { setPicked(fulfils.map((f) => f.id)); setOpen(true); }}>
+          {fulfils.length > 0 ? 'Change' : 'Mark what this covers'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="q-note q-stack q-stack-sm" style={{ marginTop: '8px' }}>
+      <span className="q-meta-sm">What this delivery hands over</span>
+      <div className="q-row" style={{ flexWrap: 'wrap' }}>
+        {promised.map((p) => (
+          <label key={p.id} className="q-row" style={{ gap: '6px' }}>
+            <input type="checkbox" checked={picked.includes(p.id)} onChange={() => toggle(p.id)} />
+            <span className="q-meta-plain">{p.name}</span>
+          </label>
+        ))}
+      </div>
+      <div className="q-row">
+        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          onClick={() => run(() => setDeliveryFulfils({ deliveryId, bookingId, deliverableIds: picked }).then(() => setOpen(false)))}>
+          Save
+        </button>
+        <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setOpen(false); setPicked(fulfils.map((f) => f.id)); }}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

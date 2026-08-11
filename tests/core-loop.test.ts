@@ -29,6 +29,7 @@ import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
+import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 
 /**
  * Remove a test organization and everything under it.
@@ -46,7 +47,7 @@ export const PURGE_ORDER = [
   'assignments', 'tasks', 'booking_line_variable_values', 'booking_lines',
   // financial_transactions before contracts: a transaction points at the
   // contract it settles, so contracts cannot go first.
-  'financial_transactions', 'deliveries', 'contracts',
+  'financial_transactions', 'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
   'bookings',
   'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
   'package_occasions', 'package_contexts', 'package_subjects', 'package_purposes', 'package_client_types',
@@ -320,6 +321,69 @@ describe('Core Loop Verification', () => {
     expect(edited.find((c) => c.key === 'hours')).toMatchObject({ value: 8, source: 'studio' });
     expect(edited.find((c) => c.key === 'outfits')?.value).toBe(2);
   }, 30000);
+
+  it('knows what was promised and whether it was handed over', async () => {
+    const { outputTypeId: photosId } = await createDeliverable('Edited Photos');
+    const { outputTypeId: albumId } = await createDeliverable('Album');
+    const { outputTypeId: unsoldId } = await createDeliverable('Behind the Scenes Reel');
+
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Promised Session' });
+    const { packageId } = await createPackage({
+      name: 'Two-Promise Package',
+      basePrice: 900,
+      serviceIds: [serviceId],
+      deliverableIds: [photosId, albumId],
+    });
+
+    const { contactId } = await createClient({ name: 'Ada Promise', email: 'ada.promise@example.com' });
+    const { bookingId } = await createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId,
+      clientName: 'Ada Promise',
+      packageId,
+      packageName: 'Two-Promise Package',
+    });
+
+    // Nothing handed over yet: both promises are outstanding.
+    let fulfilment = await getFulfilmentForBooking(bookingId);
+    expect(fulfilment.map((f) => f.name).sort()).toEqual(['Album', 'Edited Photos']);
+    expect(fulfilment.every((f) => !f.covered && !f.shared)).toBe(true);
+
+    const { deliveryId } = await createDelivery({ bookingId, title: 'Final gallery' });
+
+    // A delivery can only claim what the booking actually sold.
+    await expect(
+      setDeliveryFulfils({ deliveryId, bookingId, deliverableIds: [unsoldId] })
+    ).rejects.toThrow(/not part of what this booking promised/);
+
+    await setDeliveryFulfils({ deliveryId, bookingId, deliverableIds: [photosId] });
+
+    // Bundled is not delivered — the client still can't reach it.
+    fulfilment = await getFulfilmentForBooking(bookingId);
+    const photos = fulfilment.find((f) => f.name === 'Edited Photos')!;
+    expect(photos.covered).toBe(true);
+    expect(photos.shared).toBe(false);
+    expect(fulfilment.find((f) => f.name === 'Album')!.covered).toBe(false);
+
+    // The delivery covers exactly one promise, so its files know their type.
+    await registerFile({
+      deliveryId,
+      bookingId,
+      storagePath: `${TEST_ORG_ID}/${deliveryId}/test-file.jpg`,
+      fileName: 'test-file.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 1024,
+    });
+    const { data: assetRows } = await supabaseAdmin
+      .from('assets').select('deliverable_id').eq('organization_id', TEST_ORG_ID);
+    expect(assetRows?.[0]?.deliverable_id).toBe(photosId);
+
+    await shareDelivery({ deliveryId, bookingId });
+
+    fulfilment = await getFulfilmentForBooking(bookingId);
+    expect(fulfilment.find((f) => f.name === 'Edited Photos')!.shared).toBe(true);
+    expect(fulfilment.find((f) => f.name === 'Album')!.shared).toBe(false);
+  }, 120000);
 
   it('gives a template-created service its variables without hand-entry', async () => {
     const template = getTemplate('portrait-photography')!;

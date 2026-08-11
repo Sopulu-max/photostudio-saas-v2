@@ -623,6 +623,30 @@ export async function getOpenVariablesForPackage(packageId: string) {
   return getOpenVariablesForPackagePublic(orgId, packageId);
 }
 
+/**
+ * The deliverable types these packages promise, deduplicated. Two packages on
+ * one booking that both promise Edited Photos owe one set of edited photos,
+ * not two — the promise is a set, which is why this unions rather than lists.
+ */
+export async function getDeliverablesForPackages(packageIds: string[]): Promise<{ id: string; name: string }[]> {
+  if (packageIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('package_deliverables')
+    .select('deliverable:deliverables(id, name)')
+    .eq('organization_id', orgId)
+    .in('package_id', packageIds);
+  if (error) {
+    console.error('Failed to list promised deliverables:', error);
+    return [];
+  }
+  const byId = new Map<string, { id: string; name: string }>();
+  for (const row of ((data || []) as any[])) {
+    if (row.deliverable) byId.set(row.deliverable.id, { id: row.deliverable.id, name: row.deliverable.name });
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** What Bookings needs to build a line — id, price, and its aggregated routing inputs. */
 export async function getPackageForBooking(packageId: string) {
   const { orgId } = await getAuthOrgId();

@@ -17,9 +17,9 @@ import { LineConfigForm } from './LineConfigForm';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
-import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions } from './DeliveryForms';
+import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl } from './DeliveryForms';
 import { ScheduleForm } from './ScheduleForm';
-import { listDeliveriesForBooking } from '@/modules/delivery/interface';
+import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
 import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
 
@@ -91,7 +91,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { getLineConfigurationForm } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing] = await Promise.all([
+  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing, fulfilment] = await Promise.all([
     listCrewForBooking(booking.id),
     listAssignableEmployees(),
     getWorkForLines(lineIds, booking.id),
@@ -101,7 +101,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     getStaffingNeedsForBooking(booking.id),
+    getFulfilmentForBooking(booking.id),
   ]);
+
+  // What the packages promised, and what's still owed. Shared is the bar, not
+  // uploaded: a bundle the client can't open isn't delivered.
+  const promised = fulfilment.map((f) => ({ id: f.id, name: f.name }));
+  const undelivered = fulfilment.filter((f) => !f.shared);
 
   // Anyone on the booking who isn't covering one of the roles the blueprints
   // asked for — a second shooter the studio added themselves, say.
@@ -418,6 +424,29 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* Delivery */}
         <Section title="Delivery">
+          {/* What the packages promised, and whether it's been handed over. */}
+          {fulfilment.length > 0 && (
+            <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+              <span className="q-meta-sm">
+                {undelivered.length === 0
+                  ? 'Everything promised has been shared.'
+                  : `Still owed: ${undelivered.length} of ${fulfilment.length}`}
+              </span>
+              <div className="q-row" style={{ flexWrap: 'wrap' }}>
+                {fulfilment.map((f) => (
+                  <span key={f.id} className={`q-badge ${f.shared ? 'q-badge-success' : 'q-badge-neutral'}`}>
+                    {f.name}
+                    {f.shared
+                      ? ' · shared'
+                      : f.covered
+                        ? ' · bundled, not shared'
+                        : ' · outstanding'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {deliveries.length === 0 ? (
             <div className="q-muted">
               Nothing delivered yet. Bundle the finished work and share it when you're ready.
@@ -450,6 +479,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       ))}
                     </div>
                   )}
+
+                  <FulfilsControl
+                    deliveryId={d.id}
+                    bookingId={booking.id}
+                    promised={promised}
+                    fulfils={d.fulfils}
+                  />
 
                   <div className="q-row q-row-between" style={{ marginTop: '12px' }}>
                     <ShareControl deliveryId={d.id} bookingId={booking.id} status={d.status} shareToken={d.shareToken} />
