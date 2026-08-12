@@ -55,3 +55,11 @@ export type { ServiceTemplate, TemplateQuestion, TemplateStage } from './templat
 
 export { buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions, narrowFor } from './suggestions';
 export type { Narrowed, DimensionSuggestions } from './suggestions';
+
+// A studio defining how each of its domains classifies work — dimensions are
+// the studio's own now, not five the engine owns.
+export {
+  listDimensionsForDomain, createDimension, renameDimension,
+  setDimensionActive, deleteDimension, addDimensionValue, removeDimensionValue,
+} from './dimensionsAdmin';
+export type { StudioDimension } from './dimensionsAdmin';

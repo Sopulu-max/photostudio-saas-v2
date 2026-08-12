@@ -18,6 +18,7 @@ import { FacetManager } from '@/components/FacetManager';
 import { NewBlueprintForm } from '../NewBlueprintForm';
 import { BlueprintRow } from '../BlueprintRow';
 import { DimensionChooser } from '../DimensionChooser';
+import { DimensionManager } from './DimensionManager';
 import { DomainManager } from './DomainManager';
 
 export const dynamic = 'force-dynamic';
@@ -82,6 +83,16 @@ export default async function ServiceSettingsPage() {
             domains={domains} counts={domainCounts}
             onCreate={createServiceDomain} onDelete={deleteServiceDomain}
           />
+        </section>
+
+        <section className="q-card q-section">
+          <h2 className="q-section-title">How each domain classifies its work</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            Subject, Occasion, Context and the rest are starting points, not the limit — add
+            whatever your studio actually thinks in. A dimension belongs to one domain, so
+            Photography can classify by Style without Printing ever hearing about it.
+          </p>
+          <DimensionManager domains={domains.map((d: any) => ({ id: d.id, name: d.name }))} />
         </section>
 
         <section className="q-card q-section">
