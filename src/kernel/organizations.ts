@@ -181,7 +181,28 @@ export async function setStudioCurrency(code: string) {
  * The slug is in every public URL (/book/<slug>/…), so changing it breaks links
  * already shared with clients — the UI says so before you do it.
  */
-export async function updateStudio(input: { name?: string; slug?: string; logoUrl?: string; coverUrl?: string }) {
+/**
+ * Who the studio is on paper.
+ *
+ * The billing fields exist because an invoice that says what a client owes and
+ * nothing about where to send it is not an invoice. They live in metadata
+ * alongside the logo rather than in their own columns: a studio fills them in
+ * over time, and progressive enrichment is the rule here — a studio with no
+ * bank details yet still gets a working invoice, just a quieter one.
+ */
+export async function updateStudio(input: {
+  name?: string;
+  slug?: string;
+  logoUrl?: string;
+  coverUrl?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  /** How a client actually pays — bank details, transfer reference, whatever. */
+  paymentInstructions?: string;
+  /** Anything that belongs at the bottom of every document. */
+  invoiceFooter?: string;
+}) {
   const { orgId } = await getAuthOrgId();
 
   const patch: Record<string, unknown> = {};
@@ -196,15 +217,28 @@ export async function updateStudio(input: { name?: string; slug?: string; logoUr
     patch.slug = slug;
   }
   
-  if (input.logoUrl !== undefined || input.coverUrl !== undefined) {
-    // Fetch existing metadata to merge
+  const metaKeys: [keyof typeof input, string][] = [
+    ['logoUrl', 'logo_url'],
+    ['coverUrl', 'cover_url'],
+    ['contactEmail', 'contact_email'],
+    ['contactPhone', 'contact_phone'],
+    ['address', 'address'],
+    ['paymentInstructions', 'payment_instructions'],
+    ['invoiceFooter', 'invoice_footer'],
+  ];
+  const touched = metaKeys.filter(([k]) => input[k] !== undefined);
+  if (touched.length > 0) {
+    // Merged, not replaced: settings are edited a section at a time, and a
+    // form that only knows about payment details must not wipe the logo.
     const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).single();
     const existingMeta = (org?.metadata as Record<string, any>) || {};
-    patch.metadata = {
-      ...existingMeta,
-      ...(input.logoUrl !== undefined && { logo_url: input.logoUrl }),
-      ...(input.coverUrl !== undefined && { cover_url: input.coverUrl }),
-    };
+    const next = { ...existingMeta };
+    for (const [k, column] of touched) {
+      const value = String(input[k] ?? '').trim();
+      if (value) next[column] = value;
+      else delete next[column];
+    }
+    patch.metadata = next;
   }
 
   if (Object.keys(patch).length === 0) return { ok: true };
@@ -220,5 +254,7 @@ export async function updateStudio(input: { name?: string; slug?: string; logoUr
 
   revalidatePath('/settings');
   revalidatePath('/dashboard');
+  // Every invoice reprints the studio's own block, so it changes with this.
+  revalidatePath('/finances', 'layout');
   return { ok: true };
 }

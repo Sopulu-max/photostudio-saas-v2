@@ -106,12 +106,12 @@ export function InvoiceActions({
   invoiceId,
   status,
   hasLines,
-  shareUrl,
+  sharePath,
 }: {
   invoiceId: string;
   status: string;
   hasLines: boolean;
-  shareUrl: string | null;
+  sharePath: string | null;
 }) {
   const { isPending, run } = useRun();
   const [confirming, setConfirming] = useState(false);
@@ -144,9 +144,12 @@ export function InvoiceActions({
           {isPending ? 'Sending…' : 'Issue invoice'}
         </button>
       )}
-      {shareUrl && (
+      {sharePath && (
         <button className="q-btn q-btn-secondary"
-          onClick={() => { navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1600); }}>
+          onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}${sharePath}`);
+            setCopied(true); setTimeout(() => setCopied(false), 1600);
+          }}>
           {copied ? 'Copied' : 'Copy client link'}
         </button>
       )}

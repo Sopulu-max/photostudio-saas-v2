@@ -4,6 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudio, getStudioCurrency, listStudioLogins } from '@/kernel/organizations';
 import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
+import { DocumentDetailsForm } from './DocumentDetailsForm';
 import { CurrencyForm } from './CurrencyForm';
 import { CopyLinkButton } from './CopyLinkButton';
 
@@ -63,6 +64,20 @@ export default async function SettingsPage() {
             What you charge in. Currently <strong>{currency?.symbol} {currency?.code}</strong> — {currency?.label}.
           </p>
           <CurrencyForm current={currencyCode} />
+        </section>
+
+        <section className="q-card q-section">
+          <h2 className="q-section-title">On your invoices</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            What clients see on every invoice and receipt you send them &mdash; including how to pay you.
+          </p>
+          <DocumentDetailsForm
+            contactEmail={org.metadata?.contact_email as string | undefined}
+            contactPhone={org.metadata?.contact_phone as string | undefined}
+            address={org.metadata?.address as string | undefined}
+            paymentInstructions={org.metadata?.payment_instructions as string | undefined}
+            invoiceFooter={org.metadata?.invoice_footer as string | undefined}
+          />
         </section>
 
         <section className="q-card q-section">

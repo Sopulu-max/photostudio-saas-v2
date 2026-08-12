@@ -24,7 +24,7 @@ import { settlementOf } from './money';
 
 const INVOICE_SELECT = `
   id, number, status, currency, notes, issued_at, due_at, voided_at, share_token, created_at,
-  booking:bookings(id, title),
+  booking:bookings(id, title, scheduled_for),
   contact:contacts(id, display_name, email),
   contract:contracts(id, version),
   lines:invoice_lines(id, description, quantity, unit_price, amount, position, booking_line_id),

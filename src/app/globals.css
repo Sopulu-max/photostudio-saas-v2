@@ -713,6 +713,84 @@ body {
 .q-combo-empty  { padding: 10px 12px; color: var(--q-color-ink-500); font-size: 0.875rem; }
 .q-combo-sep    { border-top: 1px solid var(--q-color-ink-100); margin: 4px 0; }
 
+/* ---- Documents: the invoice/receipt a client actually receives ---- */
+.q-doc {
+  background: var(--q-color-paper);
+  color: var(--q-color-ink-900);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 14px;
+  padding: clamp(24px, 5vw, 44px);
+}
+.q-doc-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 24px; flex-wrap: wrap; margin-bottom: 32px;
+}
+.q-doc-head-right { text-align: right; }
+.q-doc-logo    { height: 44px; width: auto; margin-bottom: 10px; display: block; }
+.q-doc-studio  { font-weight: 700; font-size: 1.05rem; }
+.q-doc-kind {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--q-color-ink-400);
+}
+.q-doc-number  { font-weight: 700; font-size: 1.4rem; letter-spacing: -0.02em; }
+.q-doc-meta    { font-size: 0.85rem; color: var(--q-color-ink-500); line-height: 1.5; white-space: pre-line; }
+.q-doc-label {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--q-color-ink-400); margin-bottom: 4px;
+}
+.q-doc-strong  { font-weight: 600; }
+.q-doc-parties {
+  display: flex; gap: 40px; flex-wrap: wrap; margin-bottom: 28px;
+  padding-bottom: 24px; border-bottom: 1px solid var(--q-color-ink-100);
+}
+.q-doc-table   { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.q-doc-table th {
+  text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--q-color-ink-200);
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--q-color-ink-400);
+}
+.q-doc-table td { padding: 11px 10px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-doc-right   { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-doc-totals  { margin-top: 18px; margin-left: auto; max-width: 22rem; }
+.q-doc-total-row {
+  display: flex; justify-content: space-between; gap: 20px;
+  padding: 7px 10px; font-variant-numeric: tabular-nums;
+}
+.q-doc-total-sub   { font-size: 0.85rem; color: var(--q-color-ink-500); }
+.q-doc-total-final {
+  border-top: 1px solid var(--q-color-ink-200); margin-top: 6px; padding-top: 12px;
+  font-weight: 700; font-size: 1.1rem;
+}
+.q-doc-pay {
+  margin-top: 32px; padding: 18px;
+  background: var(--q-color-paper-subtle);
+  border: 1px solid var(--q-color-ink-100); border-radius: 10px;
+}
+.q-doc-pre     { white-space: pre-line; font-size: 0.9rem; line-height: 1.6; }
+.q-doc-note    { margin-top: 24px; font-size: 0.9rem; color: var(--q-color-ink-500); line-height: 1.6; }
+.q-doc-footer  { margin-top: 20px; font-size: 0.8rem; color: var(--q-color-ink-400); text-align: center; }
+
+/*
+ * Printing: only the document goes on the paper.
+ *
+ * Hiding by visibility rather than display, and lifting the document to the
+ * top-left, is what lets this work without tagging every piece of app chrome
+ * as non-printable — the sidebar, the top bar and the working controls all sit
+ * outside .q-doc and simply stop being visible.
+ */
+@media print {
+  body * { visibility: hidden; }
+  .q-doc, .q-doc * { visibility: visible; }
+  .q-doc {
+    position: absolute; left: 0; top: 0; width: 100%;
+    border: 0; border-radius: 0; padding: 0;
+    background: #fff; color: #111;
+  }
+  .q-noprint { display: none !important; }
+  .q-doc-pay { background: transparent; }
+  @page { margin: 18mm; }
+}
+
 /* ---- Notifications: the bell, and what it opens ---- */
 /* Deliberately not a positioning context: the panel hangs off the top bar, not
    off the button. The bar spans the content column, so anchoring there is what

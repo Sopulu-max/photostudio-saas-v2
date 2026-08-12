@@ -5,6 +5,9 @@ import { getInvoice, KINDS, kindOf } from '@/modules/finances/interface';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { InvoiceActions, InvoiceLineEditor, RecordPaymentForm } from './client';
+import { SendInvoice } from './SendInvoice';
+import { InvoiceDocument } from '@/components/InvoiceDocument';
+import { PrintDocumentButton } from '@/components/PrintDocumentButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,9 +36,9 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
   const currency = invoice.currency || studioCurrency;
   const isDraft = invoice.status === 'draft';
   const isVoid = invoice.status === 'void';
-  const shareUrl = invoice.share_token && studio?.slug
-    ? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/invoice/${invoice.share_token}`
-    : null;
+  // A path, not a URL: the origin is only known in the browser, and a relative
+  // link pasted into WhatsApp is a dead link.
+  const sharePath = invoice.share_token ? `/invoice/${invoice.share_token}` : null;
 
   // The document's own state, said once: paid is derived from the money, so
   // this can never disagree with the payments listed below it.
@@ -47,9 +50,9 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
 
   return (
     <div className="q-page-narrow">
-      <Link href="/finances" className="q-back">&larr; Back to Finances</Link>
+      <Link href="/finances" className="q-back q-noprint">&larr; Back to Finances</Link>
 
-      <header className="q-page-header">
+      <header className="q-page-header q-noprint">
         <div>
           <h1 className="q-page-title">{invoice.number || 'Draft invoice'}</h1>
           <p className="q-page-subtitle">
@@ -68,7 +71,7 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
         </div>
       </header>
 
-      <div className="q-stack q-stack-lg">
+      <div className="q-stack q-stack-lg q-noprint">
 
         <div className="q-card q-section">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
@@ -200,9 +203,42 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
             invoiceId={invoice.id}
             status={invoice.status}
             hasLines={invoice.lines.length > 0}
-            shareUrl={shareUrl}
+            sharePath={sharePath}
           />
         </div>
+      </div>
+
+      {/*
+        What the client actually receives, rendered from the same component
+        their link renders — so there is no version of this the studio hasn't
+        seen. Printing hides everything above it.
+      */}
+      <div style={{ marginTop: '32px' }}>
+        <div className="q-row q-row-between q-noprint" style={{ marginBottom: '12px' }}>
+          <h2 className="q-section-title" style={{ margin: 0 }}>
+            {invoice.settled ? 'The receipt they get' : 'The document they get'}
+          </h2>
+          <div className="q-row">
+            <PrintDocumentButton label="Download / print" />
+            {sharePath && (
+              <SendInvoice
+                sharePath={sharePath}
+                clientName={invoice.contact?.display_name ?? null}
+                clientEmail={invoice.contact?.email ?? null}
+                studioName={studio?.name || 'the studio'}
+                number={invoice.number || 'draft'}
+                amountLabel={formatMoney(invoice.total, currency)}
+                paidInFull={invoice.settled}
+              />
+            )}
+          </div>
+        </div>
+        {isDraft && (
+          <p className="q-meta q-noprint" style={{ marginBottom: '12px' }}>
+            Still a draft — issue it before sending, so it carries a number.
+          </p>
+        )}
+        <InvoiceDocument invoice={invoice} studio={studio} />
       </div>
     </div>
   );
