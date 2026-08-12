@@ -69,12 +69,17 @@ export async function startWorkForBookingLine(input: {
   return { ok: true, taskCount: stages.length };
 }
 
-export async function updateTaskStatus(
-  taskId: string,
-  organizationId: string,
-  newStatus: TaskStatus,
-  actorId: string
-) {
+/**
+ * Move a task along its state machine.
+ *
+ * The organization and the actor come from the session. They were parameters
+ * until now, passed in as props by the two browser components that call this —
+ * which meant the log's record of who moved a task was whatever the browser
+ * said it was.
+ */
+export async function updateTaskStatus(taskId: string, newStatus: TaskStatus) {
+  const { orgId: organizationId, personId: actorId } = await getAuthOrgId();
+
   // STATE MACHINE GUARD
   const { data: current, error: fetchError } = await supabaseAdmin
     .from('tasks')
@@ -112,7 +117,7 @@ export async function updateTaskStatus(
     entityType: 'task',
     entityId: task.id,
     action: 'status_updated',
-    actorId,
+    actorId: actorId ?? undefined,
     payload: { from: current.status, to: newStatus }
   });
 

@@ -36,7 +36,10 @@ export const NOTIFIABLE: Record<string, Notifiable> = {
   // "not you" rule.
   'booking.created':                       { phrase: 'booked', href: (e) => `/bookings/${e.entityId}` },
   'contract.activated':                    { phrase: 'signed a contract', href: (e) => `/contracts/${e.entityId}` },
-  'financial_transaction.payment_settled': { phrase: 'paid an invoice', href: () => `/finances` },
+  'financial_transaction.settled':         { phrase: 'paid an invoice', href: (e) => `/finances/${e.entityId}` },
+  // The name it had before settling became one transition. Still notifiable so
+  // a payment recorded last month doesn't vanish from the feed.
+  'financial_transaction.payment_settled': { phrase: 'paid an invoice', href: (e) => `/finances/${e.entityId}` },
   'delivery.viewed':                       { phrase: 'opened the gallery', href: (e) => e.payload?.bookingId ? `/bookings/${e.payload.bookingId}` : `/bookings` },
 
   // In motion — a colleague moved something that is already live.

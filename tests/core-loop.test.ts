@@ -31,6 +31,8 @@ import { createBookingFromIntake, createBooking, setBookingClient, addBookingLin
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
+import { createTransaction, settleTransaction, voidTransaction, getMoneyTotals } from '@/modules/finances/domain';
+import { totalsByCurrency } from '@/modules/finances/money';
 
 /**
  * Remove a test organization and everything under it.
@@ -384,6 +386,68 @@ describe('Core Loop Verification', () => {
     fulfilment = await getFulfilmentForBooking(bookingId);
     expect(fulfilment.find((f) => f.name === 'Edited Photos')!.shared).toBe(true);
     expect(fulfilment.find((f) => f.name === 'Album')!.shared).toBe(false);
+  }, 120000);
+
+  it('never counts what the studio spent as what it earned', () => {
+    // Pure, so the arithmetic is pinned exactly rather than against whatever
+    // else the suite has left in the books.
+    const [ngn] = totalsByCurrency([
+      { kind: 'charge',  amount: 1000, currency: 'NGN', status: 'settled' },
+      { kind: 'expense', amount: 400,  currency: 'NGN', status: 'settled' },
+      { kind: 'refund',  amount: 150,  currency: 'NGN', status: 'settled' },
+      { kind: 'charge',  amount: 300,  currency: 'NGN', status: 'pending' },
+      { kind: 'expense', amount: 900,  currency: 'NGN', status: 'pending' },
+      { kind: 'charge',  amount: 999,  currency: 'NGN', status: 'voided'  },
+    ], 'NGN');
+
+    expect(ngn.earned).toBe(850);  // 1000 charged, 150 given back — the cost is not a deduction here
+    expect(ngn.spent).toBe(400);   // only what actually left
+    expect(ngn.owed).toBe(300);    // the unpaid charge; an unpaid cost is not owed *to* the studio
+    // Voided money never happened, so it appears in none of the three.
+
+    // Two currencies stay two answers rather than being added into a third.
+    const split = totalsByCurrency([
+      { kind: 'charge', amount: 100, currency: 'USD', status: 'settled' },
+      { kind: 'charge', amount: 500, currency: 'NGN', status: 'settled' },
+    ], 'USD');
+    expect(split).toHaveLength(2);
+    expect(split.map((t) => t.currency).sort()).toEqual(['NGN', 'USD']);
+  });
+
+  it('keeps the books straight through settle and void', async () => {
+    const before = (await getMoneyTotals()).find((t) => t.currency === 'NGN')
+      ?? { currency: 'NGN', earned: 0, spent: 0, owed: 0 };
+
+    const charge = await createTransaction({ kind: 'charge', type: 'Extra hours', amount: 200, currency: 'NGN' });
+    const cost = await createTransaction({ kind: 'expense', type: 'Equipment', amount: 80, currency: 'NGN' });
+
+    // Direction is derived, so an expense can never be recorded as money in.
+    expect((charge as any).direction).toBe('inbound');
+    expect((cost as any).direction).toBe('outbound');
+
+    // Raised and unpaid: the charge is owed, the cost is nobody's debt to us.
+    const raised = (await getMoneyTotals()).find((t) => t.currency === 'NGN')!;
+    expect(raised.owed).toBe(before.owed + 200);
+    expect(raised.earned).toBe(before.earned);
+
+    await settleTransaction({ transactionId: (charge as any).id });
+    await settleTransaction({ transactionId: (cost as any).id });
+
+    const settled = (await getMoneyTotals()).find((t) => t.currency === 'NGN')!;
+    expect(settled.earned).toBe(before.earned + 200);
+    expect(settled.spent).toBe(before.spent + 80);
+    expect(settled.owed).toBe(before.owed);
+
+    // Money that already moved is a fact — it gets refunded, not un-said.
+    await expect(voidTransaction({ transactionId: (charge as any).id })).rejects.toThrow(/already moved/i);
+
+    // But something raised in error leaves the books entirely.
+    const mistake = await createTransaction({ kind: 'charge', type: 'Duplicate', amount: 5000, currency: 'NGN' });
+    expect((await getMoneyTotals()).find((t) => t.currency === 'NGN')!.owed).toBe(before.owed + 5000);
+    await voidTransaction({ transactionId: (mistake as any).id });
+    const after = (await getMoneyTotals()).find((t) => t.currency === 'NGN')!;
+    expect(after.owed).toBe(before.owed);
+    await expect(settleTransaction({ transactionId: (mistake as any).id })).rejects.toThrow(/voided/i);
   }, 120000);
 
   it('saves the booking record in one go, and only what changed', async () => {

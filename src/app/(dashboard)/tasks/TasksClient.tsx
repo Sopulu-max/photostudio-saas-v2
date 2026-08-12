@@ -113,7 +113,7 @@ export function TasksClient({
           {tasks.length === 0 ? 'No tasks yet — they appear once work starts on a booking.' : 'Nothing here.'}
         </div>
       ) : view === 'kanban' ? (
-        <KanbanBoard tasks={visible} candidates={candidates} orgId={orgId} actorId={actorId} />
+        <KanbanBoard tasks={visible} candidates={candidates} />
       ) : (
         <div className="q-stack q-stack-md">
           {visible.map((t) => (
@@ -131,7 +131,7 @@ export function TasksClient({
                     {t.lineTitle && <> · {t.lineTitle}</>}
                   </div>
                 </div>
-                <TaskStatusControl taskId={t.taskId} status={t.status} orgId={orgId} actorId={actorId} />
+                <TaskStatusControl taskId={t.taskId} status={t.status} />
               </div>
               <TaskAssignControl
                 taskId={t.taskId}

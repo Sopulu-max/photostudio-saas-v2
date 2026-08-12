@@ -1,64 +1,42 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
-import type { FinancialTransaction, TransactionStatus } from '@/lib/types/engine';
+import { settleTransaction } from './domain';
+import type { FinancialTransaction } from '@/lib/types/engine';
 
 /**
- * Mocks the settlement of a payment transaction (e.g., successful Stripe charge).
- * In a production environment, this would be invoked by a Stripe Webhook handler.
+ * A client paying through the portal.
+ *
+ * This used to settle the row itself and log its own event, so the same fact —
+ * this money arrived — was recorded two different ways depending on whether an
+ * operator confirmed it or a client paid it. Now it resolves who is paying and
+ * hands the transition to settleTransaction, which is the only thing that
+ * moves money to settled.
+ *
+ * The caller is unauthenticated, so the organization is read from the
+ * transaction itself rather than taken from the request. The transaction id is
+ * the capability here, exactly as the share token is for a gallery.
  */
 export async function processPayment(txId: string) {
-  // 1. Fetch current transaction
-  const { data: tx, error: fetchError } = await supabaseAdmin
+  const { data: tx, error } = await supabaseAdmin
     .from('financial_transactions')
-    .select('*')
+    .select('id, organization_id, contact_id, status')
     .eq('id', txId)
-    .single();
+    .maybeSingle();
 
-  if (fetchError || !tx) {
-    throw new Error('Transaction not found');
-  }
+  if (error || !tx) throw new Error('Transaction not found');
+  if (tx.status === 'voided') throw new Error('That invoice was withdrawn.');
 
-  if (tx.status === 'settled') {
-    return tx as FinancialTransaction; // Already settled
-  }
-
-  if (tx.status === 'voided') {
-    throw new Error('Cannot process a voided transaction');
-  }
-
-  // 2. Update to settled
-  const now = new Date().toISOString();
-  const { data: updatedTx, error: updateError } = await supabaseAdmin
-    .from('financial_transactions')
-    .update({
-      status: 'settled',
-      settled_at: now
-    })
-    .eq('id', txId)
-    .select()
-    .single();
-
-  if (updateError) {
-    console.error('Failed to settle transaction:', updateError);
-    throw new Error('Failed to settle transaction');
-  }
-
-  // 3. Log event
-  await logEvent({
+  const settled = await settleTransaction({
+    transactionId: tx.id,
     organizationId: tx.organization_id,
-    entityType: 'financial_transaction',
-    entityId: tx.id,
-    action: 'payment_settled',
-    actorId: tx.contact_id || undefined, // Client is the actor paying
-    payload: { amount: tx.amount, currency: tx.currency, type: tx.type }
+    // The client is the actor: they are the one who paid.
+    paidBy: tx.contact_id,
   });
 
-  // 4. Revalidate portal and dashboard caches
-  revalidatePath(`/portal`, 'layout');
-  revalidatePath(`/finances`);
+  revalidatePath('/portal', 'layout');
+  revalidatePath('/finances');
 
-  return updatedTx as FinancialTransaction;
+  return settled as FinancialTransaction;
 }

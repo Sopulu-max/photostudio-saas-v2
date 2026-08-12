@@ -89,8 +89,12 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'task.asset_produced': 'produced a file from a task',
 
   // Money
-  'financial_transaction.created':        'raised an invoice',
-  'financial_transaction.status_updated': 'updated an invoice',
+  'financial_transaction.created':        'recorded some money',
+  'financial_transaction.settled':        'marked money as received',
+  'financial_transaction.voided':         'withdrew a charge',
+  // Both of these were retired when settling became one transition instead of
+  // two. Kept so events already in the log still read as sentences.
+  'financial_transaction.status_updated':  'updated an invoice',
   'financial_transaction.payment_settled': 'settled a payment',
 
   // Contracts

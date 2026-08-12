@@ -1,17 +1,17 @@
 import { notFound } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getTransaction } from '@/modules/finances/interface';
+import { getTransaction, KINDS, kindOf } from '@/modules/finances/interface';
 import { formatMoney } from '@/kernel/currency';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { SettleTransactionClient } from './client';
+import { TransactionActions } from './client';
 import { CopyInvoiceLinkButton } from '../../bookings/[id]/CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransactionDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const { orgId, personId: actorId } = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
 
   const transaction: any = await getTransaction(params.id);
   if (!transaction) return notFound();
@@ -20,6 +20,8 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
   const orgSlug = orgData?.slug || '';
 
   const canSettle = transaction.status !== 'settled' && transaction.status !== 'voided';
+  const kind = kindOf(transaction);
+  const spec = KINDS[kind];
 
   return (
     <div className="q-page-narrow">
@@ -33,8 +35,10 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {canSettle ? (
             <>
-              <CopyInvoiceLinkButton orgSlug={orgSlug} txId={transaction.id} />
-              <SettleTransactionClient transactionId={transaction.id} orgId={orgId} actorId={actorId ?? ''} />
+              {spec.clientFacing && spec.direction === 'inbound' && (
+                <CopyInvoiceLinkButton orgSlug={orgSlug} txId={transaction.id} />
+              )}
+              <TransactionActions transactionId={transaction.id} kindLabel={spec.label} />
             </>
           ) : transaction.status === 'settled' ? (
             <Link href={`/portal/${orgSlug}/payment/${transaction.id}`} target="_blank" className="q-btn q-btn-secondary">
@@ -51,15 +55,18 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
           <div className="q-grid-3">
             <div className="q-panel">
               <div className="q-stat-label">Amount</div>
-              <div className="q-stat-value-lg">{formatMoney(transaction.amount, transaction.currency)}</div>
+              <div className="q-stat-value-lg">
+                {spec.direction === 'outbound' ? '−' : ''}{formatMoney(transaction.amount, transaction.currency)}
+              </div>
             </div>
             <div className="q-panel">
-              <div className="q-stat-label">Direction</div>
+              <div className="q-stat-label">Kind</div>
               <div className="q-stat-value">
-                <span className={`q-badge ${transaction.direction === 'inbound' ? 'q-badge-success' : 'q-badge-danger'}`}>
-                  {transaction.direction}
+                <span className={`q-badge ${kind === 'charge' ? 'q-badge-success' : kind === 'refund' ? 'q-badge-warning' : 'q-badge-neutral'}`}>
+                  {spec.label}
                 </span>
               </div>
+              <div className="q-meta-sm">{spec.hint}</div>
             </div>
             <div className="q-panel">
               <div className="q-stat-label">Status</div>
@@ -81,7 +88,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
           <div className="q-stack q-stack-sm">
             <div className="q-tile q-row q-row-between">
               <span className="q-meta">Client</span>
-              <span className="q-strong">{transaction.contact?.display_name || 'System generated'}</span>
+              <span className="q-strong">{transaction.contact?.display_name || (spec.clientFacing ? 'No client attached' : 'The studio')}</span>
             </div>
             {transaction.contact?.email && (
               <div className="q-tile q-row q-row-between">

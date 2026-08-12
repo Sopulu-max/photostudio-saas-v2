@@ -20,7 +20,7 @@ const BADGE: Record<string, string> = {
   blocked: 'q-badge-danger',
 };
 
-export function TaskStatusControl({ taskId, status, orgId, actorId }: { taskId: string; status: string; orgId: string; actorId: string }) {
+export function TaskStatusControl({ taskId, status }: { taskId: string; status: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const moves = NEXT[status] || [];
@@ -28,7 +28,7 @@ export function TaskStatusControl({ taskId, status, orgId, actorId }: { taskId: 
   const move = (to: string) =>
     startTransition(async () => {
       try {
-        await updateTaskStatus(taskId, orgId, to as any, actorId);
+        await updateTaskStatus(taskId, to as any);
         router.refresh();
       } catch (e: any) {
         alert(e?.message || 'Could not update the task.');

@@ -368,7 +368,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                                 {t.stageName}
                                 {t.isFrontStage === false && <span className="q-meta-sm"> · back-stage</span>}
                               </span>
-                              <TaskStatusControl taskId={t.id} status={t.status} orgId={orgId} actorId={actorId ?? ''} />
+                              <TaskStatusControl taskId={t.id} status={t.status} />
                             </div>
                             <TaskAssignControl
                               taskId={t.id}

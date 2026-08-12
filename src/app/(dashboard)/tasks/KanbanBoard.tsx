@@ -176,13 +176,9 @@ function KanbanColumn({
 export function KanbanBoard({
   tasks,
   candidates,
-  orgId,
-  actorId,
-}: {
+  }: {
   tasks: Task[];
   candidates: Candidate[];
-  orgId: string;
-  actorId: string;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [optimisticTasks, setOptimisticTasks] = useState<Task[]>(tasks);
@@ -237,7 +233,7 @@ export function KanbanBoard({
 
     startTransition(async () => {
       try {
-        await updateTaskStatus(activeId, orgId, newStatus as any, actorId);
+        await updateTaskStatus(activeId, newStatus as any);
         router.refresh();
       } catch (e: any) {
         alert(e?.message || 'Could not update task status.');
