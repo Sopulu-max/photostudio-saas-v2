@@ -17,43 +17,20 @@ function useAction() {
 
 type Candidate = { employeeId: string; name: string; roles: { id: string; name: string }[] };
 
-export function AddCrewForm({ bookingId, candidates }: { bookingId: string; candidates: Candidate[] }) {
-  const { isPending, run } = useAction();
-  const [employeeId, setEmployeeId] = React.useState('');
-  const [roleId, setRoleId] = React.useState('');
-
-  if (candidates.length === 0) {
-    return (
-      <p style={{ margin: '12px 0 0', fontSize: '0.85rem', color: 'var(--q-color-ink-500)' }}>
-        Add people to your <a className="q-accent" href="/team">Team</a> to put them on this booking.
-      </p>
-    );
-  }
-
-  const selected = candidates.find((c) => c.employeeId === employeeId);
-
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '16px' }}>
-      <select className="q-select" value={employeeId} onChange={(e) => { setEmployeeId(e.target.value); setRoleId(''); }} style={{ minWidth: '11rem' }}>
-        <option value="">Add someone…</option>
-        {candidates.map((c) => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}
-      </select>
-      {selected && selected.roles.length > 0 && (
-        <select className="q-select" value={roleId} onChange={(e) => setRoleId(e.target.value)} style={{ minWidth: '9rem' }}>
-          <option value="">as… (optional)</option>
-          {selected.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-      )}
-      <button
-        className="q-btn q-btn-secondary"
-        disabled={isPending || !employeeId}
-        onClick={() => run(() => assignToBooking({ bookingId, employeeId, roleId: roleId || null }).then(() => { setEmployeeId(''); setRoleId(''); }))}
-      >
-        {isPending ? 'Adding…' : 'Add to booking'}
-      </button>
-    </div>
-  );
-}
+/*
+ * There is deliberately no "add anyone to this booking" form.
+ *
+ * A booking's team is the union of the people filling roles the work calls for
+ * and the people assigned to its tasks — listCrewForBooking rolls both up. A
+ * free-form roster alongside that is a second answer to the same question, and
+ * it drifts: someone listed on the booking who holds no role and owns no task
+ * is on it only in the sense that a person typed their name.
+ *
+ * The one thing that cannot be derived is who is doing this before any task
+ * exists, since tasks are only created when work starts. That is what
+ * FillRoleForm is for, and it is bounded by what the blueprints actually ask
+ * for rather than being an open list.
+ */
 
 /**
  * Fill one role the booked Packages' blueprints call for. The role is already

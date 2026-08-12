@@ -22,15 +22,16 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 // Now import the domain functions
-import { createRole } from '@/modules/team/domain';
+import { createRole, addEmployee } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
-import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
+import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
+import { assignTask, listCrewForBooking } from '@/modules/production/domain';
 import { createTransaction, settleTransaction, voidTransaction, getMoneyTotals } from '@/modules/finances/domain';
 import { createInvoiceForBooking, issueInvoice, voidInvoice, updateDraftInvoice, getInvoice } from '@/modules/finances/invoices';
 import { totalsByCurrency } from '@/modules/finances/money';
@@ -238,6 +239,25 @@ describe('Core Loop Verification', () => {
     expect(tasks?.[0].stage_name).toBe('Shoot');
     expect(tasks?.[0].suggested_role_id).toBe(roleId);
     expect(tasks?.[1].stage_name).toBe('Edit');
+
+    // A booking's team is not a list anyone maintains. Giving someone a task is
+    // what puts them on the booking — listCrewForBooking rolls task assignments
+    // up, so there is no second act and nothing to keep in step.
+    const { employeeId } = await addEmployee({ name: 'Tunde Shooter', title: 'Photographer' });
+    await assignTask({ taskId: tasks![0].id, employeeId, roleId });
+
+    const crew = await listCrewForBooking(bookingId);
+    const tunde = crew.find((c: any) => c.employeeId === employeeId);
+    expect(tunde).toBeDefined();
+    expect(tunde!.name).toBe('Tunde Shooter');
+    // Arrived through the work, not by being added to the booking.
+    expect(tunde!.onBookingDirectly).toBe(false);
+    expect(tunde!.via).toBe('Shoot');
+
+    // And the role the blueprint asked for now reads as filled, by him.
+    const staffing = await getStaffingNeedsForBooking(bookingId);
+    const leadRole = staffing.roles.find((r: any) => r.roleId === roleId);
+    expect(leadRole!.assigned.map((a: any) => a.name)).toContain('Tunde Shooter');
 
     // ---------------------------------------------------------
     // 6. CONTRACTS (Drafting)

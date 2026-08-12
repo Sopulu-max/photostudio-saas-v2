@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { CreateContractButton, StartWorkButton, ExtractPackageButton } from './BookingActions';
-import { AddCrewForm, RemoveCrewButton, FillRoleForm } from './CrewForms';
+import { RemoveCrewButton, FillRoleForm } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
 import { getBooking, listStages, getIntakeAnswersForBooking, suggestedDurationForBooking, getStaffingNeedsForBooking } from '@/modules/bookings/interface';
@@ -111,8 +111,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const promised = fulfilment.map((f) => ({ id: f.id, name: f.name }));
   const undelivered = fulfilment.filter((f) => !f.shared);
 
-  // Anyone on the booking who isn't covering one of the roles the blueprints
-  // asked for — a second shooter the studio added themselves, say.
+  // Anyone on this booking who isn't covering one of the roles the blueprints
+  // asked for. With no free-form roster, these arrive by being given a task —
+  // a stage whose role the blueprints don't name, or one assigned to someone
+  // outside the expected role.
   const neededRoleIds = new Set(staffing.roles.map((r) => r.roleId));
   const extraCrew = (crew as any[]).filter((m) => !m.roleId || !neededRoleIds.has(m.roleId));
 
@@ -231,7 +233,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           {staffing.roles.length > 0 && (
             <>
               <p className="q-meta" style={{ marginBottom: '12px' }}>
-                What these packages need, from their services&rsquo; blueprints. Unfilled is fine — it just means no one&rsquo;s named yet.
+                What these packages need, from their services&rsquo; blueprints. Unfilled is fine — it just means no one&rsquo;s
+                named yet. Anyone given a task on this booking shows up here too, without being added twice.
               </p>
               <div className="q-stack q-stack-sm">
                 {staffing.roles.map((r) => (
@@ -284,14 +287,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             <p className="q-empty">
               {lines.length === 0
                 ? 'No one on this booking yet — add a package and the roles its blueprints call for show up here.'
-                : "No one yet, and these packages' blueprints don't name any roles."}
+                : "No one yet. These packages' blueprints don't name any roles, so there's nothing to staff against — route them and the roles appear here."}
             </p>
           )}
 
           {extraCrew.length > 0 && (
             <div style={{ marginTop: staffing.roles.length > 0 ? '20px' : 0 }}>
               {staffing.roles.length > 0 && (
-                <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Also on this booking</h3>
+                <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Also working on this</h3>
               )}
               <div className="q-stack q-stack-sm">
                 {extraCrew.map((m: any) => (
@@ -308,7 +311,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
 
-          <AddCrewForm bookingId={booking.id} candidates={candidates} />
         </Section>
 
         {/* What they're booking — one line per Package */}
