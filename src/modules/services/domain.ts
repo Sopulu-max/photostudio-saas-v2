@@ -78,61 +78,44 @@ async function deleteNamed(table: NamedTable, id: string, label: string) {
   return { ok: true };
 }
 
+/**
+ * The service parents this studio works in.
+ *
+ * A domain classifies — it is the parent a service is defined in relation to,
+ * and nothing more. It used to also carry a declared "DNA" of deliverables and
+ * dimensions, edited on its own page, which nothing ever read: the suggestions
+ * a service editor offers are built from the template library and the services
+ * the studio has actually created. That is the better source, because it is
+ * knowledge earned from real work rather than a form somebody filled in once.
+ *
+ * Output types belong to the service. A domain cannot sensibly say what its
+ * services produce — Portrait Photography and Film Developing are both
+ * Photography and share no output.
+ */
 export async function listServiceDomains() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('service_domains')
-    .select(`
-      id, name,
-      domain_deliverables:service_domain_deliverables(deliverable:deliverables(id, name)),
-      domain_occasions:service_domain_occasions(occasion:occasions(id, name)),
-      domain_contexts:service_domain_contexts(context:service_contexts(id, name)),
-      domain_subjects:service_domain_subjects(subject:subjects(id, name)),
-      domain_purposes:service_domain_purposes(purpose:purposes(id, name)),
-      domain_client_types:service_domain_client_types(client_type:client_types(id, name))
-    `)
+    .select('id, name')
     .eq('organization_id', orgId)
     .order('position', { ascending: true })
     .order('created_at', { ascending: false });
   if (error) { console.error('listServiceDomains error:', error); return []; }
-  return (data || []).map((d: any) => ({
-    id: d.id, name: d.name,
-    deliverables: (d.domain_deliverables || []).map((x: any) => x.deliverable).filter(Boolean),
-    occasions: (d.domain_occasions || []).map((x: any) => x.occasion).filter(Boolean),
-    contexts: (d.domain_contexts || []).map((x: any) => x.context).filter(Boolean),
-    subjects: (d.domain_subjects || []).map((x: any) => x.subject).filter(Boolean),
-    purposes: (d.domain_purposes || []).map((x: any) => x.purpose).filter(Boolean),
-    clientTypes: (d.domain_client_types || []).map((x: any) => x.client_type).filter(Boolean),
-  }));
+  return (data || []).map((d: any) => ({ id: d.id, name: d.name }));
 }
 
 export async function getServiceDomain(id: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('service_domains')
-    .select(`
-      id, name,
-      domain_deliverables:service_domain_deliverables(deliverable:deliverables(id, name)),
-      domain_occasions:service_domain_occasions(occasion:occasions(id, name)),
-      domain_contexts:service_domain_contexts(context:service_contexts(id, name)),
-      domain_subjects:service_domain_subjects(subject:subjects(id, name)),
-      domain_purposes:service_domain_purposes(purpose:purposes(id, name)),
-      domain_client_types:service_domain_client_types(client_type:client_types(id, name))
-    `)
+    .select('id, name')
     .eq('id', id)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (error || !data) { console.error('getServiceDomain error:', error); return null; }
-  return {
-    id: data.id, name: data.name,
-    deliverables: ((data as any).domain_deliverables || []).map((x: any) => x.deliverable).filter(Boolean),
-    occasions: ((data as any).domain_occasions || []).map((x: any) => x.occasion).filter(Boolean),
-    contexts: ((data as any).domain_contexts || []).map((x: any) => x.context).filter(Boolean),
-    subjects: ((data as any).domain_subjects || []).map((x: any) => x.subject).filter(Boolean),
-    purposes: ((data as any).domain_purposes || []).map((x: any) => x.purpose).filter(Boolean),
-    clientTypes: ((data as any).domain_client_types || []).map((x: any) => x.client_type).filter(Boolean),
-  };
+  return { id: data.id, name: data.name };
 }
+
 export async function createServiceDomain(name: string) {
   const { orgId } = await getAuthOrgId();
   const id = await findOrCreateNamed('service_domains', orgId, name);
@@ -142,44 +125,6 @@ export async function createServiceDomain(name: string) {
 }
 export async function renameServiceDomain(id: string, name: string) { return renameNamed('service_domains', id, name, 'service domain'); }
 export async function deleteServiceDomain(id: string) { return deleteNamed('service_domains', id, 'service domain'); }
-
-export async function updateServiceDomainDNA(
-  domainId: string, 
-  dna: { 
-    deliverables?: string[]; 
-    occasions?: string[]; 
-    contexts?: string[]; 
-    subjects?: string[]; 
-    purposes?: string[]; 
-    clientTypes?: string[] 
-  }
-) {
-  const { orgId } = await getAuthOrgId();
-  
-  // Helper to sync a many-to-many junction table
-  const syncJunction = async (tableName: string, idColumn: string, ids: string[] | undefined) => {
-    if (!ids) return;
-    await supabaseAdmin.from(tableName).delete().eq('service_domain_id', domainId).eq('organization_id', orgId);
-    if (ids.length > 0) {
-      await supabaseAdmin.from(tableName).insert(
-        ids.map(id => ({
-          organization_id: orgId,
-          service_domain_id: domainId,
-          [idColumn]: id
-        }))
-      );
-    }
-  };
-
-  await Promise.all([
-    syncJunction('service_domain_deliverables', 'deliverable_id', dna.deliverables),
-    syncJunction('service_domain_occasions', 'occasion_id', dna.occasions),
-    syncJunction('service_domain_contexts', 'context_id', dna.contexts),
-    syncJunction('service_domain_subjects', 'subject_id', dna.subjects),
-    syncJunction('service_domain_purposes', 'purpose_id', dna.purposes),
-    syncJunction('service_domain_client_types', 'client_type_id', dna.clientTypes),
-  ]);
-}
 
 export async function listDeliverables() { return listNamed('deliverables'); }
 export async function createDeliverable(name: string) {

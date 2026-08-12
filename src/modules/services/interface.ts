@@ -15,7 +15,6 @@ export {
   getServiceDomain,
   createServiceDomain,
   renameServiceDomain, deleteServiceDomain,
-  updateServiceDomainDNA,
   // Deliverables and Delivery Containers — the vocabulary of what a Service produces
   listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
   listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,

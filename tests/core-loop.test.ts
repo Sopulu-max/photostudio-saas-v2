@@ -64,8 +64,6 @@ export const PURGE_ORDER = [
   'service_schema_occasions', 'service_schema_contexts', 'service_schema_subjects',
   'service_schema_purposes', 'service_schema_client_types',
   'services',
-  'service_domain_deliverables', 'service_domain_occasions', 'service_domain_contexts',
-  'service_domain_subjects', 'service_domain_purposes', 'service_domain_client_types',
   'blueprints',
   'employee_roles', 'employees', 'clients',
   'contacts',

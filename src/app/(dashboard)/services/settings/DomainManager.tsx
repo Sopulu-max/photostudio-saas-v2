@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings } from 'lucide-react';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -41,9 +39,6 @@ export function DomainManager({
                 <span className="q-meta-sm">{counts[d.id] || 0} services</span>
               </div>
               <div className="q-row">
-                <Link href={`/services/settings/domains/${d.id}`} className="q-btn q-btn-secondary q-btn-xs" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Settings size={14} /> Edit DNA
-                </Link>
                 <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
                   onClick={() => run(() => onDelete(d.id))}>Remove</button>
               </div>
