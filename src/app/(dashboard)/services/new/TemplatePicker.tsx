@@ -5,7 +5,7 @@ import { templatesByDomain } from '@/modules/services/interface';
 import type { ServiceTemplate } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../[id]/ServiceFieldsEditor';
 import { createService } from '@/modules/services/interface';
-import type { Dimension, DeliverableSuggestions, DimensionSuggestions } from '@/modules/services/interface';
+import type { Dimension, Narrowed, DimensionSuggestions } from '@/modules/services/interface';
 
 
 /**
@@ -22,6 +22,9 @@ import type { Dimension, DeliverableSuggestions, DimensionSuggestions } from '@/
  */
 export function TemplatePicker({
   domainOptions,
+  serviceSuggestions,
+  deliverableSuggestions,
+  dimensionSuggestions,
   outputOptions,
   enabledDimensions,
   occasionOptions,
@@ -31,6 +34,9 @@ export function TemplatePicker({
   clientTypeOptions,
 }: {
   domainOptions: string[];
+  serviceSuggestions: Record<string, string[]>;
+  deliverableSuggestions: Narrowed;
+  dimensionSuggestions: DimensionSuggestions;
   outputOptions: string[];
   enabledDimensions: Dimension[];
   occasionOptions: string[];
@@ -62,6 +68,9 @@ export function TemplatePicker({
         <ServiceFieldsEditor
           mode="create"
           domainOptions={domainOptions}
+          serviceSuggestions={serviceSuggestions}
+          deliverableSuggestions={deliverableSuggestions}
+          dimensionSuggestions={dimensionSuggestions}
           outputOptions={outputOptions}
           enabledDimensions={enabledDimensions}
           occasionOptions={occasionOptions}
@@ -90,6 +99,9 @@ export function TemplatePicker({
         <ServiceFieldsEditor
           mode="create"
           domainOptions={domainOptions}
+          serviceSuggestions={serviceSuggestions}
+          deliverableSuggestions={deliverableSuggestions}
+          dimensionSuggestions={dimensionSuggestions}
           outputOptions={outputOptions}
           enabledDimensions={enabledDimensions}
           occasionOptions={occasionOptions}

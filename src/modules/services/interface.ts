@@ -37,7 +37,7 @@ export {
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
 } from './domain';
 
-export { DIMENSIONS } from './dimensions';
+export { DIMENSIONS, DIMENSION_LABELS } from './dimensions';
 export type { Dimension } from './dimensions';
 
 export { SERVICE_VARIABLE_KINDS, formatVariableValue } from './variableTypes';
@@ -53,5 +53,5 @@ export type { FieldTypeKey, IntakeQuestion, FieldTypeDef } from './fieldTypes';
 export { SERVICE_TEMPLATES, templatesByDomain, getTemplate } from './templates';
 export type { ServiceTemplate, TemplateQuestion, TemplateStage } from './templates';
 
-export { buildDeliverableSuggestions, buildDimensionSuggestions } from './suggestions';
-export type { DeliverableSuggestions, DimensionSuggestions } from './suggestions';
+export { buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions, narrowFor } from './suggestions';
+export type { Narrowed, DimensionSuggestions } from './suggestions';

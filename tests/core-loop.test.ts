@@ -35,6 +35,7 @@ import { assignTask, listCrewForBooking } from '@/modules/production/domain';
 import { createTransaction, settleTransaction, voidTransaction, getMoneyTotals } from '@/modules/finances/domain';
 import { createInvoiceForBooking, issueInvoice, voidInvoice, updateDraftInvoice, getInvoice } from '@/modules/finances/invoices';
 import { totalsByCurrency } from '@/modules/finances/money';
+import { buildServiceSuggestions, buildDimensionSuggestions, narrowFor } from '@/modules/services/suggestions';
 
 /**
  * Remove a test organization and everything under it.
@@ -508,6 +509,39 @@ describe('Core Loop Verification', () => {
     expect(inv!.paid).toBe(100000);
     expect(inv!.settled).toBe(false);
   }, 120000);
+
+  it('narrows what it knows through the domain, then the service', () => {
+    // Pure: the chain is knowledge, not data, so it holds with no studio at all.
+    const services = buildServiceSuggestions([]);
+    expect(services['Photography']).toContain('Portrait Photography');
+    expect(services['Photography']).toContain('Pet Photography');
+    expect(services['Videography']).not.toContain('Portrait Photography');
+
+    const dims = buildDimensionSuggestions([]);
+
+    // Naming the service is what narrows: Portrait knows Client's home, Pet
+    // doesn't, and neither is just "everything Photography has ever used".
+    expect(narrowFor(dims.context, 'Photography', 'Portrait Photography'))
+      .toEqual(['In-studio', 'Outdoor', "Client's home"]);
+    expect(narrowFor(dims.context, 'Photography', 'Pet Photography'))
+      .toEqual(['In-studio', 'Outdoor']);
+    expect(narrowFor(dims.subject, 'Photography', 'Pet Photography')).toEqual(['Pet']);
+
+    // A service the library has never heard of still gets the domain's union
+    // rather than nothing — thinner knowledge, not absent knowledge.
+    const unknown = narrowFor(dims.context, 'Photography', 'Drone Photography');
+    expect(unknown).toContain('In-studio');
+    expect(unknown.length).toBeGreaterThan(2);
+
+    // And a studio's own tagging teaches it about services the library lacks.
+    const taught = buildDimensionSuggestions([
+      { name: 'Drone Photography', domain: { name: 'Photography' }, context: { name: 'Aerial' } },
+    ] as any);
+    expect(narrowFor(taught.context, 'Photography', 'Drone Photography')).toEqual(['Aerial']);
+    expect(buildServiceSuggestions([
+      { name: 'Drone Photography', domain: { name: 'Photography' } },
+    ] as any)['Photography'][0]).toBe('Drone Photography');
+  });
 
   it('never counts what the studio spent as what it earned', () => {
     // Pure, so the arithmetic is pinned exactly rather than against whatever

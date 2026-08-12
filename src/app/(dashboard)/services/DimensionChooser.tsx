@@ -3,16 +3,11 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setEnabledDimensions } from '@/modules/services/interface';
+import { DIMENSIONS, DIMENSION_LABELS } from '@/modules/services/interface';
 import type { Dimension } from '@/modules/services/interface';
 
-const LABELS: Record<Dimension, { label: string; question: string; example: string }> = {
-  subject: { label: 'Subject', question: 'What is being photographed?', example: 'Person, Product, Building' },
-  occasion: { label: 'Occasion', question: 'What occasion is it for?', example: 'Wedding, Birthday' },
-  context: { label: 'Context', question: 'Where, and under what conditions?', example: 'Studio, Outdoor' },
-  purpose: { label: 'Purpose', question: 'What is it for?', example: 'Passport, Advertising, Editorial' },
-  client: { label: 'Client', question: 'Who is the client?', example: 'Individual, Family, Corporate' },
-};
-const ALL: Dimension[] = ['subject', 'occasion', 'context', 'purpose', 'client'];
+const LABELS = DIMENSION_LABELS;
+const ALL: Dimension[] = [...DIMENSIONS];
 
 /**
  * Fashion Photography and Birthday Photography don't answer the same

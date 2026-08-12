@@ -3,18 +3,24 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createService, updateService, setServiceStatus, duplicateService } from '@/modules/services/interface';
-import type { Dimension } from '@/modules/services/interface';
+import { narrowFor, DIMENSION_LABELS } from '@/modules/services/interface';
+import type { Dimension, Narrowed, DimensionSuggestions } from '@/modules/services/interface';
 import { CheckCircle2, ChevronRight, Settings } from 'lucide-react';
 
 export function ServiceFieldsEditor({
   mode, serviceId, status, domainOptions, outputOptions, enabledDimensions,
   occasionOptions, contextOptions, subjectOptions, purposeOptions, clientTypeOptions,
+  serviceSuggestions, deliverableSuggestions, dimensionSuggestions,
   initial,
 }: {
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
   domainOptions: string[]; outputOptions: string[]; enabledDimensions: Dimension[];
   occasionOptions: string[]; contextOptions: string[]; subjectOptions: string[];
   purposeOptions: string[]; clientTypeOptions: string[];
+  /** Domain → the services it knows about. */
+  serviceSuggestions?: Record<string, string[]>;
+  deliverableSuggestions?: Narrowed;
+  dimensionSuggestions?: DimensionSuggestions;
   initial: any;
 }) {
   const router = useRouter();
@@ -27,11 +33,60 @@ export function ServiceFieldsEditor({
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
   const [newOutput, setNewOutput] = useState('');
   
-  // Dimensional Restrictions
-  const [occasions, setOccasions] = useState<string[]>(initial.occasions || []);
-  const [newOccasion, setNewOccasion] = useState('');
-  const [subjects, setSubjects] = useState<string[]>(initial.subjects || []);
-  const [newSubject, setNewSubject] = useState('');
+  /*
+   * All five dimensions, in one shape.
+   *
+   * Context, Purpose and Client had no fields at all: the settings page let a
+   * studio enable them, and the editor rendered Subject and Occasion only,
+   * passing the other three straight back from `initial`. They could be
+   * preserved but never set — so "Outdoor is a context for this service" was
+   * unsayable, which is most of why the knowledge felt absent.
+   */
+  const [dims, setDims] = useState<Record<Dimension, string[]>>({
+    subject: initial.subjects || [],
+    occasion: initial.occasions || [],
+    context: initial.contexts || [],
+    purpose: initial.purposes || [],
+    client: initial.clientTypes || [],
+  });
+  const [drafts, setDrafts] = useState<Record<Dimension, string>>({
+    subject: '', occasion: '', context: '', purpose: '', client: '',
+  });
+
+  const setDim = (d: Dimension, values: string[]) => setDims((prev) => ({ ...prev, [d]: values }));
+  const addDim = (d: Dimension) => {
+    const v = drafts[d].trim();
+    if (!v || dims[d].some((x) => x.toLowerCase() === v.toLowerCase())) return;
+    setDim(d, [...dims[d], v]);
+    setDrafts((prev) => ({ ...prev, [d]: '' }));
+  };
+
+  /*
+   * What the form knows right now.
+   *
+   * The chain: a domain knows which services live under it; naming one of those
+   * services narrows every dimension to what that service actually carries.
+   * Type "Photography" and it offers Portrait, Event, Headshot; type "Portrait
+   * Photography" and Context offers In-studio, Outdoor, Client's home rather
+   * than every context any photography service has ever used.
+   *
+   * A service the library doesn't know falls back to the domain's union, which
+   * is still narrower than the studio's whole vocabulary. And the studio's own
+   * lists are appended after, never replaced — the suggestions are knowledge,
+   * the free text is the space for what isn't known yet.
+   */
+  const ALL_OPTIONS: Record<Dimension, string[]> = {
+    subject: subjectOptions, occasion: occasionOptions, context: contextOptions,
+    purpose: purposeOptions, client: clientTypeOptions,
+  };
+  const knownServices = serviceSuggestions?.[domain.trim()] ?? [];
+  const merge = (narrow: string[], all: string[]) => [
+    ...narrow,
+    ...all.filter((v) => !narrow.some((n) => n.toLowerCase() === v.toLowerCase())),
+  ];
+  const suggestFor = (dim: Dimension, all: string[]) =>
+    merge(narrowFor(dimensionSuggestions?.[dim], domain, name), all);
+  const outputSuggestions = merge(narrowFor(deliverableSuggestions, domain, name), outputOptions);
 
   const handleSave = () => {
     if (!name.trim()) return alert('Name is required.');
@@ -42,10 +97,12 @@ export function ServiceFieldsEditor({
         const payload = {
           name, description, serviceDomain: domain,
           primaryDeliverable: primaryDeliverable || null,
-          deliverables, occasions, subjects, 
-          contexts: initial.contexts || [], 
-          purposes: initial.purposes || [], 
-          clientTypes: initial.clientTypes || []
+          deliverables,
+          subjects: dims.subject,
+          occasions: dims.occasion,
+          contexts: dims.context,
+          purposes: dims.purpose,
+          clientTypes: dims.client,
         };
         if (mode === 'create') {
           const newId = await createService(payload);
@@ -87,7 +144,26 @@ export function ServiceFieldsEditor({
 
         <label className="q-label" style={{ marginTop: '8px' }}>
           Service Name
-          <input className="q-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wedding Photography" disabled={isPending} />
+          {/* The second link in the chain: a domain knows which services live
+              under it. Naming one the app recognises is what narrows every
+              field below to that service's own values. */}
+          <input
+            className="q-input"
+            list="known-services-list"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={knownServices.length > 0 ? `e.g. ${knownServices[0]}` : 'e.g. Wedding Photography'}
+            disabled={isPending}
+          />
+          <datalist id="known-services-list">
+            {knownServices.map((o: string) => <option key={o} value={o} />)}
+          </datalist>
+          {domain.trim() && knownServices.length > 0 && (
+            <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+              {domain.trim()} usually covers {knownServices.slice(0, 4).join(', ')}
+              {knownServices.length > 4 ? ', and more' : ''} — or name your own.
+            </span>
+          )}
         </label>
         
         <label className="q-label" style={{ marginTop: '8px' }}>
@@ -108,42 +184,47 @@ export function ServiceFieldsEditor({
 
         <div className="q-stack q-gap-md" style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
           {enabledDimensions.length === 0 ? (
-            <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>No dimensional DNA inherited from the selected domain.</span>
+            <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>
+              No dimensions turned on. Choose how this studio classifies its work in{' '}
+              <a className="q-accent" href="/services/settings">Service settings</a>.
+            </span>
           ) : (
             <>
-              {enabledDimensions.includes('subject') && (
-                <div className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
-                  <label className="q-label">Restrict Subjects</label>
-                  <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                    {subjects.map((s: string) => (
-                      <span key={s} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => toggleArray(subjects, s, setSubjects)}>
-                        {s} &times;
-                      </span>
-                    ))}
-                    <div className="q-row q-gap-sm">
-                      <input className="q-input" style={{ width: '160px', padding: '4px 12px', fontSize: '0.85rem' }} list="subjects-list" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addArray(newSubject, subjects, setSubjects, () => setNewSubject('')); }} placeholder="+ Add constraint" />
-                      <datalist id="subjects-list">{subjectOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
+              {enabledDimensions.map((dim) => {
+                const meta = DIMENSION_LABELS[dim];
+                const options = suggestFor(dim, ALL_OPTIONS[dim]);
+                return (
+                  <div key={dim} className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
+                    <label className="q-label">{meta.label}</label>
+                    <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>{meta.question}</span>
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                      {dims[dim].map((v: string) => (
+                        <span key={v} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }}
+                          onClick={() => setDim(dim, dims[dim].filter((x) => x !== v))}>
+                          {v} &times;
+                        </span>
+                      ))}
+                      <div className="q-row q-gap-sm">
+                        <input
+                          className="q-input"
+                          style={{ width: '180px', padding: '4px 12px', fontSize: '0.85rem' }}
+                          list={`dim-${dim}-list`}
+                          value={drafts[dim]}
+                          onChange={(e) => setDrafts((prev) => ({ ...prev, [dim]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDim(dim); } }}
+                          placeholder={options.length > 0 ? options.slice(0, 2).join(', ') : meta.example}
+                        />
+                        {/* Suggestions, never limits: the list narrows to what this
+                            service is known to carry, and anything can still be typed. */}
+                        <datalist id={`dim-${dim}-list`}>
+                          {options.map((o: string) => <option key={o} value={o} />)}
+                        </datalist>
+                        <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => addDim(dim)}>Add</button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {enabledDimensions.includes('occasion') && (
-                <div className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
-                  <label className="q-label">Restrict Occasions</label>
-                  <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                    {occasions.map((s: string) => (
-                      <span key={s} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => toggleArray(occasions, s, setOccasions)}>
-                        {s} &times;
-                      </span>
-                    ))}
-                    <div className="q-row q-gap-sm">
-                      <input className="q-input" style={{ width: '160px', padding: '4px 12px', fontSize: '0.85rem' }} list="occasions-list" value={newOccasion} onChange={(e) => setNewOccasion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addArray(newOccasion, occasions, setOccasions, () => setNewOccasion('')); }} placeholder="+ Add constraint" />
-                      <datalist id="occasions-list">{occasionOptions.map((o: string) => <option key={o} value={o} />)}</datalist>
-                    </div>
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </>
           )}
         </div>

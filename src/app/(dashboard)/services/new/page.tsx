@@ -3,7 +3,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   listBlueprints, listServiceDomains, listDeliverables, listServices,
   getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
-  buildDeliverableSuggestions, buildDimensionSuggestions,
+  buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
 } from '@/modules/services/interface';
 import { TemplatePicker } from './TemplatePicker';
 
@@ -22,9 +22,19 @@ export default async function NewServicePage() {
     listServices(),
   ]);
 
+  // The knowledge the form arrives with. Built from the curated library plus
+  // what this studio has actually defined, and narrowed at each step: a domain
+  // knows its services, a service knows its own dimensions and outputs.
+  const serviceSuggestions = buildServiceSuggestions(services as any);
+  const deliverableSuggestions = buildDeliverableSuggestions(services as any);
+  const dimensionSuggestions = buildDimensionSuggestions(services as any);
+
   return (
     <TemplatePicker
       domainOptions={domains.map((d: any) => d.name)}
+      serviceSuggestions={serviceSuggestions}
+      deliverableSuggestions={deliverableSuggestions}
+      dimensionSuggestions={dimensionSuggestions}
       outputOptions={deliverables.map((d: any) => d.name)}
       enabledDimensions={enabledDimensions}
       occasionOptions={occasions.map((o: any) => o.name)}

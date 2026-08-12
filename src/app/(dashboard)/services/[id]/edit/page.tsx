@@ -4,7 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   getService, listServiceDomains, listDeliverables, listServices, listServiceVariables,
   getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
-  buildDeliverableSuggestions, buildDimensionSuggestions,
+  buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
 } from '@/modules/services/interface';
 import type { Dimension } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
@@ -30,6 +30,12 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
     listServices(), listServiceVariables(params.id),
   ]);
 
+  // The same knowledge the create form gets — editing a service should narrow
+  // exactly as defining one does.
+  const serviceSuggestions = buildServiceSuggestions(services as any);
+  const deliverableSuggestions = buildDeliverableSuggestions(services as any);
+  const dimensionSuggestions = buildDimensionSuggestions(services as any);
+
   const dims = service as any;
   const tags: [Dimension, { id: string; name: string } | null][] = [
     ['subject', dims.subject], ['occasion', dims.occasion], ['context', dims.context],
@@ -50,6 +56,9 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         serviceId={service.id}
         status={service.status}
         domainOptions={domains.map((d: any) => d.name)}
+        serviceSuggestions={serviceSuggestions}
+        deliverableSuggestions={deliverableSuggestions}
+        dimensionSuggestions={dimensionSuggestions}
         outputOptions={deliverables.map((d: any) => d.name)}
         enabledDimensions={enabledDimensions}
         occasionOptions={occasions.map((o: any) => o.name)}
