@@ -5,7 +5,6 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
-import { raiseInvoiceForBooking } from '@/modules/finances/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
 import { revalidatePath } from 'next/cache';
 
@@ -94,7 +93,7 @@ export async function createBooking(input: {
  * A booking arriving from outside — the public booking page. It is the same
  * booking as any other; the only real difference is that nobody is logged in,
  * so the organization comes in explicitly instead of from a session (the
- * pattern draftContractForBooking and raiseInvoiceForBooking already use).
+ * pattern draftContractForBooking already uses).
  *
  * This exists so the public path stops being a second implementation of
  * booking creation. It was inserting bookings and lines itself and naming them
@@ -599,49 +598,6 @@ export async function createContractForBooking(bookingId: string) {
 
   revalidatePath(`/bookings/${bookingId}`);
   return { contractId };
-}
-
-/**
- * Raise an invoice on a booking — no contract required (unlocked). Amount and
- * label are whatever the studio wants (deposit, balance, a one-off).
- */
-export async function addInvoiceToBooking(input: { bookingId: string; label: string; amount: number; currency?: string }) {
-  const { orgId, personId } = await getAuthOrgId();
-
-  const { data: booking } = await supabaseAdmin
-    .from('bookings')
-    .select('id, contact_id')
-    .eq('id', input.bookingId)
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!booking) throw new Error('Booking not found');
-
-  // Which contract this invoice belongs to — the most recently created one
-  // that's still open, so it shows up on that contract's own page. A booking
-  // can have more than one contract once an earlier one is closed out; an
-  // invoice raised with none open just isn't tied to a contract at all.
-  const { data: bookingContracts } = await supabaseAdmin
-    .from('contracts')
-    .select('id, status, created_at')
-    .eq('booking_id', input.bookingId)
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false });
-  const relevantContract = (bookingContracts || []).find((c: any) => !['completed', 'cancelled'].includes(c.status));
-
-  // Ask Finances to raise it — Bookings never writes the money table.
-  const { transactionId: txId } = await raiseInvoiceForBooking({
-    organizationId: orgId,
-    bookingId: input.bookingId,
-    contactId: booking.contact_id ?? null,
-    contractId: relevantContract?.id ?? null,
-    label: input.label,
-    amount: input.amount,
-    currency: input.currency,
-    actorId: personId,
-  });
-  const tx = { id: txId };
-  revalidatePath(`/bookings/${input.bookingId}`);
-  return { transactionId: tx.id };
 }
 
 /**

@@ -245,60 +245,6 @@ export async function voidTransaction(input: { transactionId: string; reason?: s
   return { ok: true };
 }
 
-/**
- * Raise an invoice against a booking — the composition path. No contract
- * required (the kernel is unlocked). The payer is a kernel contact, with
- * person_id mirrored while the legacy column still exists.
- */
-export async function raiseInvoiceForBooking(input: {
-  organizationId: string;
-  bookingId: string;
-  contactId?: string | null;
-  contractId?: string | null;
-  label: string;
-  amount: number;
-  currency?: string;
-  actorId?: string | null;
-}) {
-  const amount = Number(input.amount);
-  if (!amount || amount <= 0) throw new Error('Enter an amount.');
-
-  const { data: tx, error } = await supabaseAdmin
-    .from('financial_transactions')
-    .insert({
-      organization_id: input.organizationId,
-      booking_id: input.bookingId,
-      contact_id: input.contactId ?? null,
-      contract_id: input.contractId ?? null,
-      // Always a charge: this is what a client owes for booked work. The label
-      // ("deposit", "balance") is the studio's word for it, beneath the kind.
-      kind: 'charge',
-      direction: 'inbound',
-      type: (input.label || '').trim() || 'invoice',
-      amount,
-      currency: input.currency || 'USD',
-      status: 'pending',
-    })
-    .select('id')
-    .single();
-
-  if (error || !tx) {
-    console.error('Failed to raise invoice:', error);
-    throw new Error('Failed to raise invoice');
-  }
-
-  await logEvent({
-    organizationId: input.organizationId,
-    entityType: 'financial_transaction',
-    entityId: tx.id,
-    action: 'created',
-    actorId: input.actorId ?? undefined,
-    payload: { bookingId: input.bookingId, amount },
-  });
-
-  return { transactionId: tx.id };
-}
-
 /** Every transaction for this org — the ledger. */
 export async function listTransactions() {
   const { orgId } = await getAuthOrgId();
@@ -335,7 +281,7 @@ export async function getTransaction(transactionId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('financial_transactions')
-    .select('id, type, kind, direction, amount, currency, status, due_date, settled_at, voided_at, created_at, booking:bookings(id, title), contact:contacts(id, display_name, email), contract:contracts(id, version)')
+    .select('id, type, kind, direction, amount, currency, status, due_date, settled_at, voided_at, created_at, receipt_number, receipt_token, booking:bookings(id, title), contact:contacts(id, display_name, email), contract:contracts(id, version), invoice:invoices(id, number)')
     .eq('id', transactionId)
     .eq('organization_id', orgId)
     .maybeSingle();

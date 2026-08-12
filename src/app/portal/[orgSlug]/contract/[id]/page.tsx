@@ -48,32 +48,36 @@ export default async function ClientContractPortalPage(props: {
       signatureDataUrl
     });
 
-    // Orchestrate deposit invoice generation
+    // Signing raises the deposit, as a real invoice with a number the client
+    // can quote back. It used to raise a bare transaction and send them to a
+    // page that rendered it as if it were a document.
     const depositPercentage = terms.deposit_percentage || 0;
     const basePrice = terms.base_price || 0;
     const depositAmount = basePrice * (depositPercentage / 100);
 
-    let txId = null;
+    let token: string | null = null;
     if (depositAmount > 0) {
-      const { raiseInvoiceForBooking } = await import('@/modules/finances/domain');
+      const { issueDepositInvoice } = await import('@/modules/finances/interface');
       try {
-        const result = await raiseInvoiceForBooking({
+        const result = await issueDepositInvoice({
           organizationId: org.id,
           bookingId: contract.booking_id,
           contactId: contract.contact_id,
           contractId: contract.id,
-          label: 'deposit',
+          label: depositPercentage >= 100 ? 'Full payment' : `${depositPercentage}% deposit`,
           amount: depositAmount,
           currency: terms.currency || 'USD',
         });
-        txId = result.transactionId;
+        token = result.token;
       } catch (err) {
+        // A failed deposit must not swallow the signature — the contract is
+        // already active, and the studio can raise the invoice by hand.
         console.error('Failed to raise deposit invoice:', err);
       }
     }
 
-    if (txId) {
-      redirect(`/portal/${params.orgSlug}/payment/${txId}`);
+    if (token) {
+      redirect(`/invoice/${token}`);
     } else {
       redirect(`/storefront/${params.orgSlug}?success=contract_signed`);
     }

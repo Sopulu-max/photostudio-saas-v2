@@ -5,7 +5,6 @@ import { formatMoney } from '@/kernel/currency';
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { TransactionActions } from './client';
-import { CopyInvoiceLinkButton } from '../../bookings/[id]/CopyInvoiceLinkButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,14 +34,11 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {canSettle ? (
             <>
-              {spec.clientFacing && spec.direction === 'inbound' && (
-                <CopyInvoiceLinkButton orgSlug={orgSlug} txId={transaction.id} />
-              )}
               <TransactionActions transactionId={transaction.id} kindLabel={spec.label} />
             </>
-          ) : transaction.status === 'settled' ? (
-            <Link href={`/portal/${orgSlug}/payment/${transaction.id}`} target="_blank" className="q-btn q-btn-secondary">
-              View Receipt
+          ) : transaction.status === 'settled' && transaction.receipt_token ? (
+            <Link href={`/receipt/${transaction.receipt_token}`} target="_blank" className="q-btn q-btn-secondary">
+              {transaction.receipt_number || 'View receipt'}
             </Link>
           ) : null}
         </div>

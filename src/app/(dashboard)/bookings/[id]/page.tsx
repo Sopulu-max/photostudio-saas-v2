@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
-import { CreateContractButton, StartWorkButton, AddInvoiceForm, ExtractPackageButton } from './BookingActions';
+import { CreateContractButton, StartWorkButton, ExtractPackageButton } from './BookingActions';
 import { AddCrewForm, RemoveCrewButton, FillRoleForm } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
@@ -18,7 +18,6 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
-import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
 import { GenerateInvoiceButton } from './InvoiceForms';
 import { listInvoicesForBooking } from '@/modules/finances/interface';
 
@@ -133,8 +132,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const contractTerms: any = latestContract?.terms || {};
   const contractDepositPct = Number(contractTerms.deposit_percentage || 0);
   const contractBasePrice = Number(contractTerms.base_price || 0);
-  const suggestedInvoiceAmount = contractDepositPct > 0 ? (contractBasePrice * contractDepositPct) / 100 : undefined;
-  const suggestedInvoiceLabel = contractDepositPct >= 100 ? 'Full payment' : `${contractDepositPct}% deposit`;
 
   // What's actually landed vs what's still owed. A refund (outbound) reduces
   // what counts as paid rather than being its own separate figure — it's
@@ -609,21 +606,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   </div>
                   <div className="q-row">
                     <span className="q-strong">{formatMoney(t.amount, t.currency)}</span>
-                    {t.status === 'pending' && (
-                      <CopyInvoiceLinkButton orgSlug={orgSlug} txId={t.id} />
-                    )}
                     <Link href={`/finances/${t.id}`} className="q-btn q-btn-secondary" style={{ fontSize: '0.85rem' }}>Open</Link>
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <AddInvoiceForm
-            bookingId={booking.id}
-            currencyCode={contractTerms.currency || currencyCode}
-            suggestedLabel={suggestedInvoiceLabel}
-            suggestedAmount={suggestedInvoiceAmount}
-          />
+
         </Section>
 
       </div>

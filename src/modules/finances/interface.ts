@@ -5,7 +5,6 @@
  */
 export {
   createTransaction, settleTransaction, voidTransaction,
-  raiseInvoiceForBooking,
   listDueInRange, listTransactions, listTransactionsForContract, getTransaction,
   getPaymentSummaryForContact, getMoneyTotals,
   // Receipts live on the payment they acknowledge — one per payment, since a
@@ -18,7 +17,7 @@ export { processPayment } from './payments';
 // is not here on purpose: it is what an invoice looks like once its payments
 // cover it, derived rather than stored.
 export {
-  createInvoiceForBooking, issueInvoice, voidInvoice, updateDraftInvoice,
+  createInvoiceForBooking, issueDepositInvoice, issueInvoice, voidInvoice, updateDraftInvoice,
   getInvoice, listInvoices, listInvoicesForBooking, getInvoiceByToken,
 } from './invoices';
 

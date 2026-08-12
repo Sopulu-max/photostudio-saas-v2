@@ -50,6 +50,5 @@ export {
   removeBookingLine,
   // Composition — create other modules' objects against a booking
   createContractForBooking,
-  addInvoiceToBooking,
   startWorkForLine,
 } from './domain';

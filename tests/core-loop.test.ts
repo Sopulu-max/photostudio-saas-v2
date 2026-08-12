@@ -27,7 +27,7 @@ import { createServiceDomain, createDeliverable, createService, createBlueprint,
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
-import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
+import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
@@ -252,19 +252,18 @@ describe('Core Loop Verification', () => {
     expect(contract?.terms.deposit_percentage).toBe(50); 
     
     // ---------------------------------------------------------
-    // 7. FINANCES (Invoicing)
+    // 7. FINANCES (billing the booking)
     // ---------------------------------------------------------
-    const { transactionId } = await addInvoiceToBooking({
-      bookingId,
-      label: 'Deposit',
-      amount: 250,
-      currency: 'USD'
-    });
-    expect(transactionId).toBeDefined();
+    // Money is raised as a document now, not as a bare row with a typed-in
+    // amount — the invoice is generated from the line that was actually booked.
+    const { invoiceId } = await createInvoiceForBooking({ bookingId });
+    await issueInvoice({ invoiceId });
+    const raised = await getInvoice(invoiceId);
+    expect(raised!.number).toMatch(/^INV-\d{4}$/);
+    expect(raised!.total).toBe(500);
 
     const finalBooking = await getBooking(bookingId);
     expect(finalBooking?.contracts.length).toBe(1);
-    expect(finalBooking?.transactions.length).toBe(1);
   }, 120000);
 
   it('carries a configuration from service to package to booking', async () => {

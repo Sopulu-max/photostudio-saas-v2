@@ -215,6 +215,94 @@ export async function issueInvoice(input: { invoiceId: string; dueAt?: string | 
 }
 
 /**
+ * A deposit, raised and sent in one go when a client signs.
+ *
+ * Public path: the client is signing on a share link with no session, so the
+ * organization is passed in by the caller that resolved it from the slug.
+ *
+ * It is one line rather than the booking's lines, because a deposit is not a
+ * bill for the work — it is a part payment against the whole. The line says so
+ * in words the client can check ("50% deposit"), and the balance invoice
+ * raised later carries the actual items.
+ *
+ * Issued immediately: there is nobody to review a draft at the moment of
+ * signing, and a client who has just signed should land on something real.
+ */
+export async function issueDepositInvoice(input: {
+  organizationId: string;
+  bookingId: string;
+  contactId?: string | null;
+  contractId?: string | null;
+  label: string;
+  amount: number;
+  currency?: string;
+}) {
+  const amount = Number(input.amount);
+  if (!amount || amount <= 0) throw new Error('A deposit needs an amount.');
+
+  const orgId = input.organizationId;
+  const { data: invoice, error } = await supabaseAdmin
+    .from('invoices')
+    .insert({
+      organization_id: orgId,
+      booking_id: input.bookingId,
+      contact_id: input.contactId ?? null,
+      contract_id: input.contractId ?? null,
+      currency: input.currency || 'USD',
+      status: 'draft',
+    })
+    .select('id')
+    .single();
+  if (error || !invoice) {
+    console.error('Failed to create deposit invoice:', error);
+    throw new Error('Failed to raise the deposit');
+  }
+
+  const { error: lineError } = await supabaseAdmin.from('invoice_lines').insert({
+    organization_id: orgId,
+    invoice_id: invoice.id,
+    description: input.label || 'Deposit',
+    quantity: 1,
+    unit_price: amount,
+    amount,
+    position: 0,
+  });
+  if (lineError) {
+    console.error('Failed to write the deposit line:', lineError);
+    throw new Error('Failed to raise the deposit');
+  }
+
+  const { data: seq, error: seqError } = await supabaseAdmin
+    .rpc('next_document_number', { org: orgId, kind: 'invoice' });
+  if (seqError) {
+    console.error('Failed to take an invoice number:', seqError);
+    throw new Error('Failed to number the deposit invoice');
+  }
+  const number = `INV-${String(seq).padStart(4, '0')}`;
+  const token = randomUUID().replace(/-/g, '');
+
+  await supabaseAdmin
+    .from('invoices')
+    .update({ number, status: 'issued', issued_at: new Date().toISOString(), share_token: token })
+    .eq('id', invoice.id)
+    .eq('organization_id', orgId);
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'invoice',
+    entityId: invoice.id,
+    action: 'issued',
+    // The client signing is the actor: their signature is what raised this.
+    actorId: input.contactId ?? undefined,
+    payload: { number, amount, viaSigning: true },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/finances');
+  return { invoiceId: invoice.id, number, token };
+}
+
+/**
  * Withdraw it. Voiding keeps the row and its number: a document that was sent
  * and cancelled is part of the record, and a missing number is worse than a
  * cancelled one. An invoice with money already against it is not voidable —
