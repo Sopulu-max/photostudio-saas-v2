@@ -412,21 +412,27 @@ export async function getLineConfigurationForm(lineId: string) {
  * contact, not at a Client record: someone can be on a booking before the studio
  * has decided they're a client at all.
  */
-export async function setBookingClient(input: { bookingId: string; contactId: string }) {
+export async function setBookingClient(input: { bookingId: string; contactId: string | null }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
-  const { data: contact } = await supabaseAdmin
-    .from('contacts')
-    .select('id, display_name, metadata')
-    .eq('id', input.contactId)
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!contact) throw new Error('Contact not found');
-
+  // null detaches. A booking can always exist without a client — that's the
+  // whole point of taking one before you know who it's for — so the wrong
+  // person being attached has to be undoable, not just replaceable.
+  let contact: { id: string; display_name: string } | null = null;
+  if (input.contactId) {
+    const { data } = await supabaseAdmin
+      .from('contacts')
+      .select('id, display_name, metadata')
+      .eq('id', input.contactId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!data) throw new Error('Contact not found');
+    contact = data as any;
+  }
 
   const { error } = await supabaseAdmin
     .from('bookings')
-    .update({ contact_id: contact.id })
+    .update({ contact_id: contact?.id ?? null })
     .eq('id', input.bookingId)
     .eq('organization_id', orgId);
   if (error) {
@@ -438,9 +444,9 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
     organizationId: orgId,
     entityType: 'booking',
     entityId: input.bookingId,
-    action: 'client_set',
+    action: contact ? 'client_set' : 'client_cleared',
     actorId: actorId ?? undefined,
-    payload: { contactId: contact.id, name: contact.display_name },
+    payload: contact ? { contactId: contact.id, name: contact.display_name } : {},
   });
 
   await refreshBookingTitle(input.bookingId);
@@ -1090,6 +1096,68 @@ export async function renameBooking(input: { bookingId: string; title: string })
   revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/bookings');
   return { ok: true };
+}
+
+/**
+ * Save the booking's own record — the fields that live on the booking row
+ * itself — in one go, for the edit page's single Save.
+ *
+ * This composes the three operations that already own these fields rather
+ * than writing a fourth path to the same columns. Each keeps its own
+ * validation and logs its own event, so a save that changes the date and the
+ * client still reads as two facts in the log, which is what happened. Only
+ * what actually differs is touched: re-saving an untouched form writes
+ * nothing and logs nothing, so the activity feed doesn't fill with renames
+ * that renamed nothing.
+ */
+export async function updateBookingRecord(input: {
+  bookingId: string;
+  title?: string;
+  contactId?: string | null;
+  scheduledFor?: string | null;
+  durationMinutes?: number | null;
+}) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: current } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, contact_id, scheduled_for, duration_minutes')
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!current) throw new Error('Booking not found');
+
+  const changed: string[] = [];
+
+  if (input.title !== undefined && input.title.trim() && input.title.trim() !== current.title) {
+    await renameBooking({ bookingId: input.bookingId, title: input.title });
+    changed.push('title');
+  }
+
+  // `undefined` means the caller isn't touching the client; `null` means detach.
+  if (input.contactId !== undefined && (input.contactId || null) !== (current.contact_id || null)) {
+    await setBookingClient({ bookingId: input.bookingId, contactId: input.contactId || null });
+    changed.push('client');
+  }
+
+  // Compared as instants, not strings: the form sends a datetime-local value
+  // and the column holds a timestamptz, so the same moment spells differently.
+  const t = (v: string | null | undefined) => (v ? new Date(v).getTime() : null);
+  const dateMoved = input.scheduledFor !== undefined && t(input.scheduledFor) !== t(current.scheduled_for);
+  const durationMoved = input.durationMinutes !== undefined
+    && (input.durationMinutes ?? null) !== (current.duration_minutes ?? null);
+  if (dateMoved || durationMoved) {
+    await setBookingSchedule({
+      bookingId: input.bookingId,
+      scheduledFor: input.scheduledFor !== undefined ? input.scheduledFor : current.scheduled_for,
+      durationMinutes: input.durationMinutes !== undefined ? input.durationMinutes : current.duration_minutes,
+    });
+    changed.push('schedule');
+  }
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/bookings');
+  return { ok: true, changed };
 }
 
 /**

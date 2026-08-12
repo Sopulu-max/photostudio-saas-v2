@@ -50,6 +50,7 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   // Bookings — the hub
   'booking.created':        'created a booking',
   'booking.client_set':     'attached a client to a booking',
+  'booking.client_cleared': 'took the client off a booking',
   'booking.stage_changed':  'moved a booking to a new stage',
   'booking.scheduled':      'put a date on a booking',
   'booking.unscheduled':    'took the date off a booking',

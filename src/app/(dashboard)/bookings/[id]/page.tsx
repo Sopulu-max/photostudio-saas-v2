@@ -2,23 +2,20 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
-import { AddLineForm } from './AddLineForm';
 import { CreateContractButton, StartWorkButton, AddInvoiceForm, ExtractPackageButton } from './BookingActions';
-import { SetClientForm } from './SetClientForm';
 import { AddCrewForm, RemoveCrewButton, FillRoleForm } from './CrewForms';
 import { listClients } from '@/modules/clients/interface';
 import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
 import { getBooking, listStages, getIntakeAnswersForBooking, suggestedDurationForBooking, getStaffingNeedsForBooking } from '@/modules/bookings/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
-import { StagePicker, BookingTitleActions } from './BookingHeaderActions';
-import { LineActions } from './LineActions';
-import { LineConfigForm } from './LineConfigForm';
+import { StagePicker } from './BookingHeaderActions';
+import { formatVariableValue } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl } from './DeliveryForms';
-import { ScheduleForm } from './ScheduleForm';
+import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
 import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
@@ -156,13 +153,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <div>
           <h1 className="q-page-title">{booking.title}</h1>
           <p className="q-page-subtitle">{booking.contact?.display_name || 'No client yet'}</p>
-          <div style={{ marginTop: '10px' }}>
-            <BookingTitleActions bookingId={booking.id} title={booking.title} />
-          </div>
         </div>
+        {/* The stage stays here: moving a booking along is the work, not an
+            amendment to it. Editing the record is one click away. */}
         <div className="q-row">
           <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage?.name}</span>
           <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
+          <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary q-btn-sm">Edit</Link>
         </div>
       </header>
 
@@ -171,20 +168,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* Client */}
         <Section title="Client">
           {booking.contact?.display_name ? (
-            <div className="q-row q-row-between">
-              <div>
-                <strong className="q-strong">{booking.contact?.display_name}</strong>
-                <div className="q-meta">{booking.contact?.email || 'No contact details'}</div>
-              </div>
-              <SetClientForm bookingId={booking.id} clients={clientOptions} label="Change client…" />
+            <div>
+              <strong className="q-strong">{booking.contact?.display_name}</strong>
+              <div className="q-meta">{booking.contact?.email || 'No contact details'}</div>
             </div>
           ) : (
-            <div>
-              <p className="q-empty" style={{ marginBottom: '12px' }}>
-                No client yet — a booking runs fine without one. Attach whoever this is for.
-              </p>
-              <SetClientForm bookingId={booking.id} clients={clientOptions} />
-            </div>
+            <p className="q-empty">
+              No client yet — a booking runs fine without one.{' '}
+              <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">Attach whoever this is for</Link>.
+            </p>
           )}
         </Section>
 
@@ -207,15 +199,26 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* When */}
         <Section title="When">
-          <ScheduleForm
-            bookingId={booking.id}
-            scheduledFor={booking.scheduled_for}
-            durationMinutes={booking.duration_minutes}
-            suggestedMinutes={suggestedMinutes}
-          />
-          {!booking.scheduled_for && (
-            <p className="q-meta" style={{ marginTop: '10px' }}>
-              No date yet — set one and it appears on the calendar.
+          {booking.scheduled_for ? (
+            <div>
+              <strong className="q-strong">
+                {new Date(booking.scheduled_for).toLocaleString(undefined, {
+                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                  hour: 'numeric', minute: '2-digit',
+                })}
+              </strong>
+              <div className="q-meta">
+                {booking.duration_minutes
+                  ? `${formatDuration(booking.duration_minutes)} · ends around ${new Date(
+                      new Date(booking.scheduled_for).getTime() + booking.duration_minutes * 60000
+                    ).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                  : 'No duration set'}
+              </div>
+            </div>
+          ) : (
+            <p className="q-empty">
+              No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
+              {suggestedMinutes ? ` What's booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
             </p>
           )}
         </Section>
@@ -309,7 +312,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         <Section title="What they're booking">
           {lines.length === 0 ? (
             <div>
-              <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+              <p className="q-empty">
+                Nothing on this booking yet —{' '}
+                <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">add a package</Link>{' '}
+                whenever you know what they want.
+              </p>
               {booking.metadata?.form_responses?.dimensions && (
                 <ExtractPackageButton bookingId={booking.id} />
               )}
@@ -334,25 +341,22 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                           {linePrice(l.price, l.quantity)}
                           {w && <> · {w.completed}/{w.total} done</>}
                         </div>
-                        <LineConfigForm
-                          bookingId={booking.id}
-                          lineId={l.id}
-                          fields={configByLine[l.id] || []}
-                        />
+                        {/* What this client is getting, stated rather than editable —
+                            changing it is an amendment, and lives on the edit page. */}
+                        {(() => {
+                          const held = (configByLine[l.id] || []).filter((f: any) => f.value != null);
+                          if (held.length === 0) return null;
+                          return (
+                            <div className="q-meta" style={{ marginTop: '6px' }}>
+                              {held
+                                .map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit })}`)
+                                .join(' · ')}
+                            </div>
+                          );
+                        })()}
                       </div>
-                      <div className="q-row">
-                        {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}
-                        <LineActions
-                          bookingId={booking.id}
-                          lineId={l.id}
-                          title={l.title}
-                          basePrice={(l.price as any)?.base_price ?? null}
-                          quantity={Number(l.quantity ?? 1)}
-                          unit={(l.price as any)?.unit ?? null}
-                          currency={(l.price as any)?.currency || 'USD'}
-                          hasWork={!!w}
-                        />
-                      </div>
+                      {/* Starting work is doing the job, so it stays. */}
+                      {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}
                     </div>
 
                     {w && (
@@ -392,7 +396,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               </strong>
             </div>
           )}
-          <AddLineForm bookingId={booking.id} packages={packageOptions} variantsByPackage={variantsByPackage} currencyCode={currencyCode} />
         </Section>
 
         {/* Contract */}

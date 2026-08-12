@@ -27,7 +27,7 @@ import { createServiceDomain, createDeliverable, createService, createBlueprint,
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
-import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration } from '@/modules/bookings/domain';
+import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, addInvoiceToBooking, startWorkForLine, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
@@ -384,6 +384,40 @@ describe('Core Loop Verification', () => {
     fulfilment = await getFulfilmentForBooking(bookingId);
     expect(fulfilment.find((f) => f.name === 'Edited Photos')!.shared).toBe(true);
     expect(fulfilment.find((f) => f.name === 'Album')!.shared).toBe(false);
+  }, 120000);
+
+  it('saves the booking record in one go, and only what changed', async () => {
+    const { bookingId } = await createBooking({ title: 'Untitled enquiry' });
+    const { contactId } = await createClient({ name: 'Ada Record', email: 'ada.record@example.com' });
+    const when = '2026-09-01T10:00:00.000Z';
+
+    const first = await updateBookingRecord({
+      bookingId, title: 'Ada — Autumn shoot', contactId, scheduledFor: when, durationMinutes: 120,
+    });
+    expect(first.changed.sort()).toEqual(['client', 'schedule', 'title']);
+
+    const saved = await getBooking(bookingId);
+    expect(saved?.title).toBe('Ada — Autumn shoot');
+    expect(saved?.contact?.id).toBe(contactId);
+    expect(saved?.duration_minutes).toBe(120);
+    expect(new Date(saved!.scheduled_for!).toISOString()).toBe(when);
+
+    // Saving the same form again must not manufacture history. The date is
+    // re-sent as the column spells it, which is a different string for the
+    // same instant — the comparison has to see through that.
+    const again = await updateBookingRecord({
+      bookingId,
+      title: 'Ada — Autumn shoot',
+      contactId,
+      scheduledFor: saved!.scheduled_for,
+      durationMinutes: 120,
+    });
+    expect(again.changed).toEqual([]);
+
+    // The wrong client attached has to be undoable, not just replaceable.
+    const cleared = await updateBookingRecord({ bookingId, contactId: null });
+    expect(cleared.changed).toEqual(['client']);
+    expect((await getBooking(bookingId))?.contact).toBeFalsy();
   }, 120000);
 
   it('notifies the studio about the outside world, not about itself', async () => {

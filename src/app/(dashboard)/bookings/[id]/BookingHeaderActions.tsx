@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   setBookingStage,
   reviewCascadeForCancel,
-  renameBooking,
   deleteBooking,
 } from '@/modules/bookings/interface';
 
@@ -83,27 +82,15 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
   );
 }
 
-/** Rename in place, and delete for genuine mistakes. */
-export function BookingTitleActions({ bookingId, title }: { bookingId: string; title: string }) {
+/**
+ * Delete, for genuine mistakes. Lives on the edit page rather than the detail
+ * page: it changes the record rather than moving the work along, and it is the
+ * one action here with nothing to undo it. Renaming is the edit form's title
+ * field now, so this no longer carries it.
+ */
+export function DeleteBookingButton({ bookingId }: { bookingId: string }) {
   const { isPending, run, router } = useAction();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(title);
   const [confirming, setConfirming] = useState(false);
-
-  if (editing) {
-    return (
-      <div className="q-row">
-        <input autoFocus className="q-input" value={value} onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(false); setValue(title); } }}
-          style={{ minWidth: '18rem' }} />
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
-          onClick={() => value.trim() && run(() => renameBooking({ bookingId, title: value }), () => setEditing(false))}>
-          Save
-        </button>
-        <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setValue(title); }}>Cancel</button>
-      </div>
-    );
-  }
 
   if (confirming) {
     return (
@@ -122,9 +109,8 @@ export function BookingTitleActions({ bookingId, title }: { bookingId: string; t
   }
 
   return (
-    <div className="q-row">
-      <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Rename</button>
-      <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setConfirming(true)}>Delete</button>
-    </div>
+    <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setConfirming(true)}>
+      Delete this booking
+    </button>
   );
 }

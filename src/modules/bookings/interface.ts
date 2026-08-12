@@ -22,6 +22,8 @@ export {
   createBookingFromIntake,
   refreshBookingTitle,
   renameBooking,
+  // The booking's own record, saved as one — what the edit page commits
+  updateBookingRecord,
   deleteBooking,
   setBookingSchedule,
   suggestedDurationForBooking,
