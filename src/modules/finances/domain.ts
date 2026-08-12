@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logEvent } from '@/kernel/events';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
@@ -101,7 +102,7 @@ export async function settleTransaction(input: {
 
   const { data: existing } = await supabaseAdmin
     .from('financial_transactions')
-    .select('id, status')
+    .select('id, status, kind, type, receipt_number')
     .eq('id', input.transactionId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -109,9 +110,36 @@ export async function settleTransaction(input: {
   if (existing.status === 'settled') return existing as FinancialTransaction;
   if (existing.status === 'voided') throw new Error('That one was voided — it can’t be settled.');
 
+  // Money that came from or went back to a client earns its acknowledgement
+  // the moment it moves. Not a separate step an operator has to remember: the
+  // client is owed the receipt as soon as they've paid, and a receipt nobody
+  // issued is the same as no receipt.
+  const spec = KINDS[kindOf(existing)];
+  let receipt: { number: string; token: string } | null = null;
+  if (spec.clientFacing && !existing.receipt_number) {
+    const { data: seq, error: seqError } = await supabaseAdmin
+      .rpc('next_document_number', { org: orgId, kind: 'receipt' });
+    if (seqError) {
+      console.error('Failed to take a receipt number:', seqError);
+      throw new Error('Failed to number the receipt for that payment');
+    }
+    receipt = {
+      number: `RCT-${String(seq).padStart(4, '0')}`,
+      token: randomUUID().replace(/-/g, ''),
+    };
+  }
+
   const { data: transaction, error } = await supabaseAdmin
     .from('financial_transactions')
-    .update({ status: 'settled', settled_at: new Date().toISOString() })
+    .update({
+      status: 'settled',
+      settled_at: new Date().toISOString(),
+      ...(receipt ? {
+        receipt_number: receipt.number,
+        receipt_issued_at: new Date().toISOString(),
+        receipt_token: receipt.token,
+      } : {}),
+    })
     .eq('id', input.transactionId)
     .eq('organization_id', orgId)
     .select()
@@ -128,10 +156,50 @@ export async function settleTransaction(input: {
     entityId: transaction.id,
     action: 'settled',
     actorId: actorId ?? undefined,
-    payload: { amount: transaction.amount, currency: transaction.currency, kind: transaction.kind },
+    payload: {
+      amount: transaction.amount,
+      currency: transaction.currency,
+      kind: transaction.kind,
+      receiptNumber: receipt?.number ?? null,
+    },
   });
 
   return transaction as FinancialTransaction;
+}
+
+/**
+ * A receipt, on its share token. Public: no session, like a gallery or an
+ * invoice link. The payment carries the document, so this reads the payment
+ * and everything it points at.
+ */
+export async function getReceiptByToken(token: string) {
+  if (!token) return null;
+  const { data } = await supabaseAdmin
+    .from('financial_transactions')
+    .select(`
+      id, kind, type, amount, currency, status, settled_at, created_at,
+      receipt_number, receipt_issued_at,
+      contact:contacts(id, display_name, email),
+      booking:bookings(id, title, scheduled_for),
+      invoice:invoices(id, number, currency, lines:invoice_lines(amount), payments:financial_transactions(kind, amount, status)),
+      organization:organizations(id, name, slug, metadata)
+    `)
+    .eq('receipt_token', token)
+    .maybeSingle();
+  if (!data || (data as any).status !== 'settled') return null;
+  return data as any;
+}
+
+/** The same, for the studio's own page. */
+export async function getReceiptForTransaction(transactionId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('financial_transactions')
+    .select('id, receipt_number, receipt_issued_at, receipt_token')
+    .eq('id', transactionId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  return data;
 }
 
 /**

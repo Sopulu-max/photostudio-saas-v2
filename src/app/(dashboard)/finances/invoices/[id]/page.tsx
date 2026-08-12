@@ -8,6 +8,7 @@ import { InvoiceActions, InvoiceLineEditor, RecordPaymentForm } from './client';
 import { SendInvoice } from './SendInvoice';
 import { InvoiceDocument } from '@/components/InvoiceDocument';
 import { PrintDocumentButton } from '@/components/PrintDocumentButton';
+import { DownloadDocumentButton } from '@/components/DownloadDocumentButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,9 +161,16 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
                             : p.status}
                         </div>
                       </div>
-                      <span className="q-strong q-num">
-                        {spec.direction === 'outbound' ? '−' : ''}{formatMoney(Number(p.amount), p.currency || currency)}
-                      </span>
+                      <div className="q-row">
+                        <span className="q-strong q-num">
+                          {spec.direction === 'outbound' ? '−' : ''}{formatMoney(Number(p.amount), p.currency || currency)}
+                        </span>
+                        {p.receipt_number && p.receipt_token && (
+                          <Link href={`/receipt/${p.receipt_token}`} className="q-btn q-btn-secondary q-btn-xs" target="_blank">
+                            {p.receipt_number}
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   );
                 })
@@ -219,7 +227,14 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
             {invoice.settled ? 'The receipt they get' : 'The document they get'}
           </h2>
           <div className="q-row">
-            <PrintDocumentButton label="Download / print" />
+            {sharePath && (
+              <DownloadDocumentButton
+                href={`${sharePath}/pdf`}
+                filename={`${invoice.number || 'invoice'}.pdf`}
+                primary={false}
+              />
+            )}
+            <PrintDocumentButton label="Print" />
             {sharePath && (
               <SendInvoice
                 sharePath={sharePath}

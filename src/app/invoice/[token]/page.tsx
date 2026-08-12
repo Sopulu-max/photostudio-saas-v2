@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getInvoiceByToken } from '@/modules/finances/interface';
 import { InvoiceDocument } from '@/components/InvoiceDocument';
 import { PrintDocumentButton } from '@/components/PrintDocumentButton';
+import { DownloadDocumentButton } from '@/components/DownloadDocumentButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,13 @@ export default async function PublicInvoicePage(props: { params: Promise<{ token
       <div style={{ width: '100%', maxWidth: '720px', margin: '0 auto' }}>
         <div className="q-row q-row-between q-noprint" style={{ marginBottom: '16px' }}>
           <span className="q-meta">{org?.name}</span>
-          <PrintDocumentButton label="Download / print" primary />
+          <div className="q-row">
+            <DownloadDocumentButton
+              href={`/invoice/${params.token}/pdf`}
+              filename={`${invoice.number || 'invoice'}.pdf`}
+            />
+            <PrintDocumentButton label="Print" />
+          </div>
         </div>
 
         <InvoiceDocument invoice={invoice} studio={org} />

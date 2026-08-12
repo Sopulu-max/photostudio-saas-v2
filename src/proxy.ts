@@ -50,7 +50,8 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname !== '/' && // let landing page be public
     !request.nextUrl.pathname.startsWith('/book') && // public booking pages
     !request.nextUrl.pathname.startsWith('/gallery') && // client delivery galleries
-    !request.nextUrl.pathname.startsWith('/invoice') // client invoices and receipts
+    !request.nextUrl.pathname.startsWith('/invoice') && // client invoices
+    !request.nextUrl.pathname.startsWith('/receipt') // client receipts
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

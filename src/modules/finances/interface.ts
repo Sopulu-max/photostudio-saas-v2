@@ -8,6 +8,9 @@ export {
   raiseInvoiceForBooking,
   listDueInRange, listTransactions, listTransactionsForContract, getTransaction,
   getPaymentSummaryForContact, getMoneyTotals,
+  // Receipts live on the payment they acknowledge — one per payment, since a
+  // deposit against an unpaid invoice still earns one.
+  getReceiptByToken, getReceiptForTransaction,
 } from './domain';
 export { processPayment } from './payments';
 

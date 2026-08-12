@@ -28,7 +28,7 @@ const INVOICE_SELECT = `
   contact:contacts(id, display_name, email),
   contract:contracts(id, version),
   lines:invoice_lines(id, description, quantity, unit_price, amount, position, booking_line_id),
-  payments:financial_transactions(id, kind, type, amount, currency, status, settled_at, created_at)
+  payments:financial_transactions(id, kind, type, amount, currency, status, settled_at, created_at, receipt_number, receipt_token)
 `;
 
 function shape(row: any) {

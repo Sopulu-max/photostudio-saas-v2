@@ -471,6 +471,17 @@ describe('Core Loop Verification', () => {
     expect(inv!.outstanding).toBe(0);
     expect(inv!.settled).toBe(true);
 
+    // Every client-facing payment earns its own receipt, the moment it lands —
+    // a deposit against a still-unpaid invoice included. That is what makes a
+    // receipt a document about a payment rather than about an invoice.
+    const { getReceiptForTransaction } = await import('@/modules/finances/domain');
+    const depositReceipt: any = await getReceiptForTransaction((deposit as any).id);
+    const balanceReceipt: any = await getReceiptForTransaction((balance as any).id);
+    expect(depositReceipt.receipt_number).toMatch(/^RCT-\d{4}$/);
+    expect(balanceReceipt.receipt_number).toMatch(/^RCT-\d{4}$/);
+    expect(depositReceipt.receipt_number).not.toBe(balanceReceipt.receipt_number);
+    expect(depositReceipt.receipt_token).toBeTruthy();
+
     // And a refund un-pays it, because paid is derived rather than a flag.
     const back = await createTransaction({
       kind: 'refund', type: 'Refund', amount: 20000, currency: 'NGN', invoiceId, contactId,
