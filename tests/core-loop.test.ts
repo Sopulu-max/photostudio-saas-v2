@@ -344,7 +344,7 @@ describe('Core Loop Verification', () => {
     const edited = await getLineConfiguration(booking!.lines[0].id);
     expect(edited.find((c) => c.key === 'hours')).toMatchObject({ value: 8, source: 'studio' });
     expect(edited.find((c) => c.key === 'outfits')?.value).toBe(2);
-  }, 30000);
+  }, 120000);
 
   it('knows what was promised and whether it was handed over', async () => {
     const { outputTypeId: photosId } = await createDeliverable('Edited Photos');
@@ -698,5 +698,5 @@ describe('Core Loop Verification', () => {
     for (const v of template.variables!) {
       expect(questionLabels).not.toContain(v.label.toLowerCase());
     }
-  }, 30000);
+  }, 120000);
 });

@@ -131,9 +131,7 @@ export function ServiceFieldsEditor({
               value={domain}
               onChange={setDomain}
               options={domainOptions}
-              placeholder="Choose a domain…"
-              addLabel="+ A domain not listed"
-              addPlaceholder="e.g. Graphic Design"
+              placeholder="Choose a domain, or type a new one…"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ marginTop: '4px', opacity: 0.7 }}>
@@ -151,9 +149,7 @@ export function ServiceFieldsEditor({
             value={name}
             onChange={setName}
             options={knownServices}
-            placeholder={domain.trim() ? `Which ${domain.trim()} service?` : 'Choose a domain first…'}
-            addLabel="+ A service not listed"
-            addPlaceholder="e.g. Drone Photography"
+            placeholder={domain.trim() ? `Which ${domain.trim()} service — or type your own` : 'Choose a domain first…'}
             disabled={isPending || !domain.trim()}
           />
           <span className="q-meta-sm" style={{ opacity: 0.7 }}>
@@ -201,9 +197,7 @@ export function ServiceFieldsEditor({
                         values={dims[dim]}
                         onChange={(v) => setDim(dim, v)}
                         options={options}
-                        placeholder={options.length > 0 ? `Add ${meta.label.toLowerCase()}…` : `No ${meta.label.toLowerCase()} known yet`}
-                        addLabel={`+ ${meta.label} not listed`}
-                        addPlaceholder={meta.example}
+                        placeholder={`Add ${meta.label.toLowerCase()} — choose or type`}
                         disabled={isPending}
                       />
                     </div>
@@ -229,9 +223,7 @@ export function ServiceFieldsEditor({
               value={primaryDeliverable}
               onChange={setPrimaryOutputType}
               options={outputSuggestions}
-              placeholder="What does this mainly produce?"
-              addLabel="+ An output not listed"
-              addPlaceholder="e.g. Edited photographs"
+              placeholder="What does this mainly produce — choose or type"
               disabled={isPending}
             />
           </label>
@@ -242,9 +234,7 @@ export function ServiceFieldsEditor({
               values={deliverables}
               onChange={setDeliverables}
               options={outputSuggestions.filter((o) => o !== primaryDeliverable)}
-              placeholder="Add an output…"
-              addLabel="+ An output not listed"
-              addPlaceholder="e.g. RAW images"
+              placeholder="Add an output — choose or type"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ display: 'block', marginTop: '8px', opacity: 0.7 }}>
