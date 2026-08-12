@@ -32,3 +32,7 @@ export {
   getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,
 } from './domain';
 export type { PaymentPolicy, PricingVariant } from './domain';
+
+// How a deliverable's specification reads — one phrasing everywhere a client sees it.
+export { formatDeliverable } from './deliverableSpec';
+export type { DeliverableSpec } from './deliverableSpec';

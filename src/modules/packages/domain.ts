@@ -6,6 +6,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
+import { formatDeliverable } from './deliverableSpec';
 
 /**
  * Packages — the marketing layer: how what a studio does gets sold. A
@@ -105,6 +106,13 @@ export async function createPackage(input: {
   durationMinutes?: number | null;
   serviceIds?: string[];
   deliverableIds?: string[];
+  /**
+   * What the package actually includes, quantified — "Edited photographs × 6",
+   * "Highlight video, 30 second", "Framed print, 20x30". A service says what
+   * kind of thing it produces; this is where it gets specific, which is what a
+   * package is for.
+   */
+  deliverableSpecs?: { deliverableId: string; quantity?: number | null; unit?: string | null; spec?: string | null }[];
   containerIds?: string[];
   workflowIds?: string[];
   /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
@@ -163,7 +171,15 @@ export async function createPackage(input: {
     await supabaseAdmin.from('package_services').insert(serviceIds.map((service_id, i) => ({ organization_id: orgId, package_id: pkg.id, service_id, position: i })));
 
     if (input.deliverableIds && input.deliverableIds.length > 0) {
-      await supabaseAdmin.from('package_deliverables').insert(input.deliverableIds.map((deliverable_id) => ({ organization_id: orgId, package_id: pkg.id, deliverable_id })));
+      await supabaseAdmin.from('package_deliverables').insert(
+        input.deliverableIds.map((deliverable_id) => {
+          const spec = input.deliverableSpecs?.find((d) => d.deliverableId === deliverable_id);
+          return {
+            organization_id: orgId, package_id: pkg.id, deliverable_id,
+            quantity: spec?.quantity ?? null, unit: spec?.unit ?? null, spec: spec?.spec ?? null,
+          };
+        })
+      );
     }
     
     if (input.containerIds && input.containerIds.length > 0) {
@@ -205,6 +221,8 @@ export async function updatePackage(input: {
   durationMinutes?: number | null;
   serviceIds?: string[];
   deliverableIds?: string[];
+  /** Quantity, unit and spec per deliverable — where a package gets specific. */
+  deliverableSpecs?: { deliverableId: string; quantity?: number | null; unit?: string | null; spec?: string | null }[];
   containerIds?: string[];
   workflowIds?: string[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
@@ -255,7 +273,15 @@ export async function updatePackage(input: {
     const oIds = [...new Set(input.deliverableIds)];
     await supabaseAdmin.from('package_deliverables').delete().eq('package_id', input.packageId).eq('organization_id', orgId);
     if (oIds.length > 0) {
-      await supabaseAdmin.from('package_deliverables').insert(oIds.map((deliverable_id) => ({ organization_id: orgId, package_id: input.packageId, deliverable_id })));
+      await supabaseAdmin.from('package_deliverables').insert(
+        oIds.map((deliverable_id) => {
+          const spec = input.deliverableSpecs?.find((d) => d.deliverableId === deliverable_id);
+          return {
+            organization_id: orgId, package_id: input.packageId, deliverable_id,
+            quantity: spec?.quantity ?? null, unit: spec?.unit ?? null, spec: spec?.spec ?? null,
+          };
+        })
+      );
     }
   }
   
@@ -327,8 +353,11 @@ export async function duplicatePackage(packageId: string) {
 
   const { data: services } = await supabaseAdmin.from('package_services').select('service_id, position').eq('package_id', packageId).eq('organization_id', orgId);
   if (services && services.length > 0) await supabaseAdmin.from('package_services').insert(services.map((s: any) => ({ organization_id: orgId, package_id: copy.id, service_id: s.service_id, position: s.position })));
-  const { data: outputs } = await supabaseAdmin.from('package_deliverables').select('deliverable_id').eq('package_id', packageId).eq('organization_id', orgId);
-  if (outputs && outputs.length > 0) await supabaseAdmin.from('package_deliverables').insert(outputs.map((d: any) => ({ organization_id: orgId, package_id: copy.id, deliverable_id: d.deliverable_id })));
+  const { data: outputs } = await supabaseAdmin.from('package_deliverables').select('deliverable_id, quantity, unit, spec').eq('package_id', packageId).eq('organization_id', orgId);
+  if (outputs && outputs.length > 0) await supabaseAdmin.from('package_deliverables').insert(outputs.map((d: any) => ({
+    organization_id: orgId, package_id: copy.id, deliverable_id: d.deliverable_id,
+    quantity: d.quantity, unit: d.unit, spec: d.spec,
+  })));
   
   const { data: containers } = await supabaseAdmin.from('package_delivery_containers').select('container_id').eq('package_id', packageId).eq('organization_id', orgId);
   if (containers && containers.length > 0) await supabaseAdmin.from('package_delivery_containers').insert(containers.map((d: any) => ({ organization_id: orgId, package_id: copy.id, container_id: d.container_id })));
@@ -384,7 +413,7 @@ export async function listPackages() {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(PACKAGE_SELECT + `,
-      package_deliverables(deliverable:deliverables(id, name)),
+      package_deliverables(quantity, unit, spec, deliverable:deliverables(id, name)),
       package_delivery_containers(container:delivery_containers(id, name)),
       package_workflows(blueprint:blueprints(id, name, stages)),
       package_occasions(occasion:occasions(id, name)),
@@ -407,7 +436,9 @@ export async function listPackages() {
       purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
       clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
     })).filter((s: any) => s.id),
-    deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
+    deliverables: (p.package_deliverables || [])
+      .filter((pd: any) => pd.deliverable)
+      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
     occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),
@@ -479,7 +510,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     .select(`
       id, name, description, pricing, pricing_variant, duration_minutes, form_schema,
       package_services(service:services(name)),
-      package_deliverables(deliverable:deliverables(name))
+      package_deliverables(quantity, unit, spec, deliverable:deliverables(name))
     `)
     .eq('id', packageId)
     .eq('organization_id', orgId)
@@ -497,14 +528,18 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     durationMinutes: (p.duration_minutes ?? null) as number | null,
     formSchema: (p.form_schema || []) as any[],
     serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
-    deliverableNames: ((p.package_deliverables || []) as any[]).map((pd) => pd.deliverable?.name).filter(Boolean) as string[],
+    // Specified, so the storefront says "6 edited photographs" rather than
+    // leaving a client to guess how many.
+    deliverableNames: ((p.package_deliverables || []) as any[])
+      .filter((pd) => pd.deliverable?.name)
+      .map((pd) => formatDeliverable({ name: pd.deliverable.name, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
   };
 }
 
 export async function getPackage(packageId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin.from('packages').select(PACKAGE_SELECT + `,
-    package_deliverables(deliverable:deliverables(id, name)),
+    package_deliverables(quantity, unit, spec, deliverable:deliverables(id, name)),
     package_delivery_containers(container:delivery_containers(id, name)),
     package_workflows(blueprint:blueprints(id, name, stages)),
     package_occasions(occasion:occasions(id, name)),
@@ -527,7 +562,9 @@ export async function getPackage(packageId: string) {
       purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
       clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
     })).filter((s: any) => s.id),
-    deliverables: (p.package_deliverables || []).map((pd: any) => pd.deliverable).filter(Boolean),
+    deliverables: (p.package_deliverables || [])
+      .filter((pd: any) => pd.deliverable)
+      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
     occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),

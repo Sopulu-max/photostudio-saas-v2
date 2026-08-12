@@ -70,6 +70,20 @@ export default async function ServiceSettingsPage() {
       </header>
 
       <div className="q-stack q-stack-lg">
+        {/* First, because it is the first thing defined: everything else on
+            this page and in the service form is chosen in relation to it. */}
+        <section className="q-card q-section">
+          <h2 className="q-section-title">Service Domains</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            The broad capabilities this studio offers — Photography, Videography, Printing. A service is
+            defined in relation to one of these, and picking one is what shapes the rest of its form.
+          </p>
+          <DomainManager
+            domains={domains} counts={domainCounts}
+            onCreate={createServiceDomain} onDelete={deleteServiceDomain}
+          />
+        </section>
+
         <section className="q-card q-section">
           <h2 className="q-section-title">Which dimensions do you organize by?</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
@@ -78,15 +92,6 @@ export default async function ServiceSettingsPage() {
             the Packages you sell them in.
           </p>
           <DimensionChooser enabled={enabledDimensions} />
-        </section>
-
-        <section className="q-card q-section">
-          <h2 className="q-section-title">Service Domains</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>The broad capabilities this studio offers — Photography, Videography, Printing.</p>
-          <DomainManager
-            domains={domains} counts={domainCounts}
-            onCreate={createServiceDomain} onDelete={deleteServiceDomain}
-          />
         </section>
 
         <section className="q-card q-section">

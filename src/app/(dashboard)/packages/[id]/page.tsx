@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getPackage, getIntakeQuestions } from '@/modules/packages/interface';
+import { formatDeliverable, getPackage, getIntakeQuestions } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue } from '@/modules/services/interface';
@@ -154,7 +154,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   <div>
                     <div className="q-stat-label" style={{ marginBottom: '8px' }}>Outputs</div>
                     <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
-                      {deliverables.map((d: any) => <li key={d.id} style={{ marginBottom: '4px' }}>{d.name}</li>)}
+                      {deliverables.map((d: any) => <li key={d.id} style={{ marginBottom: '4px' }}>{formatDeliverable(d)}</li>)}
                     </ul>
                   </div>
                 )}
