@@ -89,6 +89,10 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'task.asset_produced': 'produced a file from a task',
 
   // Money
+  'invoice.created':                     'started an invoice',
+  'invoice.issued':                      'sent an invoice',
+  'invoice.voided':                      'withdrew an invoice',
+
   'financial_transaction.created':        'recorded some money',
   'financial_transaction.settled':        'marked money as received',
   'financial_transaction.voided':         'withdrew a charge',

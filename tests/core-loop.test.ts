@@ -32,6 +32,7 @@ import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
 import { createTransaction, settleTransaction, voidTransaction, getMoneyTotals } from '@/modules/finances/domain';
+import { createInvoiceForBooking, issueInvoice, voidInvoice, updateDraftInvoice, getInvoice } from '@/modules/finances/invoices';
 import { totalsByCurrency } from '@/modules/finances/money';
 
 /**
@@ -49,8 +50,10 @@ export const PURGE_ORDER = [
   'events',
   'assignments', 'tasks', 'booking_line_variable_values', 'booking_lines',
   // financial_transactions before contracts: a transaction points at the
-  // contract it settles, so contracts cannot go first.
-  'financial_transactions', 'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
+  // contract it settles, so contracts cannot go first. Invoices go after the
+  // transactions that pay them for the same reason.
+  'financial_transactions', 'invoice_lines', 'invoices',
+  'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
   'bookings',
   'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
   'package_occasions', 'package_contexts', 'package_subjects', 'package_purposes', 'package_client_types',
@@ -386,6 +389,96 @@ describe('Core Loop Verification', () => {
     fulfilment = await getFulfilmentForBooking(bookingId);
     expect(fulfilment.find((f) => f.name === 'Edited Photos')!.shared).toBe(true);
     expect(fulfilment.find((f) => f.name === 'Album')!.shared).toBe(false);
+  }, 120000);
+
+  it('bills what was booked, and freezes it once sent', async () => {
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Billable Session' });
+    await setServiceVariables({
+      serviceId,
+      variables: [{ key: 'outfits', label: 'Outfits', kind: 'number', unit: 'outfit', min: 1 }],
+    });
+    const [outfits] = await listServiceVariables(serviceId);
+    const { packageId } = await createPackage({
+      name: 'Billable Package',
+      basePrice: 120000,
+      serviceIds: [serviceId],
+      variableValues: [{ serviceVariableId: outfits.id, value: 2 }],
+    });
+
+    const { contactId } = await createClient({ name: 'Ada Bills', email: 'ada.bills@example.com' });
+    const { bookingId } = await createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId,
+      clientName: 'Ada Bills',
+      packageId,
+      packageName: 'Billable Package',
+      linePrice: { base_price: 120000, currency: 'NGN' },
+    });
+
+    // The invoice is generated from the booking, not typed in.
+    const { invoiceId } = await createInvoiceForBooking({ bookingId });
+    let inv = await getInvoice(invoiceId);
+    expect(inv!.status).toBe('draft');
+    expect(inv!.number).toBeNull();
+    expect(inv!.lines).toHaveLength(1);
+    // The line says what was sold, configuration included.
+    expect(inv!.lines[0].description).toContain('Billable Package');
+    expect(inv!.lines[0].description).toContain('2 outfits');
+    expect(inv!.total).toBe(120000);
+    expect(inv!.outstanding).toBe(120000);
+    expect(inv!.settled).toBe(false);
+
+    // A draft is unreachable by a client — no token until it's sent.
+    expect(inv!.share_token).toBeNull();
+
+    await issueInvoice({ invoiceId });
+    inv = await getInvoice(invoiceId);
+    expect(inv!.status).toBe('issued');
+    expect(inv!.number).toMatch(/^INV-\d{4}$/);
+    expect(inv!.share_token).toBeTruthy();
+
+    // Sent means sent: the document the client is holding stops changing.
+    await expect(
+      updateDraftInvoice({ invoiceId, lines: [{ description: 'Sneaky', quantity: 1, unitPrice: 1 }] })
+    ).rejects.toThrow(/been sent/i);
+
+    // Re-pricing the package afterwards must not rewrite a document already
+    // issued — the same snapshot rule booking lines follow.
+    await updatePackage({ packageId, basePrice: 500000 });
+    expect((await getInvoice(invoiceId))!.total).toBe(120000);
+
+    // Part payment leaves it outstanding, not paid.
+    const deposit = await createTransaction({
+      kind: 'charge', type: 'Deposit', amount: 50000, currency: 'NGN', invoiceId, contactId,
+    });
+    await settleTransaction({ transactionId: (deposit as any).id });
+    inv = await getInvoice(invoiceId);
+    expect(inv!.paid).toBe(50000);
+    expect(inv!.outstanding).toBe(70000);
+    expect(inv!.partly).toBe(true);
+    expect(inv!.settled).toBe(false);
+
+    // Money against it means it can't be quietly withdrawn.
+    await expect(voidInvoice({ invoiceId })).rejects.toThrow(/refund/i);
+
+    // Paid off, the same document now reads as a receipt.
+    const balance = await createTransaction({
+      kind: 'charge', type: 'Balance', amount: 70000, currency: 'NGN', invoiceId, contactId,
+    });
+    await settleTransaction({ transactionId: (balance as any).id });
+    inv = await getInvoice(invoiceId);
+    expect(inv!.paid).toBe(120000);
+    expect(inv!.outstanding).toBe(0);
+    expect(inv!.settled).toBe(true);
+
+    // And a refund un-pays it, because paid is derived rather than a flag.
+    const back = await createTransaction({
+      kind: 'refund', type: 'Refund', amount: 20000, currency: 'NGN', invoiceId, contactId,
+    });
+    await settleTransaction({ transactionId: (back as any).id });
+    inv = await getInvoice(invoiceId);
+    expect(inv!.paid).toBe(100000);
+    expect(inv!.settled).toBe(false);
   }, 120000);
 
   it('never counts what the studio spent as what it earned', () => {

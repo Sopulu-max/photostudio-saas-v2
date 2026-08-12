@@ -11,7 +11,15 @@ export {
 } from './domain';
 export { processPayment } from './payments';
 
+// Invoices — the document between what was booked and what was paid. A receipt
+// is not here on purpose: it is what an invoice looks like once its payments
+// cover it, derived rather than stored.
+export {
+  createInvoiceForBooking, issueInvoice, voidInvoice, updateDraftInvoice,
+  getInvoice, listInvoices, listInvoicesForBooking, getInvoiceByToken,
+} from './invoices';
+
 // What kinds of money exist, and how to total them. A plain module rather than
 // a server one, so the pages can read the vocabulary without a round trip.
-export { TRANSACTION_KINDS, KINDS, kindOf, totalsByCurrency } from './money';
+export { TRANSACTION_KINDS, KINDS, kindOf, totalsByCurrency, settlementOf } from './money';
 export type { TransactionKind, KindSpec, MoneyTotals } from './money';

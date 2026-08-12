@@ -23,6 +23,8 @@ export async function createTransaction(params: {
   contractId?: string;
   contactId?: string;
   bookingId?: string;
+  /** Pays this invoice down. Omitted for costs, or money taken before billing. */
+  invoiceId?: string;
   kind: TransactionKind;
   /** The studio's own label beneath the kind — "Equipment", "Deposit". */
   type: string;
@@ -43,6 +45,7 @@ export async function createTransaction(params: {
       contract_id: params.contractId || null,
       contact_id: params.contactId || null,
       booking_id: params.bookingId || null,
+      invoice_id: params.invoiceId || null,
       kind: params.kind,
       // Derived, never taken on trust: an inbound expense is not a thing.
       direction: KINDS[params.kind].direction,

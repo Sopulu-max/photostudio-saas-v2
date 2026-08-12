@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listTransactions, getMoneyTotals, KINDS, kindOf } from '@/modules/finances/interface';
+import { listTransactions, getMoneyTotals, listInvoices, KINDS, kindOf } from '@/modules/finances/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { CreateTransactionForm } from './client';
@@ -10,9 +10,10 @@ export const dynamic = 'force-dynamic';
 export default async function FinancesPage() {
   await getAuthOrgId();
 
-  const [transactions, totals, currencyCode] = await Promise.all([
+  const [transactions, totals, invoices, currencyCode] = await Promise.all([
     listTransactions(),
     getMoneyTotals(),
+    listInvoices(),
     getStudioCurrency(),
   ]);
 
@@ -61,6 +62,48 @@ export default async function FinancesPage() {
         ))
       )}
 
+      {/* Invoices first: they're the documents a client sees, and the ledger
+          below is the money that moved against them. */}
+      <div className="q-card q-section" style={{ marginBottom: '24px' }}>
+        <div className="q-row q-row-between" style={{ marginBottom: '14px' }}>
+          <h2 className="q-section-title" style={{ margin: 0 }}>Invoices</h2>
+          <span className="q-meta-sm">Raised from a booking — open one to bill it</span>
+        </div>
+        {invoices.length === 0 ? (
+          <p className="q-empty">
+            None yet. Open a booking and generate one from what was actually booked.
+          </p>
+        ) : (
+          <div className="q-stack q-stack-sm">
+            {invoices.slice(0, 8).map((inv: any) => (
+              <Link key={inv.id} href={`/finances/invoices/${inv.id}`} className="q-tile q-row q-row-between q-plain-link">
+                <div>
+                  <strong className="q-strong">{inv.number || 'Draft'}</strong>
+                  <div className="q-meta-sm">
+                    {inv.contact?.display_name || 'No client'}
+                    {inv.booking?.title ? ` · ${inv.booking.title}` : ''}
+                  </div>
+                </div>
+                <div className="q-row">
+                  <span className="q-num q-strong">{formatMoney(inv.total, inv.currency || currencyCode)}</span>
+                  <span className={`q-badge ${
+                    inv.status === 'void' ? 'q-badge-danger'
+                    : inv.settled ? 'q-badge-success'
+                    : inv.status === 'draft' ? 'q-badge-neutral' : 'q-badge-warning'
+                  }`}>
+                    {inv.status === 'void' ? 'withdrawn'
+                      : inv.settled ? 'paid'
+                      : inv.partly ? `${formatMoney(inv.outstanding, inv.currency || currencyCode)} left`
+                      : inv.status === 'draft' ? 'draft' : 'unpaid'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <h2 className="q-section-title">Every movement</h2>
       {transactions.length === 0 ? (
         <div className="q-card" style={{ textAlign: 'center', padding: 'clamp(44px, 7vw, 76px) 24px', color: 'var(--q-color-ink-500)' }}>
           No money recorded yet. Invoices raised from a booking will show up here.

@@ -19,6 +19,8 @@ import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
 import { CopyInvoiceLinkButton } from './CopyInvoiceLinkButton';
+import { GenerateInvoiceButton } from './InvoiceForms';
+import { listInvoicesForBooking } from '@/modules/finances/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +102,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     getStaffingNeedsForBooking(booking.id),
     getFulfilmentForBooking(booking.id),
   ]);
+
+  // The documents raised against this booking, distinct from the money that
+  // moved: an invoice is what was asked for, a transaction is what arrived.
+  const invoices = await listInvoicesForBooking(booking.id);
 
   // What the packages promised, and what's still owed. Shared is the bar, not
   // uploaded: a bundle the client can't open isn't delivered.
@@ -530,6 +536,44 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* Money */}
         <Section title="Invoices & Payments">
+          <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
+            <span className="q-meta">
+              {invoices.length === 0
+                ? 'Nothing billed yet.'
+                : `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised.`}
+            </span>
+            <GenerateInvoiceButton bookingId={booking.id} hasLines={lines.length > 0} />
+          </div>
+
+          {invoices.length > 0 && (
+            <div className="q-stack q-stack-sm" style={{ marginBottom: '18px' }}>
+              {invoices.map((inv: any) => (
+                <Link key={inv.id} href={`/finances/invoices/${inv.id}`} className="q-tile q-row q-row-between q-plain-link">
+                  <div>
+                    <strong className="q-strong">{inv.number || 'Draft invoice'}</strong>
+                    <div className="q-meta-sm">
+                      {inv.lines.length} {inv.lines.length === 1 ? 'line' : 'lines'}
+                      {inv.issued_at ? ` · sent ${new Date(inv.issued_at).toLocaleDateString()}` : ' · not sent yet'}
+                    </div>
+                  </div>
+                  <div className="q-row">
+                    <span className="q-num q-strong">{formatMoney(inv.total, inv.currency || currencyCode)}</span>
+                    <span className={`q-badge ${
+                      inv.status === 'void' ? 'q-badge-danger'
+                      : inv.settled ? 'q-badge-success'
+                      : inv.status === 'draft' ? 'q-badge-neutral' : 'q-badge-warning'
+                    }`}>
+                      {inv.status === 'void' ? 'withdrawn'
+                        : inv.settled ? 'paid'
+                        : inv.partly ? `${formatMoney(inv.outstanding, inv.currency || currencyCode)} left`
+                        : inv.status === 'draft' ? 'draft' : 'unpaid'}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
           {contractBasePrice > 0 && (
             <div className="q-grid-3" style={{ marginBottom: '16px' }}>
               <div className="q-panel">

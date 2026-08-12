@@ -70,6 +70,35 @@ export function kindOf(t: { kind?: string | null; direction?: string | null; typ
 }
 
 /**
+ * Where an invoice stands, worked out from the money against it.
+ *
+ * Deliberately not a stored column. A `paid` flag and a set of payments are
+ * two records of one fact, and the moment a payment is voided or refunded they
+ * disagree — with the flag usually winning, because it is the one the list
+ * page reads. Deriving it costs an addition and can never be wrong.
+ */
+export function settlementOf(
+  total: number,
+  payments: { kind?: string | null; amount: any; status?: string | null }[]
+): { paid: number; outstanding: number; settled: boolean; partly: boolean } {
+  let paid = 0;
+  for (const p of payments) {
+    if (p.status !== 'settled') continue;
+    const spec = KINDS[kindOf(p)];
+    // A refund against an invoice gives money back, so it un-pays it.
+    if (spec.earningsSign !== 0) paid += Number(p.amount || 0) * spec.earningsSign;
+  }
+  const outstanding = Math.max(total - paid, 0);
+  return {
+    paid,
+    outstanding,
+    // Zero-total invoices aren't "paid" — there was nothing to pay.
+    settled: total > 0 && paid >= total,
+    partly: paid > 0 && paid < total,
+  };
+}
+
+/**
  * Money totals, kept apart by currency.
  *
  * Never one number: a studio billing in two currencies has two answers, and
