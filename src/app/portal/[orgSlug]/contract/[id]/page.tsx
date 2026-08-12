@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { activateContract } from '@/modules/contracts/interface';
+import { signContract } from '@/modules/contracts/interface';
 import { formatMoney } from '@/kernel/currency';
 import { redirect } from 'next/navigation';
 import { SignaturePad } from './SignaturePad';
@@ -40,12 +40,12 @@ export default async function ClientContractPortalPage(props: {
 
   async function handleSign(signatureName: string, signatureDataUrl: string) {
     'use server';
-    await activateContract({
+    // The client's own door: it reads the studio and the signer off the
+    // contract itself rather than believing anything the page passes in.
+    await signContract({
       contractId: contract.id,
-      organizationId: org.id,
-      actorId: contract.contact_id,
       signatureName,
-      signatureDataUrl
+      signatureDataUrl,
     });
 
     // Signing raises the deposit, as a real invoice with a number the client

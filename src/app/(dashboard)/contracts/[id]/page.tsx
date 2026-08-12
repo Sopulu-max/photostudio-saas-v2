@@ -52,7 +52,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
             <span className={`q-badge ${isActive ? 'q-badge-success' : 'q-badge-neutral'}`}>
               {contract.status.toUpperCase()}
             </span>
-            {!isTerminal && <CancelContractButton contractId={contract.id} orgId={orgId} actorId={personId ?? ''} />}
+            {!isTerminal && <CancelContractButton contractId={contract.id} />}
           </div>
         </div>
       </header>
@@ -68,7 +68,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
                 Marks the contract active and signed. Nothing else is created automatically — add work or an invoice from the booking whenever you're ready.
               </p>
             </div>
-            <ActivateContractButton contractId={contract.id} orgId={orgId} actorId={personId ?? ''} />
+            <ActivateContractButton contractId={contract.id} />
           </div>
         )}
 
@@ -136,8 +136,6 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           ) : (
             <TermsEditor
               contractId={contract.id}
-              orgId={orgId}
-              actorId={personId ?? ''}
               agreementText={agreementText}
               basePrice={basePrice}
               depositPercentage={depositPercent}

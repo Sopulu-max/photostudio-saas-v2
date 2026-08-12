@@ -32,14 +32,10 @@ type Candidate = { employeeId: string; name: string; roles: { id: string; name: 
 export function TasksClient({
   tasks,
   candidates,
-  orgId,
-  actorId,
   myEmployeeId,
 }: {
   tasks: Task[];
   candidates: Candidate[];
-  orgId: string;
-  actorId: string;
   myEmployeeId: string | null;
 }) {
   const [scope, setScope] = useState<'all' | 'mine'>('all');

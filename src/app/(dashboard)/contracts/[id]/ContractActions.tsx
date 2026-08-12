@@ -9,22 +9,14 @@ import { Zap } from 'lucide-react';
  * Activating a proposed contract marks it active and signed. It does not spawn
  * work or invoices — the studio adds those from the booking when they choose.
  */
-export function ActivateContractButton({
-  contractId,
-  orgId,
-  actorId,
-}: {
-  contractId: string;
-  orgId: string;
-  actorId: string;
-}) {
+export function ActivateContractButton({ contractId }: { contractId: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const handleActivate = () => {
     startTransition(async () => {
       try {
-        await activateContract({ contractId, organizationId: orgId, actorId });
+        await activateContract({ contractId });
         router.refresh();
       } catch (e) {
         console.error('Failed to activate contract', e);
@@ -42,15 +34,7 @@ export function ActivateContractButton({
 }
 
 /** Void a contract. Never deletes — the booking and any money already raised are untouched. */
-export function CancelContractButton({
-  contractId,
-  orgId,
-  actorId,
-}: {
-  contractId: string;
-  orgId: string;
-  actorId: string;
-}) {
+export function CancelContractButton({ contractId }: { contractId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -58,7 +42,7 @@ export function CancelContractButton({
   const handleCancel = () => {
     startTransition(async () => {
       try {
-        await cancelContract({ contractId, organizationId: orgId, actorId });
+        await cancelContract({ contractId });
         router.refresh();
       } catch (e: any) {
         alert(e?.message || 'Failed to cancel the contract.');

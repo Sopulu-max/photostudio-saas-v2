@@ -13,8 +13,6 @@ import { formatMoney } from '@/kernel/currency';
  */
 export function TermsEditor({
   contractId,
-  orgId,
-  actorId,
   agreementText: initialText,
   basePrice: initialPrice,
   depositPercentage: initialDeposit,
@@ -22,8 +20,6 @@ export function TermsEditor({
   status,
 }: {
   contractId: string;
-  orgId: string;
-  actorId: string;
   agreementText: string;
   basePrice: number;
   depositPercentage: number;
@@ -45,8 +41,6 @@ export function TermsEditor({
       try {
         await reviseContractTerms({
           contractId,
-          organizationId: orgId,
-          actorId,
           agreementText: text,
           basePrice: price === '' ? 0 : parseFloat(price),
           depositPercentage: deposit === '' ? 0 : parseFloat(deposit),

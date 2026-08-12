@@ -1,19 +1,10 @@
 'use server';
 
-import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import type { Contract } from '@/lib/types/engine';
-
-const ActivateContractSchema = z.object({
-  contractId: z.string().uuid(),
-  organizationId: z.string().uuid(),
-  actorId: z.string().uuid(),
-  signatureName: z.string().optional(),
-  signatureDataUrl: z.string().optional(),
-});
 
 // ── The studio's own contract language ───────────────────────────────────
 // A price and a deposit percentage are payment terms, not a contract. The
@@ -79,6 +70,13 @@ export async function setContractTermsTemplate(text: string) {
  * time — like price, it won't silently change if the studio edits their
  * template later.
  */
+/**
+ * Drafting from a booking. Composition-only: the sole caller is the Bookings
+ * module, which already resolved the studio from the session, so the org is
+ * passed along rather than looked up twice. Nothing reachable from a browser
+ * calls this — if anything ever does, it needs the session treatment the other
+ * three got.
+ */
 export async function draftContractForBooking(input: {
   organizationId: string;
   bookingId: string;
@@ -118,62 +116,48 @@ export async function draftContractForBooking(input: {
   return { contractId: contract.id };
 }
 
-export async function activateContract(input: z.infer<typeof ActivateContractSchema> | string) {
-  // Support both object and plain string (contractId) for backward compat
-  const rawInput = typeof input === 'string'
-    ? { contractId: input, organizationId: '', actorId: '' }
-    : input;
-
-  // If called with just a string ID (legacy), fetch org from contract
-  let params: z.infer<typeof ActivateContractSchema>;
-  if (typeof input === 'string') {
-    const { data: ag } = await supabaseAdmin
-      .from('contracts')
-      .select('organization_id, contact_id')
-      .eq('id', input)
-      .single();
-    if (!ag) throw new Error('Contract not found');
-    params = { contractId: input, organizationId: ag.organization_id, actorId: ag.contact_id };
-  } else {
-    params = ActivateContractSchema.parse(input);
-  }
-
-  // STATE MACHINE GUARD
-  const { data: currentContract, error: fetchError } = await supabaseAdmin
+/**
+ * The one place a contract becomes active. Both doors below go through here.
+ *
+ * `orgId` is never taken from a caller — each door works it out for itself, so
+ * the update below can be scoped by it. It previously was not: the write said
+ * `.eq('id', contractId)` and nothing else, which meant a contract id was
+ * enough to activate a contract belonging to any studio.
+ */
+async function applyActivation(args: {
+  contractId: string;
+  orgId: string;
+  actorId: string | null;
+  signature?: { name?: string; dataUrl?: string } | null;
+}): Promise<Contract> {
+  const { data: current, error: fetchError } = await supabaseAdmin
     .from('contracts')
     .select('status, contact_id, terms')
-    .eq('id', params.contractId)
-    .single();
+    .eq('id', args.contractId)
+    .eq('organization_id', args.orgId)
+    .maybeSingle();
 
-  if (fetchError || !currentContract) {
-    throw new Error('Contract not found');
+  if (fetchError || !current) throw new Error('Contract not found');
+
+  if (!['proposed', 'modified'].includes(current.status)) {
+    throw new Error(`Illegal state transition. Cannot activate a contract in '${current.status}' state.`);
   }
 
-  if (!['proposed', 'modified'].includes(currentContract.status)) {
-    throw new Error(`Illegal state transition. Cannot activate an contract in '${currentContract.status}' state.`);
-  }
+  const signedAt = new Date().toISOString();
+  const patch: Record<string, unknown> = { status: 'active', signed_at: signedAt };
 
-  // Activate contract
-  const patch: any = {
-    status: 'active',
-    signed_at: new Date().toISOString()
-  };
-
-  if (params.signatureName || params.signatureDataUrl) {
+  if (args.signature?.name || args.signature?.dataUrl) {
     patch.terms = {
-      ...((currentContract.terms as any) || {}),
-      signature: {
-        name: params.signatureName,
-        dataUrl: params.signatureDataUrl,
-        timestamp: patch.signed_at
-      }
+      ...((current.terms as any) || {}),
+      signature: { name: args.signature.name, dataUrl: args.signature.dataUrl, timestamp: signedAt },
     };
   }
 
   const { data: contract, error: updateError } = await supabaseAdmin
     .from('contracts')
     .update(patch)
-    .eq('id', params.contractId)
+    .eq('id', args.contractId)
+    .eq('organization_id', args.orgId)
     .select()
     .single();
 
@@ -182,21 +166,71 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
     throw new Error('Failed to activate contract');
   }
 
-  // Emit event for the contract activation itself
   await logEvent({
-    organizationId: params.organizationId,
+    organizationId: args.orgId,
     entityType: 'contract',
     entityId: contract.id,
     action: 'activated',
-    actorId: params.actorId,
-    payload: { signed_at: contract.signed_at, previous_status: currentContract.status }
+    actorId: args.actorId ?? undefined,
+    payload: {
+      signed_at: contract.signed_at,
+      previous_status: current.status,
+      signed: Boolean(patch.terms),
+    },
   });
 
+  revalidatePath(`/contracts/${args.contractId}`);
   // No automatic spawning. Activating a contract only marks it active and
   // signed — it does not conjure a workflow, tasks, or an invoice. Not every
   // studio wants the "next thing" created for them; they add work or money from
   // the booking when and if they choose. (Composition, not orchestration.)
   return contract as Contract;
+}
+
+/**
+ * The studio marking a contract active itself — agreed over the phone, signed
+ * on paper, whatever happened outside the app.
+ *
+ * Takes nothing but the contract. The organization and the actor come from the
+ * session; they used to be parameters supplied by a browser component, which
+ * meant the log recorded whoever the browser named.
+ */
+export async function activateContract(input: { contractId: string }) {
+  const { orgId, personId } = await getAuthOrgId();
+  return applyActivation({ contractId: input.contractId, orgId, actorId: personId, signature: null });
+}
+
+/**
+ * The client signing on their own link.
+ *
+ * There is no session here, so nothing can be read from one — but nothing is
+ * accepted from the caller either. The contract id is the capability, exactly
+ * as a share token is for a gallery, and the organization and the signer are
+ * read off the contract itself. That is what makes this safe to expose: the
+ * only thing a caller can influence is *which* contract, and knowing an id
+ * they were sent is the whole point.
+ */
+export async function signContract(input: {
+  contractId: string;
+  signatureName: string;
+  signatureDataUrl: string;
+}): Promise<Contract> {
+  const { data: contract } = await supabaseAdmin
+    .from('contracts')
+    .select('id, organization_id, contact_id')
+    .eq('id', input.contractId)
+    .maybeSingle();
+  if (!contract) throw new Error('Contract not found');
+
+  if (!input.signatureName?.trim()) throw new Error('A signature needs a name.');
+
+  return applyActivation({
+    contractId: contract.id,
+    orgId: contract.organization_id,
+    // The client is the actor: their signature is what activated it.
+    actorId: contract.contact_id,
+    signature: { name: input.signatureName.trim(), dataUrl: input.signatureDataUrl },
+  });
 }
 
 /**
@@ -209,17 +243,17 @@ export async function activateContract(input: z.infer<typeof ActivateContractSch
  */
 export async function reviseContractTerms(input: {
   contractId: string;
-  organizationId: string;
-  actorId?: string | null;
   basePrice?: number;
   depositPercentage?: number;
   agreementText?: string;
 }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
   const { data: existing } = await supabaseAdmin
     .from('contracts')
     .select('id, status, version, terms')
     .eq('id', input.contractId)
-    .eq('organization_id', input.organizationId)
+    .eq('organization_id', orgId)
     .maybeSingle();
   if (!existing) throw new Error('Contract not found');
   if (['completed', 'cancelled'].includes(existing.status)) {
@@ -243,18 +277,18 @@ export async function reviseContractTerms(input: {
     .from('contracts')
     .update(patch)
     .eq('id', input.contractId)
-    .eq('organization_id', input.organizationId);
+    .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to revise contract terms:', error);
     throw new Error('Failed to save the terms');
   }
 
   await logEvent({
-    organizationId: input.organizationId,
+    organizationId: orgId,
     entityType: 'contract',
     entityId: input.contractId,
     action: 'terms_revised',
-    actorId: input.actorId ?? undefined,
+    actorId: actorId ?? undefined,
     payload: { terms, wasActive },
   });
 
@@ -267,12 +301,14 @@ export async function reviseContractTerms(input: {
  * separately what to do about the booking or any money already in motion;
  * cancelling a contract doesn't touch either. (Composition, not orchestration.)
  */
-export async function cancelContract(input: { contractId: string; organizationId: string; actorId?: string | null }) {
+export async function cancelContract(input: { contractId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
   const { data: existing } = await supabaseAdmin
     .from('contracts')
     .select('id, status')
     .eq('id', input.contractId)
-    .eq('organization_id', input.organizationId)
+    .eq('organization_id', orgId)
     .maybeSingle();
   if (!existing) throw new Error('Contract not found');
   if (['completed', 'cancelled'].includes(existing.status)) {
@@ -283,15 +319,15 @@ export async function cancelContract(input: { contractId: string; organizationId
     .from('contracts')
     .update({ status: 'cancelled' })
     .eq('id', input.contractId)
-    .eq('organization_id', input.organizationId);
+    .eq('organization_id', orgId);
   if (error) throw new Error('Failed to cancel the contract');
 
   await logEvent({
-    organizationId: input.organizationId,
+    organizationId: orgId,
     entityType: 'contract',
     entityId: input.contractId,
     action: 'cancelled',
-    actorId: input.actorId ?? undefined,
+    actorId: actorId ?? undefined,
     payload: { previousStatus: existing.status },
   });
 

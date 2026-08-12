@@ -80,30 +80,6 @@ export async function createOrganization(name: string, slug?: string) {
   return org as Organization;
 }
 
-export async function updateOrganizationStatus(organizationId: string, status: 'active' | 'suspended' | 'archived') {
-  const { data: org, error } = await supabaseAdmin
-    .from('organizations')
-    .update({ status })
-    .eq('id', organizationId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Failed to update organization status:', error);
-    throw new Error('Failed to update organization status');
-  }
-
-  await logEvent({
-    organizationId,
-    entityType: 'organization',
-    entityId: organizationId,
-    action: 'status_updated',
-    payload: { status }
-  });
-
-  return org as Organization;
-}
-
 /** Who this studio is — name and storefront slug, for surfaces that greet or link to it. */
 export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; metadata?: Record<string, any> } | null> {
   const { orgId } = await getAuthOrgId();
@@ -176,13 +152,10 @@ export async function setStudioCurrency(code: string) {
 }
 
 /**
- * Rename the studio, or change the handle its public links use.
+ * Who the studio is — its name, its handle, and who it is on paper.
  *
  * The slug is in every public URL (/book/<slug>/…), so changing it breaks links
  * already shared with clients — the UI says so before you do it.
- */
-/**
- * Who the studio is on paper.
  *
  * The billing fields exist because an invoice that says what a client owes and
  * nothing about where to send it is not an invoice. They live in metadata

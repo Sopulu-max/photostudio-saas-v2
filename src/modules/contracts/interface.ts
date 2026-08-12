@@ -8,6 +8,9 @@ export {
   getContract,
   draftContractForBooking,
   activateContract,
+  // The client's own door, for the portal: no session, and nothing about the
+  // studio or the signer taken from the caller.
+  signContract,
   reviseContractTerms,
   cancelContract,
   getContractTermsTemplate,
