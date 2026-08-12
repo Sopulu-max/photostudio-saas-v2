@@ -14,7 +14,8 @@ import { DomainDNAEditor } from './DomainDNAEditor';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DomainDNAPage({ params }: { params: { id: string } }) {
+export default async function DomainDNAPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await getAuthOrgId();
 
   const [domain, deliverables, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([

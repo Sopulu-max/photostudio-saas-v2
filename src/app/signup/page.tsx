@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { signup } from './actions';
 
-export default function SignupPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function SignupPage(props: { searchParams: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
+
   return (
     <div className="q-centered">
       <div className="q-card q-card-narrow">

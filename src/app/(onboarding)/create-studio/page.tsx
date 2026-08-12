@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createOrganization } from '@/kernel/organizations';
 import { revalidatePath } from 'next/cache';
 
-export default async function CreateStudioPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function CreateStudioPage(props: { searchParams: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
