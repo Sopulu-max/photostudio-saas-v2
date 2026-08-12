@@ -17,7 +17,6 @@ import { listRoles } from '@/modules/team/interface';
 import { FacetManager } from '@/components/FacetManager';
 import { NewBlueprintForm } from '../NewBlueprintForm';
 import { BlueprintRow } from '../BlueprintRow';
-import { DimensionChooser } from '../DimensionChooser';
 import { DimensionManager } from './DimensionManager';
 import { DomainManager } from './DomainManager';
 
@@ -96,16 +95,6 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">Which dimensions do you organize by?</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>
-            Fashion Photography and Birthday Photography don&rsquo;t answer the same question — one&rsquo;s a subject, one&rsquo;s an
-            occasion. Turn on whichever of these actually matter to how you think about what you do. Applies to both Services and
-            the Packages you sell them in.
-          </p>
-          <DimensionChooser enabled={enabledDimensions} />
-        </section>
-
-        <section className="q-card q-section">
           <h2 className="q-section-title">Output Types (Assets)</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>What a service can directly produce — RAW images, edited video, a 3D model.</p>
           <FacetManager
@@ -126,6 +115,10 @@ export default async function ServiceSettingsPage() {
         {enabledDimensions.includes('subject') && (
           <section className="q-card q-section">
             <h2 className="q-section-title">Subject</h2>
+            <p className="q-meta-sm" style={{ marginBottom: '8px' }}>
+              Temporary: the service form still reads these flat lists. Manage values above,
+              per domain — these go when the form moves over.
+            </p>
             <p className="q-meta" style={{ marginBottom: '16px' }}>What is being photographed — Person, Product, Building, Real Estate.</p>
             <FacetManager facets={subjects} counts={countBy('subject')} noun="service" placeholder="e.g. Real Estate"
               onCreate={createSubject} onRename={renameSubject} onDelete={deleteSubject} countDim="subject" />
