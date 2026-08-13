@@ -197,7 +197,8 @@ package next month must not rewrite what a client already agreed to.
 | Package classification, and the public intake | **Built** — both read the studio's own vocabulary |
 | Deliverable specs (quantity/unit/spec) | Stored, read, rendered — **no editor field** |
 | Value hierarchy (`parent_id`, Outdoor → Beach) | Stored, **unused** |
-| The lens (enter from a value) | **Not built** — needs `whatCarries()` / `whatCoOccursWith()` |
+| Traversal as a module read (`whatCarries` / `whatCoOccursWith`) | **Built** — `modules/services/traversal.ts` |
+| The lens (enter from a value) | **Built** — `/lens`, both exits prefilled |
 | Invoices, receipts, PDFs, documents | **Built** |
 | Notifications as an event projection | **Built** |
 | Booking team derived from work | **Built** |
@@ -206,17 +207,15 @@ package next month must not rewrite what a client already agreed to.
 
 ## 6. What to build next, and why in this order
 
-1. **Traversal as a first-class read** — `whatCarries(value)`,
-   `whatCoOccursWith(value)`. Small, and three features fall out of it. The
-   filter behind `/services?value=` is the first half of it already, written
-   inline — making it a module read is what the lens then sits on.
-2. **The lens**, as a thin surface over (1): enter at Birthday, see what this
-   studio does for birthdays, and leave with either a package or — if the
-   process is genuinely different — a new service.
-3. **Value hierarchy** in the UI: Beach is an Outdoor, and selecting backwards
-   into the parent is how a studio navigates its own vocabulary.
-4. **Deliverable specs in the package editor** — quantity, unit and spec are
+1. **Value hierarchy** in the UI: Beach is an Outdoor, and selecting backwards
+   into the parent is how a studio navigates its own vocabulary. `parent_id` is
+   stored and nothing reads it; the lens is where it would show first.
+2. **Deliverable specs in the package editor** — quantity, unit and spec are
    stored, read and rendered, and still have no field to type them into.
+3. **The other two backward reads**, now that traversal is a module: *where is
+   this service sold?* (`package ↔ service`) and *what is this person on?*
+   (`booking ↔ assignment`). Both are the lens's shape applied to a different
+   edge — which is the test of whether the pattern actually generalises.
 
 Everything after that is the same shape as something already built. If a proposal
 does not look like something on this page, that is the signal to re-read it
