@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  listBlueprints, listServiceDomains, listDeliverables, listServices,
-  getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
+  listBlueprints, listServiceDomains, listServices,
+  listDimensionsByDomain, listOutputTypesByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
 } from '@/modules/services/interface';
 import { TemplatePicker } from './TemplatePicker';
@@ -16,10 +16,8 @@ export default async function NewServicePage() {
     redirect('/login');
   }
 
-  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services] = await Promise.all([
-    listServiceDomains(), listDeliverables(),
-    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
-    listServices(),
+  const [domains, outputTypesByDomain, dimensionsByDomain, services] = await Promise.all([
+    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(), listServices(),
   ]);
 
   // The knowledge the form arrives with. Built from the curated library plus
@@ -35,13 +33,8 @@ export default async function NewServicePage() {
       serviceSuggestions={serviceSuggestions}
       deliverableSuggestions={deliverableSuggestions}
       dimensionSuggestions={dimensionSuggestions}
-      outputOptions={deliverables.map((d: any) => d.name)}
-      enabledDimensions={enabledDimensions}
-      occasionOptions={occasions.map((o: any) => o.name)}
-      contextOptions={contexts.map((c: any) => c.name)}
-      subjectOptions={subjects.map((s: any) => s.name)}
-      purposeOptions={purposes.map((p: any) => p.name)}
-      clientTypeOptions={clientTypes.map((c: any) => c.name)}
+      outputTypesByDomain={outputTypesByDomain}
+      dimensionsByDomain={dimensionsByDomain}
     />
   );
 }

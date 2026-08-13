@@ -22,11 +22,11 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes, listVariablesForServices } = await import('@/modules/services/interface');
-  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes] = await Promise.all([
+  const { listDeliverables, listDeliveryContainers, listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
     getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(), listDeliveryContainers(), listBlueprints(),
-    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes()
+    listDimensionsByDomain(),
   ]);
 
   const suggestedDeliverablesByService: Record<string, string[]> = {};
@@ -68,12 +68,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           allContainers={allContainers as any}
           allWorkflows={allWorkflows as any}
           suggestedDeliverablesByService={suggestedDeliverablesByService}
-          enabledDimensions={enabledDimensions}
-          occasionOptions={occasions.map((o: any) => ({ id: o.id, name: o.name }))}
-          contextOptions={contexts.map((c: any) => ({ id: c.id, name: c.name }))}
-          subjectOptions={subjects.map((s: any) => ({ id: s.id, name: s.name }))}
-          purposeOptions={purposes.map((p: any) => ({ id: p.id, name: p.name }))}
-          clientTypeOptions={clientTypes.map((c: any) => ({ id: c.id, name: c.name }))}
+          dimensionsByDomain={dimensionsByDomain}
           roleOptions={(roles as any[]).map((r) => r.name)}
           initial={{
             name: pkg.name,
@@ -87,11 +82,8 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             deliverableIds: ((pkg as any).deliverables || []).map((d: any) => d.id),
             containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
             workflowIds: ((pkg as any).workflows || []).map((d: any) => d.id),
-            occasions: ((pkg as any).occasions || []).map((d: any) => d.id),
-            contexts: ((pkg as any).contexts || []).map((d: any) => d.id),
-            subjects: ((pkg as any).subjects || []).map((d: any) => d.id),
-            purposes: ((pkg as any).purposes || []).map((d: any) => d.id),
-            clientTypes: ((pkg as any).clientTypes || []).map((d: any) => d.id),
+            dimensionValueIds: (((pkg as any).dimensions || []) as { values: { id: string }[] }[])
+              .flatMap((d) => d.values.map((v) => v.id)),
             pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
           }}

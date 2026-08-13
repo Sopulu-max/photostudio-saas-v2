@@ -191,8 +191,10 @@ package next month must not rewrite what a client already agreed to.
 | Studio can add its own dimensions and values | **Built** — Services settings |
 | Domain → service → value narrowing in the form | **Built** |
 | Combobox: see the list, type anyway | **Built** |
-| Service form renders the domain's *actual* dimensions | **Not built** — still the hardcoded five |
-| Old five value tables + junctions removed | **Not done** — restored as scaffolding; goes with the line above, in one commit |
+| Service form renders the domain's *actual* dimensions | **Built** — and a new one can be added from the form itself |
+| Old five value tables + junctions removed | **Done** — 20260824000000, same commit as the code |
+| Output types resolved per domain (write path) | **Built** — was broken since 20260822000000 |
+| Package classification, and the public intake | **Built** — both read the studio's own vocabulary |
 | Deliverable specs (quantity/unit/spec) | Stored, read, rendered — **no editor field** |
 | Value hierarchy (`parent_id`, Outdoor → Beach) | Stored, **unused** |
 | The lens (enter from a value) | **Not built** — needs `whatCarries()` / `whatCoOccursWith()` |
@@ -204,16 +206,17 @@ package next month must not rewrite what a client already agreed to.
 
 ## 6. What to build next, and why in this order
 
-1. **Move the service form onto the domain's dimensions**, delete the five flat
-   tables, in one commit. Until this lands, a studio can define a dimension it
-   cannot use — the system contradicts itself in the one place a studio looks.
-2. **Traversal as a first-class read** — `whatCarries(value)`,
-   `whatCoOccursWith(value)`. Small, and three features fall out of it.
-3. **The lens**, as a thin surface over (2): enter at Birthday, see what this
+1. **Traversal as a first-class read** — `whatCarries(value)`,
+   `whatCoOccursWith(value)`. Small, and three features fall out of it. The
+   filter behind `/services?value=` is the first half of it already, written
+   inline — making it a module read is what the lens then sits on.
+2. **The lens**, as a thin surface over (1): enter at Birthday, see what this
    studio does for birthdays, and leave with either a package or — if the
    process is genuinely different — a new service.
-4. **Value hierarchy** in the UI: Beach is an Outdoor, and selecting backwards
+3. **Value hierarchy** in the UI: Beach is an Outdoor, and selecting backwards
    into the parent is how a studio navigates its own vocabulary.
+4. **Deliverable specs in the package editor** — quantity, unit and spec are
+   stored, read and rendered, and still have no field to type them into.
 
 Everything after that is the same shape as something already built. If a proposal
 does not look like something on this page, that is the signal to re-read it

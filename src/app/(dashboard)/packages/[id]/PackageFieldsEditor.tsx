@@ -12,11 +12,16 @@ type ServiceOption = {
   domain?: { name: string } | null;
   description?: string | null;
   deliverables?: { id: string; name: string }[];
-  occasions?: { id: string; name: string }[];
-  contexts?: { id: string; name: string }[];
-  subjects?: { id: string; name: string }[];
-  purposes?: { id: string; name: string }[];
-  clientTypes?: { id: string; name: string }[];
+  /** However many dimensions this service's domain asks, with what it carries. */
+  dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
+};
+
+/** A dimension a package can be classified by, and the domain that owns it. */
+type DimensionOption = {
+  id: string;
+  name: string;
+  domainName: string;
+  values: { id: string; name: string }[];
 };
 type Tier = { label: string; price: string };
 type Stage = { name: string; roleName: string; frontStage: boolean };
@@ -37,12 +42,7 @@ export function PackageFieldsEditor({
   allContainers,
   allWorkflows,
   suggestedDeliverablesByService,
-  enabledDimensions,
-  occasionOptions,
-  contextOptions,
-  subjectOptions,
-  purposeOptions,
-  clientTypeOptions,
+  dimensionsByDomain,
   roleOptions,
   initial,
 }: {
@@ -55,12 +55,8 @@ export function PackageFieldsEditor({
   allContainers: { id: string; name: string }[];
   allWorkflows: { id: string; name: string }[];
   suggestedDeliverablesByService: Record<string, string[]>;
-  enabledDimensions: string[];
-  occasionOptions: { id: string; name: string }[];
-  contextOptions: { id: string; name: string }[];
-  subjectOptions: { id: string; name: string }[];
-  purposeOptions: { id: string; name: string }[];
-  clientTypeOptions: { id: string; name: string }[];
+  /** Domain name → the dimensions it classifies by. A package may draw on several. */
+  dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
   initial: {
     name?: string;
@@ -74,11 +70,7 @@ export function PackageFieldsEditor({
     deliverableIds?: string[];
     containerIds?: string[];
     workflowIds?: string[];
-    occasions?: string[];
-    contexts?: string[];
-    subjects?: string[];
-    purposes?: string[];
-    clientTypes?: string[];
+    dimensionValueIds?: string[];
     pricingVariant?: PricingVariant | null;
     extraStages?: Stage[];
   };
@@ -107,17 +99,16 @@ export function PackageFieldsEditor({
   const [workflows, setWorkflows] = useState<string[]>(initial.workflowIds || []);
   const [newWorkflowId, setNewWorkflowId] = useState('');
 
-  // Configuration schemas
-  const [occasions, setOccasions] = useState<string[]>(initial.occasions || []);
-  const [newOccasionId, setNewOccasionId] = useState('');
-  const [contexts, setContexts] = useState<string[]>(initial.contexts || []);
-  const [newContextId, setNewContextId] = useState('');
-  const [subjects, setSubjects] = useState<string[]>(initial.subjects || []);
-  const [newSubjectId, setNewSubjectId] = useState('');
-  const [purposes, setPurposes] = useState<string[]>(initial.purposes || []);
-  const [newPurposeId, setNewPurposeId] = useState('');
-  const [clientTypes, setClientTypes] = useState<string[]>(initial.clientTypes || []);
-  const [newClientTypeId, setNewClientTypeId] = useState('');
+  /*
+   * How this package is classified — dimension_value ids, flat.
+   *
+   * A package selects; it never redefines. There is no free-text escape here on
+   * purpose: inventing a value is an act on a domain's vocabulary, which
+   * belongs to the service layer. What a package can say is drawn from what it
+   * bundles.
+   */
+  const [dimensionValueIds, setDimensionValueIds] = useState<string[]>(initial.dimensionValueIds || []);
+  const [pendingValue, setPendingValue] = useState<Record<string, string>>({});
 
   const [hasVariant, setHasVariant] = useState(!!initial.pricingVariant);
   const [axisLabel, setAxisLabel] = useState(initial.pricingVariant?.axisLabel ?? '');
@@ -126,6 +117,22 @@ export function PackageFieldsEditor({
 
   const bundledNames = allServices.filter((s) => serviceIds.includes(s.id)).map((s) => s.name);
   const composed = bundledNames.join(' + ') || 'Untitled package';
+
+  /*
+   * What this package can be classified by, derived from what it bundles.
+   *
+   * Not a separate setting: a package's vocabulary is the union of its bundled
+   * services' domains. Bundle Photography and it can be filed under
+   * Photography's questions; bundle Photography and Printing and it gets both,
+   * which is exactly what a cross-domain package means. Before anything is
+   * bundled there is nothing to narrow by, so everything is offered.
+   */
+  const bundledDomains = [...new Set(
+    allServices.filter((s) => serviceIds.includes(s.id)).map((s) => s.domain?.name).filter(Boolean)
+  )] as string[];
+  const availableDimensions: DimensionOption[] = Object.entries(dimensionsByDomain)
+    .filter(([domainName]) => bundledDomains.length === 0 || bundledDomains.includes(domainName))
+    .flatMap(([domainName, dims]) => dims.map((d) => ({ ...d, domainName })));
   const effectiveName = nameTouched ? name : composed;
 
   // The union of Deliverables that the currently selected Services typically produce.
@@ -163,11 +170,7 @@ export function PackageFieldsEditor({
     deliverableIds: deliverables,
     containerIds: containers,
     workflowIds: workflows,
-    occasions,
-    contexts,
-    subjects,
-    purposes,
-    clientTypes,
+    dimensionValueIds,
     pricingVariant: (hasVariant && axisLabel.trim() && tiers.some((t) => t.label.trim()))
       ? { axisLabel: axisLabel.trim(), tiers: tiers.filter((t) => t.label.trim()).map((t) => ({ label: t.label.trim(), price: parseFloat(t.price) || 0 })) }
       : null,
@@ -191,34 +194,37 @@ export function PackageFieldsEditor({
 
   const retired = status === 'retired';
 
-  const renderMultiDim = (
-    label: string, 
-    items: string[], 
-    setItems: React.Dispatch<React.SetStateAction<string[]>>, 
-    newItemId: string, 
-    setNewItemId: React.Dispatch<React.SetStateAction<string>>, 
-    options: { id: string, name: string }[]
-  ) => {
-    const addItem = (id: string) => { if (id && !items.includes(id)) setItems(prev => [...prev, id]); setNewItemId(''); };
+  const renderDimension = (dim: DimensionOption) => {
+    const chosen = dimensionValueIds.filter((id) => dim.values.some((v) => v.id === id));
+    const add = (id: string) => {
+      if (id && !dimensionValueIds.includes(id)) setDimensionValueIds((prev) => [...prev, id]);
+      setPendingValue((prev) => ({ ...prev, [dim.id]: '' }));
+    };
     return (
-      <div className="q-field">
-        <label className="q-label">{label}</label>
-        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: items.length > 0 ? '8px' : '0' }}>
-          {items.map((item) => {
-            const dName = options.find(o => o.id === item)?.name || item;
+      <div className="q-field" key={dim.id}>
+        <label className="q-label">{dim.name}</label>
+        <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>{dim.domainName}</span>
+        <div className="q-row" style={{ flexWrap: 'wrap', margin: chosen.length > 0 ? '8px 0' : '0' }}>
+          {chosen.map((id) => {
+            const name = dim.values.find((v) => v.id === id)?.name || id;
             return (
-              <span key={item} className="q-badge q-badge-neutral">
-                {dName} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setItems(prev => prev.filter(x => x !== item))}>×</button>
+              <span key={id} className="q-badge q-badge-neutral">
+                {name} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setDimensionValueIds((prev) => prev.filter((x) => x !== id))}>×</button>
               </span>
             );
           })}
         </div>
         <div className="q-row">
-          <select className="q-select" value={newItemId} onChange={(e) => setNewItemId(e.target.value)} style={{ minWidth: '12rem' }}>
+          <select
+            className="q-select"
+            value={pendingValue[dim.id] || ''}
+            onChange={(e) => setPendingValue((prev) => ({ ...prev, [dim.id]: e.target.value }))}
+            style={{ minWidth: '12rem' }}
+          >
             <option value="">Select...</option>
-            {options.filter(o => !items.includes(o.id)).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            {dim.values.filter((v) => !dimensionValueIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
-          <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => addItem(newItemId)} disabled={!newItemId}>+ Add</button>
+          <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[dim.id] || '')} disabled={!pendingValue[dim.id]}>+ Add</button>
         </div>
       </div>
     );
@@ -232,10 +238,7 @@ export function PackageFieldsEditor({
         <div className="q-grid-cards">
           {allServices.map((s) => {
             const isSelected = serviceIds.includes(s.id);
-            const allTags = [
-              ...(s.subjects || []), ...(s.occasions || []), ...(s.contexts || []), 
-              ...(s.purposes || []), ...(s.clientTypes || [])
-            ];
+            const allTags = (s.dimensions || []).flatMap((d) => d.values);
             return (
               <div 
                 key={s.id} 
@@ -293,14 +296,17 @@ export function PackageFieldsEditor({
             <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
           </div>
           
-          {(enabledDimensions.length > 0) && (
-            <div className="q-grid-2">
-              {enabledDimensions.includes('subject') && renderMultiDim('Subjects', subjects, setSubjects, newSubjectId, setNewSubjectId, subjectOptions)}
-              {enabledDimensions.includes('occasion') && renderMultiDim('Occasions', occasions, setOccasions, newOccasionId, setNewOccasionId, occasionOptions)}
-              {enabledDimensions.includes('context') && renderMultiDim('Contexts', contexts, setContexts, newContextId, setNewContextId, contextOptions)}
-              {enabledDimensions.includes('purpose') && renderMultiDim('Purposes', purposes, setPurposes, newPurposeId, setNewPurposeId, purposeOptions)}
-              {enabledDimensions.includes('client') && renderMultiDim('Client Types', clientTypes, setClientTypes, newClientTypeId, setNewClientTypeId, clientTypeOptions)}
-            </div>
+          {availableDimensions.length > 0 && (
+            <>
+              <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+                {bundledDomains.length > 0
+                  ? `Classified in the vocabulary of ${bundledDomains.join(' and ')} — what this package bundles is what it can be filed under.`
+                  : 'Bundle a service above and this narrows to that domain’s own vocabulary.'}
+              </span>
+              <div className="q-grid-2">
+                {availableDimensions.map(renderDimension)}
+              </div>
+            </>
           )}
         </div>
       </div>

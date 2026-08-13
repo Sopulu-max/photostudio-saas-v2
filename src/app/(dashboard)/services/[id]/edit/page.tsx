@@ -2,14 +2,13 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  getService, listServiceDomains, listDeliverables, listServices, listServiceVariables,
-  getEnabledDimensions, listOccasions, listContexts, listSubjects, listPurposes, listClientTypes,
+  getService, listServiceDomains, listServices, listServiceVariables,
+  listDimensionsByDomain, listOutputTypesByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
 } from '@/modules/services/interface';
-import type { Dimension } from '@/modules/services/interface';
+import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
 import { ServiceVariablesEditor } from '../ServiceVariablesEditor';
-import { DimensionTag } from '../../DimensionTag';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +23,8 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const [domains, deliverables, enabledDimensions, occasions, contexts, subjects, purposes, clientTypes, services, variables] = await Promise.all([
-    listServiceDomains(), listDeliverables(),
-    getEnabledDimensions(), listOccasions(), listContexts(), listSubjects(), listPurposes(), listClientTypes(),
+  const [domains, outputTypesByDomain, dimensionsByDomain, services, variables] = await Promise.all([
+    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(),
     listServices(), listServiceVariables(params.id),
   ]);
 
@@ -35,12 +33,6 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const serviceSuggestions = buildServiceSuggestions(services as any);
   const deliverableSuggestions = buildDeliverableSuggestions(services as any);
   const dimensionSuggestions = buildDimensionSuggestions(services as any);
-
-  const dims = service as any;
-  const tags: [Dimension, { id: string; name: string } | null][] = [
-    ['subject', dims.subject], ['occasion', dims.occasion], ['context', dims.context],
-    ['purpose', dims.purpose], ['client', dims.client_type],
-  ];
 
   return (
     <div className="q-page-narrow">
@@ -59,24 +51,16 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         serviceSuggestions={serviceSuggestions}
         deliverableSuggestions={deliverableSuggestions}
         dimensionSuggestions={dimensionSuggestions}
-        outputOptions={deliverables.map((d: any) => d.name)}
-        enabledDimensions={enabledDimensions}
-        occasionOptions={occasions.map((o: any) => o.name)}
-        contextOptions={contexts.map((c: any) => c.name)}
-        subjectOptions={subjects.map((s: any) => s.name)}
-        purposeOptions={purposes.map((p: any) => p.name)}
-        clientTypeOptions={clientTypes.map((c: any) => c.name)}
+        outputTypesByDomain={outputTypesByDomain}
+        dimensionsByDomain={dimensionsByDomain}
         initial={{
           name: service.name,
           description: (service as any).description,
           serviceDomain: (service as any).domain?.name || '',
           primaryDeliverable: (service as any).primary_deliverable?.name || null,
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
-          occasions: ((service as any).occasions || []).map((d: any) => d.name),
-          contexts: ((service as any).contexts || []).map((d: any) => d.name),
-          subjects: ((service as any).subjects || []).map((d: any) => d.name),
-          purposes: ((service as any).purposes || []).map((d: any) => d.name),
-          clientTypes: ((service as any).clientTypes || []).map((d: any) => d.name),
+          dimensions: (((service as any).dimensions || []) as ServiceDimensionTag[])
+            .map((d) => ({ name: d.name, values: d.values.map((v) => v.name) })),
         }}
       />
 

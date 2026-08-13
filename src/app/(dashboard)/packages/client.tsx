@@ -6,39 +6,44 @@ import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { DimensionTag } from './DimensionTag';
-import type { PackageDimension } from '@/modules/packages/interface';
 
-const DIM_PROP: Record<PackageDimension, string> = {
-  subject: 'subject', occasion: 'occasion', context: 'context', purpose: 'purpose', client: 'client_type',
-};
+type DimensionTagShape = { id: string; name: string; values: { id: string; name: string }[] };
 
 export function PackagesClient({
   initialPackages,
   currencyCode = 'USD',
   storefrontSlug,
-  enabledDimensions = [],
   activeFilter,
 }: {
   initialPackages: any[];
   currencyCode?: string;
   storefrontSlug?: string | null;
-  enabledDimensions?: PackageDimension[];
-  activeFilter?: { dim: PackageDimension; label: string } | null;
+  activeFilter?: { label: string } | null;
 }) {
   const active = initialPackages.filter((p: any) => p.status !== 'retired');
   const retired = initialPackages.filter((p: any) => p.status === 'retired');
 
-  const getDimValues = (pkg: any, dim: PackageDimension) => {
-    const values = new Map<string, any>();
-    (pkg.services || []).forEach((s: any) => {
-      const val = s[DIM_PROP[dim]];
-      if (val?.id) values.set(val.id, val);
-    });
-    return Array.from(values.values());
+  /*
+   * What a package is classified as: what it says about itself, plus what its
+   * bundled services already say. Deduped by value id, because a package tagged
+   * Wedding that bundles a service tagged Wedding is one fact, not two.
+   */
+  const dimensionTags = (pkg: any) => {
+    const byDimension = new Map<string, DimensionTagShape>();
+    const absorb = (dims: DimensionTagShape[] | undefined) => {
+      for (const d of (dims || [])) {
+        if (!byDimension.has(d.id)) byDimension.set(d.id, { id: d.id, name: d.name, values: [] });
+        const target = byDimension.get(d.id)!;
+        for (const v of d.values) if (!target.values.some((x) => x.id === v.id)) target.values.push(v);
+      }
+    };
+    absorb(pkg.dimensions);
+    (pkg.services || []).forEach((s: any) => absorb(s.dimensions));
+    return [...byDimension.values()];
   };
 
   const Card = ({ pkg }: { pkg: any }) => {
-    const hasDimensions = enabledDimensions.some((d) => getDimValues(pkg, d).length > 0);
+    const tags = dimensionTags(pkg);
     return (
       <div className="q-card q-stack">
         <div className="q-row q-row-between">
@@ -49,13 +54,11 @@ export function PackagesClient({
           <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
         </div>
         <div className="q-meta">{(pkg.services || []).map((s: any) => s.name).join(' + ') || 'No services bundled'}</div>
-        {hasDimensions && (
-          <div className="q-row" style={{ flexWrap: 'wrap' }}>
-            {enabledDimensions.map((d) => 
-              getDimValues(pkg, d).map((val: any) => (
-                <DimensionTag key={`${d}-${val.id}`} dim={d} value={val} />
-              ))
-            )}
+        {tags.length > 0 && (
+          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+            {tags.flatMap((d) => d.values.map((v) => (
+              <DimensionTag key={v.id} dimension={d.name} value={v} />
+            )))}
           </div>
         )}
         <div className="q-tile-sub">
@@ -90,7 +93,7 @@ export function PackagesClient({
 
       {activeFilter && (
         <div className="q-row" style={{ marginBottom: '16px', alignItems: 'center' }}>
-          <span className="q-meta-sm">Filtered by {activeFilter.dim[0].toUpperCase() + activeFilter.dim.slice(1)}: {activeFilter.label}</span>
+          <span className="q-meta-sm">Filtered by {activeFilter.label}</span>
           <Link href="/packages" className="q-btn q-btn-secondary q-btn-xs">Clear &times;</Link>
         </div>
       )}
@@ -101,7 +104,7 @@ export function PackagesClient({
           {activeFilter ? (
             <>
               <h3 className="q-section-title">Nothing tagged this way</h3>
-              <p className="q-meta">No package is currently {activeFilter.dim} &ldquo;{activeFilter.label}&rdquo;.</p>
+              <p className="q-meta">No package is currently tagged &ldquo;{activeFilter.label}&rdquo;.</p>
               <Link href="/packages" className="q-btn q-btn-secondary">Clear filter</Link>
             </>
           ) : (

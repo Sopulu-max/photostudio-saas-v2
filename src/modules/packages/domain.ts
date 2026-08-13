@@ -23,10 +23,32 @@ export type PaymentPolicy = 'deposit' | 'full';
 export type PricingVariant = { axisLabel: string; tiers: { label: string; price: number }[] };
 type StageInput = { name: string; roleName?: string | null; frontStage?: boolean | null };
 
-// ── Facet-style, studio-editable vocabulary (Category only — the five real
-// classification dimensions, Subject/Occasion/Context/Purpose/Client, are
-// owned by Services and asked for through its interface below, since they
-// apply symmetrically to Service too, not just Package) ─────────────────────
+// ── Facet-style, studio-editable vocabulary (Category only — how work gets
+// classified is owned by Services, since a dimension belongs to a service
+// domain and applies symmetrically to Service too, not just Package) ────────
+
+/**
+ * Dimension links → the dimensions that asked, each with the values carried.
+ *
+ * Shared by the Service side (`service_dimension_values`) and the Package side
+ * (`package_dimension_values`) because the two links are the same shape: an
+ * entity, and a value in some domain's vocabulary. A package may carry values
+ * from more than one domain at once — it bundles across them freely — so this
+ * groups by dimension without assuming they share a parent.
+ */
+function shapeDimensionLinks(links: any[] | null | undefined) {
+  const byDimension = new Map<string, { id: string; name: string; position: number; values: { id: string; name: string }[] }>();
+  for (const link of (links || [])) {
+    const v = link?.dimension_value;
+    const d = v?.dimension;
+    if (!v || !d) continue;
+    if (!byDimension.has(d.id)) {
+      byDimension.set(d.id, { id: d.id, name: d.name, position: d.position ?? 0, values: [] });
+    }
+    byDimension.get(d.id)!.values.push({ id: v.id, name: v.name });
+  }
+  return [...byDimension.values()].sort((a, b) => a.position - b.position);
+}
 
 // ── The core: Package bundles Services ───────────────────────────────────────
 
@@ -117,11 +139,15 @@ export async function createPackage(input: {
   workflowIds?: string[];
   /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
   variableValues?: { serviceVariableId: string; value: unknown }[];
-  occasions?: string[];
-  contexts?: string[];
-  subjects?: string[];
-  purposes?: string[];
-  clientTypes?: string[];
+  /**
+   * How this package is classified — dimension_value ids, flat.
+   *
+   * Flat because a value belongs to exactly one dimension of exactly one
+   * domain, so the id already says which question it answers. Grouping them by
+   * dimension here would store that fact a second time, and a package crosses
+   * domains freely — it may well carry values from two vocabularies at once.
+   */
+  dimensionValueIds?: string[];
   pricingVariant?: PricingVariant | null;
   formSchema?: any[];
   extraStages?: StageInput[];
@@ -192,17 +218,12 @@ export async function createPackage(input: {
       await supabaseAdmin.from('package_workflows').insert(input.workflowIds.map((blueprint_id, i) => ({ organization_id: orgId, package_id: pkg.id, blueprint_id, position: i })));
     }
 
-    const insertConfig = async (table: string, items: string[] | undefined, column: string) => {
-      if (!items || items.length === 0) return;
-      await supabaseAdmin.from(`package_${table}`).insert(items.map(id => ({ organization_id: orgId, package_id: pkg.id, [column]: id })));
-    };
-    await Promise.all([
-      insertConfig('occasions', input.occasions, 'occasion_id'),
-      insertConfig('contexts', input.contexts, 'context_id'),
-      insertConfig('subjects', input.subjects, 'subject_id'),
-      insertConfig('purposes', input.purposes, 'purpose_id'),
-      insertConfig('client_types', input.clientTypes, 'client_type_id'),
-    ]);
+    const valueIds = [...new Set(input.dimensionValueIds || [])];
+    if (valueIds.length > 0) {
+      await supabaseAdmin.from('package_dimension_values').insert(
+        valueIds.map((dimension_value_id) => ({ organization_id: orgId, package_id: pkg.id, dimension_value_id }))
+      );
+    }
   }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: pkg.id, action: 'created', actorId: actorId ?? undefined, payload: { name, serviceIds } });
@@ -227,11 +248,15 @@ export async function updatePackage(input: {
   workflowIds?: string[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
   variableValues?: { serviceVariableId: string; value: unknown }[];
-  occasions?: string[];
-  contexts?: string[];
-  subjects?: string[];
-  purposes?: string[];
-  clientTypes?: string[];
+  /**
+   * How this package is classified — dimension_value ids, flat.
+   *
+   * Flat because a value belongs to exactly one dimension of exactly one
+   * domain, so the id already says which question it answers. Grouping them by
+   * dimension here would store that fact a second time, and a package crosses
+   * domains freely — it may well carry values from two vocabularies at once.
+   */
+  dimensionValueIds?: string[];
   pricingVariant?: PricingVariant | null;
   extraStages?: StageInput[];
 }) {
@@ -301,20 +326,16 @@ export async function updatePackage(input: {
     }
   }
 
-  const syncConfig = async (table: string, items: string[] | undefined, column: string) => {
-    if (items === undefined) return;
-    await supabaseAdmin.from(`package_${table}`).delete().eq('package_id', input.packageId).eq('organization_id', orgId);
-    if (items.length > 0) {
-      await supabaseAdmin.from(`package_${table}`).insert(items.map(id => ({ organization_id: orgId, package_id: input.packageId, [column]: id })));
+  if (input.dimensionValueIds !== undefined) {
+    await supabaseAdmin.from('package_dimension_values').delete()
+      .eq('package_id', input.packageId).eq('organization_id', orgId);
+    const valueIds = [...new Set(input.dimensionValueIds)];
+    if (valueIds.length > 0) {
+      await supabaseAdmin.from('package_dimension_values').insert(
+        valueIds.map((dimension_value_id) => ({ organization_id: orgId, package_id: input.packageId, dimension_value_id }))
+      );
     }
-  };
-  await Promise.all([
-    syncConfig('occasions', input.occasions, 'occasion_id'),
-    syncConfig('contexts', input.contexts, 'context_id'),
-    syncConfig('subjects', input.subjects, 'subject_id'),
-    syncConfig('purposes', input.purposes, 'purpose_id'),
-    syncConfig('client_types', input.clientTypes, 'client_type_id'),
-  ]);
+  }
 
   // Validated against whatever the package bundles *now* — which may have just
   // changed above, so this reads the current set rather than trusting input.
@@ -365,17 +386,12 @@ export async function duplicatePackage(packageId: string) {
   const { data: workflows } = await supabaseAdmin.from('package_workflows').select('blueprint_id, position').eq('package_id', packageId).eq('organization_id', orgId);
   if (workflows && workflows.length > 0) await supabaseAdmin.from('package_workflows').insert(workflows.map((d: any) => ({ organization_id: orgId, package_id: copy.id, blueprint_id: d.blueprint_id, position: d.position })));
 
-  const copyConfig = async (table: string, column: string) => {
-    const { data } = await supabaseAdmin.from(`package_${table}`).select(column).eq('package_id', packageId).eq('organization_id', orgId);
-    if (data && data.length > 0) await supabaseAdmin.from(`package_${table}`).insert(data.map((d: any) => ({ organization_id: orgId, package_id: copy.id, [column]: d[column] })));
-  };
-  await Promise.all([
-    copyConfig('occasions', 'occasion_id'),
-    copyConfig('contexts', 'context_id'),
-    copyConfig('subjects', 'subject_id'),
-    copyConfig('purposes', 'purpose_id'),
-    copyConfig('client_types', 'client_type_id'),
-  ]);
+  const { data: tags } = await supabaseAdmin.from('package_dimension_values').select('dimension_value_id').eq('package_id', packageId).eq('organization_id', orgId);
+  if (tags && tags.length > 0) {
+    await supabaseAdmin.from('package_dimension_values').insert(
+      tags.map((t: any) => ({ organization_id: orgId, package_id: copy.id, dimension_value_id: t.dimension_value_id }))
+    );
+  }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromPackageId: packageId } });
   revalidatePath('/packages');
@@ -397,11 +413,7 @@ const PACKAGE_SELECT = `
   package_services(service:services(
     id, name, description, domain:service_domains(id, name),
     service_deliverables(deliverable:deliverables(id, name)),
-    schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
-    schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
-    schema_subjects:service_schema_subjects(subject:subjects(id, name)),
-    schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
-    schema_client_types:service_schema_client_types(client_type:client_types(id, name))
+    service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position)))
   ))
 `;
 
@@ -416,11 +428,7 @@ export async function listPackages() {
       package_deliverables(quantity, unit, spec, deliverable:deliverables(id, name)),
       package_delivery_containers(container:delivery_containers(id, name)),
       package_workflows(blueprint:blueprints(id, name, stages)),
-      package_occasions(occasion:occasions(id, name)),
-      package_contexts(context:service_contexts(id, name)),
-      package_subjects(subject:subjects(id, name)),
-      package_purposes(purpose:purposes(id, name)),
-      package_client_types(client_type:client_types(id, name))
+      package_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position)))
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
@@ -430,22 +438,14 @@ export async function listPackages() {
     services: (p.package_services || []).map((ps: any) => ({
       ...ps.service,
       deliverables: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
-      occasions: (ps.service?.schema_occasions || []).map((so: any) => so.occasion).filter(Boolean),
-      contexts: (ps.service?.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
-      subjects: (ps.service?.schema_subjects || []).map((ss: any) => ss.subject).filter(Boolean),
-      purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
-      clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
+      dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
     })).filter((s: any) => s.id),
     deliverables: (p.package_deliverables || [])
       .filter((pd: any) => pd.deliverable)
       .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
-    occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),
-    contexts: (p.package_contexts || []).map((po: any) => po.context).filter(Boolean),
-    subjects: (p.package_subjects || []).map((po: any) => po.subject).filter(Boolean),
-    purposes: (p.package_purposes || []).map((po: any) => po.purpose).filter(Boolean),
-    clientTypes: (p.package_client_types || []).map((po: any) => po.client_type).filter(Boolean),
+    dimensions: shapeDimensionLinks(p.package_dimension_values),
   }));
 }
 
@@ -472,11 +472,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       package_services(service:services(
         id, name
       )),
-      package_occasions(occasion:occasions(id)),
-      package_contexts(context:service_contexts(id)),
-      package_subjects(subject:subjects(id)),
-      package_purposes(purpose:purposes(id)),
-      package_client_types(client_type:client_types(id))
+      package_dimension_values(dimension_value_id)
     `)
     .eq('organization_id', orgId).eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -492,13 +488,12 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       price_unit: (p.price_unit ?? null) as string | null,
       pricing_variant: p.pricing_variant as any,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
-      dimensionIds: {
-        occasion: [...new Set((p.package_occasions || []).map((po: any) => po.occasion?.id).filter(Boolean))] as string[],
-        context:  [...new Set((p.package_contexts || []).map((po: any) => po.context?.id).filter(Boolean))] as string[],
-        subject:  [...new Set((p.package_subjects || []).map((po: any) => po.subject?.id).filter(Boolean))] as string[],
-        purpose:  [...new Set((p.package_purposes || []).map((po: any) => po.purpose?.id).filter(Boolean))] as string[],
-        client:   [...new Set((p.package_client_types || []).map((po: any) => po.client_type?.id).filter(Boolean))] as string[],
-      } as Record<string, string[]>,
+      // Flat, because matching an enquiry is co-occurrence over values: how
+      // many of what the client chose does this package already carry. Which
+      // dimension each value came from never enters the arithmetic.
+      dimensionValueIds: [...new Set(
+        (p.package_dimension_values || []).map((pv: any) => pv.dimension_value_id).filter(Boolean)
+      )] as string[],
     };
   });
 }
@@ -542,11 +537,7 @@ export async function getPackage(packageId: string) {
     package_deliverables(quantity, unit, spec, deliverable:deliverables(id, name)),
     package_delivery_containers(container:delivery_containers(id, name)),
     package_workflows(blueprint:blueprints(id, name, stages)),
-    package_occasions(occasion:occasions(id, name)),
-    package_contexts(context:service_contexts(id, name)),
-    package_subjects(subject:subjects(id, name)),
-    package_purposes(purpose:purposes(id, name)),
-    package_client_types(client_type:client_types(id, name)),
+    package_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
     package_variable_values(value, variable:service_variables(id, key, label, unit, kind))
   `).eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!data) return null;
@@ -556,22 +547,14 @@ export async function getPackage(packageId: string) {
     services: (p.package_services || []).map((ps: any) => ({
       ...ps.service,
       deliverables: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
-      occasions: (ps.service?.schema_occasions || []).map((so: any) => so.occasion).filter(Boolean),
-      contexts: (ps.service?.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
-      subjects: (ps.service?.schema_subjects || []).map((ss: any) => ss.subject).filter(Boolean),
-      purposes: (ps.service?.schema_purposes || []).map((sp: any) => sp.purpose).filter(Boolean),
-      clientTypes: (ps.service?.schema_client_types || []).map((sct: any) => sct.client_type).filter(Boolean),
+      dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
     })).filter((s: any) => s.id),
     deliverables: (p.package_deliverables || [])
       .filter((pd: any) => pd.deliverable)
       .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
     containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     workflows: (p.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
-    occasions: (p.package_occasions || []).map((po: any) => po.occasion).filter(Boolean),
-    contexts: (p.package_contexts || []).map((po: any) => po.context).filter(Boolean),
-    subjects: (p.package_subjects || []).map((po: any) => po.subject).filter(Boolean),
-    purposes: (p.package_purposes || []).map((po: any) => po.purpose).filter(Boolean),
-    clientTypes: (p.package_client_types || []).map((po: any) => po.client_type).filter(Boolean),
+    dimensions: shapeDimensionLinks(p.package_dimension_values),
     // What this package fixes — "2 outfits", "5 edited images". A variable the
     // package says nothing about stays open, so it is simply absent here.
     variableValues: (p.package_variable_values || [])

@@ -7,15 +7,12 @@
  * tables itself — that plan is the union of every bundled Service's Process,
  * so a multi-discipline Package's routing falls out of what it bundles.
  */
-// The five classification dimensions — Subject, Occasion, Context, Purpose,
-// Client — are owned by Services (they apply to Service just as much as
-// Package). Re-exported here purely for this module's UI's convenience;
-// Packages never touches those tables itself.
-export {
-  DIMENSIONS as PACKAGE_DIMENSIONS,
-  getEnabledDimensions,
-} from '@/modules/services/interface';
-export type { Dimension as PackageDimension } from '@/modules/services/interface';
+// How work gets classified is owned by Services — a dimension belongs to a
+// service domain, and applies to Service just as much as Package. Re-exported
+// here purely for this module's UI's convenience; Packages never touches those
+// tables itself.
+export { listDimensionsByDomain } from '@/modules/services/interface';
+export type { StudioDimensionShape } from '@/modules/services/interface';
 
 export {
   // Package

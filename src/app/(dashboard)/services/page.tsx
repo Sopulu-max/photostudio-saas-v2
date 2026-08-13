@@ -1,22 +1,22 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listServices, getEnabledDimensions } from '@/modules/services/interface';
-import type { Dimension } from '@/modules/services/interface';
+import { listServices } from '@/modules/services/interface';
+import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServicesClient } from './client';
 
 export const dynamic = 'force-dynamic';
 
-const DIM_KEY: Record<Dimension, string> = {
-  subject: 'subject', occasion: 'occasion', context: 'context', purpose: 'purpose', client: 'client_type',
-};
-
 /**
  * "Select backwards into their upper classifications": a dimension value
- * tagged on a Service (Context: Outdoor) is a way back up into everything
- * else sharing that classification, not a dead-end label. ?dim=&id= filters
- * to that; ?label= just avoids a second lookup to redisplay what was clicked.
+ * tagged on a Service (Context: Outdoor) is a way back up into everything else
+ * sharing that classification, not a dead-end label.
+ *
+ * One parameter does it — ?value= is a dimension_value id, and a value belongs
+ * to exactly one dimension of exactly one domain, so it already says which
+ * question it answers. ?label= only avoids a second lookup to redisplay what
+ * was clicked.
  */
-export default async function ServicesPage(props: { searchParams: Promise<{ dim?: string; id?: string; label?: string }> }) {
+export default async function ServicesPage(props: { searchParams: Promise<{ value?: string; label?: string }> }) {
   try {
     await getAuthOrgId();
   } catch {
@@ -24,13 +24,14 @@ export default async function ServicesPage(props: { searchParams: Promise<{ dim?
   }
 
   const sp = await props.searchParams;
-  const dim = (sp.dim || '') as Dimension;
-  const filterId = sp.id || '';
-  const isFiltered = !!(dim && filterId && DIM_KEY[dim]);
+  const valueId = sp.value || '';
 
-  const [all, enabledDimensions] = await Promise.all([listServices(), getEnabledDimensions()]);
-  const services = isFiltered ? (all as any[]).filter((s) => s[DIM_KEY[dim]]?.id === filterId) : all;
-  const activeFilter = isFiltered ? { dim, label: sp.label || '' } : null;
+  const all = await listServices();
+  const services = valueId
+    ? (all as any[]).filter((s) =>
+        ((s.dimensions || []) as ServiceDimensionTag[]).some((d) => d.values.some((v) => v.id === valueId)))
+    : all;
+  const activeFilter = valueId ? { label: sp.label || 'this classification' } : null;
 
-  return <ServicesClient initialServices={services} enabledDimensions={enabledDimensions} activeFilter={activeFilter} />;
+  return <ServicesClient initialServices={services} activeFilter={activeFilter} />;
 }

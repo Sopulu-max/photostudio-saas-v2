@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getService, getEnabledDimensions } from '@/modules/services/interface';
-import type { Dimension } from '@/modules/services/interface';
+import { getService } from '@/modules/services/interface';
+import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { DimensionTag } from '../DimensionTag';
 import { CheckCircle2, CircleDashed } from 'lucide-react';
 
@@ -19,13 +19,11 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const enabledDimensions = await getEnabledDimensions();
-
   const dims = service as any;
-  const tags: [Dimension, { id: string; name: string } | null][] = [
-    ['subject', dims.subject], ['occasion', dims.occasion], ['context', dims.context],
-    ['purpose', dims.purpose], ['client', dims.client_type],
-  ];
+  // However many dimensions this service's domain asks, and however many values
+  // it carries under each — read straight off the row rather than reconstructed
+  // from a fixed list the studio can't extend.
+  const tags = (dims.dimensions || []) as ServiceDimensionTag[];
 
   return (
     <div className="q-page-narrow">
@@ -54,11 +52,11 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         </p>
       )}
 
-      {tags.some(([, v]) => v) && (
+      {tags.length > 0 && (
         <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: '32px', gap: '6px' }}>
-          {tags.filter(([dim]) => enabledDimensions.includes(dim)).map(([dim, value]) => (
-            <DimensionTag key={dim} dim={dim} value={value} />
-          ))}
+          {tags.flatMap((d) =>
+            d.values.map((v) => <DimensionTag key={v.id} dimension={d.name} value={v} />)
+          )}
         </div>
       )}
 

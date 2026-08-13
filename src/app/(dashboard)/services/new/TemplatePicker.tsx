@@ -5,7 +5,8 @@ import { templatesByDomain } from '@/modules/services/interface';
 import type { ServiceTemplate } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../[id]/ServiceFieldsEditor';
 import { createService } from '@/modules/services/interface';
-import type { Dimension, Narrowed, DimensionSuggestions } from '@/modules/services/interface';
+import type { Narrowed, DimensionSuggestions, StudioDimensionShape } from '@/modules/services/interface';
+import { TEMPLATE_DIMENSION_NAMES } from '@/modules/services/interface';
 
 
 /**
@@ -14,9 +15,9 @@ import type { Dimension, Narrowed, DimensionSuggestions } from '@/modules/servic
  * it suggests stays fully editable. When none of the curated starting
  * points match — a discipline this studio does that isn't in the library —
  * "Create a custom service" opens the identical editor with nothing filled
- * in. The Service's shape (Domain, Deliverables, Blueprint, the five
- * dimensions) stays the same closed, bounded set either way; only the
- * starting values differ. That's not a blank canvas in the no-code-builder
+ * in. The Service's shape (Domain, Deliverables, Blueprint, and whatever the
+ * domain classifies by) is the same either way; only the starting values
+ * differ. That's not a blank canvas in the no-code-builder
  * sense — it's Progressive Enrichment: an entity has to be creatable with
  * minimal data, not just with a curated one.
  */
@@ -25,25 +26,15 @@ export function TemplatePicker({
   serviceSuggestions,
   deliverableSuggestions,
   dimensionSuggestions,
-  outputOptions,
-  enabledDimensions,
-  occasionOptions,
-  contextOptions,
-  subjectOptions,
-  purposeOptions,
-  clientTypeOptions,
+  outputTypesByDomain,
+  dimensionsByDomain,
 }: {
   domainOptions: string[];
   serviceSuggestions: Record<string, string[]>;
   deliverableSuggestions: Narrowed;
   dimensionSuggestions: DimensionSuggestions;
-  outputOptions: string[];
-  enabledDimensions: Dimension[];
-  occasionOptions: string[];
-  contextOptions: string[];
-  subjectOptions: string[];
-  purposeOptions: string[];
-  clientTypeOptions: string[];
+  outputTypesByDomain: Record<string, { id: string; name: string }[]>;
+  dimensionsByDomain: Record<string, StudioDimensionShape[]>;
 }) {
   const [chosen, setChosen] = useState<ServiceTemplate | null>(null);
   const [custom, setCustom] = useState(false);
@@ -71,13 +62,8 @@ export function TemplatePicker({
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
           dimensionSuggestions={dimensionSuggestions}
-          outputOptions={outputOptions}
-          enabledDimensions={enabledDimensions}
-          occasionOptions={occasionOptions}
-          contextOptions={contextOptions}
-          subjectOptions={subjectOptions}
-          purposeOptions={purposeOptions}
-          clientTypeOptions={clientTypeOptions}
+          outputTypesByDomain={outputTypesByDomain}
+          dimensionsByDomain={dimensionsByDomain}
           initial={{}}
         />
       </div>
@@ -102,13 +88,8 @@ export function TemplatePicker({
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
           dimensionSuggestions={dimensionSuggestions}
-          outputOptions={outputOptions}
-          enabledDimensions={enabledDimensions}
-          occasionOptions={occasionOptions}
-          contextOptions={contextOptions}
-          subjectOptions={subjectOptions}
-          purposeOptions={purposeOptions}
-          clientTypeOptions={clientTypeOptions}
+          outputTypesByDomain={outputTypesByDomain}
+          dimensionsByDomain={dimensionsByDomain}
           initial={{
             name: chosen.name,
             description: chosen.summary,
@@ -118,11 +99,14 @@ export function TemplatePicker({
             // The service arrives knowing what may vary about it, so a package
             // built from it can fix outfits or coverage without hand-entry.
             variables: chosen.variables || [],
-            occasions: chosen.occasions || [],
-            contexts: chosen.contexts || [],
-            subjects: chosen.subjects || [],
-            purposes: chosen.purposes || [],
-            clientTypes: chosen.clientTypes || [],
+            // The library speaks the five names it ships with; the editor
+            // matches them against whatever the domain actually asks, by name.
+            dimensions: Object.entries(TEMPLATE_DIMENSION_NAMES)
+              .map(([templateKey, dimensionName]) => ({
+                name: dimensionName,
+                values: ((chosen as any)[templateKey] as string[] | undefined) || [],
+              }))
+              .filter((d) => d.values.length > 0),
           }}
         />
       </div>

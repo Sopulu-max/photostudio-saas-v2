@@ -6,11 +6,17 @@ import { formatMoney } from '@/kernel/currency';
 import { submitBookingForm } from './actions';
 import { createPortal } from 'react-dom';
 
-type DimensionKey = 'subject' | 'occasion' | 'context' | 'purpose' | 'client';
-
-type DimensionConfig = {
-  activeDimensions: DimensionKey[];
-  values: Record<string, { id: string; name: string }[]>;
+/**
+ * A question this studio asks about its own work — whatever its domains
+ * classify by, not a fixed five. The studio names these; the form renders
+ * whatever it finds.
+ */
+type IntakeDimension = {
+  id: string;
+  name: string;
+  question: string | null;
+  domainName: string | null;
+  values: { id: string; name: string }[];
 };
 
 type PackageWithDimensions = {
@@ -22,21 +28,20 @@ type PackageWithDimensions = {
   price_unit: string | null;
   pricing_variant: any;
   services: { id: string; name: string }[];
-  dimensionIds: Record<string, string[]>;
+  dimensionValueIds: string[];
 };
 
-const DIMENSION_LABELS: Record<DimensionKey, string> = {
-  subject: 'Subject',
-  occasion: 'Occasion',
-  context: 'Setting',
-  purpose: 'Purpose',
-  client: 'Client type',
-};
-
+/**
+ * How well a package answers what the client described.
+ *
+ * Plain co-occurrence over values: how many of the things they chose does this
+ * package already carry. Which dimension each value came from never enters the
+ * arithmetic — a value already knows which question it answers.
+ */
 function scorePackage(pkg: PackageWithDimensions, selections: Record<string, string>): number {
-  return Object.entries(selections).reduce((score, [dim, valueId]) => {
+  return Object.values(selections).reduce((score, valueId) => {
     if (!valueId) return score;
-    return pkg.dimensionIds[dim]?.includes(valueId) ? score + 1 : score;
+    return pkg.dimensionValueIds.includes(valueId) ? score + 1 : score;
   }, 0);
 }
 
@@ -55,7 +60,7 @@ interface BookingFormProps {
   variant?: { axis_label: string; tiers: { label: string; price: number }[] } | null;
   currencyCode?: string;
   triggerLabel?: string;
-  dimensionConfig?: DimensionConfig;
+  dimensionConfig?: IntakeDimension[];
   availablePackages?: PackageWithDimensions[];
 }
 
@@ -84,6 +89,19 @@ export function BookingForm({
   const [variableAnswers, setVariableAnswers] = useState<Record<string, string>>({});
   const [tierIndex, setTierIndex] = useState<number | null>(variant ? 0 : null);
   const [dimensionSelections, setDimensionSelections] = useState<Record<string, string>>({});
+  /*
+   * Which domain they are booking into.
+   *
+   * The domain has to be asked first here for the same reason it is asked first
+   * in the service form: a dimension belongs to a domain, so Photography and
+   * Videography can both ask "What occasion is it for?" and mean their own
+   * vocabulary. Without this the client is asked the same question twice with
+   * no way to tell the two apart.
+   *
+   * A studio operating in one domain never sees the question — there is nothing
+   * to disambiguate, so nothing is asked.
+   */
+  const [intakeDomain, setIntakeDomain] = useState('');
   const [resolvedPackageId, setResolvedPackageId] = useState<string | null>(null);
   const [resolvedPackageName, setResolvedPackageName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,7 +115,17 @@ export function BookingForm({
   const isCustom = packageId === 'custom';
   const hasFormSchema = formSchema && formSchema.length > 0;
   const hasVariant = variant && variant.tiers.length > 0;
-  const hasDimensions = isCustom && !!dimensionConfig && dimensionConfig.activeDimensions.length > 0;
+  const intakeDomains = useMemo(
+    () => [...new Set((dimensionConfig || []).map(d => d.domainName).filter(Boolean))] as string[],
+    [dimensionConfig]
+  );
+  const singleDomain = intakeDomains.length === 1 ? intakeDomains[0] : '';
+  const activeDomain = intakeDomain || singleDomain;
+  const askedDimensions = useMemo(
+    () => (dimensionConfig || []).filter(d => !activeDomain || d.domainName === activeDomain),
+    [dimensionConfig, activeDomain]
+  );
+  const hasDimensions = isCustom && !!dimensionConfig && dimensionConfig.length > 0;
   const hasMatchStep = isCustom && !!availablePackages && availablePackages.length > 0;
 
   const scoredPackages = useMemo(() => {
@@ -271,28 +299,49 @@ export function BookingForm({
                       <>
                         {hasDimensions && (
                           <div className="q-stack q-stack-lg">
-                            {dimensionConfig!.activeDimensions.map(dim => {
-                              const options = dimensionConfig!.values[dim] || [];
-                              if (!options.length) return null;
-                              return (
-                                <div key={dim}>
-                                  <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                                    {DIMENSION_LABELS[dim]}
-                                    <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
-                                  </label>
-                                  <select
-                                    className="q-select q-input-lg"
-                                    value={dimensionSelections[dim] || ''}
-                                    onChange={(e) => setDimensionSelections(prev => ({ ...prev, [dim]: e.target.value }))}
-                                  >
-                                    <option value="">Any</option>
-                                    {options.map(opt => (
-                                      <option key={opt.id} value={opt.id}>{opt.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              );
-                            })}
+                            {intakeDomains.length > 1 && (
+                              <div>
+                                <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
+                                  What are you booking?
+                                  <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
+                                </label>
+                                <select
+                                  className="q-select q-input-lg"
+                                  value={intakeDomain}
+                                  onChange={(e) => {
+                                    // Answers belong to the domain that asked them.
+                                    setIntakeDomain(e.target.value);
+                                    setDimensionSelections({});
+                                  }}
+                                >
+                                  <option value="">Not sure yet</option>
+                                  {intakeDomains.map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                              </div>
+                            )}
+                            {askedDimensions.map(dim => (
+                              <div key={dim.id}>
+                                <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
+                                  {dim.question || dim.name}
+                                  {!activeDomain && dim.domainName && (
+                                    <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>
+                                      ({dim.domainName})
+                                    </span>
+                                  )}
+                                  <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
+                                </label>
+                                <select
+                                  className="q-select q-input-lg"
+                                  value={dimensionSelections[dim.id] || ''}
+                                  onChange={(e) => setDimensionSelections(prev => ({ ...prev, [dim.id]: e.target.value }))}
+                                >
+                                  <option value="">Any</option>
+                                  {dim.values.map(opt => (
+                                    <option key={opt.id} value={opt.id}>{opt.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            ))}
                           </div>
                         )}
                         <div className="q-field">
@@ -527,12 +576,12 @@ export function BookingForm({
                         <div className="q-stack q-stack-xs">
                           {Object.entries(dimensionSelections)
                             .filter(([, v]) => v)
-                            .map(([dim, valueId]) => {
-                              const opts = dimensionConfig?.values[dim] || [];
-                              const opt = opts.find(o => o.id === valueId);
+                            .map(([dimId, valueId]) => {
+                              const dim = dimensionConfig?.find(d => d.id === dimId);
+                              const opt = dim?.values.find(o => o.id === valueId);
                               return opt ? (
-                                <div key={dim} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
-                                  <span style={{ color: 'var(--q-color-ink-400)' }}>{DIMENSION_LABELS[dim as DimensionKey]}: </span>
+                                <div key={dimId} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
+                                  <span style={{ color: 'var(--q-color-ink-400)' }}>{dim!.name}: </span>
                                   {opt.name}
                                 </div>
                               ) : null;

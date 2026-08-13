@@ -4,8 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
-import { DIMENSIONS, type Dimension } from './dimensions';
 import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
+import type {
+  DimensionWrite, PublicIntakeDimension, ServiceDimensionTag, StudioDimensionShape,
+} from './dimensions';
 
 /**
  * Services — the ontology layer: what this studio actually knows how to do,
@@ -28,17 +30,19 @@ import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
 type StageInput = { name: string; roleName?: string | null; frontStage?: boolean | null };
 
 // ── Facet-style, studio-editable vocabularies ────────────────────────────────
-// Same open mechanism as everywhere else in this system: a closed set of
-// axes the engine defines, open values the studio names, found-or-created on
-// use so typing a new one just works without a separate trip to Settings.
+// Open values the studio names, found-or-created on use so typing a new one
+// just works without a separate trip to Settings.
 //
-// This includes the five classification dimensions (Subject, Occasion,
-// Context, Purpose, Client) — owned here, not by Packages, because they
-// apply symmetrically to both: a Service can be Subject=Real Estate just as
-// meaningfully as a Package can. Packages consumes these through this
-// module's interface, never the tables directly.
+// What is NOT here any more: the five classification dimensions. Those were
+// five flat, studio-wide tables — a studio's Photography contexts and its
+// Printing contexts sharing one list. They now live in `dimensions` /
+// `dimension_values`, owned by a service domain, because a domain is the
+// boundary: everything below one belongs to it.
 
-type NamedTable = 'service_domains' | 'deliverables' | 'delivery_containers' | 'occasions' | 'service_contexts' | 'subjects' | 'purposes' | 'client_types';
+// `deliverables` is not on this list: output types belong to a service domain
+// now, so they are found-or-created through findOrCreateOutputType, not here.
+// Rename and delete still work by id, which needs no domain.
+type NamedTable = 'service_domains' | 'delivery_containers' | 'deliverables';
 
 async function findOrCreateNamed(table: NamedTable, orgId: string, name: string): Promise<string | null> {
   const clean = (name || '').trim();
@@ -49,6 +53,149 @@ async function findOrCreateNamed(table: NamedTable, orgId: string, name: string)
   const { data: created, error } = await supabaseAdmin.from(table).insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 }).select('id').single();
   if (error || !created) { console.error(`Failed to create ${table} value:`, error); return null; }
   return created.id;
+}
+
+/**
+ * Find-or-create a value under a named dimension of one domain.
+ *
+ * Two find-or-creates, because the form lets a studio type both: a dimension
+ * the domain doesn't ask yet, and a value it has never used. What gets typed
+ * becomes part of that domain's vocabulary and is offered next time — the
+ * studio teaches the system by working, which is the only way the suggestions
+ * ever get better than the shipped library.
+ *
+ * Everything is resolved INSIDE the domain. Photography gaining a Style of
+ * Editorial says nothing about Printing, even if Printing also asks Style.
+ */
+async function resolveDimensionValueId(
+  orgId: string,
+  domainId: string,
+  dimensionName: string,
+  valueName: string
+): Promise<string | null> {
+  const dimName = (dimensionName || '').trim();
+  const value = (valueName || '').trim();
+  if (!dimName || !value) return null;
+
+  const { data: existingDim } = await supabaseAdmin
+    .from('dimensions').select('id')
+    .eq('organization_id', orgId).eq('service_domain_id', domainId)
+    .ilike('name', dimName).maybeSingle();
+
+  let dimensionId = existingDim?.id as string | undefined;
+  if (!dimensionId) {
+    const { data: last } = await supabaseAdmin
+      .from('dimensions').select('position')
+      .eq('organization_id', orgId).eq('service_domain_id', domainId)
+      .order('position', { ascending: false }).limit(1).maybeSingle();
+    const { data: made, error } = await supabaseAdmin
+      .from('dimensions')
+      .insert({ organization_id: orgId, service_domain_id: domainId, name: dimName, position: ((last?.position as number) ?? -1) + 1 })
+      .select('id').single();
+    if (error) { console.error('Failed to create dimension:', error); return null; }
+    dimensionId = made?.id;
+  }
+  if (!dimensionId) return null;
+
+  const { data: existingValue } = await supabaseAdmin
+    .from('dimension_values').select('id')
+    .eq('dimension_id', dimensionId).ilike('name', value).maybeSingle();
+  if (existingValue) return existingValue.id as string;
+
+  const { data: lastValue } = await supabaseAdmin
+    .from('dimension_values').select('position')
+    .eq('dimension_id', dimensionId)
+    .order('position', { ascending: false }).limit(1).maybeSingle();
+  const { data: madeValue, error: valueError } = await supabaseAdmin
+    .from('dimension_values')
+    .insert({ organization_id: orgId, dimension_id: dimensionId, name: value, position: ((lastValue?.position as number) ?? -1) + 1 })
+    .select('id').single();
+  if (valueError) { console.error('Failed to create dimension value:', valueError); return null; }
+  return (madeValue?.id as string) ?? null;
+}
+
+/**
+ * What a service is classified as, written into its own domain's vocabulary.
+ *
+ * Replaces wholesale: the editor sends what it wants the service to be, so a
+ * removed value is expressed by absence rather than by a separate delete call.
+ */
+async function writeServiceDimensions(
+  orgId: string,
+  serviceId: string,
+  domainId: string | null,
+  dims: DimensionWrite[] | undefined
+) {
+  await supabaseAdmin.from('service_dimension_values').delete()
+    .eq('organization_id', orgId).eq('service_id', serviceId);
+
+  if (!domainId || !dims || dims.length === 0) return;
+
+  const valueIds: string[] = [];
+  for (const dim of dims) {
+    for (const value of (dim.values || [])) {
+      const id = await resolveDimensionValueId(orgId, domainId, dim.name, value);
+      if (id) valueIds.push(id);
+    }
+  }
+
+  if (valueIds.length > 0) {
+    await supabaseAdmin.from('service_dimension_values').insert(
+      [...new Set(valueIds)].map((dimension_value_id) => ({
+        organization_id: orgId, service_id: serviceId, dimension_value_id,
+      }))
+    );
+  }
+}
+
+/** One embed, however many dimensions the domain happens to ask. */
+const SERVICE_DIMENSION_SELECT =
+  'service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, question, position, is_active)))';
+
+/** Flat links → the dimensions that asked, each with the values this service carries. */
+function shapeServiceDimensions(row: any): ServiceDimensionTag[] {
+  const byDimension = new Map<string, ServiceDimensionTag>();
+  for (const link of (row?.service_dimension_values || [])) {
+    const v = link?.dimension_value;
+    const d = v?.dimension;
+    if (!v || !d) continue;
+    if (!byDimension.has(d.id)) {
+      byDimension.set(d.id, { id: d.id, name: d.name, question: d.question ?? null, position: d.position ?? 0, values: [] });
+    }
+    byDimension.get(d.id)!.values.push({ id: v.id, name: v.name });
+  }
+  return [...byDimension.values()].sort((a, b) => a.position - b.position);
+}
+
+/**
+ * Find-or-create an output type inside one domain.
+ *
+ * The counterpart of resolveDimensionValueId, and for the same reason: what a
+ * studio types in the service form should just work, and what it types becomes
+ * the domain's vocabulary. Photography producing "Contact sheet" says nothing
+ * about Printing.
+ */
+async function findOrCreateOutputType(orgId: string, domainId: string, name: string): Promise<string | null> {
+  const clean = (name || '').trim();
+  if (!clean || !domainId) return null;
+
+  const { data: existing } = await supabaseAdmin
+    .from('deliverables').select('id')
+    .eq('organization_id', orgId).eq('service_domain_id', domainId)
+    .ilike('name', clean).maybeSingle();
+  if (existing) return existing.id as string;
+
+  const { data: last } = await supabaseAdmin
+    .from('deliverables').select('position')
+    .eq('organization_id', orgId).eq('service_domain_id', domainId)
+    .order('position', { ascending: false }).limit(1).maybeSingle();
+
+  const { data: created, error } = await supabaseAdmin
+    .from('deliverables')
+    .insert({ organization_id: orgId, service_domain_id: domainId, name: clean, position: ((last?.position as number) ?? -1) + 1 })
+    .select('id').single();
+  if (error) { console.error('Failed to create output type:', error); return null; }
+  return created.id as string;
 }
 
 type Facet = { id: string; name: string; position: number };
@@ -126,10 +273,46 @@ export async function createServiceDomain(name: string) {
 export async function renameServiceDomain(id: string, name: string) { return renameNamed('service_domains', id, name, 'service domain'); }
 export async function deleteServiceDomain(id: string) { return deleteNamed('service_domains', id, 'service domain'); }
 
-export async function listDeliverables() { return listNamed('deliverables'); }
-export async function createDeliverable(name: string) {
+/**
+ * Output types, like dimensions, belong to a service domain.
+ *
+ * A KIND of thing a domain can produce — edited photographs under Photography,
+ * a bound album under Printing. Same rule as everywhere below a domain: the
+ * vocabulary is the domain's, and Printing never inherits Photography's.
+ *
+ * Listed studio-wide here because Packages bundles across domains and needs to
+ * see everything; each row carries the domain that owns it so a surface can
+ * group or narrow. Writing always goes through a domain.
+ */
+export async function listDeliverables(): Promise<(Facet & { serviceDomainId: string; domainName: string | null })[]> {
   const { orgId } = await getAuthOrgId();
-  const id = await findOrCreateNamed('deliverables', orgId, name);
+  const { data, error } = await supabaseAdmin
+    .from('deliverables')
+    .select('id, name, position, service_domain_id, domain:service_domains(name)')
+    .eq('organization_id', orgId)
+    .order('position');
+  if (error) { console.error('Failed to list output types:', error); return []; }
+  return ((data || []) as any[]).map((d) => ({
+    id: d.id, name: d.name, position: d.position ?? 0,
+    serviceDomainId: d.service_domain_id,
+    domainName: d.domain?.name ?? null,
+  }));
+}
+
+/** Output types grouped by the domain that owns them — what a form narrows with. */
+export async function listOutputTypesByDomain(): Promise<Record<string, { id: string; name: string }[]>> {
+  const all = await listDeliverables();
+  const out: Record<string, { id: string; name: string }[]> = {};
+  for (const d of all) {
+    if (!d.domainName) continue;
+    (out[d.domainName] ||= []).push({ id: d.id, name: d.name });
+  }
+  return out;
+}
+
+export async function createDeliverable(input: { serviceDomainId: string; name: string }) {
+  const { orgId } = await getAuthOrgId();
+  const id = await findOrCreateOutputType(orgId, input.serviceDomainId, input.name);
   if (!id) throw new Error('Give the output type a name.');
   revalidatePath('/services');
   return { outputTypeId: id };
@@ -148,104 +331,94 @@ export async function createDeliveryContainer(name: string) {
 export async function renameDeliveryContainer(id: string, name: string) { return renameNamed('delivery_containers', id, name, 'delivery container'); }
 export async function deleteDeliveryContainer(id: string) { return deleteNamed('delivery_containers', id, 'delivery container'); }
 
-// ── The five classification dimensions: Subject, Occasion, Context, Purpose, Client ──
-// Not "does it change the process" — that test is for whether something
-// becomes its own Service. These are the observed angles a studio can
-// classify its real, structured work FROM, once it exists: what it's of,
-// when it happens, where, why, and for whom.
-
-export async function listOccasions() { return listNamed('occasions'); }
-export async function createOccasion(name: string) { const { orgId } = await getAuthOrgId(); const id = await findOrCreateNamed('occasions', orgId, name); if (!id) throw new Error('Give the occasion a name.'); revalidatePath('/services'); revalidatePath('/packages'); return { occasionId: id }; }
-export async function renameOccasion(id: string, name: string) { return renameNamed('occasions', id, name, 'occasion'); }
-export async function deleteOccasion(id: string) { return deleteNamed('occasions', id, 'occasion'); }
-
-export async function listContexts() { return listNamed('service_contexts'); }
-export async function createContext(name: string) { const { orgId } = await getAuthOrgId(); const id = await findOrCreateNamed('service_contexts', orgId, name); if (!id) throw new Error('Give the context a name.'); revalidatePath('/services'); revalidatePath('/packages'); return { contextId: id }; }
-export async function renameContext(id: string, name: string) { return renameNamed('service_contexts', id, name, 'context'); }
-export async function deleteContext(id: string) { return deleteNamed('service_contexts', id, 'context'); }
-
-export async function listSubjects() { return listNamed('subjects'); }
-export async function createSubject(name: string) { const { orgId } = await getAuthOrgId(); const id = await findOrCreateNamed('subjects', orgId, name); if (!id) throw new Error('Give the subject a name.'); revalidatePath('/services'); revalidatePath('/packages'); return { subjectId: id }; }
-export async function renameSubject(id: string, name: string) { return renameNamed('subjects', id, name, 'subject'); }
-export async function deleteSubject(id: string) { return deleteNamed('subjects', id, 'subject'); }
-
-export async function listPurposes() { return listNamed('purposes'); }
-export async function createPurpose(name: string) { const { orgId } = await getAuthOrgId(); const id = await findOrCreateNamed('purposes', orgId, name); if (!id) throw new Error('Give the purpose a name.'); revalidatePath('/services'); revalidatePath('/packages'); return { purposeId: id }; }
-export async function renamePurpose(id: string, name: string) { return renameNamed('purposes', id, name, 'purpose'); }
-export async function deletePurpose(id: string) { return deleteNamed('purposes', id, 'purpose'); }
-
-export async function listClientTypes() { return listNamed('client_types'); }
-export async function createClientType(name: string) { const { orgId } = await getAuthOrgId(); const id = await findOrCreateNamed('client_types', orgId, name); if (!id) throw new Error('Give the client type a name.'); revalidatePath('/services'); revalidatePath('/packages'); return { clientTypeId: id }; }
-export async function renameClientType(id: string, name: string) { return renameNamed('client_types', id, name, 'client type'); }
-export async function deleteClientType(id: string) { return deleteNamed('client_types', id, 'client type'); }
-
-// ── Which dimensions a studio actually organizes by ──────────────────────────
-// The set of possible dimensions is closed and engine-owned (bounded
-// configurability, one level up): Subject, Occasion, Context, Purpose,
-// Client. Which of those five a given studio actively uses is entirely
-// theirs — one setting, shared by both Service and Package, since it answers
-// "where do we categorize from," not "which layer are we tagging."
-
-export async function getEnabledDimensions(): Promise<Dimension[]> {
-  const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('organizations').select('enabled_dimensions').eq('id', orgId).maybeSingle();
-  const raw = (data?.enabled_dimensions as string[] | null) || ['occasion', 'context'];
-  return raw.filter((d): d is Dimension => (DIMENSIONS as readonly string[]).includes(d));
-}
-
-const DIMENSION_TABLE: Record<Dimension, NamedTable> = {
-  subject: 'subjects', occasion: 'occasions', context: 'service_contexts', purpose: 'purposes', client: 'client_types',
-};
+// ── How each domain classifies its work ──────────────────────────────────────
+// A dimension belongs to a service domain, so there is no studio-wide "which
+// dimensions do you organize by" setting any more — the question is answered
+// per domain by `dimensions.is_active`. Adding and editing them is
+// `dimensionsAdmin.ts`; what follows is what the surfaces need to READ.
 
 /**
- * Public version of the dimension config — no auth required. Returns only the
- * dimensions the studio has enabled AND that have at least one defined value.
- * A dimension with no values can't be used as an intake question, so it's
- * filtered out before it reaches the client.
+ * Every domain's active dimensions, keyed by domain name.
  *
- * Used by the public booking intake to build the "what are you looking for?"
- * step, so the form adapts to whatever vocabulary each studio has set up.
+ * The service form needs this as one payload rather than a fetch per domain:
+ * the domain is chosen in the browser, and the whole point is that the rest of
+ * the form reconfigures the moment it changes — a round trip for each pick
+ * would make that reconfiguration feel like a page, not a form.
  */
-export async function getPublicIntakeDimensions(organizationId: string): Promise<{
-  activeDimensions: Dimension[];
-  values: Record<string, { id: string; name: string }[]>;
-}> {
-  const { data: org } = await supabaseAdmin
-    .from('organizations').select('enabled_dimensions').eq('id', organizationId).maybeSingle();
-  const enabled = ((org?.enabled_dimensions as string[]) || ['occasion', 'context'])
-    .filter((d): d is Dimension => (DIMENSIONS as readonly string[]).includes(d));
+export async function listDimensionsByDomain(): Promise<Record<string, StudioDimensionShape[]>> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('dimensions')
+    .select('id, name, question, example, position, is_active, service_domain_id, domain:service_domains(name), dimension_values(id, name, position)')
+    .eq('organization_id', orgId)
+    .eq('is_active', true)
+    .order('position');
+  if (error) { console.error('Failed to list dimensions by domain:', error); return {}; }
 
-  const values: Record<string, { id: string; name: string }[]> = {};
-  for (const dim of enabled) {
-    const { data } = await supabaseAdmin
-      .from(DIMENSION_TABLE[dim]).select('id, name')
-      .eq('organization_id', organizationId).order('position');
-    const entries = (data || []) as { id: string; name: string }[];
-    if (entries.length > 0) values[dim] = entries;
+  const out: Record<string, StudioDimensionShape[]> = {};
+  for (const d of ((data || []) as any[])) {
+    const domainName = d.domain?.name;
+    if (!domainName) continue;
+    (out[domainName] ||= []).push({
+      id: d.id,
+      name: d.name,
+      question: d.question ?? null,
+      example: d.example ?? null,
+      position: d.position ?? 0,
+      values: (d.dimension_values || [])
+        .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0 }))
+        .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name))
+        .map(({ id, name }: any) => ({ id, name })),
+    });
   }
-
-  return {
-    activeDimensions: enabled.filter((d) => !!values[d]),
-    values,
-  };
+  for (const list of Object.values(out)) list.sort((a, b) => a.position - b.position);
+  return out;
 }
 
-/** Find-or-create a value on whichever dimension's table, without requiring one — Packages asks this rather than touching the tables directly. */
-export async function findOrCreateDimensionValue(dimension: Dimension, name: string): Promise<string | null> {
-  const { orgId } = await getAuthOrgId();
-  return findOrCreateNamed(DIMENSION_TABLE[dimension], orgId, name);
+/**
+ * The same thing without auth, for the public intake — "what are you looking
+ * for?" built from whatever vocabulary this studio actually keeps.
+ *
+ * A dimension with no values is dropped: it can't be asked, so shipping it to
+ * the client would render an empty select. Each one carries its domain, since
+ * two domains may both ask about Context and mean different things.
+ */
+export async function getPublicIntakeDimensions(organizationId: string): Promise<PublicIntakeDimension[]> {
+  const { data } = await supabaseAdmin
+    .from('dimensions')
+    .select('id, name, question, position, service_domain_id, domain:service_domains(name), dimension_values(id, name, position)')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('position');
+
+  return ((data || []) as any[])
+    .map((d) => ({
+      id: d.id as string,
+      name: d.name as string,
+      question: (d.question ?? null) as string | null,
+      domainId: (d.service_domain_id ?? null) as string | null,
+      domainName: (d.domain?.name ?? null) as string | null,
+      values: (d.dimension_values || [])
+        .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+        .map((v: any) => ({ id: v.id as string, name: v.name as string })),
+    }))
+    .filter((d) => d.values.length > 0);
 }
 
-export async function setEnabledDimensions(dimensions: Dimension[]) {
+/**
+ * Find-or-create a value under a named dimension of a given domain.
+ *
+ * Packages asks this rather than touching the tables directly, and the public
+ * intake's "extract a package from this enquiry" path uses it to turn what a
+ * client typed into part of the domain's vocabulary.
+ */
+export async function findOrCreateDimensionValue(input: {
+  serviceDomainId: string;
+  dimensionName: string;
+  value: string;
+}): Promise<string | null> {
   const { orgId } = await getAuthOrgId();
-  const clean = [...new Set(dimensions)].filter((d) => (DIMENSIONS as readonly string[]).includes(d));
-  const { error } = await supabaseAdmin.from('organizations').update({ enabled_dimensions: clean }).eq('id', orgId);
-  if (error) throw new Error('Failed to save which dimensions you organize by.');
-  revalidatePath('/services');
-  revalidatePath('/services/settings');
-  revalidatePath('/packages');
-  revalidatePath('/packages/settings');
-  return { ok: true };
+  return resolveDimensionValueId(orgId, input.serviceDomainId, input.dimensionName, input.value);
 }
 
 // ── Blueprints: a Service's Process — how the transformation is carried out ─
@@ -351,18 +524,20 @@ export async function createService(input: {
   deliverables?: string[];
   /** What may vary about this service — declared up front so a template's service arrives usable. */
   variables?: ServiceVariableInput[];
-  occasions?: string[];
-  contexts?: string[];
-  subjects?: string[];
-  purposes?: string[];
-  clientTypes?: string[];
+  /** Whatever this domain classifies by — not a fixed five. */
+  dimensions?: DimensionWrite[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('A service needs a name.');
 
   const domainId = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  const primaryDeliverableId = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
+  // Resolved inside the domain the service belongs to — a service with no
+  // domain cannot name an output type, because there is no vocabulary to name
+  // it in yet.
+  const primaryDeliverableId = input.primaryDeliverable && domainId
+    ? await findOrCreateOutputType(orgId, domainId, input.primaryDeliverable)
+    : null;
 
   const { data: service, error } = await supabaseAdmin
     .from('services')
@@ -380,34 +555,15 @@ export async function createService(input: {
 
   // Insert general outputs (the assets this service can produce beyond its primary output)
   const deliverableIds: string[] = [];
-  for (const d of input.deliverables || []) {
-    const id = await findOrCreateNamed('deliverables', orgId, d);
+  for (const d of (domainId ? input.deliverables || [] : [])) {
+    const id = await findOrCreateOutputType(orgId, domainId!, d);
     if (id) deliverableIds.push(id);
   }
   if (deliverableIds.length > 0) {
     await supabaseAdmin.from('service_deliverables').insert(deliverableIds.map((deliverable_id) => ({ organization_id: orgId, service_id: service.id, deliverable_id })));
   }
 
-  // Insert configuration schemas (the dimensions this service understands)
-  const insertSchema = async (table: string, items: string[] | undefined, column: string) => {
-    if (!items || items.length === 0) return;
-    const ids: string[] = [];
-    for (const item of items) {
-      const id = await findOrCreateNamed(table as NamedTable, orgId, item);
-      if (id) ids.push(id);
-    }
-    if (ids.length > 0) {
-      await supabaseAdmin.from(`service_schema_${table}`).insert(ids.map(id => ({ organization_id: orgId, service_id: service.id, [column]: id })));
-    }
-  };
-
-  await Promise.all([
-    insertSchema('occasions', input.occasions, 'occasion_id'),
-    insertSchema('service_contexts', input.contexts, 'context_id'),
-    insertSchema('subjects', input.subjects, 'subject_id'),
-    insertSchema('purposes', input.purposes, 'purpose_id'),
-    insertSchema('client_types', input.clientTypes, 'client_type_id'),
-  ]);
+  await writeServiceDimensions(orgId, service.id, domainId, input.dimensions);
 
   if (input.variables && input.variables.length > 0) {
     await setServiceVariables({ serviceId: service.id, variables: input.variables });
@@ -425,14 +581,13 @@ export async function updateService(input: {
   serviceDomain?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
-  occasions?: string[];
-  contexts?: string[];
-  subjects?: string[];
-  purposes?: string[];
-  clientTypes?: string[];
+  /** Whatever this domain classifies by — not a fixed five. */
+  dimensions?: DimensionWrite[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { data: existing } = await supabaseAdmin.from('services').select('id').eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
+  const { data: existing } = await supabaseAdmin
+    .from('services').select('id, service_domain_id')
+    .eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Service not found');
 
   const patch: Record<string, unknown> = {};
@@ -443,7 +598,12 @@ export async function updateService(input: {
   }
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.serviceDomain !== undefined) patch.service_domain_id = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
-  if (input.primaryDeliverable !== undefined) patch.primary_deliverable_id = input.primaryDeliverable ? await findOrCreateNamed('deliverables', orgId, input.primaryDeliverable) : null;
+  const outputDomainId = (patch.service_domain_id as string | undefined) ?? existing.service_domain_id;
+  if (input.primaryDeliverable !== undefined) {
+    patch.primary_deliverable_id = input.primaryDeliverable && outputDomainId
+      ? await findOrCreateOutputType(orgId, outputDomainId, input.primaryDeliverable)
+      : null;
+  }
 
   if (Object.keys(patch).length > 0) {
     const { error } = await supabaseAdmin.from('services').update(patch).eq('id', input.serviceId).eq('organization_id', orgId);
@@ -453,8 +613,8 @@ export async function updateService(input: {
   if (input.deliverables !== undefined) {
     await supabaseAdmin.from('service_deliverables').delete().eq('service_id', input.serviceId).eq('organization_id', orgId);
     const deliverableIds: string[] = [];
-    for (const d of input.deliverables) {
-      const id = await findOrCreateNamed('deliverables', orgId, d);
+    for (const d of (outputDomainId ? input.deliverables : [])) {
+      const id = await findOrCreateOutputType(orgId, outputDomainId, d);
       if (id) deliverableIds.push(id);
     }
     if (deliverableIds.length > 0) {
@@ -462,27 +622,13 @@ export async function updateService(input: {
     }
   }
 
-  const syncSchema = async (table: string, items: string[] | undefined, column: string) => {
-    if (items === undefined) return;
-    await supabaseAdmin.from(`service_schema_${table}`).delete().eq('service_id', input.serviceId).eq('organization_id', orgId);
-    if (items.length === 0) return;
-    const ids: string[] = [];
-    for (const item of items) {
-      const id = await findOrCreateNamed(table as NamedTable, orgId, item);
-      if (id) ids.push(id);
-    }
-    if (ids.length > 0) {
-      await supabaseAdmin.from(`service_schema_${table}`).insert(ids.map(id => ({ organization_id: orgId, service_id: input.serviceId, [column]: id })));
-    }
-  };
-
-  await Promise.all([
-    syncSchema('occasions', input.occasions, 'occasion_id'),
-    syncSchema('service_contexts', input.contexts, 'context_id'),
-    syncSchema('subjects', input.subjects, 'subject_id'),
-    syncSchema('purposes', input.purposes, 'purpose_id'),
-    syncSchema('client_types', input.clientTypes, 'client_type_id'),
-  ]);
+  // Resolved inside the service's own domain, including when the domain itself
+  // just changed: moving a service to Videography must not leave it tagged with
+  // Photography's vocabulary.
+  if (input.dimensions !== undefined) {
+    const domainId = (patch.service_domain_id as string | undefined) ?? existing.service_domain_id;
+    await writeServiceDimensions(orgId, input.serviceId, domainId ?? null, input.dimensions);
+  }
 
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: input.serviceId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/services');
@@ -508,20 +654,17 @@ export async function duplicateService(serviceId: string) {
     await supabaseAdmin.from('service_deliverables').insert(outputs.map((d: any) => ({ organization_id: orgId, service_id: copy.id, deliverable_id: d.deliverable_id })));
   }
 
-  const copySchema = async (table: string, column: string) => {
-    const { data } = await supabaseAdmin.from(`service_schema_${table}`).select(column).eq('service_id', serviceId).eq('organization_id', orgId);
-    if (data && data.length > 0) {
-      await supabaseAdmin.from(`service_schema_${table}`).insert(data.map((d: any) => ({ organization_id: orgId, service_id: copy.id, [column]: d[column] })));
-    }
-  };
-
-  await Promise.all([
-    copySchema('occasions', 'occasion_id'),
-    copySchema('service_contexts', 'context_id'),
-    copySchema('subjects', 'subject_id'),
-    copySchema('purposes', 'purpose_id'),
-    copySchema('client_types', 'client_type_id'),
-  ]);
+  // How it was classified comes with it — a fork is the same work, differently
+  // sold. The links copy directly: both services are in the same domain, so
+  // they point at the same vocabulary.
+  const { data: tags } = await supabaseAdmin
+    .from('service_dimension_values').select('dimension_value_id')
+    .eq('service_id', serviceId).eq('organization_id', orgId);
+  if (tags && tags.length > 0) {
+    await supabaseAdmin.from('service_dimension_values').insert(
+      tags.map((t: any) => ({ organization_id: orgId, service_id: copy.id, dimension_value_id: t.dimension_value_id }))
+    );
+  }
 
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromServiceId: serviceId } });
   revalidatePath('/services');
@@ -547,11 +690,7 @@ export async function listServices() {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
-      schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
-      schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
-      schema_subjects:service_schema_subjects(subject:subjects(id, name)),
-      schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
-      schema_client_types:service_schema_client_types(client_type:client_types(id, name))
+      ${SERVICE_DIMENSION_SELECT}
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
@@ -559,11 +698,7 @@ export async function listServices() {
   return (data || []).map((s: any) => ({
     ...s,
     deliverables: (s.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
-    occasions: (s.schema_occasions || []).map((sc: any) => sc.occasion).filter(Boolean),
-    contexts: (s.schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
-    subjects: (s.schema_subjects || []).map((sc: any) => sc.subject).filter(Boolean),
-    purposes: (s.schema_purposes || []).map((sc: any) => sc.purpose).filter(Boolean),
-    clientTypes: (s.schema_client_types || []).map((sc: any) => sc.client_type).filter(Boolean),
+    dimensions: shapeServiceDimensions(s),
   }));
 }
 
@@ -583,11 +718,7 @@ export async function getService(serviceId: string) {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
-      schema_occasions:service_schema_occasions(occasion:occasions(id, name)),
-      schema_contexts:service_schema_contexts(context:service_contexts(id, name)),
-      schema_subjects:service_schema_subjects(subject:subjects(id, name)),
-      schema_purposes:service_schema_purposes(purpose:purposes(id, name)),
-      schema_client_types:service_schema_client_types(client_type:client_types(id, name))
+      ${SERVICE_DIMENSION_SELECT}
     `)
     .eq('id', serviceId)
     .eq('organization_id', orgId)
@@ -596,11 +727,7 @@ export async function getService(serviceId: string) {
   return {
     ...data,
     deliverables: ((data as any).service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
-    occasions: ((data as any).schema_occasions || []).map((sc: any) => sc.occasion).filter(Boolean),
-    contexts: ((data as any).schema_contexts || []).map((sc: any) => sc.context).filter(Boolean),
-    subjects: ((data as any).schema_subjects || []).map((sc: any) => sc.subject).filter(Boolean),
-    purposes: ((data as any).schema_purposes || []).map((sc: any) => sc.purpose).filter(Boolean),
-    clientTypes: ((data as any).schema_client_types || []).map((sc: any) => sc.client_type).filter(Boolean),
+    dimensions: shapeServiceDimensions(data),
   };
 }
 

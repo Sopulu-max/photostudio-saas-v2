@@ -1431,25 +1431,17 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
   }
   
   if (answers.dimensions && typeof answers.dimensions === 'object') {
-    // Read the display names for these UUIDs from the config
+    // The answers are dimension_value UUIDs keyed by dimension id — the studio
+    // names both, so the labels come from the studio's own vocabulary rather
+    // than from a table of five the engine used to hold.
     const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
-    const dimConfig = await getPublicIntakeDimensions(orgId);
-    
-    const LABELS: Record<string, string> = {
-      subject: 'Subject',
-      occasion: 'Occasion',
-      context: 'Setting',
-      purpose: 'Purpose',
-      client: 'Client type',
-    };
-    
-    for (const [dimKey, valueId] of Object.entries(answers.dimensions)) {
+    const dimensions = await getPublicIntakeDimensions(orgId);
+
+    for (const [dimensionId, valueId] of Object.entries(answers.dimensions)) {
       if (!valueId) continue;
-      const opts = dimConfig.values[dimKey] || [];
-      const opt = opts.find((o) => o.id === valueId);
-      if (opt) {
-        rows.push({ label: LABELS[dimKey] || dimKey, value: opt.name, removed: false });
-      }
+      const dim = dimensions.find((d) => d.id === dimensionId);
+      const opt = dim?.values.find((v) => v.id === valueId);
+      if (opt) rows.push({ label: dim!.name, value: opt.name, removed: false });
     }
   }
 
@@ -1473,34 +1465,42 @@ export async function extractPackageFromEnquiry(bookingId: string) {
     throw new Error('No dimensions found in custom request');
   }
 
-  // Look up dimension names
+  // Resolve what they chose against the studio's own vocabulary. Each answer
+  // is a value under a dimension the studio named, so both the question and the
+  // answer come back as this studio says them.
   const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
-  const dimConfig = await getPublicIntakeDimensions(orgId);
+  const config = await getPublicIntakeDimensions(orgId);
 
-  const resolveName = (key: string) => {
-    const id = dimensions[key];
-    if (!id) return null;
-    return dimConfig.values[key]?.find(v => v.id === id)?.name || null;
-  };
+  const chosen: { dimension: string; value: string; domainName: string | null }[] = [];
+  for (const [dimensionId, valueId] of Object.entries(dimensions as Record<string, string>)) {
+    if (!valueId) continue;
+    const dim = config.find((d) => d.id === dimensionId);
+    const value = dim?.values.find((v) => v.id === valueId);
+    if (dim && value) chosen.push({ dimension: dim.name, value: value.name, domainName: dim.domainName });
+  }
+  if (chosen.length === 0) throw new Error('Nothing recognisable was chosen in this request');
 
-  const occasion = resolveName('occasion');
-  const context = resolveName('context');
-  const subject = resolveName('subject');
-  const purpose = resolveName('purpose');
-  const clientType = resolveName('client');
+  // Named from what they described, in the order the studio asks its questions.
+  const serviceName = chosen.map((c) => c.value).join(' ') || 'Custom Service';
 
-  // Build a smart name for the service
-  const serviceName = [occasion, subject, context].filter(Boolean).join(' ') || 'Custom Service';
+  // The domain the answers already point at — a value belongs to one, so the
+  // service being extracted belongs there too rather than to a guess.
+  const serviceDomain = chosen.find((c) => c.domainName)?.domainName || null;
+
+  // One entry per dimension, values gathered — the same shape the service form
+  // sends, so an extracted service is indistinguishable from a defined one.
+  const byDimension = new Map<string, string[]>();
+  for (const c of chosen) {
+    if (!byDimension.has(c.dimension)) byDimension.set(c.dimension, []);
+    byDimension.get(c.dimension)!.push(c.value);
+  }
 
   // Create the Service
   const { createService } = await import('@/modules/services/interface');
   const { serviceId } = await createService({
     name: serviceName,
-    occasions: occasion ? [occasion] : [],
-    contexts: context ? [context] : [],
-    subjects: subject ? [subject] : [],
-    purposes: purpose ? [purpose] : [],
-    clientTypes: clientType ? [clientType] : [],
+    serviceDomain,
+    dimensions: [...byDimension.entries()].map(([name, values]) => ({ name, values })),
   });
 
   // Create the Package

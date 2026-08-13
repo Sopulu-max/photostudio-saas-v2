@@ -16,17 +16,12 @@ export {
   createServiceDomain,
   renameServiceDomain, deleteServiceDomain,
   // Deliverables and Delivery Containers — the vocabulary of what a Service produces
-  listDeliverables, createDeliverable, renameDeliverable, deleteDeliverable,
+  listDeliverables, listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable,
   listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
-  // The five classification dimensions — Subject, Occasion, Context, Purpose,
-  // Client. Apply to both Service and Package; owned here since Packages
-  // already depends on Services one-way, never the reverse.
-  getEnabledDimensions, setEnabledDimensions, findOrCreateDimensionValue,
-  listOccasions, createOccasion, renameOccasion, deleteOccasion,
-  listContexts, createContext, renameContext, deleteContext,
-  listSubjects, createSubject, renameSubject, deleteSubject,
-  listPurposes, createPurpose, renamePurpose, deletePurpose,
-  listClientTypes, createClientType, renameClientType, deleteClientType,
+  // How each domain classifies its work. Owned here since Packages already
+  // depends on Services one-way, never the reverse — and read per domain,
+  // because a domain is the boundary everything below it belongs to.
+  listDimensionsByDomain, findOrCreateDimensionValue,
   // Blueprints — a Service's Process
   createBlueprint, updateBlueprint, deleteBlueprint, listBlueprints,
   getProductionPlanForService, getDeliverableIdsForServices,
@@ -37,8 +32,8 @@ export {
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
 } from './domain';
 
-export { DIMENSIONS, DIMENSION_LABELS } from './dimensions';
-export type { Dimension } from './dimensions';
+export { TEMPLATE_DIMENSION_NAMES, dimensionKey } from './dimensions';
+export type { StudioDimensionShape, ServiceDimensionTag, DimensionWrite, PublicIntakeDimension, TemplateDimensionKey } from './dimensions';
 
 export { SERVICE_VARIABLE_KINDS, formatVariableValue } from './variableTypes';
 export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue } from './variableTypes';

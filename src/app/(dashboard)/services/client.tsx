@@ -4,11 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { DimensionTag } from './DimensionTag';
-import type { Dimension } from '@/modules/services/interface';
-
-const DIM_PROP: Record<Dimension, string> = {
-  subject: 'subject', occasion: 'occasion', context: 'context', purpose: 'purpose', client: 'client_type',
-};
+import type { ServiceDimensionTag } from '@/modules/services/interface';
 
 /**
  * The ontology layer: what this studio actually knows how to do. Not what
@@ -16,11 +12,10 @@ const DIM_PROP: Record<Dimension, string> = {
  * reusable transformation, not throwaway template content.
  */
 export function ServicesClient({
-  initialServices, enabledDimensions, activeFilter,
+  initialServices, activeFilter,
 }: {
   initialServices: any[];
-  enabledDimensions: Dimension[];
-  activeFilter: { dim: Dimension; label: string } | null;
+  activeFilter: { label: string } | null;
 }) {
   const active = initialServices.filter((s: any) => s.status !== 'retired');
   const retired = initialServices.filter((s: any) => s.status === 'retired');
@@ -38,9 +33,13 @@ export function ServicesClient({
         {svc.deliverables?.length ? `Produces: ${svc.deliverables.map((d: any) => d.name).join(', ')}` : 'No deliverables set'}
       </div>
       <div className="q-meta-sm">{svc.blueprint?.name ? `Blueprint: ${svc.blueprint.name}` : 'No blueprint attached'}</div>
-      {enabledDimensions.some((d) => svc[DIM_PROP[d]]?.id) && (
-        <div className="q-row" style={{ flexWrap: 'wrap' }}>
-          {enabledDimensions.map((d) => <DimensionTag key={d} dim={d} value={svc[DIM_PROP[d]]} />)}
+      {/* However many dimensions this service's domain happens to ask, and
+          however many values it carries under each. */}
+      {((svc.dimensions || []) as ServiceDimensionTag[]).length > 0 && (
+        <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+          {((svc.dimensions || []) as ServiceDimensionTag[]).flatMap((d) =>
+            d.values.map((v) => <DimensionTag key={v.id} dimension={d.name} value={v} />)
+          )}
         </div>
       )}
       <div className="q-tile-sub">
@@ -64,7 +63,7 @@ export function ServicesClient({
 
       {activeFilter && (
         <div className="q-row" style={{ marginBottom: '16px', alignItems: 'center' }}>
-          <span className="q-meta-sm">Filtered by {activeFilter.dim[0].toUpperCase() + activeFilter.dim.slice(1)}: {activeFilter.label}</span>
+          <span className="q-meta-sm">Filtered by {activeFilter.label}</span>
           <Link href="/services" className="q-btn q-btn-secondary q-btn-xs">Clear &times;</Link>
         </div>
       )}
@@ -75,7 +74,7 @@ export function ServicesClient({
           {activeFilter ? (
             <>
               <h3 className="q-section-title">Nothing tagged this way</h3>
-              <p className="q-meta">No service is currently {activeFilter.dim} &ldquo;{activeFilter.label}&rdquo;.</p>
+              <p className="q-meta">No service is currently tagged &ldquo;{activeFilter.label}&rdquo;.</p>
               <Link href="/services" className="q-btn q-btn-secondary">Clear filter</Link>
             </>
           ) : (

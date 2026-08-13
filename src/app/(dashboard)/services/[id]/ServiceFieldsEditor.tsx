@@ -1,23 +1,44 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createService, updateService, setServiceStatus, duplicateService } from '@/modules/services/interface';
-import { narrowFor, DIMENSION_LABELS } from '@/modules/services/interface';
-import type { Dimension, Narrowed, DimensionSuggestions } from '@/modules/services/interface';
-import { CheckCircle2, ChevronRight, Settings } from 'lucide-react';
+import { narrowFor, dimensionKey } from '@/modules/services/interface';
+import type { Narrowed, DimensionSuggestions, StudioDimensionShape, DimensionWrite } from '@/modules/services/interface';
+import { CheckCircle2, Plus, Settings } from 'lucide-react';
 import { PickOne, PickMany } from '@/components/Pick';
 
+/**
+ * Defining a service, in the vocabulary of its own domain.
+ *
+ * This used to render a hardcoded five — Subject, Occasion, Context, Purpose,
+ * Client — no matter what the studio had actually set up. A studio could add
+ * Style to Photography in settings and then find no field for it here, which
+ * made the settings page a promise the form broke.
+ *
+ * What renders now is whatever the chosen domain asks. Choose Photography and
+ * the form asks Photography's questions with Photography's values; choose
+ * Printing and every question changes, because a domain owns its vocabulary and
+ * nothing below it is shared sideways.
+ *
+ * Two escapes keep it from being a new ceiling, both required by the same rule:
+ * every list suggests, none of them limits.
+ *  - each value field accepts text the list doesn't have (PickMany), and what
+ *    is typed becomes part of that domain's vocabulary on save;
+ *  - a whole new dimension can be added right here, without leaving for
+ *    settings — the questions are as open as the answers.
+ */
 export function ServiceFieldsEditor({
-  mode, serviceId, status, domainOptions, outputOptions, enabledDimensions,
-  occasionOptions, contextOptions, subjectOptions, purposeOptions, clientTypeOptions,
+  mode, serviceId, status, domainOptions, outputTypesByDomain, dimensionsByDomain,
   serviceSuggestions, deliverableSuggestions, dimensionSuggestions,
   initial,
 }: {
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
-  domainOptions: string[]; outputOptions: string[]; enabledDimensions: Dimension[];
-  occasionOptions: string[]; contextOptions: string[]; subjectOptions: string[];
-  purposeOptions: string[]; clientTypeOptions: string[];
+  domainOptions: string[];
+  /** Domain name → the KINDS it can produce. Output types belong to a domain too. */
+  outputTypesByDomain: Record<string, { id: string; name: string }[]>;
+  /** Domain name → the dimensions it actively classifies by, with their values. */
+  dimensionsByDomain: Record<string, StudioDimensionShape[]>;
   /** Domain → the services it knows about. */
   serviceSuggestions?: Record<string, string[]>;
   deliverableSuggestions?: Narrowed;
@@ -32,28 +53,65 @@ export function ServiceFieldsEditor({
   const [domain, setDomain] = useState(initial.serviceDomain ?? '');
   const [primaryDeliverable, setPrimaryOutputType] = useState(initial.primaryDeliverable ?? '');
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
-  const [newOutput, setNewOutput] = useState('');
-  
-  /*
-   * All five dimensions, in one shape.
-   *
-   * Context, Purpose and Client had no fields at all: the settings page let a
-   * studio enable them, and the editor rendered Subject and Occasion only,
-   * passing the other three straight back from `initial`. They could be
-   * preserved but never set — so "Outdoor is a context for this service" was
-   * unsayable, which is most of why the knowledge felt absent.
-   */
-  const [dims, setDims] = useState<Record<Dimension, string[]>>({
-    subject: initial.subjects || [],
-    occasion: initial.occasions || [],
-    context: initial.contexts || [],
-    purpose: initial.purposes || [],
-    client: initial.clientTypes || [],
-  });
-  const setDim = (d: Dimension, values: string[]) => setDims((prev) => ({ ...prev, [d]: values }));
 
   /*
-   * What the form knows right now.
+   * Chosen values, keyed by dimension name rather than by dimension id.
+   *
+   * By name because the same service may be re-domained, and because a value
+   * typed under a dimension this domain doesn't ask yet still has to survive
+   * until save — where find-or-create gives it a real row. An id-keyed map
+   * would have nothing to key a not-yet-existing dimension by.
+   */
+  const [chosen, setChosen] = useState<Record<string, string[]>>(() => {
+    const seed: Record<string, string[]> = {};
+    for (const d of (initial.dimensions || []) as DimensionWrite[]) {
+      if (d?.name) seed[dimensionKey(d.name)] = [...(d.values || [])];
+    }
+    return seed;
+  });
+
+  /** Dimensions this studio has invented in this session, before saving. */
+  const [added, setAdded] = useState<Record<string, string[]>>({});
+  const [adding, setAdding] = useState(false);
+  const [newDimension, setNewDimension] = useState('');
+
+  const domainName = domain.trim();
+
+  /*
+   * The questions this form asks right now.
+   *
+   * The domain's own dimensions first, then anything added here this session,
+   * then any dimension the initial service carries that its domain no longer
+   * asks — a service tagged Occasion=Wedding must not silently lose that
+   * because the studio turned Occasion off afterwards. Turning a dimension off
+   * stops it being asked of new work; it never erases what was already said.
+   */
+  const questions = useMemo(() => {
+    const list: { key: string; name: string; question: string | null; example: string | null; values: string[] }[] = [];
+    const seen = new Set<string>();
+
+    for (const d of (dimensionsByDomain[domainName] || [])) {
+      seen.add(dimensionKey(d.name));
+      list.push({
+        key: dimensionKey(d.name), name: d.name, question: d.question, example: d.example,
+        values: d.values.map((v) => v.name),
+      });
+    }
+    for (const n of (added[domainName] || [])) {
+      if (seen.has(dimensionKey(n))) continue;
+      seen.add(dimensionKey(n));
+      list.push({ key: dimensionKey(n), name: n, question: null, example: null, values: [] });
+    }
+    for (const d of ((initial.dimensions || []) as DimensionWrite[])) {
+      if (!d?.name || seen.has(dimensionKey(d.name))) continue;
+      seen.add(dimensionKey(d.name));
+      list.push({ key: dimensionKey(d.name), name: d.name, question: null, example: null, values: [] });
+    }
+    return list;
+  }, [dimensionsByDomain, domainName, added, initial.dimensions]);
+
+  /*
+   * What the form knows.
    *
    * The chain: a domain knows which services live under it; naming one of those
    * services narrows every dimension to what that service actually carries.
@@ -62,38 +120,52 @@ export function ServiceFieldsEditor({
    * than every context any photography service has ever used.
    *
    * A service the library doesn't know falls back to the domain's union, which
-   * is still narrower than the studio's whole vocabulary. And the studio's own
-   * lists are appended after, never replaced — the suggestions are knowledge,
-   * the free text is the space for what isn't known yet.
+   * is still narrower than the studio's whole vocabulary. The domain's own
+   * values are appended after, never replaced.
    */
-  const ALL_OPTIONS: Record<Dimension, string[]> = {
-    subject: subjectOptions, occasion: occasionOptions, context: contextOptions,
-    purpose: purposeOptions, client: clientTypeOptions,
-  };
-  const knownServices = serviceSuggestions?.[domain.trim()] ?? [];
+  const knownServices = serviceSuggestions?.[domainName] ?? [];
   const merge = (narrow: string[], all: string[]) => [
     ...narrow,
     ...all.filter((v) => !narrow.some((n) => n.toLowerCase() === v.toLowerCase())),
   ];
-  const suggestFor = (dim: Dimension, all: string[]) =>
-    merge(narrowFor(dimensionSuggestions?.[dim], domain, name), all);
-  const outputSuggestions = merge(narrowFor(deliverableSuggestions, domain, name), outputOptions);
+  const outputSuggestions = merge(
+    narrowFor(deliverableSuggestions, domain, name),
+    (outputTypesByDomain[domainName] || []).map((o) => o.name)
+  );
+
+  const setValues = (key: string, values: string[]) => setChosen((prev) => ({ ...prev, [key]: values }));
+
+  const addDimension = () => {
+    const n = newDimension.trim();
+    if (!n) return;
+    if (questions.some((q) => q.key === dimensionKey(n))) {
+      setNewDimension('');
+      setAdding(false);
+      return;
+    }
+    setAdded((prev) => ({ ...prev, [domainName]: [...(prev[domainName] || []), n] }));
+    setNewDimension('');
+    setAdding(false);
+  };
 
   const handleSave = () => {
     if (!name.trim()) return alert('Name is required.');
-    if (!domain.trim()) return alert('Service Domain is required.');
+    if (!domainName) return alert('Service Domain is required.');
 
     startTransition(async () => {
       try {
+        // Only what the form actually asked gets sent. A dimension with nothing
+        // chosen still goes, empty — that is how clearing a value is said.
+        const dimensions: DimensionWrite[] = questions.map((q) => ({
+          name: q.name,
+          values: chosen[q.key] || [],
+        }));
+
         const payload = {
           name, description, serviceDomain: domain,
           primaryDeliverable: primaryDeliverable || null,
           deliverables,
-          subjects: dims.subject,
-          occasions: dims.occasion,
-          contexts: dims.context,
-          purposes: dims.purpose,
-          clientTypes: dims.client,
+          dimensions,
         };
         if (mode === 'create') {
           const newId = await createService(payload);
@@ -106,24 +178,13 @@ export function ServiceFieldsEditor({
     });
   };
 
-  const toggleArray = (arr: string[], val: string, setter: (v: string[]) => void) => {
-    if (arr.includes(val)) setter(arr.filter((x) => x !== val));
-    else setter([...arr, val]);
-  };
-
-  const addArray = (val: string, arr: string[], setter: (v: string[]) => void, reset: () => void) => {
-    const t = val.trim();
-    if (t && !arr.includes(t)) setter([...arr, t]);
-    reset();
-  };
-
   return (
     <div className="q-stack" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-      
+
       {/* 1. Core Service Information */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)' }}>
         <h3 className="q-section-title">Core Capability</h3>
-        
+
         <div className="q-row q-gap-md" style={{ alignItems: 'flex-start' }}>
           <label className="q-label" style={{ flex: 1 }}>
             Service Domain (Parent)
@@ -149,61 +210,114 @@ export function ServiceFieldsEditor({
             value={name}
             onChange={setName}
             options={knownServices}
-            placeholder={domain.trim() ? `Which ${domain.trim()} service — or type your own` : 'Choose a domain first…'}
-            disabled={isPending || !domain.trim()}
+            placeholder={domainName ? `Which ${domainName} service — or type your own` : 'Choose a domain first…'}
+            disabled={isPending || !domainName}
           />
           <span className="q-meta-sm" style={{ opacity: 0.7 }}>
-            {!domain.trim()
+            {!domainName
               ? 'Pick a domain and this fills with the services it knows.'
               : knownServices.length > 0
-                ? `${knownServices.length} known under ${domain.trim()} — or add your own.`
-                : `Nothing known under ${domain.trim()} yet — add the first.`}
+                ? `${knownServices.length} known under ${domainName} — or add your own.`
+                : `Nothing known under ${domainName} yet — add the first.`}
           </span>
         </label>
-        
+
         <label className="q-label" style={{ marginTop: '8px' }}>
           Description
           <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} disabled={isPending} />
         </label>
       </div>
 
-      {/* 2. Internal Restrictions (Derived from Domain DNA) */}
+      {/* 2. How this domain classifies its work */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
         <div className="q-row q-row-between">
           <div>
-            <h3 className="q-section-title">Internal Restrictions</h3>
-            <span className="q-meta-sm" style={{ opacity: 0.7 }}>Dimensions constrained by this service. Any unconstrained dimension is asked of the client.</span>
+            <h3 className="q-section-title">
+              {domainName ? `How ${domainName} classifies this` : 'How this gets classified'}
+            </h3>
+            <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+              What this service is constrained to. Anything left unconstrained is asked of the client instead.
+            </span>
           </div>
           <Settings size={20} color="var(--q-color-primary)" opacity={0.5} />
         </div>
 
         <div className="q-stack q-gap-md" style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
-          {enabledDimensions.length === 0 ? (
+          {!domainName ? (
             <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-              No dimensions turned on. Choose how this studio classifies its work in{' '}
-              <a className="q-accent" href="/services/settings">Service settings</a>.
+              Choose a domain and its own questions appear here.
             </span>
           ) : (
             <>
-              {enabledDimensions.map((dim) => {
-                const meta = DIMENSION_LABELS[dim];
-                const options = suggestFor(dim, ALL_OPTIONS[dim]);
+              {questions.length === 0 && (
+                <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>
+                  {domainName} doesn&rsquo;t classify its work by anything yet. Add the first way below.
+                </span>
+              )}
+
+              {questions.map((q) => {
+                // Library knowledge for this dimension, narrowed by the named
+                // service where it's known, then the domain's own values after.
+                const options = merge(
+                  narrowFor(dimensionSuggestions?.[q.key], domain, name),
+                  q.values
+                );
                 return (
-                  <div key={dim} className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
-                    <label className="q-label">{meta.label}</label>
-                    <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>{meta.question}</span>
+                  <div key={q.key} className="q-panel" style={{ padding: '16px', backgroundColor: 'var(--q-color-ground)' }}>
+                    <label className="q-label">{q.name}</label>
+                    {q.question && (
+                      <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>{q.question}</span>
+                    )}
                     <div style={{ marginTop: '8px' }}>
                       <PickMany
-                        values={dims[dim]}
-                        onChange={(v) => setDim(dim, v)}
+                        values={chosen[q.key] || []}
+                        onChange={(v) => setValues(q.key, v)}
                         options={options}
-                        placeholder={`Add ${meta.label.toLowerCase()} — choose or type`}
+                        placeholder={
+                          q.example
+                            ? `e.g. ${q.example.split(',')[0].trim()} — choose or type`
+                            : `Add ${q.name.toLowerCase()} — choose or type`
+                        }
                         disabled={isPending}
                       />
                     </div>
                   </div>
                 );
               })}
+
+              {/* The questions are as open as the answers. A studio that wants
+                  to classify by Style shouldn't have to leave the form to say so. */}
+              {adding ? (
+                <div className="q-row q-gap-sm" style={{ alignItems: 'center' }}>
+                  <input
+                    className="q-input q-input-sm"
+                    autoFocus
+                    value={newDimension}
+                    onChange={(e) => setNewDimension(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); addDimension(); }
+                      if (e.key === 'Escape') { setAdding(false); setNewDimension(''); }
+                    }}
+                    placeholder="e.g. Style, Season, Turnaround"
+                    style={{ minWidth: '14rem' }}
+                  />
+                  <button className="q-btn q-btn-secondary q-btn-xs" onClick={addDimension} disabled={!newDimension.trim()}>
+                    Add
+                  </button>
+                  <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => { setAdding(false); setNewDimension(''); }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setAdding(true)} disabled={isPending}>
+                  <Plus size={14} style={{ marginRight: '6px' }} />
+                  Another way to classify {domainName}
+                </button>
+              )}
+              <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+                Whatever you add here belongs to {domainName} and is offered next time.{' '}
+                <a className="q-accent" href="/services/settings">Manage them all</a>.
+              </span>
             </>
           )}
         </div>
@@ -212,7 +326,7 @@ export function ServiceFieldsEditor({
       {/* 3. Output Configuration */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
         <h3 className="q-section-title">Produces (Outputs)</h3>
-        
+
         <div className="q-stack q-gap-sm" style={{ marginTop: '16px' }}>
           <label className="q-label">
             Primary Asset

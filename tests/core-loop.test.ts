@@ -23,7 +23,8 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 // Now import the domain functions
 import { createRole, addEmployee } from '@/modules/team/domain';
-import { createServiceDomain, createDeliverable, createService, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
+import { createServiceDomain, createDeliverable, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
+import { listDimensionsForDomain } from '@/modules/services/dimensionsAdmin';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
@@ -58,18 +59,17 @@ export const PURGE_ORDER = [
   'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
   'bookings',
   'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
-  'package_occasions', 'package_contexts', 'package_subjects', 'package_purposes', 'package_client_types',
-  'package_variable_values',
+  'package_dimension_values', 'package_variable_values',
   'packages',
-  'service_deliverables', 'service_variables',
-  'service_schema_occasions', 'service_schema_contexts', 'service_schema_subjects',
-  'service_schema_purposes', 'service_schema_client_types',
+  'service_deliverables', 'service_variables', 'service_dimension_values',
   'services',
   'blueprints',
   'employee_roles', 'employees', 'clients',
   'contacts',
-  'roles', 'booking_stages', 'delivery_containers', 'deliverables', 'service_domains',
-  'occasions', 'service_contexts', 'subjects', 'purposes', 'client_types',
+  'roles', 'booking_stages', 'delivery_containers', 'deliverables',
+  // Values before dimensions before domains: a value points at a dimension,
+  // and a dimension at the domain that owns it.
+  'dimension_values', 'dimensions', 'service_domains',
 ] as const;
 
 async function purgeOrg(orgId: string) {
@@ -141,7 +141,10 @@ describe('Core Loop Verification', () => {
     });
     expect(serviceId).toBeDefined();
 
-    const { outputTypeId } = await createDeliverable('Edited Photos');
+    // An output type is a KIND this domain can produce, so it is created
+    // under one — Photography's "Edited Photos" is not Printing's.
+    const { serviceDomainId: photographyId } = await createServiceDomain('Photography');
+    const { outputTypeId } = await createDeliverable({ serviceDomainId: photographyId, name: 'Edited Photos' });
     expect(outputTypeId).toBeDefined();
 
     // The service declares what may vary. These are quantities, not dimensions:
@@ -347,9 +350,10 @@ describe('Core Loop Verification', () => {
   }, 120000);
 
   it('knows what was promised and whether it was handed over', async () => {
-    const { outputTypeId: photosId } = await createDeliverable('Edited Photos');
-    const { outputTypeId: albumId } = await createDeliverable('Album');
-    const { outputTypeId: unsoldId } = await createDeliverable('Behind the Scenes Reel');
+    const { serviceDomainId } = await createServiceDomain('Photography');
+    const { outputTypeId: photosId } = await createDeliverable({ serviceDomainId, name: 'Edited Photos' });
+    const { outputTypeId: albumId } = await createDeliverable({ serviceDomainId, name: 'Album' });
+    const { outputTypeId: unsoldId } = await createDeliverable({ serviceDomainId, name: 'Behind the Scenes Reel' });
 
     const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Promised Session' });
     const { packageId } = await createPackage({
@@ -521,6 +525,8 @@ describe('Core Loop Verification', () => {
 
     // Naming the service is what narrows: Portrait knows Client's home, Pet
     // doesn't, and neither is just "everything Photography has ever used".
+    // Keyed by dimension NAME, lowercased — not by a closed five the studio
+    // cannot extend. A dimension a studio invents draws on the same sources.
     expect(narrowFor(dims.context, 'Photography', 'Portrait Photography'))
       .toEqual(['In-studio', 'Outdoor', "Client's home"]);
     expect(narrowFor(dims.context, 'Photography', 'Pet Photography'))
@@ -533,11 +539,20 @@ describe('Core Loop Verification', () => {
     expect(unknown).toContain('In-studio');
     expect(unknown.length).toBeGreaterThan(2);
 
-    // And a studio's own tagging teaches it about services the library lacks.
+    // And a studio's own tagging teaches it about services the library lacks —
+    // including under a dimension the library has never heard of either.
     const taught = buildDimensionSuggestions([
-      { name: 'Drone Photography', domain: { name: 'Photography' }, context: { name: 'Aerial' } },
+      {
+        name: 'Drone Photography',
+        domain: { name: 'Photography' },
+        dimensions: [
+          { name: 'Context', values: [{ name: 'Aerial' }] },
+          { name: 'Altitude', values: [{ name: 'Rooftop' }, { name: 'High' }] },
+        ],
+      },
     ] as any);
     expect(narrowFor(taught.context, 'Photography', 'Drone Photography')).toEqual(['Aerial']);
+    expect(narrowFor(taught.altitude, 'Photography', 'Drone Photography')).toEqual(['Rooftop', 'High']);
     expect(buildServiceSuggestions([
       { name: 'Drone Photography', domain: { name: 'Photography' } },
     ] as any)['Photography'][0]).toBe('Drone Photography');
@@ -698,5 +713,65 @@ describe('Core Loop Verification', () => {
     for (const v of template.variables!) {
       expect(questionLabels).not.toContain(v.label.toLowerCase());
     }
+  }, 120000);
+
+  it('lets a domain classify its work however it likes, and keeps it there', async () => {
+    // A studio inventing a way to classify its own work, in a form field, with
+    // no trip to settings. Neither the dimension nor its values exist yet.
+    const { serviceId } = await createService({
+      serviceDomain: 'Photography',
+      name: 'Editorial Session',
+      dimensions: [
+        { name: 'Style', values: ['Editorial', 'Documentary'] },
+        { name: 'Occasion', values: ['Wedding'] },
+      ],
+    });
+
+    const service = await getService(serviceId);
+    const byName = Object.fromEntries(
+      ((service as any).dimensions as { name: string; values: { name: string }[] }[])
+        .map((d) => [d.name, d.values.map((v) => v.name).sort()])
+    );
+    expect(byName['Style']).toEqual(['Documentary', 'Editorial']);
+    expect(byName['Occasion']).toEqual(['Wedding']);
+
+    // What got typed became this domain's vocabulary — offered next time,
+    // which is how the system learns from being used.
+    const domains = await listServiceDomains();
+    const photography = (domains as any[]).find((d) => d.name === 'Photography')!;
+    const known = await listDimensionsForDomain(photography.id);
+    expect(known.map((d) => d.name)).toContain('Style');
+
+    // And it stayed inside the domain. Printing asks its own questions; a
+    // vocabulary that leaked sideways is the flat model this replaced.
+    const { serviceId: printId } = await createService({
+      serviceDomain: 'Printing',
+      name: 'Fine Art Print Run',
+      dimensions: [{ name: 'Style', values: ['Matte'] }],
+    });
+    const printing = (await listServiceDomains() as any[]).find((d) => d.name === 'Printing')!;
+    const printingStyle = (await listDimensionsForDomain(printing.id)).find((d) => d.name === 'Style')!;
+    expect(printingStyle.values.map((v) => v.name)).toEqual(['Matte']);
+    expect(printingStyle.id).not.toBe(known.find((d) => d.name === 'Style')!.id);
+
+    // Re-saving replaces rather than accumulates: a value removed in the form
+    // is expressed by its absence, so dropping Documentary drops it.
+    await updateService({
+      serviceId,
+      dimensions: [{ name: 'Style', values: ['Editorial'] }],
+    });
+    const after = await getService(serviceId);
+    const styleAfter = ((after as any).dimensions as { name: string; values: { name: string }[] }[])
+      .find((d) => d.name === 'Style')!;
+    expect(styleAfter.values.map((v) => v.name)).toEqual(['Editorial']);
+    expect(((after as any).dimensions as any[]).find((d) => d.name === 'Occasion')).toBeUndefined();
+
+    // The value itself survives — it belongs to the domain, not to the service
+    // that happened to introduce it.
+    const stillKnown = await listDimensionsForDomain(photography.id);
+    expect(stillKnown.find((d) => d.name === 'Style')!.values.map((v) => v.name).sort())
+      .toEqual(['Documentary', 'Editorial']);
+
+    expect(printId).toBeDefined();
   }, 120000);
 });

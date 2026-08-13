@@ -1,6 +1,6 @@
 import { templatesByDomain, SERVICE_TEMPLATES } from './templates';
 import type { ServiceTemplate } from './templates';
-import { DIMENSIONS, type Dimension } from './dimensions';
+import { TEMPLATE_DIMENSION_NAMES, dimensionKey } from './dimensions';
 
 /**
  * What the app knows, and how it narrows.
@@ -54,11 +54,8 @@ type ServiceRow = {
   name?: string | null;
   domain?: { name: string } | null;
   deliverables?: { name: string }[];
-  subject?: { name: string } | null;
-  occasion?: { name: string } | null;
-  context?: { name: string } | null;
-  purpose?: { name: string } | null;
-  client_type?: { name: string } | null;
+  /** As `listServices` returns it: the dimensions that asked, and the values carried. */
+  dimensions?: { name: string; values: { name: string }[] }[];
 };
 
 /**
@@ -109,51 +106,56 @@ export function buildDeliverableSuggestions(services: ServiceRow[]): Narrowed {
   return { byService: freeze(byService), byDomain: freeze(byDomain) };
 }
 
-const TEMPLATE_DIM_KEY: Record<Dimension, keyof ServiceTemplate> = {
-  subject: 'subjects', occasion: 'occasions', context: 'contexts', purpose: 'purposes', client: 'clientTypes',
-};
-const SERVICE_DIM_PROP: Record<Dimension, keyof ServiceRow> = {
-  subject: 'subject', occasion: 'occasion', context: 'context', purpose: 'purpose', client: 'client_type',
-};
-
-export type DimensionSuggestions = Record<Dimension, Narrowed>;
+/**
+ * Suggestions for every dimension, keyed by the dimension's own name.
+ *
+ * This was `Record<Dimension, Narrowed>` over a closed five, which meant a
+ * studio could add Style to Photography in settings and the form would have
+ * nothing to offer under it — not even its own services' Style values. Keying
+ * by name removes the ceiling: any dimension a domain asks, seeded or invented,
+ * draws on the same two sources.
+ */
+export type DimensionSuggestions = Record<string, Narrowed>;
 
 /**
- * The same narrowing for Subject/Occasion/Context/Purpose/Client.
+ * The same narrowing, for however many dimensions exist.
  *
- * The library's knowledge is deliberately partial — a template only claims a
- * dimension where it genuinely carries one, never to look complete. A domain
- * the library barely knows starts thin and grows entirely from the studio's
- * own tagging. Both are real knowledge; one just hasn't been written yet.
+ * Two sources, as everywhere: the curated library, so a studio that has defined
+ * nothing still gets sense; and the studio's own services, so what it has
+ * actually built shapes what gets offered next. The library's knowledge is
+ * deliberately partial — a template claims a dimension only where it genuinely
+ * carries one, never to look complete.
  */
 export function buildDimensionSuggestions(services: ServiceRow[]): DimensionSuggestions {
-  const out = {} as DimensionSuggestions;
+  const perDimension: Record<string, { byService: Record<string, Set<string>>; byDomain: Record<string, Set<string>> }> = {};
+  const bucket = (name: string) => (perDimension[dimensionKey(name)] ||= { byService: {}, byDomain: {} });
 
-  for (const dim of DIMENSIONS) {
-    const byService: Record<string, Set<string>> = {};
-    const byDomain: Record<string, Set<string>> = {};
-    const templateKey = TEMPLATE_DIM_KEY[dim];
-    const serviceProp = SERVICE_DIM_PROP[dim];
-
-    for (const t of SERVICE_TEMPLATES) {
-      const values = (t[templateKey] as string[] | undefined) || [];
+  for (const t of SERVICE_TEMPLATES) {
+    for (const [templateKey, dimensionName] of Object.entries(TEMPLATE_DIMENSION_NAMES)) {
+      const values = (t[templateKey as keyof ServiceTemplate] as string[] | undefined) || [];
       if (values.length === 0) continue;
-      add(byService, key(t.name), values);
-      add(byDomain, t.domain, values);
+      const b = bucket(dimensionName);
+      add(b.byService, key(t.name), values);
+      add(b.byDomain, t.domain, values);
     }
-
-    for (const s of services) {
-      // A service carries one value per dimension; the studio's own tagging is
-      // what teaches the system about services the library never heard of.
-      const value = (s[serviceProp] as { name: string } | null | undefined)?.name;
-      if (!value) continue;
-      if (s.name) add(byService, key(s.name), [value]);
-      if (s.domain?.name) add(byDomain, s.domain.name, [value]);
-    }
-
-    out[dim] = { byService: freeze(byService), byDomain: freeze(byDomain) };
   }
 
+  // A service carries any number of values per dimension — the studio's own
+  // tagging is what teaches the system about services the library never heard of.
+  for (const s of services) {
+    for (const dim of (s.dimensions || [])) {
+      const values = (dim.values || []).map((v) => v.name).filter(Boolean);
+      if (values.length === 0) continue;
+      const b = bucket(dim.name);
+      if (s.name) add(b.byService, key(s.name), values);
+      if (s.domain?.name) add(b.byDomain, s.domain.name, values);
+    }
+  }
+
+  const out: DimensionSuggestions = {};
+  for (const [name, b] of Object.entries(perDimension)) {
+    out[name] = { byService: freeze(b.byService), byDomain: freeze(b.byDomain) };
+  }
   return out;
 }
 
