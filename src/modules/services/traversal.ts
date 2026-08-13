@@ -31,6 +31,13 @@ export type Carrier = {
   via: 'direct' | 'bundled';
   /** Which bundled services brought it, when `via` is 'bundled'. */
   through?: string[];
+  /**
+   * Set when the match came through a narrower value: a beach shoot answers
+   * "what do you do outdoors" because Beach is nested inside Outdoor. Naming it
+   * matters — the service never said Outdoor, and pretending it did would make
+   * the answer impossible to check.
+   */
+  narrower?: string;
 };
 
 export type CoOccurrence = {
@@ -48,8 +55,93 @@ export type ValueEntry = {
   dimensionId: string;
   dimensionName: string;
   domainName: string | null;
+  parentId: string | null;
+  /** Tagged with this value exactly. */
   services: number;
+  /** Tagged with this value or anything nested inside it. */
+  servicesIncludingNarrower: number;
 };
+
+/** A value, its ancestors (nearest first), and what sits directly inside it. */
+export type ValuePlace = {
+  ancestors: { id: string; name: string }[];
+  children: { id: string; name: string }[];
+  /** Every value rolled up into this one — the whole subtree, not just children. */
+  narrowerIds: string[];
+};
+
+/**
+ * Every value under one dimension, as a parent map — the smallest thing that
+ * answers "what is inside what". Kept private: callers want the place or the
+ * rollup, never the raw edges.
+ */
+async function siblingTree(orgId: string, dimensionId: string) {
+  const { data } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id, name, parent_id, position')
+    .eq('organization_id', orgId)
+    .eq('dimension_id', dimensionId)
+    .order('position');
+  return ((data || []) as any[]).map((v) => ({
+    id: v.id as string, name: v.name as string, parentId: (v.parent_id ?? null) as string | null,
+  }));
+}
+
+/** Everything nested inside a value, at any depth, including the value itself. */
+function subtreeIds(rows: { id: string; parentId: string | null }[], rootId: string): string[] {
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.parentId) continue;
+    if (!childrenOf.has(r.parentId)) childrenOf.set(r.parentId, []);
+    childrenOf.get(r.parentId)!.push(r.id);
+  }
+  const out: string[] = [];
+  const queue = [rootId];
+  const seen = new Set<string>();
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    for (const child of (childrenOf.get(id) || [])) queue.push(child);
+  }
+  return out;
+}
+
+/**
+ * Where a value sits — what it is inside, and what is inside it.
+ *
+ * This is the user's "select backwards into upper classifications": Beach is an
+ * Outdoor, so standing on Beach you can step up to Outdoor and see everything
+ * outdoors, of which the beach work is a part.
+ */
+export async function getValuePlace(valueId: string): Promise<ValuePlace> {
+  const { orgId } = await getAuthOrgId();
+  const { data: value } = await supabaseAdmin
+    .from('dimension_values').select('id, dimension_id, parent_id')
+    .eq('id', valueId).eq('organization_id', orgId).maybeSingle();
+  if (!value) return { ancestors: [], children: [], narrowerIds: [valueId] };
+
+  const rows = await siblingTree(orgId, (value as any).dimension_id);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  const ancestors: { id: string; name: string }[] = [];
+  const seen = new Set<string>([valueId]);
+  let cursor = (value as any).parent_id as string | null;
+  while (cursor && !seen.has(cursor)) {
+    seen.add(cursor);
+    const row = byId.get(cursor);
+    if (!row) break;
+    ancestors.push({ id: row.id, name: row.name });
+    cursor = row.parentId;
+  }
+
+  return {
+    ancestors,
+    children: rows.filter((r) => r.parentId === valueId).map((r) => ({ id: r.id, name: r.name })),
+    narrowerIds: subtreeIds(rows, valueId),
+  };
+}
 
 /** The value itself, and the question it answers. */
 export async function getDimensionValue(valueId: string) {
@@ -82,27 +174,46 @@ export async function listValueEntries(): Promise<ValueEntry[]> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('dimension_values')
-    .select('id, name, position, dimension:dimensions(id, name, position, is_active, domain:service_domains(name)), service_dimension_values(service_id)')
+    .select('id, name, position, parent_id, dimension:dimensions(id, name, position, is_active, domain:service_domains(name)), service_dimension_values(service_id)')
     .eq('organization_id', orgId);
 
-  return ((data || []) as any[])
+  const rows = ((data || []) as any[])
     .map((v) => ({
       id: v.id as string,
       name: v.name as string,
       dimensionId: v.dimension?.id as string,
       dimensionName: (v.dimension?.name ?? '') as string,
       domainName: (v.dimension?.domain?.name ?? null) as string | null,
+      parentId: (v.parent_id ?? null) as string | null,
       services: (v.service_dimension_values || []).length,
       _dimPosition: v.dimension?.position ?? 0,
       _position: v.position ?? 0,
     }))
-    .filter((v) => v.dimensionId)
+    .filter((v) => v.dimensionId);
+
+  // The rolled-up count, per dimension, so Outdoor reflects its beaches.
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const rolled = new Map<string, number>();
+  for (const r of rows) {
+    const seen = new Set<string>();
+    let cursor: string | null = r.id;
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      rolled.set(cursor, (rolled.get(cursor) || 0) + r.services);
+      cursor = byId.get(cursor)?.parentId ?? null;
+    }
+  }
+
+  return rows
     .sort((a, b) =>
       (a.domainName || '').localeCompare(b.domainName || '')
       || a._dimPosition - b._dimPosition
       || a._position - b._position
       || a.name.localeCompare(b.name))
-    .map(({ _dimPosition, _position, ...v }) => v);
+    .map(({ _dimPosition, _position, ...v }) => ({
+      ...v,
+      servicesIncludingNarrower: rolled.get(v.id) ?? v.services,
+    }));
 }
 
 /**
@@ -117,33 +228,56 @@ export async function listValueEntries(): Promise<ValueEntry[]> {
 export async function whatCarries(valueId: string): Promise<{ services: Carrier[]; packages: Carrier[] }> {
   const { orgId } = await getAuthOrgId();
 
+  // A beach shoot answers "what do you do outdoors". The service was never
+  // tagged Outdoor and is not about to be — the nesting is what makes it an
+  // answer, and it stays a read rather than a second row.
+  const { narrowerIds } = await getValuePlace(valueId);
+  const { data: narrowerNames } = await supabaseAdmin
+    .from('dimension_values').select('id, name')
+    .eq('organization_id', orgId).in('id', narrowerIds);
+  const nameOf = new Map(((narrowerNames || []) as any[]).map((v) => [v.id, v.name as string]));
+
   const { data: serviceLinks } = await supabaseAdmin
     .from('service_dimension_values')
-    .select('service:services(id, name, status, domain:service_domains(name))')
+    .select('dimension_value_id, service:services(id, name, status, domain:service_domains(name))')
     .eq('organization_id', orgId)
-    .eq('dimension_value_id', valueId);
+    .in('dimension_value_id', narrowerIds);
 
-  const services: Carrier[] = ((serviceLinks || []) as any[])
-    .map((l) => l.service)
-    .filter(Boolean)
-    .map((s: any) => ({
+  const serviceById = new Map<string, Carrier>();
+  for (const l of ((serviceLinks || []) as any[])) {
+    const s = l.service;
+    if (!s) continue;
+    const viaNarrower = l.dimension_value_id !== valueId;
+    const existing = serviceById.get(s.id);
+    // Tagged with the value itself beats tagged with something inside it.
+    if (existing && !existing.narrower) continue;
+    serviceById.set(s.id, {
       id: s.id, name: s.name, status: s.status ?? null,
-      domainName: s.domain?.name ?? null, via: 'direct' as const,
-    }));
+      domainName: s.domain?.name ?? null, via: 'direct',
+      ...(viaNarrower ? { narrower: nameOf.get(l.dimension_value_id) } : {}),
+    });
+  }
+  const services: Carrier[] = [...serviceById.values()];
 
   const serviceIds = services.map((s) => s.id);
 
   const { data: directPackages } = await supabaseAdmin
     .from('package_dimension_values')
-    .select('package:packages(id, name, status)')
+    .select('dimension_value_id, package:packages(id, name, status)')
     .eq('organization_id', orgId)
-    .eq('dimension_value_id', valueId);
+    .in('dimension_value_id', narrowerIds);
 
   const byId = new Map<string, Carrier>();
   for (const l of ((directPackages || []) as any[])) {
     const p = l.package;
     if (!p) continue;
-    byId.set(p.id, { id: p.id, name: p.name, status: p.status ?? null, domainName: null, via: 'direct' });
+    const viaNarrower = l.dimension_value_id !== valueId;
+    const existing = byId.get(p.id);
+    if (existing && !existing.narrower) continue;
+    byId.set(p.id, {
+      id: p.id, name: p.name, status: p.status ?? null, domainName: null, via: 'direct',
+      ...(viaNarrower ? { narrower: nameOf.get(l.dimension_value_id) } : {}),
+    });
   }
 
   if (serviceIds.length > 0) {
@@ -192,11 +326,12 @@ export async function whatCoOccursWith(valueId: string): Promise<CoOccurrence[]>
   const value = await getDimensionValue(valueId);
   if (!value) return [];
 
+  const { narrowerIds } = await getValuePlace(valueId);
   const { data: carrying } = await supabaseAdmin
     .from('service_dimension_values')
     .select('service_id')
     .eq('organization_id', orgId)
-    .eq('dimension_value_id', valueId);
+    .in('dimension_value_id', narrowerIds);
 
   const serviceIds = [...new Set(((carrying || []) as any[]).map((r) => r.service_id))];
   if (serviceIds.length === 0) return [];
@@ -212,6 +347,9 @@ export async function whatCoOccursWith(valueId: string): Promise<CoOccurrence[]>
     const v = row.dimension_value;
     const d = v?.dimension;
     if (!v || !d) continue;
+    // Nothing from the value's own dimension, which now also excludes the
+    // narrower values it was rolled up from — Outdoor "co-occurring" with
+    // Beach is just the nesting restated.
     if (v.id === valueId || d.id === value.dimensionId) continue;
 
     const seen = counts.get(v.id);

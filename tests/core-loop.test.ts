@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 // Now import the domain functions
 import { createRole, addEmployee } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
-import { listDimensionsForDomain } from '@/modules/services/dimensionsAdmin';
+import { listDimensionsForDomain, setValueParent } from '@/modules/services/dimensionsAdmin';
 import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/services/traversal';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
@@ -854,5 +854,71 @@ describe('Core Loop Verification', () => {
     // Nothing from Wedding's own dimension: "some service is both a Wedding
     // and a None" is a fact about that service, not a relationship.
     expect(alongside.some((c) => c.dimensionName === 'Occasion')).toBe(false);
+  }, 120000);
+
+  it('makes a beach shoot an outdoor shoot without tagging it twice', async () => {
+    const { serviceId: beachShoot } = await createService({
+      serviceDomain: 'Photography',
+      name: 'Beach Portraits',
+      dimensions: [
+        { name: 'Setting', values: ['Beach'] },
+        { name: 'Occasion', values: ['Engagement'] },
+      ],
+    });
+    await createService({
+      serviceDomain: 'Photography',
+      name: 'Park Portraits',
+      dimensions: [{ name: 'Setting', values: ['Outdoor'] }],
+    });
+
+    const domains = await listServiceDomains();
+    const photography = (domains as any[]).find((d) => d.name === 'Photography')!;
+    const setting = (await listDimensionsForDomain(photography.id)).find((d) => d.name === 'Setting')!;
+    const beach = setting.values.find((v) => v.name === 'Beach')!;
+    const outdoor = setting.values.find((v) => v.name === 'Outdoor')!;
+
+    // Before nesting, the two are unrelated: Outdoor knows nothing about beaches.
+    expect((await whatCarries(outdoor.id)).services.map((s) => s.name)).toEqual(['Park Portraits']);
+
+    await setValueParent({ valueId: beach.id, parentId: outdoor.id });
+
+    // After: the beach shoot answers "what do you do outdoors", and the service
+    // was never re-tagged. Where the match came from is named rather than
+    // silently claimed — the service still does not say Outdoor.
+    const outdoorWork = await whatCarries(outdoor.id);
+    expect(outdoorWork.services.map((s) => s.name).sort()).toEqual(['Beach Portraits', 'Park Portraits']);
+    expect(outdoorWork.services.find((s) => s.name === 'Beach Portraits')!.narrower).toBe('Beach');
+    expect(outdoorWork.services.find((s) => s.name === 'Park Portraits')!.narrower).toBeUndefined();
+
+    // It only rolls upward. Standing on Beach does not pick up the park work.
+    expect((await whatCarries(beach.id)).services.map((s) => s.name)).toEqual(['Beach Portraits']);
+
+    // Counts follow the same rule, and both numbers stay available: Outdoor is
+    // carried by one service itself, two counting what sits inside it.
+    const entries = await listValueEntries();
+    const outdoorEntry = entries.find((e) => e.id === outdoor.id)!;
+    expect(outdoorEntry.services).toBe(1);
+    expect(outdoorEntry.servicesIncludingNarrower).toBe(2);
+    expect(entries.find((e) => e.id === beach.id)!.parentId).toBe(outdoor.id);
+
+    // Co-occurrence rolls up too, or Outdoor's neighbours would be computed
+    // from services that never mention Outdoor.
+    const alongside = await whatCoOccursWith(outdoor.id);
+    expect(alongside.find((c) => c.valueName === 'Engagement')).toBeTruthy();
+    // ...but nothing from Setting itself: Outdoor "co-occurring" with Beach is
+    // just the nesting restated.
+    expect(alongside.some((c) => c.dimensionName === 'Setting')).toBe(false);
+
+    // The tree is guarded in all three ways it could stop being a tree.
+    await expect(setValueParent({ valueId: outdoor.id, parentId: outdoor.id }))
+      .rejects.toThrow(/inside itself/i);
+    await expect(setValueParent({ valueId: outdoor.id, parentId: beach.id }))
+      .rejects.toThrow(/already inside/i);
+    const engagement = (await listDimensionsForDomain(photography.id))
+      .find((d) => d.name === 'Occasion')!.values.find((v) => v.name === 'Engagement')!;
+    await expect(setValueParent({ valueId: engagement.id, parentId: outdoor.id }))
+      .rejects.toThrow(/same question/i);
+
+    expect(beachShoot).toBeDefined();
   }, 120000);
 });

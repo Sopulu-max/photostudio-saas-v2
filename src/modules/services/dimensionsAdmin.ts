@@ -24,7 +24,7 @@ export type StudioDimension = {
   example: string | null;
   isActive: boolean;
   position: number;
-  values: { id: string; name: string; position: number }[];
+  values: { id: string; name: string; position: number; parentId: string | null }[];
 };
 
 /** Every dimension this domain classifies by, with its values. */
@@ -32,7 +32,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('dimensions')
-    .select('id, name, question, example, is_active, position, dimension_values(id, name, position)')
+    .select('id, name, question, example, is_active, position, dimension_values(id, name, position, parent_id)')
     .eq('organization_id', orgId)
     .eq('service_domain_id', serviceDomainId)
     .order('position');
@@ -48,7 +48,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     isActive: d.is_active,
     position: d.position ?? 0,
     values: (d.dimension_values || [])
-      .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0 }))
+      .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0, parentId: v.parent_id ?? null }))
       .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name)),
   }));
 }
@@ -174,6 +174,66 @@ export async function addDimensionValue(input: { dimensionId: string; name: stri
   }
   revalidatePath('/services/settings');
   revalidatePath('/services');
+  return { ok: true };
+}
+
+/**
+ * Beach is an Outdoor.
+ *
+ * Nesting is not decoration: it changes an answer. Asking what this studio does
+ * Outdoors includes its beach shoots afterwards, because the lens rolls a value
+ * up through its children — see whatCarries(). Storage stays exact (a beach
+ * shoot is tagged Beach and nothing else); the rollup happens at read time, so
+ * re-parenting later corrects every answer at once instead of leaving a trail
+ * of duplicated tags to clean up.
+ *
+ * Guarded three ways, because the shape is a tree and all three would break it:
+ * a value cannot be its own parent, cannot be nested under a value from a
+ * different dimension (Outdoor is not a kind of Wedding), and cannot be nested
+ * under its own descendant.
+ */
+export async function setValueParent(input: { valueId: string; parentId: string | null }) {
+  const { orgId } = await getAuthOrgId();
+
+  if (input.parentId === input.valueId) throw new Error('A value can’t be inside itself.');
+
+  const { data: value } = await supabaseAdmin
+    .from('dimension_values').select('id, name, dimension_id')
+    .eq('id', input.valueId).eq('organization_id', orgId).maybeSingle();
+  if (!value) throw new Error('That value no longer exists.');
+
+  if (input.parentId) {
+    const { data: parent } = await supabaseAdmin
+      .from('dimension_values').select('id, name, dimension_id')
+      .eq('id', input.parentId).eq('organization_id', orgId).maybeSingle();
+    if (!parent) throw new Error('That parent no longer exists.');
+    if (parent.dimension_id !== value.dimension_id) {
+      throw new Error('A value can only sit inside another answer to the same question.');
+    }
+
+    // Walk up from the proposed parent: meeting ourselves means a cycle.
+    const { data: siblings } = await supabaseAdmin
+      .from('dimension_values').select('id, parent_id')
+      .eq('organization_id', orgId).eq('dimension_id', value.dimension_id);
+    const parentOf = new Map(((siblings || []) as any[]).map((r) => [r.id, r.parent_id]));
+    let cursor: string | null | undefined = input.parentId;
+    const seen = new Set<string>();
+    while (cursor) {
+      if (cursor === input.valueId) throw new Error(`${parent.name} is already inside ${value.name}.`);
+      if (seen.has(cursor)) break;
+      seen.add(cursor);
+      cursor = parentOf.get(cursor) ?? null;
+    }
+  }
+
+  const { error } = await supabaseAdmin
+    .from('dimension_values').update({ parent_id: input.parentId })
+    .eq('id', input.valueId).eq('organization_id', orgId);
+  if (error) { console.error('Failed to nest value:', error); throw new Error('Failed to move that value'); }
+
+  revalidatePath('/services/settings');
+  revalidatePath('/services');
+  revalidatePath('/lens');
   return { ok: true };
 }
 

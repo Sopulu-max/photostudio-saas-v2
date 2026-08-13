@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getDimensionValue, whatCarries, whatCoOccursWith } from '@/modules/services/interface';
+import { getDimensionValue, getValuePlace, whatCarries, whatCoOccursWith } from '@/modules/services/interface';
 import { Layers, Package as PackageIcon } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,8 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
   const value = await getDimensionValue(params.valueId);
   if (!value) notFound();
 
-  const [carried, alongside] = await Promise.all([
+  const [place, carried, alongside] = await Promise.all([
+    getValuePlace(params.valueId),
     whatCarries(params.valueId),
     whatCoOccursWith(params.valueId),
   ]);
@@ -50,18 +51,44 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
 
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
+          {/* Selecting backwards into the upper classification: a beach shoot
+              is an outdoor shoot, so Outdoor is one step up from here and
+              everything below is a part of what it answers. */}
+          {place.ancestors.length > 0 && (
+            <div className="q-row" style={{ gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+              {[...place.ancestors].reverse().map((a) => (
+                <Link key={a.id} href={`/lens/${a.id}`} className="q-meta-sm q-accent">
+                  {a.name} /
+                </Link>
+              ))}
+            </div>
+          )}
           <h1 className="q-page-title">{value.name}</h1>
           <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
             {value.dimensionName}
             {value.domainName && <> &middot; {value.domainName}</>}
             {value.question && <> &middot; {value.question}</>}
           </p>
+          {place.children.length > 0 && (
+            <div className="q-row" style={{ gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+              <span className="q-meta-sm">Kinds of {value.name}:</span>
+              {place.children.map((c) => (
+                <Link key={c.id} href={`/lens/${c.id}`} className="q-badge q-badge-neutral">{c.name}</Link>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
       <div className="q-stack q-stack-lg">
         <section className="q-card q-section">
           <h2 className="q-section-title">What you do for {value.name}</h2>
+          {place.children.length > 0 && (
+            <p className="q-meta" style={{ marginBottom: '12px' }}>
+              Including what sits inside {value.name}. A service filed under one of those is filed
+              under this — it never had to be tagged twice, and where a match came from is named.
+            </p>
+          )}
           {carried.services.length === 0 ? (
             <p className="q-empty">
               No service is filed under {value.name} yet. It is part of {value.domainName || 'this domain'}&rsquo;s
@@ -75,6 +102,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
                     <Layers size={16} opacity={0.5} />
                     <strong className="q-strong">{s.name}</strong>
                     <span className="q-meta-sm">{s.domainName}</span>
+                    {s.narrower && <span className="q-badge q-badge-neutral">{s.narrower}</span>}
                   </span>
                   {s.status === 'retired' && <span className="q-badge q-badge-neutral">retired</span>}
                 </Link>
@@ -101,6 +129,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
                     {p.via === 'bundled' && p.through && p.through.length > 0 && (
                       <span className="q-meta-sm">via {p.through.join(', ')}</span>
                     )}
+                    {p.narrower && <span className="q-badge q-badge-neutral">{p.narrower}</span>}
                   </span>
                   {p.status === 'retired' && <span className="q-badge q-badge-neutral">retired</span>}
                 </Link>

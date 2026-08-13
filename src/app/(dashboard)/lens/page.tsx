@@ -73,13 +73,22 @@ export default async function LensIndexPage() {
                         <Link
                           key={v.id}
                           href={`/lens/${v.id}`}
-                          className={`q-badge ${v.services > 0 ? 'q-badge-success' : 'q-badge-neutral'}`}
-                          title={v.services > 0
-                            ? `${v.services} service${v.services === 1 ? '' : 's'} filed under ${v.name}`
-                            : `Nothing filed under ${v.name} yet`}
+                          className={`q-badge ${v.servicesIncludingNarrower > 0 ? 'q-badge-success' : 'q-badge-neutral'}`}
+                          title={
+                            v.servicesIncludingNarrower === 0
+                              ? `Nothing filed under ${v.name} yet`
+                              : v.servicesIncludingNarrower === v.services
+                                ? `${v.services} service${v.services === 1 ? '' : 's'} filed under ${v.name}`
+                                : `${v.services} filed under ${v.name} itself, ${v.servicesIncludingNarrower} counting what sits inside it`
+                          }
                         >
+                          {/* A value nested inside another is shown as such, so
+                              the list reads as the tree the studio built. */}
+                          {v.parentId && <span style={{ opacity: 0.5, marginRight: '4px' }}>↳</span>}
                           {v.name}
-                          {v.services > 0 && <span style={{ marginLeft: '6px', opacity: 0.7 }}>{v.services}</span>}
+                          {v.servicesIncludingNarrower > 0 && (
+                            <span style={{ marginLeft: '6px', opacity: 0.7 }}>{v.servicesIncludingNarrower}</span>
+                          )}
                         </Link>
                       ))}
                     </div>

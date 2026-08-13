@@ -56,12 +56,13 @@ export type { Narrowed, DimensionSuggestions } from './suggestions';
 export {
   listDimensionsForDomain, createDimension, renameDimension,
   setDimensionActive, deleteDimension, addDimensionValue, removeDimensionValue,
+  setValueParent,
 } from './dimensionsAdmin';
 export type { StudioDimension } from './dimensionsAdmin';
 
 // Reading the dimension graph backwards — the same edges the service form
 // narrows with, entered from the value end. The lens sits on these.
 export {
-  getDimensionValue, listValueEntries, whatCarries, whatCoOccursWith,
+  getDimensionValue, getValuePlace, listValueEntries, whatCarries, whatCoOccursWith,
 } from './traversal';
-export type { Carrier, CoOccurrence, ValueEntry } from './traversal';
+export type { Carrier, CoOccurrence, ValueEntry, ValuePlace } from './traversal';

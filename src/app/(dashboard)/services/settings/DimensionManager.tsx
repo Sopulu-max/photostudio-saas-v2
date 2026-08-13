@@ -4,7 +4,7 @@ import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   listDimensionsForDomain, createDimension, setDimensionActive,
-  deleteDimension, addDimensionValue, removeDimensionValue,
+  deleteDimension, addDimensionValue, removeDimensionValue, setValueParent,
 } from '@/modules/services/interface';
 import type { StudioDimension } from '@/modules/services/interface';
 
@@ -19,6 +19,11 @@ import type { StudioDimension } from '@/modules/services/interface';
  * rename Occasion, switch it off, or delete it, exactly as it can with one it
  * invents. The engine seeds knowledge; it doesn't own the ceiling.
  */
+/** One level of nesting is offered at a time — a value with children of its own
+ *  can't also be tucked inside a third, which keeps the tree readable. */
+const hasChildren = (values: { id: string; parentId: string | null }[], id: string) =>
+  values.some((v) => v.parentId === id);
+
 export function DimensionManager({ domains }: { domains: { id: string; name: string }[] }) {
   const [domainId, setDomainId] = useState(domains[0]?.id || '');
   const [dims, setDims] = useState<StudioDimension[]>([]);
@@ -93,13 +98,53 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
                 </div>
               </div>
 
-              <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                {d.values.map((v) => (
-                  <span key={v.id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }}
-                    title="Remove"
-                    onClick={() => run(() => removeDimensionValue(v.id))}>
-                    {v.name} &times;
-                  </span>
+              {/*
+                * Values, with what sits inside what.
+                *
+                * Saying Beach is an Outdoor is not filing: it changes an answer.
+                * Asking what this studio does outdoors starts including its
+                * beach work, without any service being tagged twice — the Lens
+                * rolls a value up through whatever is nested inside it.
+                */}
+              <div className="q-stack q-stack-sm">
+                {d.values.filter((v) => !v.parentId).map((parent) => (
+                  <div key={parent.id} className="q-row" style={{ flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                    <span className="q-badge q-badge-neutral">{parent.name}</span>
+                    {d.values.filter((v) => v.parentId === parent.id).map((child) => (
+                      <span key={child.id} className="q-badge q-badge-neutral" style={{ opacity: 0.85 }}>
+                        &#8627; {child.name}
+                        <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }}
+                          title={`Take ${child.name} back out of ${parent.name}`}
+                          onClick={() => run(() => setValueParent({ valueId: child.id, parentId: null }))}>
+                          &uarr;
+                        </button>
+                        <button className="q-btn-ghost" style={{ padding: '0 0 0 4px' }}
+                          title="Remove"
+                          onClick={() => run(() => removeDimensionValue(child.id))}>
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                    <select
+                      className="q-select q-input-sm"
+                      value=""
+                      style={{ maxWidth: '11rem' }}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        run(() => setValueParent({ valueId: e.target.value, parentId: parent.id }));
+                      }}
+                    >
+                      <option value="">put inside {parent.name}&hellip;</option>
+                      {d.values
+                        .filter((v) => v.id !== parent.id && v.parentId !== parent.id && !hasChildren(d.values, v.id))
+                        .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                    <button className="q-btn-ghost q-meta-sm" style={{ padding: '0 4px' }}
+                      title={`Remove ${parent.name}`}
+                      onClick={() => run(() => removeDimensionValue(parent.id))}>
+                      &times;
+                    </button>
+                  </div>
                 ))}
                 {d.values.length === 0 && <span className="q-meta-sm">No values yet.</span>}
               </div>
