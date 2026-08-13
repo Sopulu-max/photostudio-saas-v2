@@ -58,3 +58,10 @@ export {
   setDimensionActive, deleteDimension, addDimensionValue, removeDimensionValue,
 } from './dimensionsAdmin';
 export type { StudioDimension } from './dimensionsAdmin';
+
+// Reading the dimension graph backwards — the same edges the service form
+// narrows with, entered from the value end. The lens sits on these.
+export {
+  getDimensionValue, listValueEntries, whatCarries, whatCoOccursWith,
+} from './traversal';
+export type { Carrier, CoOccurrence, ValueEntry } from './traversal';

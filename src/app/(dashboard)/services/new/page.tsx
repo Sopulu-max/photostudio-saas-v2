@@ -9,7 +9,16 @@ import { TemplatePicker } from './TemplatePicker';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewServicePage() {
+/**
+ * `?domain=&dimension=&value=` arrives from the lens: deciding that Birthday is
+ * a genuinely different process should carry Birthday into the new service,
+ * not make you say it again. It also skips the template gallery — the decision
+ * that got you here was already "none of these".
+ */
+export default async function NewServicePage(props: {
+  searchParams: Promise<{ domain?: string; dimension?: string; value?: string }>
+}) {
+  const sp = await props.searchParams;
   try {
     await getAuthOrgId();
   } catch {
@@ -29,6 +38,10 @@ export default async function NewServicePage() {
 
   return (
     <TemplatePicker
+      startFrom={sp.domain || sp.value ? {
+        serviceDomain: sp.domain || '',
+        dimensions: sp.dimension && sp.value ? [{ name: sp.dimension, values: [sp.value] }] : [],
+      } : undefined}
       domainOptions={domains.map((d: any) => d.name)}
       serviceSuggestions={serviceSuggestions}
       deliverableSuggestions={deliverableSuggestions}

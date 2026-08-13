@@ -25,6 +25,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createRole, addEmployee } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
 import { listDimensionsForDomain } from '@/modules/services/dimensionsAdmin';
+import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/services/traversal';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
@@ -773,5 +774,85 @@ describe('Core Loop Verification', () => {
       .toEqual(['Documentary', 'Editorial']);
 
     expect(printId).toBeDefined();
+  }, 120000);
+
+  it('reads the same edges backwards: what carries a value, and what comes with it', async () => {
+    // Three services that overlap on purpose. Nothing below declares a
+    // relationship between any two values — the overlap IS the relationship.
+    const { serviceId: weddingShoot } = await createService({
+      serviceDomain: 'Photography',
+      name: 'Wedding Photography',
+      dimensions: [
+        { name: 'Occasion', values: ['Wedding'] },
+        { name: 'Context', values: ['On-location'] },
+      ],
+    });
+    const { serviceId: weddingFilm } = await createService({
+      serviceDomain: 'Photography',
+      name: 'Wedding Film',
+      dimensions: [
+        { name: 'Occasion', values: ['Wedding'] },
+        { name: 'Context', values: ['On-location'] },
+        { name: 'Subject', values: ['Person'] },
+      ],
+    });
+    await createService({
+      serviceDomain: 'Photography',
+      name: 'Passport Photography',
+      dimensions: [
+        { name: 'Occasion', values: ['None'] },
+        { name: 'Context', values: ['In-studio'] },
+      ],
+    });
+
+    const entries = await listValueEntries();
+    const wedding = entries.find((e) => e.name === 'Wedding' && e.dimensionName === 'Occasion')!;
+    expect(wedding.services).toBe(2);
+    expect(wedding.domainName).toBe('Photography');
+
+    // A value nothing carries is still vocabulary — reported, not hidden.
+    const unused = entries.find((e) => e.name === 'In-studio')!;
+    expect(unused.services).toBe(1);
+
+    // Backwards: what does this studio do for weddings?
+    const carried = await whatCarries(wedding.id);
+    expect(carried.services.map((s) => s.name).sort())
+      .toEqual(['Wedding Film', 'Wedding Photography']);
+
+    // A package that bundles a wedding service answers "what do you sell for
+    // weddings" without having been tagged Wedding itself. The bundle said so.
+    const { packageId } = await createPackage({
+      name: 'Wedding Day Coverage',
+      serviceIds: [weddingShoot, weddingFilm],
+    });
+    const withPackage = await whatCarries(wedding.id);
+    const bundled = withPackage.packages.find((p) => p.id === packageId)!;
+    expect(bundled.via).toBe('bundled');
+    expect(bundled.through!.sort()).toEqual(['Wedding Film', 'Wedding Photography']);
+
+    // Saying it directly makes it direct, and the services that also say it
+    // are still named — both are true and neither is dropped.
+    await updatePackage({ packageId, dimensionValueIds: [wedding.id] });
+    const direct = (await whatCarries(wedding.id)).packages.find((p) => p.id === packageId)!;
+    expect(direct.via).toBe('direct');
+
+    // And the derived half: Wedding relates to On-location because two
+    // services carry both. Nobody typed that anywhere, and nothing stores it.
+    const alongside = await whatCoOccursWith(wedding.id);
+    const onLocation = alongside.find((c) => c.valueName === 'On-location')!;
+    expect(onLocation.dimensionName).toBe('Context');
+    expect(onLocation.services).toBe(2);
+
+    // Only one wedding service is about a Person, so it ranks below.
+    const person = alongside.find((c) => c.valueName === 'Person')!;
+    expect(person.services).toBe(1);
+    expect(alongside.indexOf(onLocation)).toBeLessThan(alongside.indexOf(person));
+
+    // In-studio belongs to the passport service, which is not a wedding.
+    expect(alongside.find((c) => c.valueName === 'In-studio')).toBeUndefined();
+
+    // Nothing from Wedding's own dimension: "some service is both a Wedding
+    // and a None" is a fact about that service, not a relationship.
+    expect(alongside.some((c) => c.dimensionName === 'Occasion')).toBe(false);
   }, 120000);
 });

@@ -15,6 +15,7 @@ import {
   Package,
   DollarSign,
   Layers,
+  Aperture,
   PieChart,
   CheckSquare,
   Settings,
@@ -43,6 +44,9 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Services', href: '/services', icon: Layers },
       { label: 'Packages', href: '/packages', icon: Package },
+      // The same work, entered from how it is classified rather than from what
+      // it is. Nothing is stored for it — it reads existing edges backwards.
+      { label: 'Lens', href: '/lens', icon: Aperture },
       { label: 'Team', href: '/team', icon: Boxes },
     ]
   },

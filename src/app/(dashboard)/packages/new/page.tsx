@@ -7,7 +7,14 @@ import { PackageFieldsEditor } from '../[id]/PackageFieldsEditor';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewPackagePage() {
+/**
+ * `?value=` arrives from the lens: entering at Birthday and choosing to package
+ * what the studio already does should not drop you into a blank form and make
+ * you re-say Birthday. The value is preselected; everything else is the same
+ * builder.
+ */
+export default async function NewPackagePage(props: { searchParams: Promise<{ value?: string }> }) {
+  const sp = await props.searchParams;
   try {
     await getAuthOrgId();
   } catch {
@@ -43,7 +50,7 @@ export default async function NewPackagePage() {
         suggestedDeliverablesByService={suggestedDeliverablesByService}
         dimensionsByDomain={dimensionsByDomain}
         roleOptions={(roles as any[]).map((r) => r.name)}
-        initial={{}}
+        initial={sp.value ? { dimensionValueIds: [sp.value] } : {}}
       />
     </div>
   );

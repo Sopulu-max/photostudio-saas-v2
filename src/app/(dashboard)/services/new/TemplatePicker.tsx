@@ -22,6 +22,7 @@ import { TEMPLATE_DIMENSION_NAMES } from '@/modules/services/interface';
  * minimal data, not just with a curated one.
  */
 export function TemplatePicker({
+  startFrom,
   domainOptions,
   serviceSuggestions,
   deliverableSuggestions,
@@ -29,6 +30,12 @@ export function TemplatePicker({
   outputTypesByDomain,
   dimensionsByDomain,
 }: {
+  /**
+   * Where the lens dropped you — a domain, and what it was already filed under.
+   * Present means the gallery is skipped: whoever arrived this way has already
+   * decided none of the templates is the thing.
+   */
+  startFrom?: { serviceDomain: string; dimensions: { name: string; values: string[] }[] };
   domainOptions: string[];
   serviceSuggestions: Record<string, string[]>;
   deliverableSuggestions: Narrowed;
@@ -37,7 +44,7 @@ export function TemplatePicker({
   dimensionsByDomain: Record<string, StudioDimensionShape[]>;
 }) {
   const [chosen, setChosen] = useState<ServiceTemplate | null>(null);
-  const [custom, setCustom] = useState(false);
+  const [custom, setCustom] = useState(!!startFrom);
   const groups = templatesByDomain();
 
   const pick = async (t: ServiceTemplate) => {
@@ -53,7 +60,11 @@ export function TemplatePicker({
         <header className="q-page-header">
           <div>
             <h1 className="q-page-title">New service</h1>
-            <p className="q-page-subtitle">Nothing filled in for you — start entirely from your own words.</p>
+            <p className="q-page-subtitle">
+              {startFrom?.dimensions?.[0]?.values?.[0]
+                ? `Starting from ${startFrom.dimensions[0].values[0]} — everything else is yours to fill in.`
+                : 'Nothing filled in for you — start entirely from your own words.'}
+            </p>
           </div>
         </header>
         <ServiceFieldsEditor
@@ -64,7 +75,7 @@ export function TemplatePicker({
           dimensionSuggestions={dimensionSuggestions}
           outputTypesByDomain={outputTypesByDomain}
           dimensionsByDomain={dimensionsByDomain}
-          initial={{}}
+          initial={startFrom || {}}
         />
       </div>
     );
