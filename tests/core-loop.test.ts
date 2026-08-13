@@ -24,7 +24,8 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 // Now import the domain functions
 import { createRole, addEmployee } from '@/modules/team/domain';
 import { createServiceDomain, createDeliverable, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
-import { listDimensionsForDomain, setValueParent } from '@/modules/services/dimensionsAdmin';
+import { listDimensionsForDomain, setValueParent, renameDimension } from '@/modules/services/dimensionsAdmin';
+import { listBookingsForDimensionValue } from '@/modules/bookings/domain';
 import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/services/traversal';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
@@ -996,5 +997,55 @@ describe('Core Loop Verification', () => {
 
     // And it stays specific to the service asked about.
     expect(await listPackagesForService(unsold)).toEqual([]);
+  }, 120000);
+
+  it('crosses from the catalogue into what was actually booked', async () => {
+    const { serviceId } = await createService({
+      serviceDomain: 'Photography',
+      name: 'Anniversary Shoot',
+      dimensions: [{ name: 'Occasion', values: ['Anniversary'] }],
+    });
+    const { packageId } = await createPackage({
+      name: 'Anniversary Package', serviceIds: [serviceId], basePrice: 40000,
+    });
+
+    const domains = await listServiceDomains();
+    const photography = (domains as any[]).find((d) => d.name === 'Photography')!;
+    const occasion = (await listDimensionsForDomain(photography.id)).find((d) => d.name === 'Occasion')!;
+    const anniversary = occasion.values.find((v) => v.name === 'Anniversary')!;
+
+    // Classified but not yet sold to anyone: the catalogue says what it could
+    // do, and nothing has been taken on.
+    expect((await listBookingsForDimensionValue(anniversary.id)).bookings).toEqual([]);
+
+    const { contactId } = await createClient({ name: 'Anniversary Client', email: 'anniversary@example.com' });
+    const { bookingId } = await createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId,
+      clientName: 'Anniversary Client',
+      packageId,
+      packageName: 'Anniversary Package',
+    });
+
+    // The booking was never tagged Anniversary. Nothing needed to be: the line
+    // points at the package, the package bundles the service, the service says
+    // Anniversary — the chain was already complete.
+    const booked = await listBookingsForDimensionValue(anniversary.id);
+    expect(booked.bookings.map((b) => b.id)).toEqual([bookingId]);
+    expect(booked.bookings[0].clientName).toBe('Anniversary Client');
+    expect(booked.total).toBe(40000);
+
+    // Two lines on one booking is one job, and the money adds up.
+    await addBookingLine({ bookingId, packageId, title: 'Second day', price: { base_price: 15000 } });
+    const again = await listBookingsForDimensionValue(anniversary.id);
+    expect(again.bookings).toHaveLength(1);
+    expect(again.total).toBe(55000);
+
+    // Read live: renaming the value re-reads the same history rather than
+    // orphaning it behind a word the studio has stopped using. That is the
+    // reason this is derived and not snapshotted, so it is worth pinning.
+    await renameDimension({ dimensionId: occasion.id, name: 'Milestone' });
+    const afterRename = await listBookingsForDimensionValue(anniversary.id);
+    expect(afterRename.bookings.map((b) => b.id)).toEqual([bookingId]);
   }, 120000);
 });

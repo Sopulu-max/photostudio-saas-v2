@@ -87,17 +87,19 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
         <div className="q-card q-section">
           <h2 className="q-section-title">Bundled Services</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>What this package delivers, derived from its services.</p>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
           ) : (
-            <div className="q-grid-cards">
+            <div className="q-stack q-stack-md">
               {services.map((s: any) => {
-                const allTags = [
-                  ...(s.subjects || []), ...(s.occasions || []), ...(s.contexts || []), 
-                  ...(s.purposes || []), ...(s.clientTypes || [])
-                ];
+                const serviceVariables = ((pkg as any).variableValues || []).filter((v: any) => v.serviceId === s.id);
+                // Base deliverables for this service that are promised in this package
+                const baseDeliverables = deliverables.filter((d: any) => s.deliverables?.some((sd: any) => sd.id === d.id));
+                const serviceTags = (s.dimensions || []).flatMap((d: any) => d.values);
+
                 return (
-                  <div key={s.id} className="q-card q-stack" style={{ borderColor: 'var(--q-color-primary-light)', backgroundColor: 'var(--q-color-paper)' }}>
+                  <div key={s.id} className="q-card q-stack" style={{ borderColor: 'var(--q-color-primary)', backgroundColor: 'var(--q-color-paper)', padding: '16px' }}>
                     <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                       <div>
                         <h3 className="q-section-title">{s.name}</h3>
@@ -105,19 +107,48 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                       </div>
                       <Package size={20} color="var(--q-color-primary)" />
                     </div>
-                    {s.description && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
+                    {s.description && <p className="q-text-body" style={{ marginTop: '8px', color: 'var(--q-color-ink-700)' }}>{s.description}</p>}
                     
-                    <div style={{ marginTop: '8px' }}>
-                      {s.deliverables && s.deliverables.length > 0 && (
-                        <div className="q-meta-sm" style={{ marginBottom: '4px' }}>
-                          <strong>Produces:</strong> {s.deliverables.map((d: any) => d.name).join(', ')}
+                    {serviceTags.length > 0 && (
+                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '12px' }}>
+                        {serviceTags.map((t: any) => (
+                          <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.7rem' }}>{t.name}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="q-grid-cards" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
+                      {/* Variables */}
+                      {serviceVariables.length > 0 && (
+                        <div className="q-stack q-stack-sm">
+                          <h4 className="q-strong">Included in this bundle</h4>
+                          <div className="q-stack" style={{ gap: '4px' }}>
+                            {serviceVariables.map((v: any) => (
+                              <div key={v.serviceVariableId} className="q-row q-row-between q-tile" style={{ padding: '8px 12px' }}>
+                                <span className="q-meta-plain">{v.label}</span>
+                                <span className="q-strong">{formatVariableValue(v)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
-                      {allTags.length > 0 && (
-                        <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
-                          {allTags.map((t: any) => (
-                            <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
-                          ))}
+                      
+                      {/* Base Deliverables */}
+                      {baseDeliverables.length > 0 && (
+                        <div className="q-stack q-stack-sm">
+                          <h4 className="q-strong">Base Outputs</h4>
+                          <div className="q-stack" style={{ gap: '4px' }}>
+                            {baseDeliverables.map((d: any) => (
+                              <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
+                                <div className="q-strong">{d.name}</div>
+                                {(d.quantity || d.spec) && (
+                                  <div className="q-meta-sm" style={{ marginTop: '2px' }}>
+                                    Reads as: {formatDeliverable(d)}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -127,17 +158,18 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             </div>
           )}
         </div>
-        
-        {/* What this package fixes. Anything the services declare but the
-            package leaves open is asked at booking, so it is absent here. */}
-        {((pkg as any).variableValues || []).length > 0 && (
+
+        {((pkg as any).dimensions || []).length > 0 && (
           <div className="q-card q-section">
-            <h2 className="q-section-title">What&rsquo;s included</h2>
-            <div className="q-row" style={{ flexWrap: 'wrap', marginTop: '12px' }}>
-              {((pkg as any).variableValues as any[]).map((v) => (
-                <span key={v.serviceVariableId} className="q-badge q-badge-neutral">
-                  {v.label}: {formatVariableValue(v)}
-                </span>
+            <h2 className="q-section-title">Classifications</h2>
+            <div className="q-grid-3">
+              {((pkg as any).dimensions as any[]).map(d => (
+                <div key={d.id} className="q-panel">
+                  <div className="q-stat-label">{d.name}</div>
+                  <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                    {d.values.map((v: any) => <span key={v.id} className="q-badge q-badge-neutral">{v.name}</span>)}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -145,31 +177,42 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
         <div className="q-grid-2">
           <div className="q-card q-section">
-            <h2 className="q-section-title">Deliverables</h2>
-            {deliverables.length === 0 && containers.length === 0 ? (
-              <p className="q-text-meta">No deliverables explicitly defined.</p>
-            ) : (
-              <div className="q-stack q-stack-sm">
-                {deliverables.length > 0 && (
-                  <div>
-                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Outputs</div>
-                    <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
-                      {deliverables.map((d: any) => <li key={d.id} style={{ marginBottom: '4px' }}>{formatDeliverable(d)}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {containers.length > 0 && (
-                  <div style={{ marginTop: deliverables.length > 0 ? '16px' : '0' }}>
-                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Delivery Method</div>
-                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                      {containers.map((d: any) => <span key={d.id} className="q-badge q-badge-neutral">{d.name}</span>)}
+            <h2 className="q-section-title">Extra Outputs & Delivery</h2>
+            {(() => {
+              // Extra deliverables are those NOT in any service's base deliverables
+              const extraDeliverables = deliverables.filter((d: any) => !services.some((s: any) => s.deliverables?.some((sd: any) => sd.id === d.id)));
+              if (extraDeliverables.length === 0 && containers.length === 0) {
+                return <p className="q-text-meta">No extra deliverables or containers defined.</p>;
+              }
+              return (
+                <div className="q-stack q-stack-sm">
+                  {extraDeliverables.length > 0 && (
+                    <div>
+                      <div className="q-stat-label" style={{ marginBottom: '8px' }}>Ad-hoc Outputs</div>
+                      <div className="q-stack" style={{ gap: '4px' }}>
+                        {extraDeliverables.map((d: any) => (
+                          <div key={d.id} className="q-tile" style={{ padding: '6px 12px' }}>
+                            <div className="q-strong">{d.name}</div>
+                            {(d.quantity || d.spec) && (
+                              <div className="q-meta-sm">Reads as: {formatDeliverable(d)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                  {containers.length > 0 && (
+                    <div style={{ marginTop: extraDeliverables.length > 0 ? '16px' : '0' }}>
+                      <div className="q-stat-label" style={{ marginBottom: '8px' }}>Delivery Containers</div>
+                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                        {containers.map((d: any) => <span key={d.id} className="q-badge q-badge-neutral">{d.name}</span>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
-
           <div className="q-card q-section">
             <h2 className="q-section-title">Production Plan</h2>
             {workflows.length === 0 && extraStages.length === 0 ? (

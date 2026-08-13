@@ -262,12 +262,16 @@ export async function findOrCreateRole(name: string): Promise<string | null> {
     .from('roles')
     .insert({ organization_id: orgId, name: clean })
     .select('id')
-    .single();
-  if (error || !created) {
+    .maybeSingle();
+  if (error) {
+    if (error.code === '23505') {
+      const { data: retry } = await supabaseAdmin.from('roles').select('id').eq('organization_id', orgId).eq('name', clean).maybeSingle();
+      if (retry) return retry.id;
+    }
     console.error('Failed to create role:', error);
     return null;
   }
-  return created.id;
+  return created?.id ?? null;
 }
 
 export async function createRole(input: { name: string; description?: string }) {

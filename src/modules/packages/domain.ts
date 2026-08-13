@@ -572,7 +572,7 @@ export async function getPackage(packageId: string) {
     package_delivery_containers(container:delivery_containers(id, name)),
     package_workflows(blueprint:blueprints(id, name, stages)),
     package_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
-    package_variable_values(value, variable:service_variables(id, key, label, unit, kind))
+    package_variable_values(value, variable:service_variables(id, service_id, key, label, unit, kind))
   `).eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!data) return null;
   const p: any = data;
@@ -595,9 +595,11 @@ export async function getPackage(packageId: string) {
       .filter((pv: any) => pv.variable)
       .map((pv: any) => ({
         serviceVariableId: pv.variable.id,
+        serviceId: pv.variable.service_id,
         key: pv.variable.key,
         label: pv.variable.label,
         unit: pv.variable.unit ?? null,
+        kind: pv.variable.kind,
         value: pv.value,
       })),
   };

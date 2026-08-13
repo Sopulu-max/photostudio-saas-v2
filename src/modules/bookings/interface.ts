@@ -12,6 +12,9 @@ export {
   getBooking,
   listBookings,
   getBookingCountsByContact,
+  // The dimension graph's one crossing into real work: what was actually booked
+  // under a classification. Lives here because the chain ends here.
+  listBookingsForDimensionValue,
   // What a line is actually configured as — the offer plus the client's answers
   setLineConfiguration,
   getLineConfiguration,

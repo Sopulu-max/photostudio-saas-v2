@@ -19,6 +19,7 @@ export async function createBooking(input: {
   linePrice?: Record<string, unknown>;
   scheduledFor?: string | null;
   title?: string;
+  variableAnswers?: { serviceVariableId: string; value: unknown }[];
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -81,7 +82,13 @@ export async function createBooking(input: {
 
   // A chosen package becomes the booking's first line straight away.
   if (input.packageId) {
-    await addBookingLine({ bookingId: booking.id, packageId: input.packageId, title: '', price: input.linePrice });
+    await addBookingLine({ 
+      bookingId: booking.id, 
+      packageId: input.packageId, 
+      title: '', 
+      price: input.linePrice,
+      variableAnswers: input.variableAnswers,
+    });
   }
 
   revalidatePath('/bookings');
@@ -368,6 +375,7 @@ export async function getLineConfigurationForm(lineId: string) {
     const current = byId.get(v.id);
     return {
       serviceVariableId: v.id,
+      serviceId: v.serviceId as string,
       key: v.key,
       label: v.label,
       kind: v.kind as string,
@@ -388,6 +396,7 @@ export async function getLineConfigurationForm(lineId: string) {
     if (seen.has(h.serviceVariableId)) continue;
     fields.push({
       serviceVariableId: h.serviceVariableId,
+      serviceId: h.serviceVariableId, // Not strictly true, but a fallback for orphaned variables
       key: h.key,
       label: h.label,
       kind: 'text',
@@ -463,6 +472,7 @@ export async function addBookingLine(input: {
   title: string;
   price?: Record<string, unknown>;
   quantity?: number;
+  variableAnswers?: { serviceVariableId: string; value: unknown }[];
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -504,7 +514,13 @@ export async function addBookingLine(input: {
   // A line added from a package inherits that package's scope immediately, so
   // the booking says what was sold without waiting for anyone to confirm it.
   if (input.packageId) {
-    await setLineConfiguration({ bookingId: input.bookingId, lineId: line.id, source: 'studio', organizationId: orgId });
+    await setLineConfiguration({ 
+      bookingId: input.bookingId, 
+      lineId: line.id, 
+      answers: input.variableAnswers,
+      source: 'studio', 
+      organizationId: orgId 
+    });
   }
 
   await logEvent({
@@ -1446,6 +1462,113 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
   }
 
   return rows;
+}
+
+/**
+ * What was actually booked under a classification — the dimension graph's first
+ * crossing from the catalogue into real work.
+ *
+ * The chain already exists and holds every hop: a booking line points at a
+ * package, a package carries values itself or bundles services that do, and a
+ * value rolls up through whatever is nested inside it. So "what did we take on
+ * for Birthdays this quarter" is four joins over rows that were already there,
+ * and no booking has ever needed a classification of its own.
+ *
+ * DERIVED LIVE, DELIBERATELY, AND IT IS A REAL TRADE-OFF.
+ *
+ * A booking line snapshots its price and what varied, because those are what
+ * the client agreed to and must never move. Classification is not part of the
+ * agreement — it is how the studio thinks about its own work. Renaming Birthday
+ * to Celebration should re-read every past booking as Celebration; that is the
+ * point of a value being a row rather than a string, and a snapshot would leave
+ * half the history speaking a word the studio has abandoned.
+ *
+ * The cost, stated plainly rather than hidden: RE-TAGGING a package — not
+ * renaming, but deciding a Wedding package is now an Engagement package — moves
+ * past bookings with it. If that becomes a problem in practice, the fix is a
+ * snapshot written at line creation, not a patch here.
+ */
+export async function listBookingsForDimensionValue(valueId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  // Rolled up, so asking about Outdoor finds the beach work — the same rule
+  // every other read of this graph follows.
+  const { getValuePlace } = await import('@/modules/services/interface');
+  const { narrowerIds } = await getValuePlace(valueId);
+
+  // Packages that say it themselves.
+  const { data: direct } = await supabaseAdmin
+    .from('package_dimension_values')
+    .select('package_id')
+    .eq('organization_id', orgId)
+    .in('dimension_value_id', narrowerIds);
+
+  // Packages that bundle a service that says it. The bundle already said so.
+  const { data: taggedServices } = await supabaseAdmin
+    .from('service_dimension_values')
+    .select('service_id')
+    .eq('organization_id', orgId)
+    .in('dimension_value_id', narrowerIds);
+
+  const serviceIds = [...new Set(((taggedServices || []) as any[]).map((r) => r.service_id))];
+  let bundled: any[] = [];
+  if (serviceIds.length > 0) {
+    const { data } = await supabaseAdmin
+      .from('package_services')
+      .select('package_id')
+      .eq('organization_id', orgId)
+      .in('service_id', serviceIds);
+    bundled = data || [];
+  }
+
+  const packageIds = [...new Set([
+    ...((direct || []) as any[]).map((r) => r.package_id),
+    ...bundled.map((r) => r.package_id),
+  ])];
+  if (packageIds.length === 0) return { bookings: [], total: 0 };
+
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, title, price, quantity, package_id, booking:bookings(id, title, title_custom, scheduled_for, contact:contacts(display_name)), package:packages(name)')
+    .eq('organization_id', orgId)
+    .in('package_id', packageIds);
+
+  // One row per booking, because a booking with two Birthday lines is one
+  // birthday job, not two — but the money is the sum of the lines.
+  const byBooking = new Map<string, {
+    id: string; title: string; scheduledFor: string | null; clientName: string | null;
+    packages: string[]; total: number;
+  }>();
+
+  for (const l of ((lines || []) as any[])) {
+    const b = l.booking;
+    if (!b) continue;
+    // `price` is the JSONB snapshot of what the package cost when it was sold,
+    // read the same way invoices and contracts read it.
+    const amount = Number((l.price as any)?.base_price || 0) * Number(l.quantity ?? 1);
+    const existing = byBooking.get(b.id);
+    if (existing) {
+      existing.total += amount;
+      if (l.package?.name && !existing.packages.includes(l.package.name)) existing.packages.push(l.package.name);
+      continue;
+    }
+    byBooking.set(b.id, {
+      id: b.id,
+      title: b.title_custom || b.title || 'Booking',
+      scheduledFor: b.scheduled_for ?? null,
+      clientName: b.contact?.display_name ?? null,
+      packages: l.package?.name ? [l.package.name] : [],
+      total: amount,
+    });
+  }
+
+  const bookings = [...byBooking.values()].sort((a, b) => {
+    if (!a.scheduledFor) return 1;
+    if (!b.scheduledFor) return -1;
+    return b.scheduledFor.localeCompare(a.scheduledFor);
+  });
+
+  return { bookings, total: bookings.reduce((sum, b) => sum + b.total, 0) };
 }
 
 export async function extractPackageFromEnquiry(bookingId: string) {

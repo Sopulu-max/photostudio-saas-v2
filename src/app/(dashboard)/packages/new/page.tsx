@@ -21,7 +21,7 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     redirect('/login');
   }
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, listDimensionsByDomain } = await import('@/modules/services/interface');
+  const { listDeliverables, listDeliveryContainers, listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
   const [allServices, roles, currencyCode, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints(),
     listDimensionsByDomain(),
@@ -31,6 +31,8 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
   for (const s of (allServices as any[])) {
     suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
   }
+
+  const allVariables = await listVariablesForServices((allServices as any[]).map(s => s.id));
 
   return (
     <div className="q-page-narrow">
@@ -44,13 +46,14 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         mode="create"
         currencyCode={currencyCode}
         allServices={allServices as any}
+        allVariables={allVariables as any}
         allDeliverables={allDeliverables as any}
         allContainers={allContainers as any}
         allWorkflows={allWorkflows as any}
         suggestedDeliverablesByService={suggestedDeliverablesByService}
         dimensionsByDomain={dimensionsByDomain}
         roleOptions={(roles as any[]).map((r) => r.name)}
-        initial={sp.value ? { dimensionValueIds: [sp.value] } : {}}
+        initial={sp.value ? { dimensionValueIds: [sp.value], variableValues: [] } : { variableValues: [] }}
       />
     </div>
   );

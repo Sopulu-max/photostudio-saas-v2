@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getDimensionValue, getValuePlace, whatCarries, whatCoOccursWith } from '@/modules/services/interface';
-import { Layers, Package as PackageIcon } from 'lucide-react';
+import { listBookingsForDimensionValue } from '@/modules/bookings/interface';
+import { getStudioCurrency } from '@/kernel/organizations';
+import { formatMoney } from '@/kernel/currency';
+import { Layers, Package as PackageIcon, CalendarCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,10 +38,12 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
   const value = await getDimensionValue(params.valueId);
   if (!value) notFound();
 
-  const [place, carried, alongside] = await Promise.all([
+  const [place, carried, alongside, booked, currency] = await Promise.all([
     getValuePlace(params.valueId),
     whatCarries(params.valueId),
     whatCoOccursWith(params.valueId),
+    listBookingsForDimensionValue(params.valueId),
+    getStudioCurrency(),
   ]);
 
   const activeServices = carried.services.filter((s) => s.status !== 'retired');
@@ -136,6 +141,48 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
               ))}
             </div>
           )}
+        </section>
+
+        {/*
+          * The catalogue meeting real work. Every other section on this page
+          * describes what the studio COULD do; this one is what it actually
+          * took on, and it needed no new fact — a line points at a package,
+          * a package carries values, and that was already the whole chain.
+          */}
+        <section className="q-card q-section">
+          <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+            <h2 className="q-section-title">What you&rsquo;ve actually booked</h2>
+            {booked.total > 0 && (
+              <span className="q-num q-strong">{formatMoney(booked.total, currency)}</span>
+            )}
+          </div>
+          {booked.bookings.length === 0 ? (
+            <p className="q-empty">
+              Nothing booked under {value.name} yet — what you can do for it is above.
+            </p>
+          ) : (
+            <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
+              {booked.bookings.map((b) => (
+                <Link key={b.id} href={`/bookings/${b.id}`} className="q-tile q-row q-row-between">
+                  <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <CalendarCheck size={16} opacity={0.5} />
+                    <strong className="q-strong">{b.title}</strong>
+                    {b.clientName && <span className="q-meta-sm">{b.clientName}</span>}
+                    {b.scheduledFor && (
+                      <span className="q-meta-sm">
+                        {new Date(b.scheduledFor).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </span>
+                  {b.total > 0 && <span className="q-num">{formatMoney(b.total, currency)}</span>}
+                </Link>
+              ))}
+            </div>
+          )}
+          <p className="q-meta-sm" style={{ marginTop: '12px', opacity: 0.7 }}>
+            Read live from how you classify things today. Renaming {value.name} re-reads every booking
+            above; moving a package to a different classification moves its history with it.
+          </p>
         </section>
 
         <section className="q-card q-section">

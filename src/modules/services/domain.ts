@@ -50,9 +50,16 @@ async function findOrCreateNamed(table: NamedTable, orgId: string, name: string)
   const { data: existing } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).eq('name', clean).maybeSingle();
   if (existing) return existing.id;
   const { data: last } = await supabaseAdmin.from(table).select('position').eq('organization_id', orgId).order('position', { ascending: false }).limit(1).maybeSingle();
-  const { data: created, error } = await supabaseAdmin.from(table).insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 }).select('id').single();
-  if (error || !created) { console.error(`Failed to create ${table} value:`, error); return null; }
-  return created.id;
+  const { data: created, error } = await supabaseAdmin.from(table).insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 }).select('id').maybeSingle();
+  if (error) {
+    if (error.code === '23505') {
+      const { data: retry } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).eq('name', clean).maybeSingle();
+      if (retry) return retry.id;
+    }
+    console.error(`Failed to create ${table} value:`, error);
+    return null;
+  }
+  return created?.id ?? null;
 }
 
 /**
@@ -91,9 +98,16 @@ async function resolveDimensionValueId(
     const { data: made, error } = await supabaseAdmin
       .from('dimensions')
       .insert({ organization_id: orgId, service_domain_id: domainId, name: dimName, position: ((last?.position as number) ?? -1) + 1 })
-      .select('id').single();
-    if (error) { console.error('Failed to create dimension:', error); return null; }
-    dimensionId = made?.id;
+      .select('id').maybeSingle();
+    if (error) {
+      if (error.code === '23505') {
+        const { data: retry } = await supabaseAdmin.from('dimensions').select('id').eq('organization_id', orgId).eq('service_domain_id', domainId).ilike('name', dimName).maybeSingle();
+        dimensionId = retry?.id;
+      }
+      if (!dimensionId) { console.error('Failed to create dimension:', error); return null; }
+    } else {
+      dimensionId = made?.id;
+    }
   }
   if (!dimensionId) return null;
 
@@ -109,8 +123,14 @@ async function resolveDimensionValueId(
   const { data: madeValue, error: valueError } = await supabaseAdmin
     .from('dimension_values')
     .insert({ organization_id: orgId, dimension_id: dimensionId, name: value, position: ((lastValue?.position as number) ?? -1) + 1 })
-    .select('id').single();
-  if (valueError) { console.error('Failed to create dimension value:', valueError); return null; }
+    .select('id').maybeSingle();
+  if (valueError) {
+    if (valueError.code === '23505') {
+      const { data: retryValue } = await supabaseAdmin.from('dimension_values').select('id').eq('dimension_id', dimensionId).ilike('name', value).maybeSingle();
+      if (retryValue) return retryValue.id as string;
+    }
+    console.error('Failed to create dimension value:', valueError); return null;
+  }
   return (madeValue?.id as string) ?? null;
 }
 
@@ -193,9 +213,15 @@ async function findOrCreateOutputType(orgId: string, domainId: string, name: str
   const { data: created, error } = await supabaseAdmin
     .from('deliverables')
     .insert({ organization_id: orgId, service_domain_id: domainId, name: clean, position: ((last?.position as number) ?? -1) + 1 })
-    .select('id').single();
-  if (error) { console.error('Failed to create output type:', error); return null; }
-  return created.id as string;
+    .select('id').maybeSingle();
+  if (error) {
+    if (error.code === '23505') {
+      const { data: retry } = await supabaseAdmin.from('deliverables').select('id').eq('organization_id', orgId).eq('service_domain_id', domainId).ilike('name', clean).maybeSingle();
+      if (retry) return retry.id as string;
+    }
+    console.error('Failed to create output type:', error); return null;
+  }
+  return (created?.id as string) ?? null;
 }
 
 type Facet = { id: string; name: string; position: number };

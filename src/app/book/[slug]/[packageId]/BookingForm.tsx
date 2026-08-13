@@ -363,82 +363,107 @@ export function BookingForm({
                       <div className="q-stack q-stack-lg">
                         {/* What the package left open. Asked first because these
                             decide the shape of the job, not just its context. */}
-                        {openVariables.map((v: any) => {
-                          const val = variableAnswers[v.id] ?? '';
-                          const set = (raw: string) => setVariableAnswers({ ...variableAnswers, [v.id]: raw });
-                          return (
-                            <div className="q-field" key={v.id}>
-                              <label className="q-label">
-                                {v.label}
-                                {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
-                              </label>
-                              {v.kind === 'number' && (
-                                <input
-                                  className="q-input q-input-lg" type="number" value={val}
-                                  min={v.min ?? undefined} max={v.max ?? undefined}
-                                  onChange={(e) => set(e.target.value)}
-                                  placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
-                                />
-                              )}
-                              {v.kind === 'choice' && (
-                                <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                                  <option value="">Choose…</option>
-                                  {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                </select>
-                              )}
-                              {v.kind === 'boolean' && (
-                                <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                                  <option value="">Choose…</option>
-                                  <option value="true">Yes</option>
-                                  <option value="false">No</option>
-                                </select>
-                              )}
-                              {v.kind === 'text' && (
-                                <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
-                              )}
-                            </div>
-                          );
-                        })}
-                        {formSchema.map((field: any) => {
-                          const def = fieldType(field.type);
-                          const value = customFields[field.id];
-                          const set = (v: any) => setCustomFields({ ...customFields, [field.id]: v });
-                          return (
-                            <div className="q-field" key={field.id}>
-                              <label className="q-label" style={{ fontSize: '1rem', marginBottom: '12px' }}>
-                                {field.label} {field.required && <span className="q-danger">*</span>}
-                              </label>
-                              {field.type === 'textarea' ? (
-                                <textarea className="q-textarea q-input-lg" required={field.required} rows={4} value={value || ''} onChange={(e) => set(e.target.value)} />
-                              ) : field.type === 'boolean' ? (
-                                <label className="q-row q-meta-plain" style={{ gap: '12px', padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', fontSize: '1rem' }}>
-                                  <input type="checkbox" checked={value === true} onChange={(e) => set(e.target.checked)} style={{ accentColor: 'var(--q-color-accent)', width: '20px', height: '20px' }} />
-                                  Yes
-                                </label>
-                              ) : field.type === 'choice' ? (
-                                <select className="q-select q-input-lg" required={field.required} value={value || ''} onChange={(e) => set(e.target.value)}>
-                                  <option value="">Choose…</option>
-                                  {(field.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                </select>
-                              ) : field.type === 'multichoice' ? (
-                                <div className="q-stack q-stack-sm">
-                                  {(field.options || []).map((o: string) => {
-                                    const picked: string[] = Array.isArray(value) ? value : [];
-                                    return (
-                                      <label key={o} className="q-row q-meta-plain" style={{ gap: '12px', padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', fontSize: '1rem' }}>
-                                        <input type="checkbox" checked={picked.includes(o)} onChange={(e) => set(e.target.checked ? [...picked, o] : picked.filter((x) => x !== o))} style={{ accentColor: 'var(--q-color-accent)', width: '20px', height: '20px' }} />
-                                        {o}
+                        {(() => {
+                          if (!openVariables || openVariables.length === 0) return null;
+                          
+                          const byService = new Map<string, any[]>();
+                          for (const v of openVariables) {
+                            const svcName = v.serviceName || 'Details';
+                            const list = byService.get(svcName) || [];
+                            list.push(v);
+                            byService.set(svcName, list);
+                          }
+                          
+                          return Array.from(byService.entries()).map(([serviceName, vars]) => (
+                            <div key={serviceName} className="q-stack q-stack-sm" style={{ padding: '24px', background: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
+                              <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{serviceName}</h3>
+                              <div className="q-stack q-stack-md">
+                                {vars.map((v: any) => {
+                                  const val = variableAnswers[v.id] ?? '';
+                                  const set = (raw: string) => setVariableAnswers({ ...variableAnswers, [v.id]: raw });
+                                  return (
+                                    <div className="q-field" key={v.id}>
+                                      <label className="q-label" style={{ fontSize: '0.95rem' }}>
+                                        {v.label}
+                                        {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
                                       </label>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <input className="q-input q-input-lg" type={def.inputType || 'text'} required={field.required} value={value ?? ''} onChange={(e) => set(e.target.value)} />
-                              )}
-                              {field.help && <span className="q-meta" style={{ marginTop: '8px' }}>{field.help}</span>}
+                                      {v.kind === 'number' && (
+                                        <input
+                                          className="q-input q-input-lg" type="number" value={val}
+                                          min={v.min ?? undefined} max={v.max ?? undefined}
+                                          onChange={(e) => set(e.target.value)}
+                                          placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
+                                        />
+                                      )}
+                                      {v.kind === 'choice' && (
+                                        <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                                          <option value="">Choose…</option>
+                                          {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                        </select>
+                                      )}
+                                      {v.kind === 'boolean' && (
+                                        <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                                          <option value="">Choose…</option>
+                                          <option value="true">Yes</option>
+                                          <option value="false">No</option>
+                                        </select>
+                                      )}
+                                      {v.kind === 'text' && (
+                                        <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          );
-                        })}
+                          ));
+                        })()}
+
+                        {formSchema.length > 0 && (
+                          <div className="q-stack q-stack-md" style={{ padding: '24px', background: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
+                            <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>General Questions</h3>
+                            {formSchema.map((field: any) => {
+                              const def = fieldType(field.type);
+                              const value = customFields[field.id];
+                              const set = (v: any) => setCustomFields({ ...customFields, [field.id]: v });
+                              return (
+                                <div className="q-field" key={field.id}>
+                                  <label className="q-label" style={{ fontSize: '0.95rem', marginBottom: '8px' }}>
+                                    {field.label} {field.required && <span className="q-danger">*</span>}
+                                  </label>
+                                  {field.type === 'textarea' ? (
+                                    <textarea className="q-textarea q-input-lg" required={field.required} rows={4} value={value || ''} onChange={(e) => set(e.target.value)} />
+                                  ) : field.type === 'boolean' ? (
+                                    <label className="q-row q-meta-plain" style={{ gap: '12px', padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', fontSize: '1rem' }}>
+                                      <input type="checkbox" checked={value === true} onChange={(e) => set(e.target.checked)} style={{ accentColor: 'var(--q-color-accent)', width: '20px', height: '20px' }} />
+                                      Yes
+                                    </label>
+                                  ) : field.type === 'choice' ? (
+                                    <select className="q-select q-input-lg" required={field.required} value={value || ''} onChange={(e) => set(e.target.value)}>
+                                      <option value="">Choose…</option>
+                                      {(field.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                  ) : field.type === 'multichoice' ? (
+                                    <div className="q-stack q-stack-sm">
+                                      {(field.options || []).map((o: string) => {
+                                        const picked: string[] = Array.isArray(value) ? value : [];
+                                        return (
+                                          <label key={o} className="q-row q-meta-plain" style={{ gap: '12px', padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={picked.includes(o)} onChange={(e) => set(e.target.checked ? [...picked, o] : picked.filter((x) => x !== o))} style={{ accentColor: 'var(--q-color-accent)', width: '20px', height: '20px' }} />
+                                            {o}
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <input className="q-input q-input-lg" type={def.inputType || 'text'} required={field.required} value={value ?? ''} onChange={(e) => set(e.target.value)} />
+                                  )}
+                                  {field.help && <span className="q-meta" style={{ marginTop: '8px' }}>{field.help}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
 

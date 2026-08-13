@@ -197,6 +197,9 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
   const [packageId, setPackageId] = useState('');
   const [selectedTierLabel, setSelectedTierLabel] = useState<string>('');
   const [when, setWhen] = useState('');
+  const [openVariables, setOpenVariables] = useState<any[]>([]);
+  const [variableAnswers, setVariableAnswers] = useState<Record<string, string>>({});
+  const [isLoadingVariables, setIsLoadingVariables] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -213,6 +216,17 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
   const handlePackageSelect = (pId: string) => {
     setPackageId(pId);
     setSelectedTierLabel('');
+    setOpenVariables([]);
+    setVariableAnswers({});
+    if (pId) {
+      setIsLoadingVariables(true);
+      import('./new/actions').then(({ getOpenVariablesForBookingIntake }) => {
+        getOpenVariablesForBookingIntake(pId).then((vars) => {
+          setOpenVariables(vars);
+          setIsLoadingVariables(false);
+        }).catch(() => setIsLoadingVariables(false));
+      });
+    }
   };
 
   const create = () =>
@@ -245,16 +259,27 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
           }
         }
 
+        const answersList = Object.entries(variableAnswers)
+          .filter(([_, value]) => value !== '')
+          .map(([id, value]) => {
+            const def = openVariables.find(v => v.id === id);
+            let parsedValue: unknown = value;
+            if (def?.kind === 'number') parsedValue = Number(value);
+            if (def?.kind === 'boolean') parsedValue = value === 'yes';
+            return { serviceVariableId: id, value: parsedValue };
+          });
+
         const { bookingId } = await createBooking({
           contactId: finalContactId,
           packageId: packageId || null,
           linePrice,
           scheduledFor: when ? new Date(when).toISOString() : null,
+          variableAnswers: answersList,
         });
         router.push(`/bookings/${bookingId}`);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to create the booking.');
+        alert(e.message || 'Something went wrong');
       }
     });
 
@@ -390,6 +415,71 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {selectedPackage && isLoadingVariables && (
+        <div className="q-meta" style={{ padding: '24px', textAlign: 'center' }}>Loading package details…</div>
+      )}
+
+      {selectedPackage && !isLoadingVariables && openVariables.length > 0 && (
+        <div className="q-stack q-stack-lg" style={{ marginTop: '24px' }}>
+          <h2 className="q-title">Intake Details</h2>
+          <div className="q-meta" style={{ marginTop: '-12px', marginBottom: '12px' }}>Fill in what you know now. You can answer the rest later.</div>
+          
+          {(() => {
+            const byService = new Map<string, any[]>();
+            for (const v of openVariables) {
+              const svcName = v.serviceName || 'Details';
+              const list = byService.get(svcName) || [];
+              list.push(v);
+              byService.set(svcName, list);
+            }
+            
+            return Array.from(byService.entries()).map(([serviceName, vars]) => (
+              <div key={serviceName} className="q-stack q-stack-sm" style={{ padding: '24px', background: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{serviceName}</h3>
+                <div className="q-stack q-stack-md">
+                  {vars.map((v: any) => {
+                    const val = variableAnswers[v.id] ?? '';
+                    const set = (raw: string) => setVariableAnswers({ ...variableAnswers, [v.id]: raw });
+                    return (
+                      <div className="q-field" key={v.id}>
+                        <label className="q-label" style={{ fontSize: '0.95rem' }}>
+                          {v.label}
+                          {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
+                        </label>
+                        {v.kind === 'number' && (
+                          <input
+                            className="q-input q-input-lg" type="number" value={val}
+                            min={v.min ?? undefined} max={v.max ?? undefined}
+                            onChange={(e) => set(e.target.value)}
+                            placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
+                          />
+                        )}
+                        {v.kind === 'choice' && (
+                          <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                            <option value="">Leave blank</option>
+                            {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        )}
+                        {v.kind === 'boolean' && (
+                          <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
+                            <option value="">Leave blank</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        )}
+                        {v.kind === 'text' && (
+                          <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ));
+          })()}
         </div>
       )}
 

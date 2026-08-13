@@ -34,12 +34,11 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
     suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
   }
 
-  // Only the variables of the services this package actually bundles — the
-  // editor cannot offer anything the package has no right to fix.
-  const bundledServices = ((pkg as any).services || []) as { id: string; name: string }[];
-  const serviceNameById = new Map(bundledServices.map((s) => [s.id, s.name]));
-  const bundledVariables = (await listVariablesForServices(bundledServices.map((s) => s.id)))
-    .map((v: any) => ({ ...v, serviceName: serviceNameById.get(v.serviceId) || 'Service' }));
+  const allVariables = (await listVariablesForServices(allServices.map((s: any) => s.id)))
+    .map((v: any) => {
+      const sName = (allServices as any[]).find(s => s.id === v.serviceId)?.name || 'Service';
+      return { ...v, serviceName: sName };
+    });
 
   const pricing: any = pkg.pricing || {};
   const hasPrice = pricing.base_price != null;
@@ -64,6 +63,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           status={pkg.status}
           currencyCode={currencyCode}
           allServices={allServices as any}
+          allVariables={allVariables as any}
           allDeliverables={allDeliverables as any}
           allContainers={allContainers as any}
           allWorkflows={allWorkflows as any}
@@ -88,13 +88,8 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
               .flatMap((d) => d.values.map((v) => v.id)),
             pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
+            variableValues: ((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),
           }}
-        />
-
-        <PackageVariablesEditor
-          packageId={pkg.id}
-          variables={bundledVariables as any}
-          initial={((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value }))}
         />
 
         <div className="q-card q-section">
