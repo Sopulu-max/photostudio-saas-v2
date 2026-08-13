@@ -35,6 +35,8 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
   const [name, setName] = useState('');
   const [question, setQuestion] = useState('');
   const [valueDraft, setValueDraft] = useState<Record<string, string>>({});
+  /** The half-built "X is a kind of Y" sentence, per dimension. */
+  const [nesting, setNesting] = useState<Record<string, { child: string; parent: string }>>({});
 
   const load = React.useCallback(async (id: string) => {
     if (!id) return setDims([]);
@@ -99,60 +101,43 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
               </div>
 
               {/*
-                * Values, with what sits inside what.
+                * The answers. Chips, because that is what they are — a short
+                * list of words, read at a glance.
                 *
-                * Saying Beach is an Outdoor is not filing: it changes an answer.
-                * Asking what this studio does outdoors starts including its
-                * beach work, without any service being tagged twice — the Lens
-                * rolls a value up through whatever is nested inside it.
+                * The first version of this gave every value its own "put
+                * inside…" dropdown, which made a control nobody touches most
+                * days the loudest thing in the section and shrank the actual
+                * answers to captions. Nesting is one line, below, and only
+                * appears once there are two things to relate.
                 */}
-              <div className="q-stack q-stack-sm">
+              <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
                 {d.values.filter((v) => !v.parentId).map((parent) => (
-                  <div key={parent.id} className="q-row" style={{ flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                    <span className="q-badge q-badge-neutral">{parent.name}</span>
+                  <React.Fragment key={parent.id}>
+                    <span className="q-badge q-badge-neutral">
+                      {parent.name}
+                      <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} title={`Remove ${parent.name}`}
+                        onClick={() => run(() => removeDimensionValue(parent.id))}>&times;</button>
+                    </span>
                     {d.values.filter((v) => v.parentId === parent.id).map((child) => (
-                      <span key={child.id} className="q-badge q-badge-neutral" style={{ opacity: 0.85 }}>
+                      <span key={child.id} className="q-badge q-badge-neutral" style={{ opacity: 0.8 }}
+                        title={`${child.name} is a kind of ${parent.name}`}>
                         &#8627; {child.name}
                         <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }}
                           title={`Take ${child.name} back out of ${parent.name}`}
-                          onClick={() => run(() => setValueParent({ valueId: child.id, parentId: null }))}>
-                          &uarr;
-                        </button>
-                        <button className="q-btn-ghost" style={{ padding: '0 0 0 4px' }}
-                          title="Remove"
-                          onClick={() => run(() => removeDimensionValue(child.id))}>
-                          &times;
-                        </button>
+                          onClick={() => run(() => setValueParent({ valueId: child.id, parentId: null }))}>&uarr;</button>
+                        <button className="q-btn-ghost" style={{ padding: '0 0 0 4px' }} title={`Remove ${child.name}`}
+                          onClick={() => run(() => removeDimensionValue(child.id))}>&times;</button>
                       </span>
                     ))}
-                    <select
-                      className="q-select q-input-sm"
-                      value=""
-                      style={{ maxWidth: '11rem' }}
-                      onChange={(e) => {
-                        if (!e.target.value) return;
-                        run(() => setValueParent({ valueId: e.target.value, parentId: parent.id }));
-                      }}
-                    >
-                      <option value="">put inside {parent.name}&hellip;</option>
-                      {d.values
-                        .filter((v) => v.id !== parent.id && v.parentId !== parent.id && !hasChildren(d.values, v.id))
-                        .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                    <button className="q-btn-ghost q-meta-sm" style={{ padding: '0 4px' }}
-                      title={`Remove ${parent.name}`}
-                      onClick={() => run(() => removeDimensionValue(parent.id))}>
-                      &times;
-                    </button>
-                  </div>
+                  </React.Fragment>
                 ))}
-                {d.values.length === 0 && <span className="q-meta-sm">No values yet.</span>}
+                {d.values.length === 0 && <span className="q-meta-sm">No answers yet.</span>}
               </div>
 
               <div className="q-row">
                 <input
                   className="q-input q-input-sm"
-                  placeholder={d.example ? `e.g. ${d.example.split(',')[0].trim()}` : 'Add a value'}
+                  placeholder={d.example ? `Another answer — e.g. ${d.example.split(',')[0].trim()}` : 'Another answer'}
                   value={valueDraft[d.id] || ''}
                   onChange={(e) => setValueDraft((s) => ({ ...s, [d.id]: e.target.value }))}
                   onKeyDown={(e) => {
@@ -170,9 +155,46 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
                     if (v) run(() => addDimensionValue({ dimensionId: d.id, name: v }),
                                 () => setValueDraft((s) => ({ ...s, [d.id]: '' })));
                   }}>
-                  Add value
+                  Add answer
                 </button>
               </div>
+
+              {/*
+                * Nesting, as one sentence that reads like what it does.
+                *
+                * Hidden until there are two answers to relate, because with one
+                * there is nothing to say. Saying Beach is a kind of Outdoor is
+                * not filing — asking the Lens what this studio does outdoors
+                * starts including its beach work, with no service tagged twice.
+                */}
+              {d.values.length > 1 && (
+                <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                  <span className="q-meta-sm">Is one of these a kind of another?</span>
+                  <select className="q-select q-input-sm" style={{ maxWidth: '9rem' }}
+                    value={nesting[d.id]?.child || ''}
+                    onChange={(e) => setNesting((s) => ({ ...s, [d.id]: { ...s[d.id], child: e.target.value } }))}>
+                    <option value="">Which one…</option>
+                    {d.values.filter((v) => !hasChildren(d.values, v.id))
+                      .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                  <span className="q-meta-sm">is a kind of</span>
+                  <select className="q-select q-input-sm" style={{ maxWidth: '9rem' }}
+                    value={nesting[d.id]?.parent || ''}
+                    onChange={(e) => setNesting((s) => ({ ...s, [d.id]: { ...s[d.id], parent: e.target.value } }))}>
+                    <option value="">…this one</option>
+                    {d.values.filter((v) => v.id !== nesting[d.id]?.child)
+                      .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                  <button className="q-btn q-btn-secondary q-btn-xs"
+                    disabled={isPending || !nesting[d.id]?.child || !nesting[d.id]?.parent}
+                    onClick={() => run(
+                      () => setValueParent({ valueId: nesting[d.id].child, parentId: nesting[d.id].parent }),
+                      () => setNesting((s) => ({ ...s, [d.id]: { child: '', parent: '' } }))
+                    )}>
+                    Say so
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
