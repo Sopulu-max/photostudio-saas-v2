@@ -192,3 +192,36 @@ export function PickMany({
     </div>
   );
 }
+
+/**
+ * Choose or type, then it's gone — for lists that live somewhere else.
+ *
+ * PickMany owns its chips. Settings pages don't: the values there are rows with
+ * ids, carrying their own nesting and delete, and the caller renders them. All
+ * that's needed is the box, so a studio defining its vocabulary sees what the
+ * app already knows about that question instead of typing into the dark.
+ */
+export function PickToAdd({
+  options,
+  placeholder = 'Choose or type…',
+  onAdd,
+  disabled,
+}: {
+  options: string[];
+  placeholder?: string;
+  onAdd: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState('');
+  return (
+    <Combo
+      text={text}
+      setText={setText}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      clearOnCommit
+      onCommit={onAdd}
+    />
+  );
+}

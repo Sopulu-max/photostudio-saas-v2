@@ -3,6 +3,9 @@
 import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable } from '@/modules/services/interface';
+import { narrowFor } from '@/modules/services/interface';
+import type { Narrowed } from '@/modules/services/interface';
+import { PickToAdd } from '@/components/Pick';
 
 /**
  * What each domain can produce.
@@ -15,12 +18,17 @@ import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDe
  * Kind only: how many, how big, what spec is a package's business. That is why
  * there is no quantity field anywhere on this page.
  */
-export function OutputTypeManager({ domains }: { domains: { id: string; name: string }[] }) {
+export function OutputTypeManager({
+  domains, suggestions,
+}: {
+  domains: { id: string; name: string }[];
+  /** What the library and this studio's own services say this domain produces. */
+  suggestions?: Narrowed;
+}) {
   const [domainId, setDomainId] = useState(domains[0]?.id || '');
   const [byDomain, setByDomain] = useState<Record<string, { id: string; name: string }[]>>({});
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [draft, setDraft] = useState('');
   const router = useRouter();
 
   const load = React.useCallback(async () => {
@@ -80,24 +88,13 @@ export function OutputTypeManager({ domains }: { domains: { id: string; name: st
         </div>
       )}
 
-      <div className="q-row">
-        <input
-          className="q-input q-input-sm"
-          placeholder="e.g. Edited photographs"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            if (draft.trim()) run(() => createDeliverable({ serviceDomainId: domainId, name: draft }), () => setDraft(''));
-          }}
-          style={{ minWidth: '14rem' }}
-        />
-        <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending || !draft.trim()}
-          onClick={() => run(() => createDeliverable({ serviceDomainId: domainId, name: draft }), () => setDraft(''))}>
-          Add to {domainName || 'this domain'}
-        </button>
-      </div>
+      <PickToAdd
+        options={narrowFor(suggestions, domainName, '')
+          .filter((o) => !types.some((t) => t.name.toLowerCase() === o.toLowerCase()))}
+        placeholder={`What else does ${domainName || 'this domain'} produce — choose or type`}
+        disabled={isPending}
+        onAdd={(v) => run(() => createDeliverable({ serviceDomainId: domainId, name: v }))}
+      />
     </div>
   );
 }

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  listServices, listBlueprints,
+  listServices, listBlueprints, listDimensionsByDomain,
+  buildDimensionSuggestions, buildDeliverableSuggestions,
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
   listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
 } from '@/modules/services/interface';
@@ -31,9 +32,22 @@ export default async function ServiceSettingsPage() {
     redirect('/login');
   }
 
-  const [services, blueprints, domains, containers, roles] = await Promise.all([
+  const [services, blueprints, domains, containers, roles, dimensionsByDomain] = await Promise.all([
     listServices(), listBlueprints(), listServiceDomains(), listDeliveryContainers(), listRoles(),
+    listDimensionsByDomain(),
   ]);
+
+  // The same knowledge the service form narrows with. Defining the vocabulary
+  // and using it are the same act seen from two ends, so they draw on one source.
+  const dimensionSuggestions = buildDimensionSuggestions(services as any);
+  const deliverableSuggestions = buildDeliverableSuggestions(services as any);
+
+  // Questions worth offering when inventing one: what this studio's other
+  // domains already ask. Printing could classify by Style because Photography
+  // does — that is the studio teaching itself, not the engine prescribing.
+  const questionNames = [...new Set(
+    Object.values(dimensionsByDomain).flat().map((d) => d.name)
+  )].sort();
   const roleOptions = (roles as any[]).map((r) => r.name);
 
   const domainCounts: Record<string, number> = {};
@@ -80,7 +94,11 @@ export default async function ServiceSettingsPage() {
             don&rsquo;t think in, add your own. Each belongs to a single domain, so Photography can ask
             about Style without Printing ever hearing about it.
           </p>
-          <DimensionManager domains={domains.map((d: any) => ({ id: d.id, name: d.name }))} />
+          <DimensionManager
+            domains={domains.map((d: any) => ({ id: d.id, name: d.name }))}
+            suggestions={dimensionSuggestions}
+            questionNames={questionNames}
+          />
         </section>
 
         <section className="q-card q-section">
@@ -90,7 +108,10 @@ export default async function ServiceSettingsPage() {
             dimensions, these belong to a domain. How many, how big and to what spec is a package&rsquo;s
             business, so nothing here carries a quantity.
           </p>
-          <OutputTypeManager domains={domains.map((d: any) => ({ id: d.id, name: d.name }))} />
+          <OutputTypeManager
+            domains={domains.map((d: any) => ({ id: d.id, name: d.name }))}
+            suggestions={deliverableSuggestions}
+          />
         </section>
 
         <section className="q-card q-section">

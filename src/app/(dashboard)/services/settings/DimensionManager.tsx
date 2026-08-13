@@ -6,7 +6,9 @@ import {
   listDimensionsForDomain, createDimension, setDimensionActive,
   deleteDimension, addDimensionValue, removeDimensionValue, setValueParent,
 } from '@/modules/services/interface';
-import type { StudioDimension } from '@/modules/services/interface';
+import type { StudioDimension, DimensionSuggestions } from '@/modules/services/interface';
+import { dimensionKey, narrowFor } from '@/modules/services/interface';
+import { PickOne, PickToAdd } from '@/components/Pick';
 
 /**
  * How this domain classifies its own work.
@@ -24,7 +26,19 @@ import type { StudioDimension } from '@/modules/services/interface';
 const hasChildren = (values: { id: string; parentId: string | null }[], id: string) =>
   values.some((v) => v.parentId === id);
 
-export function DimensionManager({ domains }: { domains: { id: string; name: string }[] }) {
+export function DimensionManager({
+  domains, suggestions, questionNames,
+}: {
+  domains: { id: string; name: string }[];
+  /**
+   * What the app already knows this kind of question gets answered with, keyed
+   * by dimension name. Defining a vocabulary shouldn't mean typing into the
+   * dark any more than defining a service does — same rule, same control.
+   */
+  suggestions?: DimensionSuggestions;
+  /** Question names worth offering: what the library knows, plus what this studio's other domains ask. */
+  questionNames?: string[];
+}) {
   const [domainId, setDomainId] = useState(domains[0]?.id || '');
   const [dims, setDims] = useState<StudioDimension[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,7 +48,6 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [question, setQuestion] = useState('');
-  const [valueDraft, setValueDraft] = useState<Record<string, string>>({});
   /** The half-built "X is a kind of Y" sentence, per dimension. */
   const [nesting, setNesting] = useState<Record<string, { child: string; parent: string }>>({});
 
@@ -46,6 +59,20 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
   }, []);
 
   useEffect(() => { load(domainId); }, [domainId, load]);
+
+  const domainName = domains.find((d) => d.id === domainId)?.name || '';
+
+  /**
+   * What to offer under one question: everything the library and this studio's
+   * own services associate with it, minus what this domain already has. An
+   * answer already on screen as a chip is not a suggestion.
+   */
+  const answerOptions = (d: StudioDimension) => {
+    const known = narrowFor(suggestions?.[dimensionKey(d.name)], domainName, '');
+    const fromExample = (d.example || '').split(',').map((x) => x.trim()).filter(Boolean);
+    const have = new Set(d.values.map((v) => v.name.toLowerCase()));
+    return [...new Set([...known, ...fromExample])].filter((o) => !have.has(o.toLowerCase()));
+  };
 
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
@@ -134,30 +161,15 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
                 {d.values.length === 0 && <span className="q-meta-sm">No answers yet.</span>}
               </div>
 
-              <div className="q-row">
-                <input
-                  className="q-input q-input-sm"
-                  placeholder={d.example ? `Another answer — e.g. ${d.example.split(',')[0].trim()}` : 'Another answer'}
-                  value={valueDraft[d.id] || ''}
-                  onChange={(e) => setValueDraft((s) => ({ ...s, [d.id]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    e.preventDefault();
-                    const v = (valueDraft[d.id] || '').trim();
-                    if (v) run(() => addDimensionValue({ dimensionId: d.id, name: v }),
-                                () => setValueDraft((s) => ({ ...s, [d.id]: '' })));
-                  }}
-                  style={{ minWidth: '10rem' }}
-                />
-                <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
-                  onClick={() => {
-                    const v = (valueDraft[d.id] || '').trim();
-                    if (v) run(() => addDimensionValue({ dimensionId: d.id, name: v }),
-                                () => setValueDraft((s) => ({ ...s, [d.id]: '' })));
-                  }}>
-                  Add answer
-                </button>
-              </div>
+              {/* Choose from what the app knows this question gets answered
+                  with, or type something it has never heard of — which then
+                  becomes part of this domain's vocabulary. */}
+              <PickToAdd
+                options={answerOptions(d)}
+                placeholder={d.example ? `Another answer — e.g. ${d.example.split(',')[0].trim()}` : 'Another answer — choose or type'}
+                disabled={isPending}
+                onAdd={(v) => run(() => addDimensionValue({ dimensionId: d.id, name: v }))}
+              />
 
               {/*
                 * Nesting, as one sentence that reads like what it does.
@@ -204,8 +216,16 @@ export function DimensionManager({ domains }: { domains: { id: string; name: str
         <div className="q-note q-stack q-stack-sm">
           <div className="q-field">
             <label className="q-label">What do you call it?</label>
-            <input className="q-input" autoFocus value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Style, Season, Turnaround" />
+            {/* Questions are as suggestible as answers — including ones this
+                studio's other domains already ask, which is usually where a
+                good one comes from. */}
+            <PickOne
+              value={name}
+              onChange={setName}
+              options={(questionNames || []).filter((q) => !dims.some((d) => dimensionKey(d.name) === dimensionKey(q)))}
+              placeholder="e.g. Style, Season, Turnaround"
+              disabled={isPending}
+            />
           </div>
           <div className="q-field">
             <label className="q-label">What question does it answer?</label>
