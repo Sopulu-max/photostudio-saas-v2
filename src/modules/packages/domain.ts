@@ -398,6 +398,40 @@ export async function duplicatePackage(packageId: string) {
   return { packageId: copy.id };
 }
 
+/**
+ * Where a service is sold — `package ↔ service` read from the service end.
+ *
+ * The same move as the lens, on a different edge. `package_services` already
+ * holds it; forward it answers "what does this package bundle", backward it
+ * answers "if I retire this service, what stops being sellable" — which is the
+ * question an operator actually has and had no way to ask.
+ *
+ * It lives in Packages, not Services, because the edge does. Services must not
+ * read package tables — the dependency runs one way, and the service detail
+ * page composes both modules rather than making one reach into the other.
+ */
+export async function listPackagesForService(serviceId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('package_services')
+    .select('package:packages(id, name, status, pricing)')
+    .eq('organization_id', orgId)
+    .eq('service_id', serviceId);
+  if (error) { console.error('Failed to list packages for service:', error); return []; }
+
+  return ((data || []) as any[])
+    .map((r) => r.package)
+    .filter(Boolean)
+    .map((p: any) => ({
+      id: p.id as string,
+      name: p.name as string,
+      status: (p.status ?? null) as string | null,
+      basePrice: (p.pricing?.base_price ?? null) as number | null,
+      currency: (p.pricing?.currency ?? null) as string | null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function setPackageStatus(input: { packageId: string; status: 'active' | 'retired' }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { error } = await supabaseAdmin.from('packages').update({ status: input.status }).eq('id', input.packageId).eq('organization_id', orgId);

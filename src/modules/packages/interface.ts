@@ -18,6 +18,8 @@ export {
   // Package
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
+  // Backwards: where is this service sold? The edge lives here, so the read does.
+  listPackagesForService,
   getProductionPlanForPackage, getPaymentPoliciesForPackages,
   // What these packages promise the client will end up with
   getDeliverablesForPackages,

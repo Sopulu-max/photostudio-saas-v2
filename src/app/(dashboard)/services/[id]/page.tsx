@@ -3,8 +3,12 @@ import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getService } from '@/modules/services/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
+// Composed here rather than reached for: Packages owns `package ↔ service`, and
+// Services never reads package tables. The page joins the two modules.
+import { listPackagesForService } from '@/modules/packages/interface';
+import { formatMoney } from '@/kernel/currency';
 import { DimensionTag } from '../DimensionTag';
-import { CheckCircle2, CircleDashed } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Package as PackageIcon } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +22,8 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
   const service = await getService(params.id);
   if (!service) notFound();
+
+  const soldIn = await listPackagesForService(params.id);
 
   const dims = service as any;
   // However many dimensions this service's domain asks, and however many values
@@ -85,6 +91,46 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
                 ))}
               </ul>
             </div>
+          )}
+        </div>
+
+        {/*
+          * Where this is sold — `package ↔ service`, read from this end.
+          *
+          * A service is what the studio knows how to do; whether any of it is
+          * currently sellable is a different question, and until now it had no
+          * answer anywhere. Nothing new is stored: the packages already say
+          * what they bundle.
+          */}
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Where it&rsquo;s sold</h2>
+          {soldIn.length === 0 ? (
+            <p className="q-empty">
+              Nothing bundles {service.name} yet, so a client can&rsquo;t buy it. A service is what you know
+              how to do; a package is how it gets sold.
+            </p>
+          ) : (
+            <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
+              {soldIn.map((p) => (
+                <Link key={p.id} href={`/packages/${p.id}`} className="q-tile q-row q-row-between">
+                  <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    <PackageIcon size={16} opacity={0.5} />
+                    <strong className="q-strong">{p.name}</strong>
+                  </span>
+                  <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    {p.basePrice != null && (
+                      <span className="q-num">{formatMoney(p.basePrice, p.currency || 'USD')}</span>
+                    )}
+                    {p.status === 'retired' && <span className="q-badge q-badge-neutral">retired</span>}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {soldIn.length > 0 && soldIn.every((p) => p.status === 'retired') && (
+            <p className="q-meta-sm" style={{ marginTop: '12px', opacity: 0.7 }}>
+              Every package bundling this is retired — nothing currently on sale includes it.
+            </p>
           )}
         </div>
       </div>

@@ -195,8 +195,10 @@ package next month must not rewrite what a client already agreed to.
 | Old five value tables + junctions removed | **Done** — 20260824000000, same commit as the code |
 | Output types resolved per domain (write path) | **Built** — was broken since 20260822000000 |
 | Package classification, and the public intake | **Built** — both read the studio's own vocabulary |
-| Deliverable specs (quantity/unit/spec) | Stored, read, rendered — **no editor field** |
-| Value hierarchy (`parent_id`, Outdoor → Beach) | Stored, **unused** |
+| Deliverable specs (quantity/unit/spec) | **Built** — fields in the package editor, live preview through the shared formatter |
+| Value hierarchy (`parent_id`, Outdoor → Beach) | **Built** — nested in Services settings, rolled up by every traversal read |
+| *Where is this service sold?* | **Built** — service detail, read from Packages' own edge |
+| *What is this person on?* | **Built** — team member page |
 | Traversal as a module read (`whatCarries` / `whatCoOccursWith`) | **Built** — `modules/services/traversal.ts` |
 | The lens (enter from a value) | **Built** — `/lens`, both exits prefilled |
 | Invoices, receipts, PDFs, documents | **Built** |
@@ -207,15 +209,22 @@ package next month must not rewrite what a client already agreed to.
 
 ## 6. What to build next, and why in this order
 
-1. **Value hierarchy** in the UI: Beach is an Outdoor, and selecting backwards
-   into the parent is how a studio navigates its own vocabulary. `parent_id` is
-   stored and nothing reads it; the lens is where it would show first.
-2. **Deliverable specs in the package editor** — quantity, unit and spec are
-   stored, read and rendered, and still have no field to type them into.
-3. **The other two backward reads**, now that traversal is a module: *where is
-   this service sold?* (`package ↔ service`) and *what is this person on?*
-   (`booking ↔ assignment`). Both are the lens's shape applied to a different
-   edge — which is the test of whether the pattern actually generalises.
+Every backward read named on this page is built, which was the test of whether
+the pattern generalises. It did: three different edges, three surfaces, no new
+tables. What is left is not more of the same shape.
+
+1. **The dimension graph has no seam into Bookings yet.** A booking's line
+   carries a snapshot of what was agreed; nothing asks *what did we agree to
+   for Birthdays this quarter*. That is the lens over `booking line ↔ value`,
+   and it is the first read that crosses from the catalogue into real work.
+2. **Nothing surfaces vocabulary that has gone stale.** The lens reports a
+   value nothing carries; no one is ever shown the list. A studio accumulating
+   forty unused values is the failure mode the open model invites, and the
+   counts to detect it already exist.
+3. **`whatCoOccursWith` is only read by the lens.** The same numbers should
+   drive the service form's ordering — offering the values that actually go
+   together first, instead of alphabetically — which is the forward direction
+   finally learning from the backward one.
 
 Everything after that is the same shape as something already built. If a proposal
 does not look like something on this page, that is the signal to re-read it

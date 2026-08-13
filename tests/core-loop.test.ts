@@ -28,7 +28,7 @@ import { listDimensionsForDomain, setValueParent } from '@/modules/services/dime
 import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/services/traversal';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
-import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
+import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage, listPackagesForService, setPackageStatus } from '@/modules/packages/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
@@ -970,5 +970,31 @@ describe('Core Loop Verification', () => {
     expect(Number(now['Edited photographs'].quantity)).toBe(8);
     expect(now['Highlight video'].quantity).toBeNull();
     expect(now['Highlight video'].unit).toBeNull();
+  }, 120000);
+
+  it('answers where a service is sold, from the service end', async () => {
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Studio Portraits' });
+    const { serviceId: unsold } = await createService({ serviceDomain: 'Photography', name: 'Nobody Buys This' });
+
+    // Not sellable until something bundles it — which had no answer anywhere
+    // before, even though the packages have always said what they bundle.
+    expect(await listPackagesForService(serviceId)).toEqual([]);
+
+    const { packageId } = await createPackage({
+      name: 'Portrait Session', serviceIds: [serviceId], basePrice: 25000,
+    });
+    await createPackage({ name: 'Portrait Deluxe', serviceIds: [serviceId] });
+
+    const sold = await listPackagesForService(serviceId);
+    expect(sold.map((p) => p.name)).toEqual(['Portrait Deluxe', 'Portrait Session']);
+    expect(sold.find((p) => p.id === packageId)!.basePrice).toBe(25000);
+
+    // Retiring the package is not retiring the service, and the read says so
+    // rather than quietly dropping it.
+    await setPackageStatus({ packageId, status: 'retired' });
+    expect((await listPackagesForService(serviceId)).find((p) => p.id === packageId)!.status).toBe('retired');
+
+    // And it stays specific to the service asked about.
+    expect(await listPackagesForService(unsold)).toEqual([]);
   }, 120000);
 });
