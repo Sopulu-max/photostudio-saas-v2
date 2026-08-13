@@ -728,11 +728,14 @@ export async function getProductionPlanForPackage(
   const workflows = ((pkg?.package_workflows as any[]) || []).map(pw => pw.blueprint).filter(Boolean);
   for (const bp of workflows) {
     const bpStages = (bp.stages || []).map((s: any, i: number) => ({ name: s.name, order: s.order ?? i, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null }));
-    for (const s of bpStages) stages.push({ name: s.name, order: stages.length, roleId: s.roleId, frontStage: s.frontStage });
+    // Each blueprint retains its independent sequence. They do not wait for the previous blueprint to finish.
+    for (const s of bpStages) stages.push({ name: s.name, order: s.order, roleId: s.roleId, frontStage: s.frontStage });
   }
 
+  // Extra stages on the package itself happen after the core work
+  const maxOrderSoFar = stages.reduce((max, s) => Math.max(max, s.order), -1);
   for (const s of (pkg?.extra_stages as any[]) || []) {
-    stages.push({ name: s.name, order: stages.length, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null });
+    stages.push({ name: s.name, order: (s.order ?? maxOrderSoFar + 1), roleId: s.role_id ?? null, frontStage: s.front_stage ?? null });
   }
   return { stages };
 }
