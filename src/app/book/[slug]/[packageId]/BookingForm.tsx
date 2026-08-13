@@ -226,12 +226,12 @@ export function BookingForm({
       animation: 'q-fade-in 0.3s ease',
     }}>
       {/* Header */}
-      <header style={{ padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--q-color-ink-100)' }}>
+      <header className="q-row" style={{ padding: '24px 32px', justifyContent: 'space-between', borderBottom: '1px solid var(--q-color-ink-100)' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{displayPackageName}</h2>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--q-color-ink-500)' }}>Request to book</p>
+          <h2 className="q-section-title" style={{ margin: 0 }}>{displayPackageName}</h2>
+          <p className="q-meta" style={{ margin: 0 }}>Request to book</p>
         </div>
-        <button onClick={() => setIsOpen(false)} className="q-btn q-btn-secondary q-btn-sm" style={{ padding: '8px 16px', borderRadius: '24px' }}>Close</button>
+        <button onClick={() => setIsOpen(false)} className="q-btn q-btn-secondary q-btn-sm" style={{ borderRadius: '24px' }}>Close</button>
       </header>
 
       {/* Main */}
@@ -241,12 +241,12 @@ export function BookingForm({
           {isSuccess ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 24px', background: 'var(--q-color-success)', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>✓</div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '12px', color: 'var(--q-color-ink-900)', letterSpacing: '-0.02em' }}>Request received</h2>
-              <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', margin: '0 auto 24px', lineHeight: 1.6 }}>
-                We&rsquo;ve got your request for <strong style={{ color: 'var(--q-color-ink-900)' }}>{displayPackageName}</strong>. We&rsquo;ll review the details and reach out to confirm everything.
+              <h2 className="q-page-title" style={{ marginBottom: '12px' }}>Request received</h2>
+              <p className="q-page-subtitle" style={{ margin: '0 auto 24px' }}>
+                We&rsquo;ve got your request for <strong className="q-doc-strong">{displayPackageName}</strong>. We&rsquo;ll review the details and reach out to confirm everything.
               </p>
-              <div style={{ padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', display: 'inline-block' }}>
-                <p style={{ fontSize: '0.9rem', color: 'var(--q-color-ink-600)', margin: 0 }}>Keep an eye on <strong>{email}</strong> for next steps.</p>
+              <div className="q-card" style={{ display: 'inline-block', backgroundColor: 'var(--q-color-ink-50)' }}>
+                <p className="q-meta" style={{ margin: 0, color: 'var(--q-color-ink-600)' }}>Keep an eye on <strong>{email}</strong> for next steps.</p>
               </div>
               <div style={{ marginTop: '40px' }}>
                 <button onClick={() => setIsOpen(false)} className="q-btn q-btn-secondary">Done</button>
@@ -264,8 +264,8 @@ export function BookingForm({
               {/* Step: Personal */}
               {activeStep.id === 'personal' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 style={{ fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>Let&rsquo;s start with you.</h3>
-                  <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', marginBottom: '40px' }}>What should we call you and how can we reach you?</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Let&rsquo;s start with you.</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>What should we call you and how can we reach you?</p>
                   <div className="q-stack q-stack-lg">
                     <div className="q-grid-2">
                       <div>
@@ -292,8 +292,8 @@ export function BookingForm({
               {/* Step: Details */}
               {activeStep.id === 'details' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 style={{ fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>The details.</h3>
-                  <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', marginBottom: '40px' }}>Tell us a bit more about what you&rsquo;re looking for.</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>The details.</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Tell us a bit more about what you&rsquo;re looking for.</p>
                   <div className="q-stack q-stack-xl">
                     {isCustom ? (
                       <>
@@ -375,8 +375,8 @@ export function BookingForm({
                           }
                           
                           return Array.from(byService.entries()).map(([serviceName, vars]) => (
-                            <div key={serviceName} className="q-stack q-stack-sm" style={{ padding: '24px', background: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
-                              <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>{serviceName}</h3>
+                            <div key={serviceName} className="q-card q-stack q-stack-sm">
+                              <h3 className="q-section-title" style={{ margin: '0 0 16px' }}>{serviceName}</h3>
                               <div className="q-stack q-stack-md">
                                 {vars.map((v: any) => {
                                   const val = variableAnswers[v.id] ?? '';
@@ -420,8 +420,8 @@ export function BookingForm({
                         })()}
 
                         {formSchema.length > 0 && (
-                          <div className="q-stack q-stack-md" style={{ padding: '24px', background: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
-                            <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem', fontWeight: 600, color: 'var(--q-color-ink-900)' }}>General Questions</h3>
+                          <div className="q-card q-stack q-stack-md">
+                            <h3 className="q-section-title" style={{ margin: '0 0 16px' }}>General Questions</h3>
                             {formSchema.map((field: any) => {
                               const def = fieldType(field.type);
                               const value = customFields[field.id];
@@ -482,8 +482,8 @@ export function BookingForm({
               {/* Step: Match */}
               {activeStep.id === 'match' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 style={{ fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>What fits?</h3>
-                  <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', marginBottom: '40px' }}>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>What fits?</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
                     {hasSelections && hasMatches
                       ? 'Based on what you described, these packages match — best fit first. Pick one or skip to continue with your request.'
                       : hasSelections && !hasMatches
@@ -560,8 +560,8 @@ export function BookingForm({
               {/* Step: Tiers */}
               {activeStep.id === 'tiers' && variant && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 style={{ fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>{variant.axis_label}</h3>
-                  <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', marginBottom: '40px' }}>Select the option that best fits your needs.</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>{variant.axis_label}</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Select the option that best fits your needs.</p>
                   <div className="q-stack q-stack-md">
                     {variant.tiers.map((t, i) => (
                       <label key={i} className="q-row q-meta-plain" style={{ gap: '16px', padding: '24px', border: tierIndex === i ? '2px solid var(--q-color-accent)' : '1px solid var(--q-color-ink-200)', borderRadius: '12px', cursor: 'pointer', background: tierIndex === i ? 'color-mix(in srgb, var(--q-color-accent) 4%, transparent)' : 'transparent', transition: 'all 0.2s ease', alignItems: 'center' }}>
@@ -577,18 +577,18 @@ export function BookingForm({
               {/* Step: Review */}
               {activeStep.id === 'review' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 style={{ fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: '8px', color: 'var(--q-color-ink-900)' }}>Review & Submit</h3>
-                  <p style={{ color: 'var(--q-color-ink-500)', fontSize: '1.1rem', marginBottom: '40px' }}>Just to make sure we got everything right.</p>
-                  <div style={{ background: 'var(--q-color-ink-50)', padding: '24px', borderRadius: '16px', marginBottom: '32px' }}>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Review & Submit</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Just to make sure we got everything right.</p>
+                  <div className="q-card" style={{ backgroundColor: 'var(--q-color-ink-50)', marginBottom: '32px' }}>
 
                     <div style={{ marginBottom: '24px' }}>
-                      <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>Your Details</div>
+                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Your Details</div>
                       <div style={{ fontSize: '1.1rem', fontWeight: 500 }}>{firstName} {lastName}</div>
                       <div style={{ color: 'var(--q-color-ink-600)' }}>{email}{phone ? ` • ${phone}` : ''}</div>
                     </div>
 
                     <div style={{ marginBottom: '24px' }}>
-                      <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>Booking</div>
+                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Booking</div>
                       <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{displayPackageName}</div>
                       {isCustom && !resolvedPackageName && (
                         <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-400)', marginTop: '2px' }}>We&rsquo;ll match you to the right package.</div>
@@ -597,7 +597,7 @@ export function BookingForm({
 
                     {isCustom && hasSelections && (
                       <div style={{ marginBottom: '24px' }}>
-                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>What you described</div>
+                        <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>What you described</div>
                         <div className="q-stack q-stack-xs">
                           {Object.entries(dimensionSelections)
                             .filter(([, v]) => v)

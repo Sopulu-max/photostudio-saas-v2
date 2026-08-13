@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getIntakeQuestionsPublic, getPackagePublic } from '@/modules/packages/interface';
 import { createBookingFromIntake } from '@/modules/bookings/interface';
+import { findOrCreateClientPublic } from '@/modules/clients/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
 
 /**
@@ -33,66 +34,13 @@ export async function submitBookingForm(
 ) {
   const displayName = `${formData.firstName} ${formData.lastName}`.trim();
 
-  // 1. Find or create the contact (kernel party). Email is the primary match;
-  // if it doesn't hit but a phone was given, try that too — a client who
-  // mistypes or changes their email shouldn't fork into a second record.
-  // (.limit(1) here is picking one candidate match, not blindly fetching an
-  // organization — still scoped by organization_id above it.)
-  let contactId: string;
-  let existing = (
-    await supabaseAdmin
-      .from('contacts')
-      .select('id')
-      .eq('organization_id', orgId)
-      .eq('email', formData.email)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-  ).data;
-  if (!existing && formData.phone) {
-    existing = (
-      await supabaseAdmin
-        .from('contacts')
-        .select('id')
-        .eq('organization_id', orgId)
-        .eq('phone', formData.phone)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-    ).data;
-  }
-
-  if (existing) {
-    contactId = existing.id;
-  } else {
-    const { data: contact, error: contactError } = await supabaseAdmin
-      .from('contacts')
-      .insert({
-        organization_id: orgId,
-        display_name: displayName,
-        email: formData.email,
-        phone: formData.phone || null,
-      })
-      .select('id')
-      .single();
-    if (contactError || !contact) {
-      console.error('Error creating contact:', contactError);
-      throw new Error('Failed to save your details.');
-    }
-    contactId = contact.id;
-  }
-
-  // 2. Record them as a client (idempotent — unique on org+contact). Always
-  // set status active: a real new booking is unambiguous evidence they're
-  // engaged again, so this also reactivates anyone the studio had archived —
-  // leaving them archived while a live booking sits against them would be a
-  // standing contradiction, not a studio decision worth preserving.
-  await supabaseAdmin
-    .from('clients')
-    .upsert(
-      { organization_id: orgId, contact_id: contactId, status: 'active' },
-      { onConflict: 'organization_id,contact_id' }
-    );
+  // 1 & 2. Find or create the contact and record them as a client.
+  // The Clients module handles identity (on the contact) and CRM status (on the client).
+  const { contactId } = await findOrCreateClientPublic(orgId, {
+    name: displayName,
+    email: formData.email,
+    phone: formData.phone || undefined,
+  });
 
   // 3. Handle the package or custom enquiry
   let pkgName = 'Custom Enquiry';

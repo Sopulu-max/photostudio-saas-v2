@@ -52,6 +52,80 @@ export async function createClient(input: { name: string; email?: string; phone?
   return { clientId: client.id, contactId: contact.id };
 }
 
+/**
+ * Public client creation — used by the unauthenticated booking form.
+ * This explicitly takes an orgId since there is no session to read it from.
+ * Uses the admin client to bypass RLS for public intake.
+ */
+export async function findOrCreateClientPublic(
+  orgId: string,
+  input: { name: string; email: string; phone?: string }
+) {
+  const name = input.name.trim();
+
+  let contactId: string;
+  let existing = (
+    await supabaseAdmin
+      .from('contacts')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('email', input.email)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+  ).data;
+  
+  if (!existing && input.phone) {
+    existing = (
+      await supabaseAdmin
+        .from('contacts')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('phone', input.phone)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+    ).data;
+  }
+
+  if (existing) {
+    contactId = existing.id;
+  } else {
+    const { data: contact, error: contactError } = await supabaseAdmin
+      .from('contacts')
+      .insert({
+        organization_id: orgId,
+        display_name: name,
+        email: input.email,
+        phone: input.phone || null,
+      })
+      .select('id')
+      .single();
+    if (contactError || !contact) {
+      console.error('Error creating contact:', contactError);
+      throw new Error('Failed to save your details.');
+    }
+    contactId = contact.id;
+  }
+
+  // Idempotent: Record them as a client.
+  const { data: client, error } = await supabaseAdmin
+    .from('clients')
+    .upsert(
+      { organization_id: orgId, contact_id: contactId, status: 'active' },
+      { onConflict: 'organization_id,contact_id' }
+    )
+    .select('id')
+    .single();
+
+  if (error || !client) {
+    console.error('Error creating client:', error);
+    throw new Error('Failed to save your details.');
+  }
+
+  return { contactId, clientId: client.id };
+}
+
 /** List clients with their contact identity, for pickers and the list surface. */
 export async function listClients() {
   const { orgId } = await getAuthOrgId();
