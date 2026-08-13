@@ -80,6 +80,8 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             durationMinutes: (pkg as any).duration_minutes,
             serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
             deliverableIds: ((pkg as any).deliverables || []).map((d: any) => d.id),
+            deliverableSpecs: Object.fromEntries(((pkg as any).deliverables || []).map((d: any) =>
+              [d.id, { quantity: d.quantity, unit: d.unit, spec: d.spec }])),
             containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
             workflowIds: ((pkg as any).workflows || []).map((d: any) => d.id),
             dimensionValueIds: (((pkg as any).dimensions || []) as { values: { id: string }[] }[])

@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
 import type { PaymentPolicy, PricingVariant } from '@/modules/packages/interface';
+import { formatDeliverable } from '@/modules/packages/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
 
 type ServiceOption = { 
@@ -68,6 +69,8 @@ export function PackageFieldsEditor({
     durationMinutes?: number | null;
     serviceIds?: string[];
     deliverableIds?: string[];
+    /** Quantity, unit and spec per deliverable — a package is where things get specific. */
+    deliverableSpecs?: Record<string, { quantity?: number | null; unit?: string | null; spec?: string | null }>;
     containerIds?: string[];
     workflowIds?: string[];
     dimensionValueIds?: string[];
@@ -92,6 +95,21 @@ export function PackageFieldsEditor({
   
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverableIds || []);
   const [newDeliverableId, setNewDeliverableId] = useState('');
+
+  /*
+   * How much of it, in what unit, to what spec.
+   *
+   * A service says the KIND — edited photographs. Only a package says six of
+   * them, or thirty seconds, or 20x30. That rule is why these fields exist here
+   * and nowhere in the service form, and why they were the last thing missing:
+   * the columns, the writes and every renderer were already in place, so a
+   * studio could see "6 edited photographs" on an invoice it had no way to say.
+   */
+  const [specs, setSpecs] = useState<Record<string, { quantity?: number | null; unit?: string | null; spec?: string | null }>>(
+    initial.deliverableSpecs || {}
+  );
+  const patchSpec = (id: string, patch: { quantity?: number | null; unit?: string | null; spec?: string | null }) =>
+    setSpecs((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   
   const [containers, setContainers] = useState<string[]>(initial.containerIds || []);
   const [newContainerId, setNewContainerId] = useState('');
@@ -168,6 +186,12 @@ export function PackageFieldsEditor({
     durationMinutes: duration > 0 ? duration : null,
     serviceIds,
     deliverableIds: deliverables,
+    deliverableSpecs: deliverables.map((deliverableId) => ({
+      deliverableId,
+      quantity: specs[deliverableId]?.quantity ?? null,
+      unit: specs[deliverableId]?.unit || null,
+      spec: specs[deliverableId]?.spec || null,
+    })),
     containerIds: containers,
     workflowIds: workflows,
     dimensionValueIds,
@@ -386,13 +410,46 @@ export function PackageFieldsEditor({
         <div className="q-stack q-stack-md">
           <div>
             <label className="q-label">Deliverables (Assets)</label>
-            <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: deliverables.length > 0 ? '8px' : '0' }}>
+            <span className="q-meta-sm" style={{ display: 'block', marginBottom: '8px', opacity: 0.7 }}>
+              The service said what kind. Here is where it becomes six of them, or thirty seconds, or 20x30.
+              Leave a field empty and it simply isn&rsquo;t promised.
+            </span>
+            <div className="q-stack q-stack-sm" style={{ marginBottom: deliverables.length > 0 ? '12px' : '0' }}>
               {deliverables.map((dId) => {
                 const dName = allDeliverables.find(d => d.id === dId)?.name || dId;
+                const spec = specs[dId] || {};
                 return (
-                  <span key={dId} className="q-badge q-badge-neutral">
-                    {dName} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeDeliverable(dId)}>×</button>
-                  </span>
+                  <div key={dId} className="q-tile q-stack q-stack-sm">
+                    <div className="q-row q-row-between">
+                      <strong className="q-strong">{dName}</strong>
+                      <button className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removeDeliverable(dId)}>×</button>
+                    </div>
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                      <input
+                        className="q-input q-input-sm" type="number" min={0} placeholder="How many"
+                        value={spec.quantity ?? ''}
+                        onChange={(e) => patchSpec(dId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
+                        style={{ maxWidth: '7rem' }}
+                      />
+                      <input
+                        className="q-input q-input-sm" placeholder="of what — second, page, hour"
+                        value={spec.unit ?? ''}
+                        onChange={(e) => patchSpec(dId, { unit: e.target.value })}
+                        style={{ maxWidth: '13rem' }}
+                      />
+                      <input
+                        className="q-input q-input-sm" placeholder="to what spec — 20x30, matte"
+                        value={spec.spec ?? ''}
+                        onChange={(e) => patchSpec(dId, { spec: e.target.value })}
+                        style={{ minWidth: '12rem', flex: 1 }}
+                      />
+                    </div>
+                    {/* The exact string the client will read, in the one voice
+                        the storefront, the package page and the invoice share. */}
+                    <span className="q-meta-sm" style={{ opacity: 0.8 }}>
+                      Reads as: {formatDeliverable({ name: dName, ...spec })}
+                    </span>
+                  </div>
                 );
               })}
             </div>

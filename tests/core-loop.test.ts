@@ -29,6 +29,7 @@ import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/servi
 import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage } from '@/modules/packages/domain';
+import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
@@ -920,5 +921,54 @@ describe('Core Loop Verification', () => {
       .rejects.toThrow(/same question/i);
 
     expect(beachShoot).toBeDefined();
+  }, 120000);
+
+  it('says how many, in what unit, to what spec — and only at the package', async () => {
+    const { serviceDomainId } = await createServiceDomain('Photography');
+    const { outputTypeId: photos } = await createDeliverable({ serviceDomainId, name: 'Edited photographs' });
+    const { outputTypeId: film } = await createDeliverable({ serviceDomainId, name: 'Highlight video' });
+    const { outputTypeId: print } = await createDeliverable({ serviceDomainId, name: 'Framed print' });
+
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Specific Session' });
+    const { packageId } = await createPackage({
+      name: 'Specific Package',
+      serviceIds: [serviceId],
+      deliverableIds: [photos, film, print],
+      deliverableSpecs: [
+        { deliverableId: photos, quantity: 6 },
+        { deliverableId: film, quantity: 30, unit: 'second' },
+        { deliverableId: print, spec: '20x30' },
+      ],
+    });
+
+    const pkg = await getPackage(packageId);
+    const byName = Object.fromEntries(((pkg as any).deliverables as any[]).map((d) => [d.name, d]));
+    expect(Number(byName['Edited photographs'].quantity)).toBe(6);
+    expect(byName['Highlight video'].unit).toBe('second');
+    expect(byName['Framed print'].spec).toBe('20x30');
+
+    // One voice everywhere. The storefront, the package page and the invoice
+    // all render through this, so a client never reads the same promise twice
+    // in two phrasings.
+    expect(formatDeliverable({ name: 'Edited photographs', quantity: 6 })).toBe('Edited photographs × 6');
+    expect(formatDeliverable({ name: 'Highlight video', quantity: 30, unit: 'second' })).toBe('30 seconds highlight video');
+    expect(formatDeliverable({ name: 'Framed print', spec: '20x30' })).toBe('Framed print · 20x30');
+
+    // Re-saving with a spec cleared removes it rather than leaving the old
+    // number behind — the editor sends every field every time.
+    await updatePackage({
+      packageId,
+      deliverableIds: [photos, film, print],
+      deliverableSpecs: [
+        { deliverableId: photos, quantity: 8 },
+        { deliverableId: film, quantity: null, unit: null },
+        { deliverableId: print, spec: '20x30' },
+      ],
+    });
+    const after = await getPackage(packageId);
+    const now = Object.fromEntries(((after as any).deliverables as any[]).map((d) => [d.name, d]));
+    expect(Number(now['Edited photographs'].quantity)).toBe(8);
+    expect(now['Highlight video'].quantity).toBeNull();
+    expect(now['Highlight video'].unit).toBeNull();
   }, 120000);
 });
