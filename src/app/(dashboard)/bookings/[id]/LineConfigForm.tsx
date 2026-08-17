@@ -2,6 +2,8 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { VariableField } from '@/components/VariableField';
+import { parseVariableValue } from '@/modules/services/variableTypes';
 import { setLineConfiguration } from '@/modules/bookings/interface';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 
@@ -66,15 +68,13 @@ export function LineConfigForm({
         const before = f.value == null ? '' : String(f.value);
         if (raw === before) continue;
         if (raw === '') { clear.push(f.serviceVariableId); continue; }
-        let value: unknown = raw;
+        // Parsed the one way every surface parses, then bounds-checked here
+        // because only this surface can tell the operator what went wrong.
+        const value = parseVariableValue(f.kind as any, raw);
         if (f.kind === 'number') {
-          const n = parseFloat(raw);
-          if (Number.isNaN(n)) { alert(`${f.label} has to be a number.`); return; }
-          if (f.min != null && n < f.min) { alert(`${f.label} can't be below ${f.min}.`); return; }
-          if (f.max != null && n > f.max) { alert(`${f.label} can't be above ${f.max}.`); return; }
-          value = n;
-        } else if (f.kind === 'boolean') {
-          value = raw === 'yes';
+          if (typeof value !== 'number') { alert(`${f.label} has to be a number.`); return; }
+          if (f.min != null && value < f.min) { alert(`${f.label} can't be below ${f.min}.`); return; }
+          if (f.max != null && value > f.max) { alert(`${f.label} can't be above ${f.max}.`); return; }
         }
         answers.push({ serviceVariableId: f.serviceVariableId, value });
       }
@@ -165,32 +165,17 @@ export function LineConfigForm({
                     {f.source === 'package' && <span className="q-meta-sm" style={{ fontStyle: 'italic' }}>from package</span>}
                   </div>
                   <div className="q-row">
-                    {f.kind === 'choice' && f.options.length > 0 ? (
-                      <select className="q-input" value={draft[f.serviceVariableId] ?? ''} onChange={(e) => set(f.serviceVariableId, e.target.value)} style={{ flex: 1, maxWidth: '16rem' }}>
-                        <option value="">Not agreed</option>
-                        {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    ) : f.kind === 'boolean' ? (
-                      <select className="q-input" value={draft[f.serviceVariableId] ?? ''} onChange={(e) => set(f.serviceVariableId, e.target.value)} style={{ flex: 1, maxWidth: '16rem' }}>
-                        <option value="">Not agreed</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                      </select>
-                    ) : (
-                      <div className="q-row q-row-sm" style={{ flex: 1 }}>
-                        <input
-                          className="q-input"
-                          type={f.kind === 'number' ? 'number' : 'text'}
-                          min={f.min ?? undefined}
-                          max={f.max ?? undefined}
-                          value={draft[f.serviceVariableId] ?? ''}
-                          onChange={(e) => set(f.serviceVariableId, e.target.value)}
-                          placeholder="Not agreed"
-                          style={{ maxWidth: f.kind === 'number' ? '8rem' : '16rem' }}
-                        />
-                        {f.unit && <span className="q-meta-sm">{f.unit}</span>}
-                      </div>
-                    )}
+                    <VariableField
+                      kind={f.kind as any}
+                      value={draft[f.serviceVariableId] ?? ''}
+                      onChange={(next) => set(f.serviceVariableId, Array.isArray(next) ? next.join(', ') : next)}
+                      options={f.options}
+                      unit={f.unit}
+                      min={f.min}
+                      max={f.max}
+                      emptyLabel="Not agreed"
+                      width="16rem"
+                    />
                   </div>
                 </div>
               ))}

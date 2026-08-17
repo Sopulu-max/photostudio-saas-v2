@@ -160,6 +160,80 @@ export function buildDimensionSuggestions(services: ServiceRow[]): DimensionSugg
 }
 
 /**
+ * What a service's variables tend to be — the vocabulary that was never offered.
+ *
+ * The library has always known this in detail: Portrait Photography varies by
+ * "Number of outfits" measured in outfits, Wedding Photography by "Hours of
+ * coverage" measured in hours. None of it reached the editor, which asked a
+ * studio to type both into empty boxes with a placeholder as the only hint.
+ *
+ * Picking a known label brings its shape with it — kind, unit, and any answers
+ * — because those are one fact, not four. A studio that means something else by
+ * "Edited images" just overrules it; the suggestion is knowledge, never a lock.
+ */
+export type VariableSuggestions = {
+  /** Labels, narrowed by service then by domain, exactly as everything else is. */
+  labels: Narrowed;
+  /** What a label is measured in, and what shape it takes. Keyed by lowercased label. */
+  shapeFor: Record<string, { kind?: string; unit?: string | null; options?: string[] }>;
+  /** Units seen anywhere, for a studio inventing a variable the library lacks. */
+  units: string[];
+};
+
+type VariableRow = {
+  label?: string | null;
+  kind?: string | null;
+  unit?: string | null;
+  options?: string[] | null;
+};
+
+export function buildVariableSuggestions(
+  services: (ServiceRow & { variables?: VariableRow[] })[]
+): VariableSuggestions {
+  const byService: Record<string, Set<string>> = {};
+  const byDomain: Record<string, Set<string>> = {};
+  const shapeFor: Record<string, { kind?: string; unit?: string | null; options?: string[] }> = {};
+  const units = new Set<string>();
+
+  const learn = (v: VariableRow) => {
+    const label = (v.label || '').trim();
+    if (!label) return;
+    if (v.unit) units.add(v.unit);
+    // First writer wins, and the studio's own services are learned last on
+    // purpose — what it actually built should overrule the library.
+    shapeFor[key(label)] = {
+      kind: v.kind || shapeFor[key(label)]?.kind,
+      unit: v.unit ?? shapeFor[key(label)]?.unit ?? null,
+      options: (v.options && v.options.length > 0) ? v.options : shapeFor[key(label)]?.options,
+    };
+  };
+
+  for (const t of SERVICE_TEMPLATES) {
+    const vars = (t.variables || []) as VariableRow[];
+    if (vars.length === 0) continue;
+    const labels = vars.map((v) => (v.label || '').trim()).filter(Boolean);
+    add(byService, key(t.name), labels);
+    add(byDomain, t.domain, labels);
+    for (const v of vars) learn(v);
+  }
+
+  for (const s of services) {
+    const vars = (s.variables || []) as VariableRow[];
+    if (vars.length === 0) continue;
+    const labels = vars.map((v) => (v.label || '').trim()).filter(Boolean);
+    if (s.name) add(byService, key(s.name), labels);
+    if (s.domain?.name) add(byDomain, s.domain.name, labels);
+    for (const v of vars) learn(v);
+  }
+
+  return {
+    labels: { byService: freeze(byService), byDomain: freeze(byDomain) },
+    shapeFor,
+    units: [...units].sort(),
+  };
+}
+
+/**
  * What to offer for a field, given how far down the chain the form has got.
  *
  * A named service the app knows narrows to that service's own values. Anything

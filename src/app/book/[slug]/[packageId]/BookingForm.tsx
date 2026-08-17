@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fieldType } from '@/modules/services/fieldTypes';
 import { formatMoney } from '@/kernel/currency';
+import { VariableField } from '@/components/VariableField';
+import { parseVariableValue } from '@/modules/services/variableTypes';
 import { submitBookingForm } from './actions';
 import { createPortal } from 'react-dom';
 
@@ -199,9 +201,8 @@ export function BookingForm({
           .map((v) => ({
             serviceVariableId: v.id,
             value:
-              v.kind === 'number' ? Number(variableAnswers[v.id])
-              : v.kind === 'boolean' ? variableAnswers[v.id] === 'true'
-              : variableAnswers[v.id],
+              // One parser everywhere — see parseVariableValue.
+              parseVariableValue(v.kind, variableAnswers[v.id]),
           })),
         tierIndex: tierIndex ?? undefined,
         scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
@@ -387,30 +388,17 @@ export function BookingForm({
                                         {v.label}
                                         {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
                                       </label>
-                                      {v.kind === 'number' && (
-                                        <input
-                                          className="q-input q-input-lg" type="number" value={val}
-                                          min={v.min ?? undefined} max={v.max ?? undefined}
-                                          onChange={(e) => set(e.target.value)}
-                                          placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
-                                        />
-                                      )}
-                                      {v.kind === 'choice' && (
-                                        <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                                          <option value="">Choose…</option>
-                                          {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                        </select>
-                                      )}
-                                      {v.kind === 'boolean' && (
-                                        <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                                          <option value="">Choose…</option>
-                                          <option value="true">Yes</option>
-                                          <option value="false">No</option>
-                                        </select>
-                                      )}
-                                      {v.kind === 'text' && (
-                                        <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
-                                      )}
+                                      <VariableField
+                                        kind={v.kind}
+                                        value={val}
+                                        onChange={(next) => set(Array.isArray(next) ? next.join(', ') : next)}
+                                        options={v.options || []}
+                                        unit={v.unit}
+                                        min={v.min}
+                                        max={v.max}
+                                        emptyLabel="Choose…"
+                                        width="100%"
+                                      />
                                     </div>
                                   );
                                 })}

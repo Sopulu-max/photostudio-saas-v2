@@ -31,6 +31,8 @@ import { formatVariableValue } from '@/modules/services/variableTypes';
 import { getTemplate } from '@/modules/services/templates';
 import { createPackage, updatePackage, getPackage, getPackageForBooking, getOpenVariablesForPackage, listPackagesForService, setPackageStatus } from '@/modules/packages/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+import { parseVariableValue } from '@/modules/services/variableTypes';
+import { buildVariableSuggestions } from '@/modules/services/suggestions';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
@@ -1050,5 +1052,67 @@ describe('Core Loop Verification', () => {
     await renameDimension({ dimensionId: occasion.id, name: 'Milestone' });
     const afterRename = await listBookingsForDimensionValue(anniversary.id);
     expect(afterRename.bookings.map((b) => b.id)).toEqual([bookingId]);
+  }, 120000);
+
+  it('lets a variable be any shape a question can be, and parses it one way', async () => {
+    // A date, a multi-select and a URL — none of which a variable could be
+    // while there were two registries for one concept.
+    const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Shaped Session' });
+    await setServiceVariables({
+      serviceId,
+      variables: [
+        { key: 'shoot_date', label: 'Preferred date', kind: 'date' },
+        { key: 'add_ons', label: 'Add-ons', kind: 'multichoice', options: ['Drone', 'Second shooter', 'Same-day edit'] },
+        { key: 'moodboard', label: 'Moodboard link', kind: 'url' },
+        { key: 'brief', label: 'Brief', kind: 'textarea' },
+        { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit', min: 1 },
+      ],
+    });
+
+    const declared = await listServiceVariables(serviceId);
+    expect(declared.map((v) => v.kind)).toEqual(['date', 'multichoice', 'url', 'textarea', 'number']);
+    expect(declared.find((v) => v.key === 'add_ons')!.options).toEqual(['Drone', 'Second shooter', 'Same-day edit']);
+
+    // One parser, whichever surface the value came from. A boolean used to be
+    // 'true' on the public form and 'yes' on the operator's — both land now.
+    expect(parseVariableValue('boolean', 'yes')).toBe(true);
+    expect(parseVariableValue('boolean', 'true')).toBe(true);
+    expect(parseVariableValue('boolean', 'no')).toBe(false);
+    expect(parseVariableValue('number', '6')).toBe(6);
+    expect(parseVariableValue('multichoice', ['Drone', 'Same-day edit'])).toEqual(['Drone', 'Same-day edit']);
+
+    // Unanswered is null, never a coerced zero — "not fixed" is what leaves a
+    // question open for the client, so it must survive the round trip.
+    expect(parseVariableValue('number', '')).toBeNull();
+    expect(parseVariableValue('text', '   ')).toBeNull();
+    expect(parseVariableValue('boolean', '')).toBeNull();
+
+    // A package can fix the odd shapes too, and reads them back as written.
+    const { packageId } = await createPackage({
+      name: 'Shaped Package',
+      serviceIds: [serviceId],
+      variableValues: [
+        { serviceVariableId: declared.find((v) => v.key === 'add_ons')!.id, value: ['Drone'] },
+        { serviceVariableId: declared.find((v) => v.key === 'shoot_date')!.id, value: '2026-09-01' },
+      ],
+    });
+    const pkg = await getPackage(packageId);
+    const fixed = Object.fromEntries((pkg!.variableValues as any[]).map((v) => [v.key, v.value]));
+    expect(fixed['add_ons']).toEqual(['Drone']);
+    expect(fixed['shoot_date']).toBe('2026-09-01');
+
+    // And the library's knowledge of what varies is finally offered: it knows
+    // both the label and what it is measured in, which is one fact not two.
+    const suggestions = buildVariableSuggestions([]);
+    expect(narrowFor(suggestions.labels, 'Photography', 'Portrait Photography'))
+      .toContain('Number of outfits');
+    expect(suggestions.shapeFor['number of outfits']).toMatchObject({ kind: 'number', unit: 'outfit' });
+    expect(suggestions.units).toContain('hour');
+
+    // A studio's own services teach it too, not just the shipped library.
+    const taught = buildVariableSuggestions([
+      { name: 'Shaped Session', domain: { name: 'Photography' }, variables: [{ label: 'Drone passes', kind: 'number', unit: 'pass' }] },
+    ] as any);
+    expect(taught.shapeFor['drone passes']).toMatchObject({ unit: 'pass' });
   }, 120000);
 });

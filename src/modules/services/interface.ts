@@ -35,7 +35,10 @@ export {
 export { TEMPLATE_DIMENSION_NAMES, dimensionKey } from './dimensions';
 export type { StudioDimensionShape, ServiceDimensionTag, DimensionWrite, PublicIntakeDimension, TemplateDimensionKey } from './dimensions';
 
-export { SERVICE_VARIABLE_KINDS, formatVariableValue } from './variableTypes';
+export {
+  SERVICE_VARIABLE_KINDS, formatVariableValue, parseVariableValue,
+  variableKindLabel, variableKindHint, variableNeedsOptions, variableIsNumeric,
+} from './variableTypes';
 export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue } from './variableTypes';
 
 export {
@@ -48,8 +51,8 @@ export type { FieldTypeKey, IntakeQuestion, FieldTypeDef } from './fieldTypes';
 export { SERVICE_TEMPLATES, templatesByDomain, getTemplate } from './templates';
 export type { ServiceTemplate, TemplateQuestion, TemplateStage } from './templates';
 
-export { buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions, narrowFor } from './suggestions';
-export type { Narrowed, DimensionSuggestions } from './suggestions';
+export { buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions, buildVariableSuggestions, narrowFor } from './suggestions';
+export type { Narrowed, DimensionSuggestions, VariableSuggestions } from './suggestions';
 
 // A studio defining how each of its domains classifies work — dimensions are
 // the studio's own now, not five the engine owns.

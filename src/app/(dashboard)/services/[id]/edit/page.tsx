@@ -5,6 +5,7 @@ import {
   getService, listServiceDomains, listServices, listServiceVariables,
   listDimensionsByDomain, listOutputTypesByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
+  buildVariableSuggestions,
 } from '@/modules/services/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
@@ -33,6 +34,9 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const serviceSuggestions = buildServiceSuggestions(services as any);
   const deliverableSuggestions = buildDeliverableSuggestions(services as any);
   const dimensionSuggestions = buildDimensionSuggestions(services as any);
+  // What varies about work like this — the library's, plus what this studio's
+  // own services already declare.
+  const variableSuggestions = buildVariableSuggestions(services as any);
 
   return (
     <div className="q-page-narrow">
@@ -65,7 +69,13 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
       />
 
       <div style={{ maxWidth: '800px', margin: '16px auto 0', width: '100%' }}>
-        <ServiceVariablesEditor serviceId={service.id} initial={variables} />
+        <ServiceVariablesEditor
+          serviceId={service.id}
+          initial={variables}
+          suggestions={variableSuggestions}
+          domainName={(service as any).domain?.name || ''}
+          serviceName={service.name}
+        />
       </div>
     </div>
   );

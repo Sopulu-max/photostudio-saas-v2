@@ -716,6 +716,7 @@ export async function listServices() {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
+      service_variables(label, kind, unit, options),
       ${SERVICE_DIMENSION_SELECT}
     `)
     .eq('organization_id', orgId)
@@ -725,6 +726,11 @@ export async function listServices() {
     ...s,
     deliverables: (s.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
     dimensions: shapeServiceDimensions(s),
+    // What varies about it, so the studio's own services teach the next form
+    // exactly as the template library does.
+    variables: (s.service_variables || []).map((v: any) => ({
+      label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
+    })),
   }));
 }
 
@@ -744,6 +750,7 @@ export async function getService(serviceId: string) {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
+      service_variables(label, kind, unit, options),
       ${SERVICE_DIMENSION_SELECT}
     `)
     .eq('id', serviceId)
@@ -754,6 +761,9 @@ export async function getService(serviceId: string) {
     ...data,
     deliverables: ((data as any).service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
     dimensions: shapeServiceDimensions(data),
+    variables: (((data as any).service_variables) || []).map((v: any) => ({
+      label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
+    })),
   };
 }
 

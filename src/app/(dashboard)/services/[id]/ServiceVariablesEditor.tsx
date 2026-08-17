@@ -3,7 +3,12 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setServiceVariables } from '@/modules/services/interface';
-import type { ServiceVariable, ServiceVariableKind } from '@/modules/services/interface';
+import {
+  SERVICE_VARIABLE_KINDS, variableKindLabel, variableKindHint,
+  variableNeedsOptions, variableIsNumeric, narrowFor,
+} from '@/modules/services/interface';
+import type { ServiceVariable, ServiceVariableKind, VariableSuggestions } from '@/modules/services/interface';
+import { PickOne, PickMany } from '@/components/Pick';
 
 /**
  * What may vary about this service — the other half of its configuration
@@ -22,16 +27,16 @@ type Row = {
   label: string;
   kind: ServiceVariableKind;
   unit: string;
-  optionsText: string;
+  /**
+   * A list, not a comma-separated string.
+   *
+   * It used to be text split on commas, which meant an answer containing a
+   * comma was unsayable, and that the answers could never be suggested or
+   * reused — they were a blob rather than values.
+   */
+  options: string[];
   min: string;
   max: string;
-};
-
-const KIND_LABEL: Record<ServiceVariableKind, string> = {
-  number: 'A number',
-  choice: 'One of a list',
-  boolean: 'Yes / no',
-  text: 'Free text',
 };
 
 function toRow(v: ServiceVariable): Row {
@@ -41,13 +46,13 @@ function toRow(v: ServiceVariable): Row {
     label: v.label,
     kind: v.kind,
     unit: v.unit ?? '',
-    optionsText: (v.options || []).join(', '),
+    options: v.options || [],
     min: v.min == null ? '' : String(v.min),
     max: v.max == null ? '' : String(v.max),
   };
 }
 
-const blank = (): Row => ({ key: '', label: '', kind: 'number', unit: '', optionsText: '', min: '', max: '' });
+const blank = (): Row => ({ key: '', label: '', kind: 'number', unit: '', options: [], min: '', max: '' });
 
 /** "Number of outfits" → "number_of_outfits". Shown so the studio can see the name it will be stored under. */
 function deriveKey(label: string) {
@@ -57,9 +62,16 @@ function deriveKey(label: string) {
 export function ServiceVariablesEditor({
   serviceId,
   initial,
+  suggestions,
+  domainName = '',
+  serviceName = '',
 }: {
   serviceId: string;
   initial: ServiceVariable[];
+  /** What the library and this studio's own services say varies about work like this. */
+  suggestions?: VariableSuggestions;
+  domainName?: string;
+  serviceName?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -68,6 +80,33 @@ export function ServiceVariablesEditor({
 
   const original = JSON.stringify(initial.map(toRow));
   const dirty = JSON.stringify(rows) !== original;
+
+  /*
+   * What the app already knows varies about work like this — the library's own
+   * services first where the name is recognised, the domain's union otherwise.
+   */
+  const labelOptions = narrowFor(suggestions?.labels, domainName, serviceName)
+    .filter((l) => !rows.some((r) => r.label.trim().toLowerCase() === l.toLowerCase()));
+  const unitOptions = suggestions?.units || [];
+
+  /**
+   * Naming a variable the app recognises brings its shape with it: "Hours of
+   * coverage" is a number measured in hours, and that is one fact rather than
+   * three fields to fill in. Only ever fills what is still empty — a studio
+   * that has already said something is not overruled by the library.
+   */
+  const applyLabel = (r: Row, label: string): Partial<Row> => {
+    const known = suggestions?.shapeFor[label.trim().toLowerCase()];
+    return {
+      label,
+      // The key follows the label until the variable is saved; after that it is
+      // fixed, because packages point at it.
+      key: r.id ? r.key : deriveKey(label),
+      ...(known?.kind && !r.id ? { kind: known.kind as any } : {}),
+      ...(known?.unit && !r.unit.trim() ? { unit: known.unit } : {}),
+      ...(known?.options?.length && r.options.length === 0 ? { options: known.options } : {}),
+    };
+  };
 
   const patch = (i: number, updates: Partial<Row>) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...updates } : r)));
@@ -94,10 +133,10 @@ export function ServiceVariablesEditor({
               key: r.key.trim() || deriveKey(r.label),
               label: r.label.trim(),
               kind: r.kind,
-              unit: r.kind === 'number' ? r.unit.trim() || null : null,
-              options: r.kind === 'choice' ? r.optionsText.split(',').map((o) => o.trim()).filter(Boolean) : [],
-              min: r.kind === 'number' && r.min !== '' ? Number(r.min) : null,
-              max: r.kind === 'number' && r.max !== '' ? Number(r.max) : null,
+              unit: variableIsNumeric(r.kind) ? r.unit.trim() || null : null,
+              options: variableNeedsOptions(r.kind) ? r.options : [],
+              min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
+              max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
             })),
         });
         setSaved(true);
@@ -129,30 +168,25 @@ export function ServiceVariablesEditor({
           {rows.map((r, i) => (
             <div key={i} className="q-tile q-stack q-stack-sm">
               <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                <input
-                  className="q-input q-fill"
-                  value={r.label}
-                  placeholder="e.g. Number of outfits"
-                  disabled={isPending}
-                  onChange={(e) =>
-                    patch(i, {
-                      label: e.target.value,
-                      // The key follows the label until the variable is saved;
-                      // after that it is fixed, because packages point at it.
-                      key: r.id ? r.key : deriveKey(e.target.value),
-                    })
-                  }
-                  style={{ minWidth: '12rem' }}
-                />
+                <div style={{ flex: 1, minWidth: '12rem' }}>
+                  <PickOne
+                    value={r.label}
+                    onChange={(v) => patch(i, applyLabel(r, v))}
+                    options={labelOptions}
+                    placeholder="What varies — e.g. Number of outfits"
+                    disabled={isPending}
+                  />
+                </div>
                 <select
                   className="q-select"
                   value={r.kind}
                   disabled={isPending}
+                  title={variableKindHint(r.kind)}
                   onChange={(e) => patch(i, { kind: e.target.value as ServiceVariableKind })}
                   style={{ width: '10rem' }}
                 >
-                  {(Object.keys(KIND_LABEL) as ServiceVariableKind[]).map((k) => (
-                    <option key={k} value={k}>{KIND_LABEL[k]}</option>
+                  {SERVICE_VARIABLE_KINDS.map((k) => (
+                    <option key={k} value={k}>{variableKindLabel(k)}</option>
                   ))}
                 </select>
                 <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending || i === 0} onClick={() => move(i, -1)} aria-label="Move up">↑</button>
@@ -160,13 +194,17 @@ export function ServiceVariablesEditor({
                 <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => remove(i)}>Remove</button>
               </div>
 
-              {r.kind === 'number' && (
-                <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                  <input
-                    className="q-input" value={r.unit} disabled={isPending}
-                    onChange={(e) => patch(i, { unit: e.target.value })}
-                    placeholder="unit — e.g. outfit" style={{ width: '11rem' }}
-                  />
+              {variableIsNumeric(r.kind) && (
+                <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  <div style={{ width: '11rem' }}>
+                    <PickOne
+                      value={r.unit}
+                      onChange={(v) => patch(i, { unit: v })}
+                      options={unitOptions}
+                      placeholder="unit — e.g. outfit"
+                      disabled={isPending}
+                    />
+                  </div>
                   <input
                     className="q-input" type="number" value={r.min} disabled={isPending}
                     onChange={(e) => patch(i, { min: e.target.value })}
@@ -183,12 +221,22 @@ export function ServiceVariablesEditor({
                 </div>
               )}
 
-              {r.kind === 'choice' && (
-                <input
-                  className="q-input" value={r.optionsText} disabled={isPending}
-                  onChange={(e) => patch(i, { optionsText: e.target.value })}
-                  placeholder="Options, comma separated — e.g. 8x10, 11x14, 16x20"
-                />
+              {variableNeedsOptions(r.kind) && (
+                <div>
+                  <PickMany
+                    values={r.options}
+                    onChange={(v) => patch(i, { options: v })}
+                    options={(suggestions?.shapeFor[r.label.trim().toLowerCase()]?.options || [])
+                      .filter((o) => !r.options.includes(o))}
+                    placeholder="An answer — choose or type"
+                    disabled={isPending}
+                  />
+                  <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+                    {r.kind === 'multichoice'
+                      ? 'The client may pick more than one of these.'
+                      : 'The client picks exactly one of these.'}
+                  </span>
+                </div>
               )}
 
               {r.key && <span className="q-meta-sm">stored as <code>{r.key}</code></span>}

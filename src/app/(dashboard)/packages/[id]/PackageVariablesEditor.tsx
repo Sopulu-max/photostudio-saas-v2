@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { VariableField } from '@/components/VariableField';
 import { updatePackage } from '@/modules/packages/interface';
 import type { ServiceVariable } from '@/modules/services/interface';
 
@@ -103,33 +104,17 @@ export function PackageVariablesEditor({ packageId, variables, initial }: Props)
                       {current === '' && <span className="q-meta-sm"> · asked at booking</span>}
                     </div>
                     <div className="q-row">
-                      {v.kind === 'number' && (
-                        <>
-                          <input
-                            className="q-input q-num" type="number" value={current} disabled={isPending}
-                            min={v.min ?? undefined} max={v.max ?? undefined}
-                            onChange={(e) => set(v.id, e.target.value)}
-                            placeholder="—" style={{ width: '7rem' }}
-                          />
-                          {v.unit && <span className="q-meta-sm">{Number(current) === 1 ? v.unit : `${v.unit}s`}</span>}
-                        </>
-                      )}
-                      {v.kind === 'choice' && (
-                        <select className="q-select" value={current} disabled={isPending} onChange={(e) => set(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                          <option value="">Ask the client</option>
-                          {v.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      )}
-                      {v.kind === 'boolean' && (
-                        <select className="q-select" value={current} disabled={isPending} onChange={(e) => set(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                          <option value="">Ask the client</option>
-                          <option value="true">Included</option>
-                          <option value="false">Not included</option>
-                        </select>
-                      )}
-                      {v.kind === 'text' && (
-                        <input className="q-input" value={current} disabled={isPending} onChange={(e) => set(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem' }} />
-                      )}
+                      <VariableField
+                        kind={v.kind}
+                        value={current}
+                        onChange={(next) => set(v.id, Array.isArray(next) ? next.join(', ') : next)}
+                        options={v.options}
+                        unit={v.unit}
+                        min={v.min}
+                        max={v.max}
+                        disabled={isPending}
+                        emptyLabel="Ask the client"
+                      />
                       {current !== '' && (
                         <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => set(v.id, '')}>Clear</button>
                       )}

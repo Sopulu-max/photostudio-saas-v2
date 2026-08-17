@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createBooking } from '@/modules/bookings/interface';
 import { createClient } from '@/modules/clients/interface';
 import { formatMoney } from '@/kernel/currency';
+import { VariableField } from '@/components/VariableField';
+import { parseVariableValue } from '@/modules/services/variableTypes';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
 
@@ -264,8 +266,9 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
           .map(([id, value]) => {
             const def = openVariables.find(v => v.id === id);
             let parsedValue: unknown = value;
-            if (def?.kind === 'number') parsedValue = Number(value);
-            if (def?.kind === 'boolean') parsedValue = value === 'yes';
+            // One parser for every surface — this used to read 'yes' while the
+            // public form read 'true' for the same boolean.
+            parsedValue = parseVariableValue(def?.kind ?? 'text', value);
             return { serviceVariableId: id, value: parsedValue };
           });
 
@@ -449,30 +452,17 @@ export function NewBookingForm({ clients, packages }: { clients: Option[]; packa
                           {v.label}
                           {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
                         </label>
-                        {v.kind === 'number' && (
-                          <input
-                            className="q-input q-input-lg" type="number" value={val}
-                            min={v.min ?? undefined} max={v.max ?? undefined}
-                            onChange={(e) => set(e.target.value)}
-                            placeholder={v.min != null ? `${v.min} or more` : 'How many?'}
-                          />
-                        )}
-                        {v.kind === 'choice' && (
-                          <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                            <option value="">Leave blank</option>
-                            {(v.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                          </select>
-                        )}
-                        {v.kind === 'boolean' && (
-                          <select className="q-select q-input-lg" value={val} onChange={(e) => set(e.target.value)}>
-                            <option value="">Leave blank</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                          </select>
-                        )}
-                        {v.kind === 'text' && (
-                          <input className="q-input q-input-lg" value={val} onChange={(e) => set(e.target.value)} />
-                        )}
+                        <VariableField
+                          kind={v.kind}
+                          value={val}
+                          onChange={(next) => set(Array.isArray(next) ? next.join(', ') : next)}
+                          options={v.options || []}
+                          unit={v.unit}
+                          min={v.min}
+                          max={v.max}
+                          emptyLabel="Leave blank"
+                          width="100%"
+                        />
                       </div>
                     );
                   })}
