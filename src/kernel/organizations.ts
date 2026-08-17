@@ -80,15 +80,17 @@ export async function createOrganization(name: string, slug?: string) {
   return org as Organization;
 }
 
-/** Who this studio is — name and storefront slug, for surfaces that greet or link to it. */
-export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; metadata?: Record<string, any> } | null> {
+/** Who this studio is — name, storefront slug, and the timezone its days run on. */
+export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; timezone: string; metadata?: Record<string, any> } | null> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, metadata')
+    .select('id, name, slug, timezone, metadata')
     .eq('id', orgId)
     .maybeSingle();
-  return (data as { id: string; name: string; slug: string | null; metadata?: Record<string, any> }) ?? null;
+  if (!data) return null;
+  const o = data as any;
+  return { id: o.id, name: o.name, slug: o.slug, timezone: o.timezone || 'UTC', metadata: o.metadata || {} };
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   Aperture,
   PieChart,
   CheckSquare,
+  Clock,
   Settings,
 } from 'lucide-react';
 
@@ -28,6 +29,9 @@ const NAV_SECTIONS = [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Calendar', href: '/calendar', icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+      // Cockpit, not Studio: who is in is a thing you check this morning, not
+      // something you configure.
+      { label: 'Attendance', href: '/attendance', icon: Clock },
     ]
   },
   {

@@ -6,6 +6,7 @@ import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
 import { DocumentDetailsForm } from './DocumentDetailsForm';
 import { CurrencyForm } from './CurrencyForm';
+import { TimezoneForm } from './TimezoneForm';
 import { CopyLinkButton } from './CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,15 @@ export default async function SettingsPage() {
             What you charge in. Currently <strong>{currency?.symbol} {currency?.code}</strong> — {currency?.label}.
           </p>
           <CurrencyForm current={currencyCode} />
+        </section>
+
+        <section className="q-card q-section">
+          <h2 className="q-section-title">Where you are</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            Which day a morning belongs to. Attendance files every check-in against the studio&rsquo;s own
+            day, so at UTC an evening in Lagos lands on tomorrow.
+          </p>
+          <TimezoneForm current={(org as any).timezone || 'UTC'} />
         </section>
 
         <section className="q-card q-section">

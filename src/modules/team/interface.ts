@@ -17,3 +17,15 @@ export {
   assignRole,
   removeRoleAssignment,
 } from './domain';
+
+// Attendance — the first thing this system knows about a person that isn't
+// planned work. Lives in Team because it is a fact about people, and every
+// other module asks for it through here.
+export {
+  getAttendanceToday,
+  checkIn,
+  checkOut,
+  listAttendanceForEmployee,
+  setStudioTimezone,
+} from './attendance';
+export type { AttendanceToday } from './attendance';

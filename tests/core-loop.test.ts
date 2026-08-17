@@ -35,6 +35,7 @@ import { parseVariableValue } from '@/modules/services/variableTypes';
 import { buildVariableSuggestions } from '@/modules/services/suggestions';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
+import { getAttendanceToday, checkIn, checkOut, listAttendanceForEmployee, setStudioTimezone } from '@/modules/team/attendance';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
 import { assignTask, listCrewForBooking } from '@/modules/production/domain';
@@ -71,6 +72,7 @@ export const PURGE_ORDER = [
   'blueprints',
   'employee_roles', 'employees', 'clients',
   'contacts',
+  'attendance',
   'roles', 'booking_stages', 'delivery_containers', 'deliverables',
   // Values before dimensions before domains: a value points at a dimension,
   // and a dimension at the domain that owns it.
@@ -1114,5 +1116,57 @@ describe('Core Loop Verification', () => {
       { name: 'Shaped Session', domain: { name: 'Photography' }, variables: [{ label: 'Drone passes', kind: 'number', unit: 'pass' }] },
     ] as any);
     expect(taught.shapeFor['drone passes']).toMatchObject({ unit: 'pass' });
+  }, 120000);
+
+  it('records who turned up, once a day, on the studio’s own day', async () => {
+    const { employeeId } = await addEmployee({ name: 'Ada Crew', email: 'ada.crew@example.com', title: 'Photographer' });
+
+    // Nobody is in until somebody taps.
+    const before = await getAttendanceToday();
+    expect(before.roster.find((r) => r.employeeId === employeeId)!.state).toBe('away');
+
+    await checkIn(employeeId);
+    const afterIn = await getAttendanceToday();
+    const person = afterIn.roster.find((r) => r.employeeId === employeeId)!;
+    expect(person.state).toBe('in');
+    expect(person.checkedInAt).toBeTruthy();
+
+    // Tapping twice cannot produce two mornings — a shared device by the door
+    // gets pressed twice constantly.
+    const second = await checkIn(employeeId);
+    expect(second.alreadyIn).toBe(true);
+    expect((await listAttendanceForEmployee(employeeId)).length).toBe(1);
+    const arrival = (await listAttendanceForEmployee(employeeId))[0].checkedInAt;
+
+    await checkOut(employeeId);
+    const afterOut = await getAttendanceToday();
+    expect(afterOut.roster.find((r) => r.employeeId === employeeId)!.state).toBe('out');
+    expect((await listAttendanceForEmployee(employeeId))[0].minutes).not.toBeNull();
+
+    // Coming back reopens the day rather than starting a second one, and the
+    // morning keeps the time they actually arrived.
+    await checkIn(employeeId);
+    const days = await listAttendanceForEmployee(employeeId);
+    expect(days).toHaveLength(1);
+    expect(days[0].checkedOutAt).toBeNull();
+    expect(days[0].checkedInAt).toBe(arrival);
+
+    // You cannot leave a day you never started.
+    const { employeeId: neverIn } = await addEmployee({ name: 'Never In', email: 'never.in@example.com' });
+    await expect(checkOut(neverIn)).rejects.toThrow(/checked in/i);
+
+    // The working day is the STUDIO's, not the server's. A studio in Lagos is
+    // an hour ahead of UTC, so late evening there is already tomorrow in UTC —
+    // filing that against the wrong date is the failure this guards.
+    await setStudioTimezone('Africa/Lagos');
+    const lagos = await getAttendanceToday();
+    const expected = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    expect(lagos.workDate).toBe(expected);
+    expect(lagos.timezone).toBe('Africa/Lagos');
+
+    // And a timezone no database recognises is refused rather than stored.
+    await expect(setStudioTimezone('Mars/Olympus')).rejects.toThrow(/recognise/i);
   }, 120000);
 });

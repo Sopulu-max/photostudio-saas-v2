@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getEmployee } from '@/modules/team/interface';
+import { getEmployee, listAttendanceForEmployee } from '@/modules/team/interface';
+import { getStudio } from '@/kernel/organizations';
 import { listTasksForEmployee, listBookingAssignmentsForEmployee } from '@/modules/production/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { stageBadgeClass } from '@/components/stageBadge';
@@ -32,10 +33,18 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
   const employee: any = await getEmployee(params.id);
   if (!employee) notFound();
 
-  const [tasks, bookingAssignments] = await Promise.all([
+  const [tasks, bookingAssignments, attendance, studio] = await Promise.all([
     listTasksForEmployee(params.id),
     listBookingAssignmentsForEmployee(params.id),
+    listAttendanceForEmployee(params.id, 14),
+    getStudio(),
   ]);
+  const timezone = studio?.timezone || 'UTC';
+  const asTime = (iso: string) =>
+    new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: timezone }).format(new Date(iso));
+  const asDay = (day: string) =>
+    new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
+  const asSpan = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ''}`.trim() : `${m}m`);
 
   const openTasks = tasks.filter((t) => t.status !== 'completed');
   const doneTasks = tasks.filter((t) => t.status === 'completed');
@@ -122,6 +131,36 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
         )}
 
         {/* Task load — current work */}
+        {/*
+          * When they were actually here. Every other section on this page is
+          * planned work — this is the only one that says what happened.
+          */}
+        <Section title="Recent days">
+          {attendance.length === 0 ? (
+            <p className="q-empty">
+              No days recorded yet. They check in from the{' '}
+              <Link className="q-accent" href="/attendance">attendance board</Link>.
+            </p>
+          ) : (
+            <div className="q-stack q-stack-sm">
+              {attendance.map((a) => (
+                <div key={a.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                  <strong className="q-strong">{asDay(a.workDate)}</strong>
+                  <span className="q-row" style={{ gap: '10px', alignItems: 'center' }}>
+                    <span className="q-meta-sm">
+                      {asTime(a.checkedInAt)}
+                      {a.checkedOutAt ? ` – ${asTime(a.checkedOutAt)}` : ''}
+                    </span>
+                    {a.minutes != null
+                      ? <span className="q-badge q-badge-neutral">{asSpan(a.minutes)}</span>
+                      : <span className="q-badge q-badge-success">still in</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
         <Section title={`Tasks${openTasks.length > 0 ? ` · ${openTasks.length} open` : ''}`}>
           {tasks.length === 0 ? (
             <p className="q-empty">Nothing assigned yet.</p>
