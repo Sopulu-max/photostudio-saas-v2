@@ -1025,6 +1025,9 @@ describe('Core Loop Verification', () => {
       clientName: 'Anniversary Client',
       packageId,
       packageName: 'Anniversary Package',
+      // The intake action re-looks-up the price server-side and passes it,
+      // because a chosen tier is never trusted from the browser.
+      linePrice: { base_price: 40000, currency: 'NGN' },
     });
 
     // The booking was never tagged Anniversary. Nothing needed to be: the line
