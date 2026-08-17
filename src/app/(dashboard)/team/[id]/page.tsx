@@ -44,7 +44,6 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
   const roles: { id: string; name: string }[] = (employee.employee_roles || [])
     .map((er: any) => er.role)
     .filter((r: any) => r?.id);
-  const skills: string[] = employee.skills || [];
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="q-card q-section">
@@ -106,29 +105,19 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           </div>
         </Section>
 
-        {/* Capabilities */}
-        {(roles.length > 0 || skills.length > 0) && (
-          <Section title="Capabilities">
-            {roles.length > 0 && (
-              <div style={{ marginBottom: skills.length > 0 ? '16px' : 0 }}>
-                <div className="q-meta" style={{ marginBottom: '8px' }}>Roles</div>
-                <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                  {roles.map((r) => (
-                    <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {skills.length > 0 && (
-              <div>
-                <div className="q-meta" style={{ marginBottom: '8px' }}>Skills</div>
-                <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                  {skills.map((s) => (
-                    <span key={s} className="q-badge q-badge-neutral">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/*
+          * One list, not two. Roles were what blueprints route work to; skills
+          * were a parallel free-text list that staffing never consulted, so a
+          * studio could record that someone flies a drone and never be offered
+          * them for a drone shoot. Same vocabulary now.
+          */}
+        {roles.length > 0 && (
+          <Section title="What they can do">
+            <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+              {roles.map((r) => (
+                <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
+              ))}
+            </div>
           </Section>
         )}
 

@@ -14,7 +14,7 @@ export function EmployeeEditor({
   email: initialEmail,
   phone: initialPhone,
   title: initialTitle,
-  skills: initialSkills,
+
   status,
 }: {
   employeeId: string;
@@ -22,14 +22,14 @@ export function EmployeeEditor({
   email: string | null;
   phone: string | null;
   title: string | null;
-  skills: string[];
+
   status: string;
 }) {
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail ?? '');
   const [phone, setPhone] = useState(initialPhone ?? '');
   const [title, setTitle] = useState(initialTitle ?? '');
-  const [skills, setSkills] = useState((initialSkills || []).join(', '));
+
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -37,8 +37,7 @@ export function EmployeeEditor({
     name.trim() !== initialName ||
     email !== (initialEmail ?? '') ||
     phone !== (initialPhone ?? '') ||
-    title !== (initialTitle ?? '') ||
-    skills !== (initialSkills || []).join(', ');
+    title !== (initialTitle ?? '');
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -53,7 +52,7 @@ export function EmployeeEditor({
       email: email.trim() || null,
       phone: phone.trim() || null,
       title: title.trim() || null,
-      skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
+
     }));
 
   const archived = status === 'archived';
@@ -80,12 +79,11 @@ export function EmployeeEditor({
         <input className="q-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Photographer" />
       </div>
 
-      <div className="q-field">
-        <label className="q-label">Skills</label>
-        <input className="q-input" value={skills} onChange={(e) => setSkills(e.target.value)}
-          placeholder="Comma separated — e.g. Drone, Video, Retouching" />
-      </div>
-
+      {/*
+        * No skills field. What a person can do is a ROLE — one vocabulary, the
+        * same one blueprints route work to, managed just below this. A second
+        * free-text list looked like capability and staffed nobody.
+        */}
       <div className="q-row">
         <button className="q-btn q-btn-primary" disabled={isPending || !dirty} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}

@@ -16,6 +16,9 @@ export default async function TeamPage() {
   }
 
   const [employees, roles] = await Promise.all([listEmployees(), listRoles()]);
+  // Named by a process, held by nobody — the gap between what the studio says
+  // it does and who it has to do it.
+  const unfilled = (roles as any[]).filter((r) => (r.heldBy ?? 0) === 0);
 
   return (
     <div>
@@ -85,8 +88,15 @@ export default async function TeamPage() {
         <div className="q-card">
           <h2 style={{ fontSize: '1.05rem', marginTop: 0, marginBottom: '6px', fontWeight: 600 }}>Roles</h2>
           <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
-            Define the roles your productions need — assignments will match employees to these.
+            What your work routes to. A blueprint stage names a role, so these appear as you describe
+            your processes — and a role nobody holds can&rsquo;t staff the work that asks for it.
           </p>
+          {unfilled.length > 0 && (
+            <p className="q-note" style={{ marginBottom: '16px' }}>
+              Nobody holds {unfilled.map((r: any) => r.name).join(', ')}. Give {unfilled.length === 1 ? 'it' : 'them'} to
+              someone in the table above and their tasks will route on their own.
+            </p>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
             {roles.length === 0 ? (
               <span className="q-meta">No roles defined yet.</span>

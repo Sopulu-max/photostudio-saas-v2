@@ -269,7 +269,11 @@ export async function assignTask(input: { taskId: string; employeeId: string; ro
  * Put someone on a booking — the studio knows who's shooting it before any task
  * exists. Booking-level crew, distinct from a task-level assignment.
  */
-export async function assignToBooking(input: { bookingId: string; employeeId: string; roleId?: string | null }) {
+export async function assignToBooking(input: { bookingId: string; employeeId: string; roleId: string }) {
+  // Required, not optional. Task owners are derived by matching a task's
+  // suggested role against this row's role — a booking assignment without one
+  // is skipped by every reader, so it looked like crew and staffed nothing.
+  if (!input.roleId) throw new Error('Say what they are doing on this booking.');
   const { orgId, personId: actorId } = await getAuthOrgId();
 
   const { error } = await supabaseAdmin
@@ -279,7 +283,7 @@ export async function assignToBooking(input: { bookingId: string; employeeId: st
       booking_id: input.bookingId,
       task_id: null,
       employee_id: input.employeeId,
-      role_id: input.roleId || null,
+      role_id: input.roleId,
     });
   if (error) {
     console.error('Failed to assign to booking:', error);
@@ -292,7 +296,7 @@ export async function assignToBooking(input: { bookingId: string; employeeId: st
     entityId: input.bookingId,
     action: 'crew_assigned',
     actorId: actorId ?? undefined,
-    payload: { employeeId: input.employeeId, roleId: input.roleId ?? null },
+    payload: { employeeId: input.employeeId, roleId: input.roleId },
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);

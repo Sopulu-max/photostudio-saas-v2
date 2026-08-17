@@ -71,7 +71,7 @@ export async function getEmployee(employeeId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('employees')
-    .select('id, status, title, skills, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
+    .select('id, status, title, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
     .eq('id', employeeId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -89,7 +89,7 @@ export async function updateEmployee(input: {
   email?: string | null;
   phone?: string | null;
   title?: string | null;
-  skills?: string[];
+
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -123,7 +123,7 @@ export async function updateEmployee(input: {
 
   const employeePatch: Record<string, unknown> = {};
   if (input.title !== undefined) employeePatch.title = input.title || null;
-  if (input.skills !== undefined) employeePatch.skills = input.skills;
+
   if (Object.keys(employeePatch).length > 0) {
     const { error } = await supabaseAdmin
       .from('employees')
@@ -306,14 +306,23 @@ export async function listRoles() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('roles')
-    .select('id, name, description')
+    // Who holds it, not just what it is called. Roles are found-or-created by
+    // blueprints, so a studio accumulates the names its PROCESS needs — and
+    // nothing ever asked which of them a person actually fills. A role nobody
+    // holds cannot staff the work that routes to it, and that was invisible.
+    .select('id, name, description, employee_roles(employee_id)')
     .eq('organization_id', orgId)
     .order('name');
   if (error) {
     console.error('Failed to list roles:', error);
     throw new Error('Failed to load roles');
   }
-  return data || [];
+  return ((data || []) as any[]).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    description: (r.description ?? null) as string | null,
+    heldBy: (r.employee_roles || []).length as number,
+  }));
 }
 
 export async function assignRole(input: { employeeId: string; roleId: string }) {
