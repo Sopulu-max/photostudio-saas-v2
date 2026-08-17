@@ -141,27 +141,38 @@ export async function checkIn(employeeId: string) {
 
   const { data: existing } = await supabaseAdmin
     .from('attendance')
-    .select('id, checked_out_at')
+    .select('id, checked_in_at, checked_out_at')
     .eq('organization_id', orgId)
     .eq('employee_id', employeeId)
     .eq('work_date', workDate)
     .maybeSingle();
 
+  // The time that comes back is the one the row actually holds, never one the
+  // browser guessed. Somebody tapping a board wants to see what got written,
+  // and a device with a drifting clock would otherwise confirm a lie.
+  let at: string;
+  let alreadyIn = false;
+
   if (existing) {
-    if (!existing.checked_out_at) return { ok: true, alreadyIn: true };
-    const { error } = await supabaseAdmin
-      .from('attendance')
-      .update({ checked_out_at: null, updated_at: new Date().toISOString() })
-      .eq('id', existing.id).eq('organization_id', orgId);
-    if (error) { console.error('Failed to reopen attendance:', error); throw new Error('Failed to check in'); }
+    at = existing.checked_in_at as string;
+    if (!existing.checked_out_at) {
+      alreadyIn = true;
+    } else {
+      const { error } = await supabaseAdmin
+        .from('attendance')
+        .update({ checked_out_at: null, updated_at: new Date().toISOString() })
+        .eq('id', existing.id).eq('organization_id', orgId);
+      if (error) { console.error('Failed to reopen attendance:', error); throw new Error('Failed to check in'); }
+    }
   } else {
-    const { error } = await supabaseAdmin.from('attendance').insert({
+    const { data: created, error } = await supabaseAdmin.from('attendance').insert({
       organization_id: orgId,
       employee_id: employeeId,
       work_date: workDate,
       recorded_by: actorId ?? null,
-    });
-    if (error) { console.error('Failed to check in:', error); throw new Error('Failed to check in'); }
+    }).select('checked_in_at').single();
+    if (error || !created) { console.error('Failed to check in:', error); throw new Error('Failed to check in'); }
+    at = created.checked_in_at as string;
   }
 
   await logEvent({
@@ -170,7 +181,7 @@ export async function checkIn(employeeId: string) {
   });
   revalidatePath('/attendance');
   revalidatePath('/team');
-  return { ok: true, alreadyIn: false };
+  return { ok: true, alreadyIn, at, workDate };
 }
 
 /** Left for the day. Nothing to stamp if they were never in — say so rather than inventing a morning. */
@@ -180,7 +191,7 @@ export async function checkOut(employeeId: string) {
 
   const { data: existing } = await supabaseAdmin
     .from('attendance')
-    .select('id')
+    .select('id, checked_in_at')
     .eq('organization_id', orgId)
     .eq('employee_id', employeeId)
     .eq('work_date', workDate)
@@ -188,11 +199,13 @@ export async function checkOut(employeeId: string) {
 
   if (!existing) throw new Error('They haven’t checked in today.');
 
-  const { error } = await supabaseAdmin
+  const { data: updated, error } = await supabaseAdmin
     .from('attendance')
     .update({ checked_out_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', existing.id).eq('organization_id', orgId);
-  if (error) { console.error('Failed to check out:', error); throw new Error('Failed to check out'); }
+    .eq('id', existing.id).eq('organization_id', orgId)
+    .select('checked_in_at, checked_out_at')
+    .single();
+  if (error || !updated) { console.error('Failed to check out:', error); throw new Error('Failed to check out'); }
 
   await logEvent({
     organizationId: orgId, entityType: 'employee', entityId: employeeId,
@@ -200,7 +213,12 @@ export async function checkOut(employeeId: string) {
   });
   revalidatePath('/attendance');
   revalidatePath('/team');
-  return { ok: true };
+  return {
+    ok: true,
+    at: updated.checked_out_at as string,
+    since: updated.checked_in_at as string,
+    workDate,
+  };
 }
 
 /**

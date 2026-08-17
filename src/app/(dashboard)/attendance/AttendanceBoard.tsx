@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { checkIn, checkOut } from '@/modules/team/interface';
 import type { AttendanceToday } from '@/modules/team/interface';
@@ -53,17 +53,73 @@ export function AttendanceBoard({
   workDate: string;
   timezone: string;
 }) {
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const router = useRouter();
 
-  const run = (employeeId: string, fn: () => Promise<unknown>) => {
-    setBusy(employeeId);
-    startTransition(async () => {
-      try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That didn’t work.'); }
-      finally { setBusy(null); }
-    });
+  /*
+   * What just happened, said back.
+   *
+   * On a device by a door you tap and walk away — the whole interaction is two
+   * seconds long. Watching a row quietly move between groups is not
+   * confirmation; you need to be told, in words, at what time you were marked
+   * in, or you will stand there wondering whether it took.
+   *
+   * The time shown is the one the SERVER stamped, returned by the action. A
+   * board formatting its own clock would confirm a time the record does not
+   * hold, which is the one thing a register must never do.
+   */
+  const [said, setSaid] = useState<
+    { name: string; kind: 'in' | 'out' | 'already' | 'pending'; at: string | null }
+  | null>(null);
+
+  useEffect(() => {
+    // A pending message stays until the answer replaces it — clearing it on a
+    // timer would blank the screen mid-wait, which reads as failure.
+    if (!said || said.kind === 'pending') return;
+    // Long enough to read walking away, short enough that the next person does
+    // not see somebody else's name.
+    const clear = setTimeout(() => setSaid(null), 8000);
+    return () => clearTimeout(clear);
+  }, [said]);
+
+  /*
+   * Acknowledge the tap immediately; confirm it when the server answers.
+   *
+   * Writing a check-in is about five sequential round trips to a database that
+   * is ~400ms away — measured at 3.8 seconds from tap to confirmation. That is
+   * an eternity on a device somebody taps on their way past, and it cannot be
+   * fixed by rearranging the UI: the wait is real.
+   *
+   * So the tap is answered at once, by name, and the recorded time replaces the
+   * placeholder when it arrives. The time always comes from the SERVER — a
+   * board that guessed would confirm a time the record does not hold, which is
+   * the one thing a register must never do.
+   *
+   * `setSaid` also sits outside the transition, so the answer is not held back
+   * behind `router.refresh()` re-fetching the whole board afterwards.
+   */
+  const run = async (
+    person: AttendanceToday,
+    fn: () => Promise<{ at?: string; alreadyIn?: boolean } | unknown>,
+    kind: 'in' | 'out',
+  ) => {
+    setBusy(person.employeeId);
+    setSaid({ name: person.name, kind: 'pending', at: null });
+    try {
+      const result = (await fn()) as { at?: string; alreadyIn?: boolean } | undefined;
+      setSaid({
+        name: person.name,
+        kind: kind === 'in' && result?.alreadyIn ? 'already' : kind,
+        at: result?.at ?? null,
+      });
+      startTransition(() => { router.refresh(); });
+    } catch (e: any) {
+      setSaid(null);
+      alert(e?.message || 'That didn’t work.');
+    } finally {
+      setBusy(null);
+    }
   };
 
   const here = roster.filter((r) => r.state === 'in');
@@ -82,7 +138,7 @@ export function AttendanceBoard({
   }
 
   const Row = ({ person }: { person: AttendanceToday }) => {
-    const working = busy === person.employeeId && isPending;
+    const working = busy === person.employeeId;
     const arrived = timeOf(person.checkedInAt, timezone);
     const departed = timeOf(person.checkedOutAt, timezone);
     const arrivedOn = dateOf(person.checkedInAt, timezone);
@@ -117,7 +173,7 @@ Out: ${exactly(person.checkedOutAt, timezone)}` : ''}`
 
         {person.state === 'in' ? (
           <button className="q-btn q-btn-secondary" disabled={working}
-            onClick={() => run(person.employeeId, () => checkOut(person.employeeId))}>
+            onClick={() => run(person, () => checkOut(person.employeeId), 'out')}>
             {working ? '…' : 'Going home'}
           </button>
         ) : (
@@ -127,7 +183,7 @@ Out: ${exactly(person.checkedOutAt, timezone)}` : ''}`
           <button
             className={`q-btn ${person.state === 'off' ? 'q-btn-secondary' : 'q-btn-primary'}`}
             disabled={working}
-            onClick={() => run(person.employeeId, () => checkIn(person.employeeId))}
+            onClick={() => run(person, () => checkIn(person.employeeId), 'in')}
           >
             {working ? '…' : person.state === 'out' ? 'Back' : person.state === 'off' ? 'In anyway' : "I'm in"}
           </button>
@@ -148,6 +204,28 @@ Out: ${exactly(person.checkedOutAt, timezone)}` : ''}`
 
   return (
     <div className="q-stack q-stack-lg">
+      {said && (
+        <div
+          className="q-note"
+          role="status"
+          style={{ borderColor: 'var(--q-color-primary)', display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}
+        >
+          <strong style={{ fontSize: '1.15rem' }}>{said.name}</strong>
+          <span className="q-meta">
+            {said.kind === 'pending' ? 'recording…'
+              : said.kind === 'out' ? 'checked out at'
+              : said.kind === 'already' ? 'was already in since'
+              : 'checked in at'}
+          </span>
+          {said.at && (
+            <>
+              <strong className="q-num" style={{ fontSize: '1.35rem' }}>{timeOf(said.at, timezone)}</strong>
+              <span className="q-meta-sm">{dateOf(said.at, timezone)}</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Not in yet leads: at 8am that is the whole list, and it is the only
           group anyone taps first thing. Off today sits last — it is context,
           not something anyone is waiting on. */}
