@@ -116,13 +116,13 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
         </Section>
 
         {/*
-          * One list, not two. Roles were what blueprints route work to; skills
-          * were a parallel free-text list that staffing never consulted, so a
-          * studio could record that someone flies a drone and never be offered
-          * them for a drone shoot. Same vocabulary now.
+          * One vocabulary, not two. Roles are what blueprints route work to;
+          * skills were a parallel free-text list that staffing never consulted,
+          * so an employee's drone experience could be recorded and never
+          * surfaced when a drone shoot needed staffing.
           */}
         {roles.length > 0 && (
-          <Section title="What they can do">
+          <Section title="Roles">
             <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
               {roles.map((r) => (
                 <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
@@ -136,9 +136,9 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           * When they were actually here. Every other section on this page is
           * planned work — this is the only one that says what happened.
           */}
-        {/* Expected, above what actually happened — the two only mean
+        {/* The schedule sits above the record: expected and actual only mean
             something as a pair. */}
-        <Section title="Their week">
+        <Section title="Working days">
           <WorkingDaysForm
             employeeId={employee.id}
             initial={(employee.working_days || []) as number[]}
@@ -146,11 +146,11 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           />
         </Section>
 
-        <Section title="Recent days">
+        <Section title="Attendance">
           {attendance.length === 0 ? (
             <p className="q-empty">
-              No days recorded yet. They check in from the{' '}
-              <Link className="q-accent" href="/attendance">attendance board</Link>.
+              No attendance recorded. Check-in is done from the{' '}
+              <Link className="q-accent" href="/attendance">attendance register</Link>.
             </p>
           ) : (
             <div className="q-stack q-stack-sm">
@@ -164,7 +164,7 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
                     </span>
                     {a.minutes != null
                       ? <span className="q-badge q-badge-neutral">{asSpan(a.minutes)}</span>
-                      : <span className="q-badge q-badge-success">still in</span>}
+                      : <span className="q-badge q-badge-success">Present</span>}
                   </span>
                 </div>
               ))}

@@ -88,13 +88,13 @@ export default async function TeamPage() {
         <div className="q-card">
           <h2 style={{ fontSize: '1.05rem', marginTop: 0, marginBottom: '6px', fontWeight: 600 }}>Roles</h2>
           <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
-            What your work routes to. A blueprint stage names a role, so these appear as you describe
-            your processes — and a role nobody holds can&rsquo;t staff the work that asks for it.
+            Roles are what work is routed to. A blueprint stage names a role, so these are created as
+            you define your processes. A role with no one assigned cannot staff the work that requires it.
           </p>
           {unfilled.length > 0 && (
             <p className="q-note" style={{ marginBottom: '16px' }}>
-              Nobody holds {unfilled.map((r: any) => r.name).join(', ')}. Give {unfilled.length === 1 ? 'it' : 'them'} to
-              someone in the table above and their tasks will route on their own.
+              Unassigned {unfilled.length === 1 ? 'role' : 'roles'}: {unfilled.map((r: any) => r.name).join(', ')}.
+              Assign {unfilled.length === 1 ? 'it' : 'them'} to an employee above so their tasks are routed automatically.
             </p>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>

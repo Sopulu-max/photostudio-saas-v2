@@ -6,18 +6,15 @@ import { setWorkingDays } from '@/modules/team/interface';
 import { WEEKDAYS } from '@/modules/team/weekdays';
 
 /**
- * Which days of the week this person normally works.
+ * The days of the week this employee normally works.
  *
- * Seven toggles, because there are seven days and there is no eighth. This is
- * one of the few genuinely closed sets in this app — closed by the calendar
- * rather than by anyone's opinion — so unlike almost every other list here it
- * offers no way to add to it, and shouldn't.
+ * Seven toggles. This is one of the few genuinely closed sets in this system —
+ * closed by the calendar rather than by configuration — so unlike almost every
+ * other list here, it offers no way to extend it.
  *
- * Saying nothing is a real answer. An empty week means "never stated", and the
- * attendance board treats those people exactly as it did before anyone
- * described their week: possibly in, never marked off. That is why clearing it
- * is offered plainly rather than hidden — going back to not knowing is a move a
- * studio is allowed to make.
+ * An empty selection means "not recorded", not "works no days". Employees
+ * without a schedule are treated as potentially present on any day and are
+ * never marked as not scheduled. Clearing is therefore offered explicitly.
  */
 export function WorkingDaysForm({
   employeeId, initial, name,
@@ -55,7 +52,7 @@ export function WorkingDaysForm({
               type="button"
               disabled={isPending}
               aria-pressed={on}
-              title={on ? `${d.long} — working` : `${d.long} — off`}
+              title={on ? `${d.long}: working` : `${d.long}: day off`}
               className={`q-badge ${on ? 'q-badge-accent' : 'q-badge-neutral'}`}
               style={{ cursor: 'pointer', minWidth: '3.2rem', justifyContent: 'center' }}
               onClick={() => toggle(d.iso)}
@@ -68,16 +65,16 @@ export function WorkingDaysForm({
 
       <span className="q-meta-sm" style={{ opacity: 0.8 }}>
         {days.length === 0
-          ? `Nothing said about ${name}'s week — they'll show as possibly in on any day, never as off.`
+          ? `No schedule recorded for ${name}. They will appear as expected on any day.`
           : offDays.length === 0
-            ? 'In every day.'
-            : `Off ${offDays.map((d) => d.long).join(', ')}.`}
+            ? 'Works every day.'
+            : `Days off: ${offDays.map((d) => d.long).join(', ')}.`}
       </span>
 
       {!same && (
         <div className="q-row">
           <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
-            {isPending ? 'Saving…' : 'Save their week'}
+            {isPending ? 'Saving…' : 'Save schedule'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setDays(initial)}>
             Cancel
@@ -87,7 +84,7 @@ export function WorkingDaysForm({
       {same && days.length > 0 && (
         <button className="q-btn-ghost q-meta-sm" style={{ padding: 0, textAlign: 'left' }}
           disabled={isPending} onClick={() => setDays([])}>
-          Clear — go back to not knowing
+          Clear schedule
         </button>
       )}
     </div>

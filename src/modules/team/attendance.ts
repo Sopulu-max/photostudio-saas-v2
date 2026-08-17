@@ -252,6 +252,104 @@ export async function setWorkingDays(input: { employeeId: string; days: number[]
   return { ok: true };
 }
 
+/**
+ * Correct a recorded time.
+ *
+ * People forget to check in. Somebody arrives at eight, remembers at ten, and
+ * without this the record says ten and the studio has no way to say otherwise.
+ * A register that cannot be corrected gets worked around instead of used.
+ *
+ * Times arrive as wall-clock strings ("08:15") because that is what an operator
+ * types and what the record means. Converting to an instant needs the zone's
+ * offset on that specific date, so Postgres does it — it carries the full
+ * timezone database, and doing it in JavaScript is wrong for one hour twice a
+ * year wherever daylight saving applies.
+ *
+ * Clearing the check-out time is allowed and means they are back in. Clearing
+ * the check-in time is not: it is the one thing that makes the record a record.
+ */
+export async function adjustAttendance(input: {
+  attendanceId: string;
+  /** "HH:MM" in the studio's timezone. Omit to leave unchanged. */
+  checkedInAt?: string;
+  /** "HH:MM", or null to reopen the day. Omit to leave unchanged. */
+  checkedOutAt?: string | null;
+  note?: string | null;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const { timezone } = await studioToday(orgId);
+
+  const { data: existing } = await supabaseAdmin
+    .from('attendance')
+    .select('id, work_date, checked_in_at, checked_out_at')
+    .eq('id', input.attendanceId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!existing) throw new Error('That attendance record no longer exists.');
+
+  const toInstant = async (wallClock: string) => {
+    const { data, error } = await supabaseAdmin.rpc('attendance_local_instant', {
+      p_date: existing.work_date,
+      p_time: wallClock,
+      p_timezone: timezone,
+    });
+    if (error || !data) {
+      console.error('Failed to resolve local time:', error);
+      throw new Error(`${wallClock} is not a valid time.`);
+    }
+    return data as string;
+  };
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (input.checkedInAt !== undefined) {
+    if (!input.checkedInAt) throw new Error('A record needs a check-in time.');
+    patch.checked_in_at = await toInstant(input.checkedInAt);
+  }
+  if (input.checkedOutAt !== undefined) {
+    patch.checked_out_at = input.checkedOutAt ? await toInstant(input.checkedOutAt) : null;
+  }
+  if (input.note !== undefined) patch.note = (input.note || '').trim() || null;
+
+  // Checked against the values as they will be AFTER this change, not as they
+  // were, so correcting both ends in one go is judged on the result.
+  const nextIn = (patch.checked_in_at as string) ?? existing.checked_in_at;
+  const nextOut = patch.checked_out_at === null
+    ? null
+    : ((patch.checked_out_at as string) ?? existing.checked_out_at);
+  if (nextOut && new Date(nextOut).getTime() < new Date(nextIn).getTime()) {
+    throw new Error('Check-out cannot be earlier than check-in.');
+  }
+
+  const { data: saved, error } = await supabaseAdmin
+    .from('attendance')
+    .update(patch)
+    .eq('id', input.attendanceId)
+    .eq('organization_id', orgId)
+    .select('checked_in_at, checked_out_at')
+    .single();
+  if (error || !saved) { console.error('Failed to adjust attendance:', error); throw new Error('Failed to save the change'); }
+
+  // Logged as an edit, with what it was, because a corrected time that leaves
+  // no trace of the correction is worth less than an uncorrected one.
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'attendance',
+    entityId: input.attendanceId,
+    action: 'adjusted',
+    actorId: actorId ?? undefined,
+    payload: {
+      workDate: existing.work_date,
+      from: { checkedInAt: existing.checked_in_at, checkedOutAt: existing.checked_out_at },
+      to: { checkedInAt: saved.checked_in_at, checkedOutAt: saved.checked_out_at },
+    },
+  });
+
+  revalidatePath('/attendance');
+  revalidatePath('/team');
+  return { ok: true, at: saved.checked_in_at as string, out: (saved.checked_out_at ?? null) as string | null };
+}
+
 /** One person's recent days — the profile's "has this person been in" question. */
 export async function listAttendanceForEmployee(employeeId: string, limit = 30) {
   const { orgId } = await getAuthOrgId();

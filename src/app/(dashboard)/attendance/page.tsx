@@ -37,16 +37,15 @@ export default async function AttendancePage() {
     <div className="q-page-narrow">
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          {/* The clock leads. On a device by the door the time is the thing
-              somebody actually looks up, and seeing it confirms what a tap is
-              about to record. */}
+          {/* The clock leads: on a device at the entrance the time is what
+              people look up, and it confirms what is about to be recorded. */}
           <StudioClock timezone={timezone} />
           <p className="q-page-subtitle" style={{ marginTop: '8px' }}>
             {here === 0 && stillDue === 0
-              ? 'Nobody is due in today.'
+              ? 'No employees scheduled today.'
               : here === 0
-                ? `Nobody in yet — ${stillDue} due.`
-                : `${here} ${here === 1 ? 'person is' : 'people are'} in right now${stillDue > 0 ? `, ${stillDue} still to come` : ''}.`}
+                ? `${stillDue} expected, none checked in.`
+                : `${here} present${stillDue > 0 ? `, ${stillDue} expected` : ''}.`}
           </p>
         </div>
         <Link href="/team" className="q-btn q-btn-secondary">Team</Link>
@@ -54,8 +53,8 @@ export default async function AttendancePage() {
 
       {timezone === 'UTC' && (
         <p className="q-note" style={{ marginBottom: '16px' }}>
-          This studio has no timezone set, so a working day runs on UTC. If your evenings start landing
-          on the next day, set it in <Link className="q-accent" href="/settings">Settings</Link>.
+          No timezone is set for this studio, so working days are recorded against UTC. Set it in{' '}
+          <Link className="q-accent" href="/settings">Settings</Link> for accurate dates.
         </p>
       )}
 

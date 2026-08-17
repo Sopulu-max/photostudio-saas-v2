@@ -28,6 +28,7 @@ export {
   listAttendanceForEmployee,
   setStudioTimezone,
   setWorkingDays,
+  adjustAttendance,
 } from './attendance';
 export { WEEKDAYS, namedDays } from './weekdays';
 export type { Weekday } from './weekdays';
