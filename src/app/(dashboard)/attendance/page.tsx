@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getAttendanceToday } from '@/modules/team/interface';
 import { AttendanceBoard } from './AttendanceBoard';
+import { StudioClock } from './StudioClock';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,10 +35,13 @@ export default async function AttendancePage() {
 
   return (
     <div className="q-page-narrow">
-      <header className="q-page-header">
+      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1 className="q-page-title">Attendance</h1>
-          <p className="q-page-subtitle">
+          {/* The clock leads. On a device by the door the time is the thing
+              somebody actually looks up, and seeing it confirms what a tap is
+              about to record. */}
+          <StudioClock timezone={timezone} />
+          <p className="q-page-subtitle" style={{ marginTop: '8px' }}>
             {here === 0 && stillDue === 0
               ? 'Nobody is due in today.'
               : here === 0

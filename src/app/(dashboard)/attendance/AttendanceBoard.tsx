@@ -121,7 +121,7 @@ export function AttendanceBoard({
       <Group title="Gone for the day" people={left} />
       <Group title="Off today" people={off} />
       <p className="q-meta-sm" style={{ opacity: 0.7 }}>
-        {workDate} · times shown in {timezone}. Tapping twice changes nothing — one record a day, and
+        Filed against {workDate} in {timezone}. Tapping twice changes nothing — one record a day, and
         coming back reopens it rather than starting a second one.
       </p>
     </div>
