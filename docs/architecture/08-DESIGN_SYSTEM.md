@@ -12,9 +12,10 @@ Every visual decision lives in **`src/app/globals.css`**. Because of this, the w
 app was moved onto Lumen from that single file.
 
 1. **No `.module.css` files.**
-2. **No inline `style={{…}}` for structural layout, colour, or shadow.** (Legacy
-   pages still do this; removing it is an ongoing cleanup and is what unlocks dark
-   mode.)
+2. **No inline `style={{…}}` for structural layout, colour, or shadow.** (Some
+   surfaces still use inline style for one-off spacing; colour is the line that
+   must not be crossed, because a hardcoded hex is the only thing that can break
+   a theme. There are currently none.)
 3. **The `.q-` namespace.** Every element uses the `.q-` utility/component classes
    (`.q-card`, `.q-btn`, `.q-input`, `.q-badge`, `.q-table`, …). The `.q-*` class and
    `--q-*` token names are kept as the stable API; Lumen redefines what they *mean*.
@@ -62,6 +63,14 @@ attribute, not a partial skin. `ThemeToggle` (in the sidebar) writes `data-theme
 `<html>` and persists the choice. New surfaces must define both light and dark values
 for anything colour-related — never ship a `.q-` class or inline style that only
 resolves in one theme.
+
+The choice has **three** states, not two: system, light, dark. System is the default
+and is stored as the *absence* of a key, so the only persisted values are ones an
+operator actually picked — and while following the system, a desktop that flips at
+sunset flips the app with it, no reload. A `<script>` in `layout.tsx` resolves all
+three to a concrete `light`/`dark` before first paint, which is why the dark tokens
+need only one block: resolving in JS instead of a `prefers-color-scheme` media query
+keeps them from being defined in two places that drift.
 
 ## Status
 

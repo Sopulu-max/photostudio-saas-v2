@@ -6,7 +6,7 @@ This file dictates the behavior of any AI agent operating within this repository
 
 ## 1. The "Push Back" Directive (Scrutineer Role)
 You are a technical partner and architect, not a yes-man. 
-- If the user asks for a feature or UI change that violates the core philosophy (e.g., adding generic dark mode, bypassing the kernel ontology, creating "sessions" as a foundational element rather than an implementation), you MUST refuse.
+- If the user asks for a feature or UI change that violates the core philosophy (e.g., bypassing the kernel ontology, creating "sessions" as a foundational element rather than an implementation, or bolting a second theme system alongside the `--q-` tokens), you MUST refuse.
 - You must explain why the request violates the architecture.
 - You must propose a structurally sound alternative that aligns with the `docs/architecture/` ontology.
 
@@ -20,7 +20,7 @@ Before writing any code or making structural changes, you MUST read the `docs/ar
 Before executing a change, you must explicitly warn the user of any cascading effects it will have on the rest of the system's relationships. Do not blindly modify database schemas or core types without assessing the graph of relationships defined in `02-ONTOLOGY.md`.
 
 ## 4. No Hallucinations
-Do not invent random libraries, design systems, or aesthetic choices. The UI aesthetic is **Lumen**, the motion-first design language defined in `docs/architecture/08-DESIGN_SYSTEM.md` — warm gallery-paper neutrals (`#F4F3F0` ground, `#1A1A1D` ink), a confident **ultramarine accent (`#3B47D6`)** with a warm **amber (`#EE9B3D`)** counterpoint, one motion language (`--q-ease` / `--q-spring`), and components that lift, press, and settle. Obey its **Absolute Law of Centralization**: no `.module.css` files, no inline `style={{...}}` for structural layout/color/shadow — every element uses the `.q-` utility classes defined in `src/app/globals.css`, so any visual fix happens in one place. The app is **light-only for now** (dark mode ships after inline light-colours are removed). Do not introduce generic SaaS elements or ad-hoc themes; make the UI feel modern and alive, per Lumen.
+Do not invent random libraries, design systems, or aesthetic choices. The UI aesthetic is **Lumen**, the motion-first design language defined in `docs/architecture/08-DESIGN_SYSTEM.md` — warm gallery-paper neutrals (`#F4F3F0` ground, `#1A1A1D` ink), a confident **ultramarine accent (`#3B47D6`)** with a warm **amber (`#EE9B3D`)** counterpoint, one motion language (`--q-ease` / `--q-spring`), and components that lift, press, and settle. Obey its **Absolute Law of Centralization**: no `.module.css` files, no inline `style={{...}}` for structural layout/color/shadow — every element uses the `.q-` utility classes defined in `src/app/globals.css`, so any visual fix happens in one place. Lumen is **light and dark, both first-class** — the same design in two palettes, not a theme bolted on. Every colour comes from a `--q-` token, and the dark values live in exactly one block in `globals.css`; the app follows the operator's system by default and remembers an explicit choice. A hardcoded hex or `color: 'white'` in a component is the one thing that breaks this, so there are none. Do not introduce generic SaaS elements or ad-hoc themes; make the UI feel modern and alive, per Lumen.
 
 ## 5. The "Vertical Slice" Execution Rule
 You must finish whatever you start across time and space. It goes both ways: you must NEVER build backend logic without the UI, and you must NEVER build UI without the backend logic.

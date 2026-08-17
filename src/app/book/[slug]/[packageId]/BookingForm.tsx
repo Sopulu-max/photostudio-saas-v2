@@ -241,7 +241,7 @@ export function BookingForm({
 
           {isSuccess ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
-              <div style={{ width: '64px', height: '64px', margin: '0 auto 24px', background: 'var(--q-color-success)', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>✓</div>
+              <div style={{ width: '64px', height: '64px', margin: '0 auto 24px', background: 'var(--q-color-success)', color: 'var(--q-color-accent-text)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>✓</div>
               <h2 className="q-page-title" style={{ marginBottom: '12px' }}>Request received</h2>
               <p className="q-page-subtitle" style={{ margin: '0 auto 24px' }}>
                 We&rsquo;ve got your request for <strong className="q-doc-strong">{displayPackageName}</strong>. We&rsquo;ll review the details and reach out to confirm everything.
