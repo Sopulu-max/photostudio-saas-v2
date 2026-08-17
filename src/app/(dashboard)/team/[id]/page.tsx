@@ -6,6 +6,7 @@ import { getStudio } from '@/kernel/organizations';
 import { listTasksForEmployee, listBookingAssignmentsForEmployee } from '@/modules/production/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { WorkingDaysForm } from './WorkingDaysForm';
+import { AttendanceHistory } from './AttendanceHistory';
 import { stageBadgeClass } from '@/components/stageBadge';
 
 export const dynamic = 'force-dynamic';
@@ -41,12 +42,6 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
     getStudio(),
   ]);
   const timezone = studio?.timezone || 'UTC';
-  const asTime = (iso: string) =>
-    new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: timezone }).format(new Date(iso));
-  const asDay = (day: string) =>
-    new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T00:00:00Z`));
-  const asSpan = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ''}`.trim() : `${m}m`);
-
   const openTasks = tasks.filter((t) => t.status !== 'completed');
   const doneTasks = tasks.filter((t) => t.status === 'completed');
 
@@ -153,22 +148,9 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
               <Link className="q-accent" href="/attendance">attendance register</Link>.
             </p>
           ) : (
-            <div className="q-stack q-stack-sm">
-              {attendance.map((a) => (
-                <div key={a.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                  <strong className="q-strong">{asDay(a.workDate)}</strong>
-                  <span className="q-row" style={{ gap: '10px', alignItems: 'center' }}>
-                    <span className="q-meta-sm">
-                      {asTime(a.checkedInAt)}
-                      {a.checkedOutAt ? ` – ${asTime(a.checkedOutAt)}` : ''}
-                    </span>
-                    {a.minutes != null
-                      ? <span className="q-badge q-badge-neutral">{asSpan(a.minutes)}</span>
-                      : <span className="q-badge q-badge-success">Present</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
+            // Correctable here, not only on the register. Mistakes are usually
+            // noticed days later, and the board can only reach today.
+            <AttendanceHistory days={attendance} timezone={timezone} />
           )}
         </Section>
 
