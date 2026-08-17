@@ -71,7 +71,7 @@ export async function getEmployee(employeeId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('employees')
-    .select('id, status, title, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
+    .select('id, status, title, working_days, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
     .eq('id', employeeId)
     .eq('organization_id', orgId)
     .maybeSingle();

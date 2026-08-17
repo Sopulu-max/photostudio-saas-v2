@@ -35,7 +35,7 @@ import { parseVariableValue } from '@/modules/services/variableTypes';
 import { buildVariableSuggestions } from '@/modules/services/suggestions';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
-import { getAttendanceToday, checkIn, checkOut, listAttendanceForEmployee, setStudioTimezone } from '@/modules/team/attendance';
+import { getAttendanceToday, checkIn, checkOut, listAttendanceForEmployee, setStudioTimezone, setWorkingDays } from '@/modules/team/attendance';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
 import { assignTask, listCrewForBooking } from '@/modules/production/domain';
@@ -1168,5 +1168,54 @@ describe('Core Loop Verification', () => {
 
     // And a timezone no database recognises is refused rather than stored.
     await expect(setStudioTimezone('Mars/Olympus')).rejects.toThrow(/recognise/i);
+  }, 120000);
+
+  it('tells a day off apart from being late', async () => {
+    const { employeeId } = await addEmployee({ name: 'Ada Weekly', email: 'ada.weekly@example.com' });
+
+    // Said nothing about their week: treated as possibly in, never as off. This
+    // is the progressive-enrichment default — silence is not a claim.
+    const unknown = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
+    expect(unknown.workingDays).toEqual([]);
+    expect(unknown.expectedToday).toBe(true);
+    expect(unknown.state).toBe('away');
+
+    // Pin the studio's zone so "today" is a fact this test controls, then work
+    // out which weekday it actually is there.
+    await setStudioTimezone('Africa/Lagos');
+    const { isoWeekday } = await getAttendanceToday();
+    const otherDays = [1, 2, 3, 4, 5, 6, 7].filter((d) => d !== isoWeekday);
+
+    // Working every day EXCEPT today: off, not late.
+    await setWorkingDays({ employeeId, days: otherDays });
+    const off = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
+    expect(off.expectedToday).toBe(false);
+    expect(off.state).toBe('off');
+
+    // Someone who comes in on their day off is HERE. The board must not argue
+    // with the room.
+    await checkIn(employeeId);
+    const anyway = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
+    expect(anyway.state).toBe('in');
+    await checkOut(employeeId);
+    expect((await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!.state).toBe('out');
+
+    // Today included: due in, and once the record is cleared they read as away.
+    await setWorkingDays({ employeeId, days: [isoWeekday] });
+    const due = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
+    expect(due.expectedToday).toBe(true);
+    expect(due.workingDays).toEqual([isoWeekday]);
+
+    // Days are stored deduplicated, in week order, and nonsense is dropped
+    // rather than stored — the database check would reject an 8th day anyway.
+    await setWorkingDays({ employeeId, days: [6, 1, 6, 99, 0, 3] as number[] });
+    expect((await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!.workingDays)
+      .toEqual([1, 3, 6]);
+
+    // And clearing it goes back to not knowing, not to "works nothing".
+    await setWorkingDays({ employeeId, days: [] });
+    const cleared = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
+    expect(cleared.workingDays).toEqual([]);
+    expect(cleared.expectedToday).toBe(true);
   }, 120000);
 });

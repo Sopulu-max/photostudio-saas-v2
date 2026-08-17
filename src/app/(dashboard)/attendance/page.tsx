@@ -28,6 +28,9 @@ export default async function AttendancePage() {
 
   const { workDate, timezone, roster } = await getAttendanceToday();
   const here = roster.filter((r) => r.state === 'in').length;
+  // Only people whose day it is. Counting someone's day off as "still to come"
+  // is how a register turns into a list of false alarms.
+  const stillDue = roster.filter((r) => r.state === 'away').length;
 
   return (
     <div className="q-page-narrow">
@@ -35,9 +38,11 @@ export default async function AttendancePage() {
         <div>
           <h1 className="q-page-title">Attendance</h1>
           <p className="q-page-subtitle">
-            {here === 0
-              ? 'Nobody has checked in yet today.'
-              : `${here} ${here === 1 ? 'person is' : 'people are'} in right now.`}
+            {here === 0 && stillDue === 0
+              ? 'Nobody is due in today.'
+              : here === 0
+                ? `Nobody in yet — ${stillDue} due.`
+                : `${here} ${here === 1 ? 'person is' : 'people are'} in right now${stillDue > 0 ? `, ${stillDue} still to come` : ''}.`}
           </p>
         </div>
         <Link href="/team" className="q-btn q-btn-secondary">Team</Link>

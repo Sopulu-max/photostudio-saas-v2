@@ -5,6 +5,7 @@ import { getEmployee, listAttendanceForEmployee } from '@/modules/team/interface
 import { getStudio } from '@/kernel/organizations';
 import { listTasksForEmployee, listBookingAssignmentsForEmployee } from '@/modules/production/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
+import { WorkingDaysForm } from './WorkingDaysForm';
 import { stageBadgeClass } from '@/components/stageBadge';
 
 export const dynamic = 'force-dynamic';
@@ -135,6 +136,16 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           * When they were actually here. Every other section on this page is
           * planned work — this is the only one that says what happened.
           */}
+        {/* Expected, above what actually happened — the two only mean
+            something as a pair. */}
+        <Section title="Their week">
+          <WorkingDaysForm
+            employeeId={employee.id}
+            initial={(employee.working_days || []) as number[]}
+            name={contact.display_name || 'they'}
+          />
+        </Section>
+
         <Section title="Recent days">
           {attendance.length === 0 ? (
             <p className="q-empty">

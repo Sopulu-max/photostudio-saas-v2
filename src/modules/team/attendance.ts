@@ -4,6 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
+// A 'use server' file may only export async functions, so the seven days live
+// in a plain module next door.
+import { WEEKDAYS } from './weekdays';
 
 /**
  * Who turned up.
@@ -28,12 +31,26 @@ export type AttendanceToday = {
   name: string;
   title: string | null;
   roles: { id: string; name: string }[];
+  workingDays: number[];
+  /** Is today one of their days? False only when they have said, and today isn't. */
+  expectedToday: boolean;
   attendanceId: string | null;
   checkedInAt: string | null;
   checkedOutAt: string | null;
-  /** in = here now · out = came and left · away = not in today */
-  state: 'in' | 'out' | 'away';
+  /**
+   * in    — here now
+   * out   — came and left
+   * away  — a day they work, and they haven't come
+   * off   — not one of their days
+   *
+   * `off` outranks `away` only when nobody has turned up: someone who comes in
+   * on their day off is here, and pretending otherwise would be the board
+   * arguing with the room.
+   */
+  state: 'in' | 'out' | 'away' | 'off';
 };
+
+
 
 /**
  * The studio's own today.
@@ -42,25 +59,35 @@ export type AttendanceToday = {
  * still today's shift. Resolved here so every caller agrees on which day it is,
  * and frozen onto the row so a later timezone correction cannot move history.
  */
-async function studioToday(orgId: string): Promise<{ workDate: string; timezone: string }> {
+async function studioToday(orgId: string): Promise<{ workDate: string; timezone: string; isoWeekday: number }> {
   const { data } = await supabaseAdmin
     .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
   const timezone = (data?.timezone as string) || 'UTC';
+  const now = new Date();
   // en-CA gives YYYY-MM-DD, which is what a `date` column wants.
   const workDate = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-  return { workDate, timezone };
+  }).format(now);
+
+  // Which weekday it is where the studio is — not where the server is. Near
+  // midnight those are different days, and a Sunday shift would otherwise read
+  // as a Monday one.
+  const short = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(now);
+  const isoWeekday = WEEKDAYS.find((d) => d.short === short)?.iso ?? 1;
+
+  return { workDate, timezone, isoWeekday };
 }
 
 /** What today looks like: the whole roster, each with where they stand. */
-export async function getAttendanceToday(): Promise<{ workDate: string; timezone: string; roster: AttendanceToday[] }> {
+export async function getAttendanceToday(): Promise<{
+  workDate: string; timezone: string; isoWeekday: number; roster: AttendanceToday[];
+}> {
   const { orgId } = await getAuthOrgId();
-  const { workDate, timezone } = await studioToday(orgId);
+  const { workDate, timezone, isoWeekday } = await studioToday(orgId);
 
   const { data: employees } = await supabaseAdmin
     .from('employees')
-    .select('id, title, status, contact:contacts(display_name), employee_roles(role:roles(id, name))')
+    .select('id, title, status, working_days, contact:contacts(display_name), employee_roles(role:roles(id, name))')
     .eq('organization_id', orgId)
     .eq('status', 'active');
 
@@ -75,20 +102,29 @@ export async function getAttendanceToday(): Promise<{ workDate: string; timezone
   const roster: AttendanceToday[] = ((employees || []) as any[])
     .map((e) => {
       const record = byEmployee.get(e.id);
+      const workingDays = ((e.working_days || []) as number[]).slice().sort((a, b) => a - b);
+      // Nothing said means nothing assumed: they are treated as possibly in,
+      // exactly as before anyone described their week.
+      const expectedToday = workingDays.length === 0 || workingDays.includes(isoWeekday);
+
       return {
         employeeId: e.id as string,
         name: (e.contact?.display_name ?? 'Unnamed') as string,
         title: (e.title ?? null) as string | null,
         roles: (e.employee_roles || []).map((er: any) => er.role).filter((r: any) => r?.id),
+        workingDays,
+        expectedToday,
         attendanceId: (record?.id ?? null) as string | null,
         checkedInAt: (record?.checked_in_at ?? null) as string | null,
         checkedOutAt: (record?.checked_out_at ?? null) as string | null,
-        state: !record ? 'away' : record.checked_out_at ? 'out' : 'in',
+        state: record
+          ? (record.checked_out_at ? 'out' : 'in')
+          : (expectedToday ? 'away' : 'off'),
       } as AttendanceToday;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { workDate, timezone, roster };
+  return { workDate, timezone, isoWeekday, roster };
 }
 
 /**
@@ -164,6 +200,37 @@ export async function checkOut(employeeId: string) {
   });
   revalidatePath('/attendance');
   revalidatePath('/team');
+  return { ok: true };
+}
+
+/**
+ * Which days of the week this person normally works.
+ *
+ * An empty list is a real answer meaning "not stated" — it is stored as such
+ * rather than as all seven, so the board never claims someone is off on a day
+ * nobody ever spoke about.
+ */
+export async function setWorkingDays(input: { employeeId: string; days: number[] }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const days = [...new Set((input.days || []).map(Number))]
+    .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+    .sort((a, b) => a - b);
+
+  const { error } = await supabaseAdmin
+    .from('employees')
+    .update({ working_days: days, updated_at: new Date().toISOString() })
+    .eq('id', input.employeeId)
+    .eq('organization_id', orgId);
+  if (error) { console.error('Failed to set working days:', error); throw new Error('Failed to save their week'); }
+
+  await logEvent({
+    organizationId: orgId, entityType: 'employee', entityId: input.employeeId,
+    action: 'working_days_set', actorId: actorId ?? undefined, payload: { days },
+  });
+  revalidatePath('/attendance');
+  revalidatePath('/team');
+  revalidatePath(`/team/${input.employeeId}`);
   return { ok: true };
 }
 

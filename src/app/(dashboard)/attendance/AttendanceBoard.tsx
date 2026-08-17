@@ -46,6 +46,9 @@ export function AttendanceBoard({
   const here = roster.filter((r) => r.state === 'in');
   const left = roster.filter((r) => r.state === 'out');
   const away = roster.filter((r) => r.state === 'away');
+  // Not the same as away, and the board used to say they were. Someone on their
+  // day off isn't late.
+  const off = roster.filter((r) => r.state === 'off');
 
   if (roster.length === 0) {
     return (
@@ -69,6 +72,7 @@ export function AttendanceBoard({
             <div className="q-meta-sm">
               {person.state === 'in' && `In since ${arrived}`}
               {person.state === 'out' && `${arrived} – ${departed}`}
+              {person.state === 'off' && 'Not one of their days'}
               {person.state === 'away' && (person.roles.length > 0
                 ? person.roles.map((r) => r.name).join(', ')
                 : person.title || 'Not in yet')}
@@ -82,9 +86,15 @@ export function AttendanceBoard({
             {working ? '…' : 'Going home'}
           </button>
         ) : (
-          <button className="q-btn q-btn-primary" disabled={working}
-            onClick={() => run(person.employeeId, () => checkIn(person.employeeId))}>
-            {working ? '…' : person.state === 'out' ? 'Back' : "I'm in"}
+          // Someone on their day off can still check in — they came in, and a
+          // board that refused would be arguing with the room. It is just not
+          // the button anyone reaches for first.
+          <button
+            className={`q-btn ${person.state === 'off' ? 'q-btn-secondary' : 'q-btn-primary'}`}
+            disabled={working}
+            onClick={() => run(person.employeeId, () => checkIn(person.employeeId))}
+          >
+            {working ? '…' : person.state === 'out' ? 'Back' : person.state === 'off' ? 'In anyway' : "I'm in"}
           </button>
         )}
       </div>
@@ -104,10 +114,12 @@ export function AttendanceBoard({
   return (
     <div className="q-stack q-stack-lg">
       {/* Not in yet leads: at 8am that is the whole list, and it is the only
-          group anyone taps first thing. */}
+          group anyone taps first thing. Off today sits last — it is context,
+          not something anyone is waiting on. */}
       <Group title="Not in yet" people={away} />
       <Group title="Here" people={here} />
       <Group title="Gone for the day" people={left} />
+      <Group title="Off today" people={off} />
       <p className="q-meta-sm" style={{ opacity: 0.7 }}>
         {workDate} · times shown in {timezone}. Tapping twice changes nothing — one record a day, and
         coming back reopens it rather than starting a second one.
