@@ -156,6 +156,15 @@ export function PackageFieldsEditor({
    */
   const effectiveName = nameTouched ? name : composed;
 
+  /**
+   * Output types the bundled services produce that this package has not
+   * promised yet — offered as one-click additions above the full list, so the
+   * common case does not mean hunting through every output type the studio has.
+   */
+  const suggestedDeliverables: string[] = [...new Set(
+    serviceIds.flatMap((sid) => suggestedDeliverablesByService[sid] || [])
+  )].filter((d) => !deliverables.includes(d));
+
   const toggleService = (id: string) => {
     setServiceIds((prevIds) => {
       const isRemoving = prevIds.includes(id);
@@ -424,50 +433,6 @@ export function PackageFieldsEditor({
                           })}
                         </div>
                       )}
-                      
-                      {s.deliverables && s.deliverables.length > 0 && (
-                        <div className="q-stack q-stack-sm">
-                          <h4 className="q-strong">Base deliverables</h4>
-                          {s.deliverables.map((d) => {
-                            const isAdded = deliverables.includes(d.id);
-                            if (!isAdded) {
-                              return <button key={d.id} type="button" className="q-btn q-btn-secondary q-btn-xs" style={{ alignSelf: 'flex-start' }} onClick={(e) => { e.stopPropagation(); addDeliverable(d.id); }}>+ Promise {d.name}</button>;
-                            }
-                            const spec = specs[d.id] || {};
-                            return (
-                              <div key={d.id} className="q-tile q-stack q-stack-sm">
-                                <div className="q-row q-row-between">
-                                  <strong className="q-strong">{d.name}</strong>
-                                  <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removeDeliverable(d.id)}>×</button>
-                                </div>
-                                <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                                  <input
-                                    className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
-                                    value={spec.quantity ?? ''}
-                                    onChange={(e) => patchSpec(d.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
-                                    style={{ maxWidth: '7rem' }}
-                                  />
-                                  <input
-                                    className="q-input q-input-sm" placeholder="Unit — e.g. image"
-                                    value={spec.unit ?? ''}
-                                    onChange={(e) => patchSpec(d.id, { unit: e.target.value })}
-                                    style={{ maxWidth: '13rem' }}
-                                  />
-                                  <input
-                                    className="q-input q-input-sm" placeholder="Specification — e.g. high-res"
-                                    value={spec.spec ?? ''}
-                                    onChange={(e) => patchSpec(d.id, { spec: e.target.value })}
-                                    style={{ minWidth: '12rem', flex: 1 }}
-                                  />
-                                </div>
-                                <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                                  Appears as: {formatDeliverable({ name: d.name, ...spec })}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -567,23 +532,48 @@ export function PackageFieldsEditor({
         <h2 className="q-section-title">4. Delivery & Workflows</h2>
         
         <div className="q-stack q-stack-md">
+          {/*
+            * One list of what the package promises.
+            *
+            * This was two: deliverables a bundled service produces were edited
+            * inside that service's card, and everything else in a separate
+            * "Extra outputs" section that filtered the first set out. Nothing
+            * was ever shown twice, but the split meant the answer to "what does
+            * this package deliver" was in two places, and where a row appeared
+            * depended on which services happened to be bundled — so ticking a
+            * service off moved its deliverable to another part of the form.
+            *
+            * One list now, with the source service named on the row. Where it
+            * came from is a label, not a location.
+            */}
           <div>
-            <label className="q-label">Extra outputs</label>
+            <label className="q-label">Deliverables</label>
             <span className="q-meta-sm" style={{ display: 'block', marginBottom: '8px', opacity: 0.7 }}>
-              Deliverables not explicitly listed as base outputs of the bundled services.
+              What this package promises the client. Quantities and specifications are set here, not on
+              the service.
             </span>
-            <div className="q-stack q-stack-sm" style={{ marginBottom: deliverables.length > 0 ? '12px' : '0' }}>
+
+            <div className="q-stack q-stack-sm" style={{ marginBottom: '12px' }}>
+              {deliverables.length === 0 && (
+                <p className="q-empty" style={{ margin: 0 }}>
+                  Nothing promised yet. Add an output below.
+                </p>
+              )}
               {deliverables.map((dId) => {
-                // If it's a base deliverable of ANY bundled service, we don't render it here again to avoid duplication
-                const isBase = allServices.some(s => serviceIds.includes(s.id) && s.deliverables?.some(d => d.id === dId));
-                if (isBase) return null;
-                
                 const dName = allDeliverables.find(d => d.id === dId)?.name || dId;
                 const spec = specs[dId] || {};
+                // Which bundled service produces this, if any. A deliverable
+                // added independently simply has no source.
+                const fromService = allServices.find(
+                  s => serviceIds.includes(s.id) && s.deliverables?.some(d => d.id === dId)
+                );
                 return (
                   <div key={dId} className="q-tile q-stack q-stack-sm">
                     <div className="q-row q-row-between">
-                      <strong className="q-strong">{dName}</strong>
+                      <span className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                        <strong className="q-strong">{dName}</strong>
+                        {fromService && <span className="q-meta-sm">from {fromService.name}</span>}
+                      </span>
                       <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removeDeliverable(dId)}>×</button>
                     </div>
                     <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
@@ -594,7 +584,7 @@ export function PackageFieldsEditor({
                         style={{ maxWidth: '7rem' }}
                       />
                       <input
-                        className="q-input q-input-sm" placeholder="Unit — second, page, hour"
+                        className="q-input q-input-sm" placeholder="Unit — image, second, page"
                         value={spec.unit ?? ''}
                         onChange={(e) => patchSpec(dId, { unit: e.target.value })}
                         style={{ maxWidth: '13rem' }}
@@ -613,12 +603,30 @@ export function PackageFieldsEditor({
                 );
               })}
             </div>
+
+            {/* What the bundled services produce but this package has not
+                promised. One click rather than finding it in the full list. */}
+            {suggestedDeliverables.length > 0 && (
+              <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px', gap: '6px' }}>
+                <span className="q-meta-sm">Produced by the bundled services:</span>
+                {suggestedDeliverables.map((dId) => {
+                  const dName = allDeliverables.find(d => d.id === dId)?.name || dId;
+                  return (
+                    <button key={dId} type="button" className="q-btn q-btn-secondary q-btn-xs"
+                      onClick={() => addDeliverable(dId)}>
+                      + {dName}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="q-row">
               <select className="q-select" value={newDeliverableId} onChange={(e) => setNewDeliverableId(e.target.value)} style={{ minWidth: '12rem' }}>
-                <option value="">Select an output...</option>
+                <option value="">Select an output type</option>
                 {allDeliverables.filter(d => !deliverables.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addDeliverable(newDeliverableId)} disabled={!newDeliverableId}>+ Add extra output</button>
+              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addDeliverable(newDeliverableId)} disabled={!newDeliverableId}>+ Add</button>
             </div>
           </div>
           
