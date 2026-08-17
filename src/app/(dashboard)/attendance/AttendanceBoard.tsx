@@ -18,9 +18,32 @@ import { ContactAvatar } from '@/components/ContactAvatar';
  * grid you read cell by cell.
  */
 
+/**
+ * A check-in is a date AND a time.
+ *
+ * The rows used to show the time alone, on the reasoning that everything on
+ * this board is today. That reasoning fails exactly when it matters: a device
+ * by a door is never closed, so at 00:05 "In since 6:12 PM" reads as tonight
+ * when it means last night. A stamp that cannot say which day it belongs to is
+ * not a record, it is a rumour.
+ */
 const timeOf = (iso: string | null, timezone: string) =>
   iso
     ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: timezone }).format(new Date(iso))
+    : '';
+
+const dateOf = (iso: string | null, timezone: string) =>
+  iso
+    ? new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso))
+    : '';
+
+/** The whole stamp, for a title attribute — seconds and all, when something looks wrong. */
+const exactly = (iso: string | null, timezone: string) =>
+  iso
+    ? new Intl.DateTimeFormat(undefined, {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: timezone,
+      }).format(new Date(iso))
     : '';
 
 export function AttendanceBoard({
@@ -62,6 +85,11 @@ export function AttendanceBoard({
     const working = busy === person.employeeId && isPending;
     const arrived = timeOf(person.checkedInAt, timezone);
     const departed = timeOf(person.checkedOutAt, timezone);
+    const arrivedOn = dateOf(person.checkedInAt, timezone);
+    const departedOn = dateOf(person.checkedOutAt, timezone);
+    // Only say the day twice when they actually differ — someone who arrived
+    // yesterday evening and left after midnight.
+    const spanned = !!departedOn && departedOn !== arrivedOn;
 
     return (
       <div className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
@@ -69,9 +97,16 @@ export function AttendanceBoard({
           <ContactAvatar name={person.name} size="md" />
           <div style={{ minWidth: 0 }}>
             <strong className="q-strong">{person.name}</strong>
-            <div className="q-meta-sm">
-              {person.state === 'in' && `In since ${arrived}`}
-              {person.state === 'out' && `${arrived} – ${departed}`}
+            <div className="q-meta-sm" title={
+              person.checkedInAt
+                ? `In: ${exactly(person.checkedInAt, timezone)}${person.checkedOutAt ? `
+Out: ${exactly(person.checkedOutAt, timezone)}` : ''}`
+                : undefined
+            }>
+              {person.state === 'in' && `In since ${arrivedOn}, ${arrived}`}
+              {person.state === 'out' && (spanned
+                ? `${arrivedOn}, ${arrived} – ${departedOn}, ${departed}`
+                : `${arrivedOn}, ${arrived} – ${departed}`)}
               {person.state === 'off' && 'Not one of their days'}
               {person.state === 'away' && (person.roles.length > 0
                 ? person.roles.map((r) => r.name).join(', ')
