@@ -97,7 +97,7 @@ export default async function SettingsPage() {
             <Link href="/team" className="q-link">Team</Link>.
           </p>
           {(!withLogins || withLogins.length === 0) ? (
-            <p className="q-empty">Nobody has a login yet.</p>
+            <p className="q-empty">No sign-in accounts yet.</p>
           ) : (
             <div className="q-stack q-stack-sm">
               {withLogins.map((c) => (

@@ -77,13 +77,13 @@ export function DimensionManager({
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); await load(domainId); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That didn’t work.'); }
+      catch (e: any) { alert(e?.message || 'The change could not be saved.'); }
     });
 
   if (domains.length === 0) {
     return (
       <p className="q-empty">
-        Add a service domain first — dimensions belong to one, so there&rsquo;s nothing to classify yet.
+        Add a service domain first. Classifications belong to a domain.
       </p>
     );
   }
@@ -96,7 +96,7 @@ export function DimensionManager({
           {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         <span className="q-meta-sm">
-          Each domain classifies its work its own way. What you add here stays here.
+          Each domain has its own classifications. Anything added here applies only to this domain.
         </span>
       </div>
 
@@ -158,7 +158,7 @@ export function DimensionManager({
                     ))}
                   </React.Fragment>
                 ))}
-                {d.values.length === 0 && <span className="q-meta-sm">No answers yet.</span>}
+                {d.values.length === 0 && <span className="q-meta-sm">No values yet.</span>}
               </div>
 
               {/* Choose from what the app knows this question gets answered
@@ -166,7 +166,7 @@ export function DimensionManager({
                   becomes part of this domain's vocabulary. */}
               <PickToAdd
                 options={answerOptions(d)}
-                placeholder={d.example ? `Another answer — e.g. ${d.example.split(',')[0].trim()}` : 'Another answer — choose or type'}
+                placeholder={d.example ? `Add a value — e.g. ${d.example.split(',')[0].trim()}` : 'Add a value'}
                 disabled={isPending}
                 onAdd={(v) => run(() => addDimensionValue({ dimensionId: d.id, name: v }))}
               />
@@ -181,19 +181,19 @@ export function DimensionManager({
                 */}
               {d.values.length > 1 && (
                 <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                  <span className="q-meta-sm">Is one of these a kind of another?</span>
+                  <span className="q-meta-sm">Group values:</span>
                   <select className="q-select q-input-sm" style={{ maxWidth: '9rem' }}
                     value={nesting[d.id]?.child || ''}
                     onChange={(e) => setNesting((s) => ({ ...s, [d.id]: { ...s[d.id], child: e.target.value } }))}>
-                    <option value="">Which one…</option>
+                    <option value="">Select a value</option>
                     {d.values.filter((v) => !hasChildren(d.values, v.id))
                       .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
-                  <span className="q-meta-sm">is a kind of</span>
+                  <span className="q-meta-sm">belongs under</span>
                   <select className="q-select q-input-sm" style={{ maxWidth: '9rem' }}
                     value={nesting[d.id]?.parent || ''}
                     onChange={(e) => setNesting((s) => ({ ...s, [d.id]: { ...s[d.id], parent: e.target.value } }))}>
-                    <option value="">…this one</option>
+                    <option value="">Select a parent</option>
                     {d.values.filter((v) => v.id !== nesting[d.id]?.child)
                       .map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
@@ -203,7 +203,7 @@ export function DimensionManager({
                       () => setValueParent({ valueId: nesting[d.id].child, parentId: nesting[d.id].parent }),
                       () => setNesting((s) => ({ ...s, [d.id]: { child: '', parent: '' } }))
                     )}>
-                    Say so
+                    Apply
                   </button>
                 </div>
               )}
@@ -215,7 +215,7 @@ export function DimensionManager({
       {adding ? (
         <div className="q-note q-stack q-stack-sm">
           <div className="q-field">
-            <label className="q-label">What do you call it?</label>
+            <label className="q-label">Name</label>
             {/* Questions are as suggestible as answers — including ones this
                 studio's other domains already ask, which is usually where a
                 good one comes from. */}
@@ -228,12 +228,11 @@ export function DimensionManager({
             />
           </div>
           <div className="q-field">
-            <label className="q-label">What question does it answer?</label>
+            <label className="q-label">Question</label>
             <input className="q-input" value={question} onChange={(e) => setQuestion(e.target.value)}
               placeholder="e.g. What visual style is it?" />
             <span className="q-meta-sm">
-              Worth writing — a dimension is a question you ask about your own work, and one without it
-              is a heading nobody can read back in six months.
+              Recommended. Records what this classification is asking, so its purpose remains clear later.
             </span>
           </div>
           <div className="q-row">
@@ -242,7 +241,7 @@ export function DimensionManager({
                 () => createDimension({ serviceDomainId: domainId, name, question }),
                 () => { setName(''); setQuestion(''); setAdding(false); }
               )}>
-              {isPending ? 'Adding…' : 'Add dimension'}
+              {isPending ? 'Adding…' : 'Add classification'}
             </button>
             <button className="q-btn q-btn-secondary q-btn-sm"
               onClick={() => { setAdding(false); setName(''); setQuestion(''); }}>
@@ -252,7 +251,7 @@ export function DimensionManager({
         </div>
       ) : (
         <button className="q-btn q-btn-secondary" onClick={() => setAdding(true)} disabled={!domainId}>
-          + New dimension for {domains.find((d) => d.id === domainId)?.name || 'this domain'}
+          + New classification for {domains.find((d) => d.id === domainId)?.name || 'this domain'}
         </button>
       )}
     </div>

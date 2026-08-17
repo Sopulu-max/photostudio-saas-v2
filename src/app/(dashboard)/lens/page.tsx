@@ -44,7 +44,7 @@ export default async function LensIndexPage() {
         <div>
           <h1 className="q-page-title">Lens</h1>
           <p className="q-page-subtitle">
-            Look at what you do from any angle you classify by — and leave with a package, or a new service.
+            View your services and packages by classification, and create a package or service from what you find.
           </p>
         </div>
       </header>
@@ -52,12 +52,12 @@ export default async function LensIndexPage() {
       {entries.length === 0 ? (
         <div className="q-card q-empty-lg q-stack">
           <div className="q-empty-icon"><Aperture size={24} /></div>
-          <h3 className="q-section-title">Nothing to look through yet</h3>
+          <h3 className="q-section-title">No classifications yet</h3>
           <p className="q-meta">
-            A lens is a value one of your services is filed under. Define how a domain classifies its
-            work, tag a service with it, and it becomes a way in.
+            Each entry below is a classification value applied to one of your services. Define how a
+            domain classifies its work, then apply those values to a service.
           </p>
-          <Link href="/services/settings" className="q-btn q-btn-primary">Set up how you classify</Link>
+          <Link href="/services/settings" className="q-btn q-btn-primary">Configure classifications</Link>
         </div>
       ) : (
         <div className="q-stack q-stack-lg">
@@ -76,10 +76,10 @@ export default async function LensIndexPage() {
                           className={`q-badge ${v.servicesIncludingNarrower > 0 ? 'q-badge-success' : 'q-badge-neutral'}`}
                           title={
                             v.servicesIncludingNarrower === 0
-                              ? `Nothing filed under ${v.name} yet`
+                              ? `No services classified as ${v.name}`
                               : v.servicesIncludingNarrower === v.services
-                                ? `${v.services} service${v.services === 1 ? '' : 's'} filed under ${v.name}`
-                                : `${v.services} filed under ${v.name} itself, ${v.servicesIncludingNarrower} counting what sits inside it`
+                                ? `${v.services} service${v.services === 1 ? '' : 's'} classified as ${v.name}`
+                                : `${v.services} classified as ${v.name}, ${v.servicesIncludingNarrower} including narrower values`
                           }
                         >
                           {/* A value nested inside another is shown as such, so

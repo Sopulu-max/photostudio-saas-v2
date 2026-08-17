@@ -284,7 +284,7 @@ export default async function OverviewPage() {
         <div className="q-card q-cc-sidebar">
           <h2 className="q-section-title">Activity</h2>
           {recentEvents.length === 0 ? (
-            <p className="q-empty">Nothing yet.</p>
+            <p className="q-empty">No activity yet.</p>
           ) : (
             <div className="q-stack q-stack-md">
               {recentEvents.map((evt) => (

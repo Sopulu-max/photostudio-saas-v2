@@ -12,7 +12,7 @@ function useRun() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That didn’t work.'); }
+      catch (e: any) { alert(e?.message || 'The action could not be completed.'); }
     });
   return { isPending, run, router };
 }

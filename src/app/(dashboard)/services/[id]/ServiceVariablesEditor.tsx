@@ -151,9 +151,10 @@ export function ServiceVariablesEditor({
     <div className="q-card q-section">
       <div className="q-row q-row-between">
         <div>
-          <h2 className="q-section-title">What can vary</h2>
+          <h2 className="q-section-title">Variables</h2>
           <p className="q-meta" style={{ marginBottom: 0 }}>
-            Outfits, coverage hours, rounds of revision. A package fixes these; anything left open becomes a question for the client.
+            What can vary about this service — outfits, coverage hours, revision rounds. A package sets a
+            value; anything left unset becomes a question for the client at booking.
           </p>
         </div>
         {saved && <span className="q-badge q-badge-success">Saved</span>}
@@ -161,7 +162,7 @@ export function ServiceVariablesEditor({
 
       {rows.length === 0 ? (
         <p className="q-empty" style={{ marginTop: '16px' }}>
-          Nothing declared yet — this service can only be sold as a flat offer.
+          None defined. This service can only be sold as a fixed offering.
         </p>
       ) : (
         <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
@@ -173,7 +174,7 @@ export function ServiceVariablesEditor({
                     value={r.label}
                     onChange={(v) => patch(i, applyLabel(r, v))}
                     options={labelOptions}
-                    placeholder="What varies — e.g. Number of outfits"
+                    placeholder="e.g. Number of outfits"
                     disabled={isPending}
                   />
                 </div>
@@ -228,13 +229,13 @@ export function ServiceVariablesEditor({
                     onChange={(v) => patch(i, { options: v })}
                     options={(suggestions?.shapeFor[r.label.trim().toLowerCase()]?.options || [])
                       .filter((o) => !r.options.includes(o))}
-                    placeholder="An answer — choose or type"
+                    placeholder="Add an option"
                     disabled={isPending}
                   />
                   <span className="q-meta-sm" style={{ opacity: 0.7 }}>
                     {r.kind === 'multichoice'
-                      ? 'The client may pick more than one of these.'
-                      : 'The client picks exactly one of these.'}
+                      ? 'The client may select more than one.'
+                      : 'The client selects exactly one.'}
                   </span>
                 </div>
               )}

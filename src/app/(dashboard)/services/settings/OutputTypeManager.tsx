@@ -42,13 +42,13 @@ export function OutputTypeManager({
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); await load(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That didn’t work.'); }
+      catch (e: any) { alert(e?.message || 'The change could not be saved.'); }
     });
 
   if (domains.length === 0) {
     return (
       <p className="q-empty">
-        Add a service domain first — an output type belongs to one, so there&rsquo;s nothing to produce yet.
+        Add a service domain first. Output types belong to a domain.
       </p>
     );
   }
@@ -84,14 +84,14 @@ export function OutputTypeManager({
               {t.name}
             </span>
           ))}
-          {types.length === 0 && <span className="q-meta-sm">Nothing yet — the first service that names one creates it.</span>}
+          {types.length === 0 && <span className="q-meta-sm">None yet. Defining one on a service also creates it here.</span>}
         </div>
       )}
 
       <PickToAdd
         options={narrowFor(suggestions, domainName, '')
           .filter((o) => !types.some((t) => t.name.toLowerCase() === o.toLowerCase()))}
-        placeholder={`What else does ${domainName || 'this domain'} produce — choose or type`}
+        placeholder={`Add an output type for ${domainName || 'this domain'}`}
         disabled={isPending}
         onAdd={(v) => run(() => createDeliverable({ serviceDomainId: domainId, name: v }))}
       />

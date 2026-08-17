@@ -287,7 +287,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             <p className="q-empty">
               {lines.length === 0
                 ? 'No one on this booking yet — add a package and the roles its blueprints call for show up here.'
-                : "No one yet. These packages' blueprints don't name any roles, so there's nothing to staff against — route them and the roles appear here."}
+                : "No roles required. The blueprints for these packages do not route any stages to a role."}
             </p>
           )}
 

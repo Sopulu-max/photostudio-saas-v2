@@ -264,7 +264,7 @@ export function NotificationBell({
 
           {items.length === 0 ? (
             <div className="q-bell-empty">
-              Nothing yet. Bookings, signatures and payments land here as they arrive.
+              No notifications. Bookings, signatures and payments appear here as they occur.
             </div>
           ) : (
             <div className="q-bell-list">

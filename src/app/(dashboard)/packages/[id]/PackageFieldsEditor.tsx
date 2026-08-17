@@ -442,26 +442,26 @@ export function PackageFieldsEditor({
                                 </div>
                                 <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
                                   <input
-                                    className="q-input q-input-sm" type="number" min={0} placeholder="How many"
+                                    className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
                                     value={spec.quantity ?? ''}
                                     onChange={(e) => patchSpec(d.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
                                     style={{ maxWidth: '7rem' }}
                                   />
                                   <input
-                                    className="q-input q-input-sm" placeholder="of what (e.g. image)"
+                                    className="q-input q-input-sm" placeholder="Unit — e.g. image"
                                     value={spec.unit ?? ''}
                                     onChange={(e) => patchSpec(d.id, { unit: e.target.value })}
                                     style={{ maxWidth: '13rem' }}
                                   />
                                   <input
-                                    className="q-input q-input-sm" placeholder="spec (e.g. high-res)"
+                                    className="q-input q-input-sm" placeholder="Specification — e.g. high-res"
                                     value={spec.spec ?? ''}
                                     onChange={(e) => patchSpec(d.id, { spec: e.target.value })}
                                     style={{ minWidth: '12rem', flex: 1 }}
                                   />
                                 </div>
                                 <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                                  Reads as: {formatDeliverable({ name: d.name, ...spec })}
+                                  Appears as: {formatDeliverable({ name: d.name, ...spec })}
                                 </span>
                               </div>
                             );
@@ -588,26 +588,26 @@ export function PackageFieldsEditor({
                     </div>
                     <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
                       <input
-                        className="q-input q-input-sm" type="number" min={0} placeholder="How many"
+                        className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
                         value={spec.quantity ?? ''}
                         onChange={(e) => patchSpec(dId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
                         style={{ maxWidth: '7rem' }}
                       />
                       <input
-                        className="q-input q-input-sm" placeholder="of what — second, page, hour"
+                        className="q-input q-input-sm" placeholder="Unit — second, page, hour"
                         value={spec.unit ?? ''}
                         onChange={(e) => patchSpec(dId, { unit: e.target.value })}
                         style={{ maxWidth: '13rem' }}
                       />
                       <input
-                        className="q-input q-input-sm" placeholder="to what spec — 20x30, matte"
+                        className="q-input q-input-sm" placeholder="Specification — 20x30, matte"
                         value={spec.spec ?? ''}
                         onChange={(e) => patchSpec(dId, { spec: e.target.value })}
                         style={{ minWidth: '12rem', flex: 1 }}
                       />
                     </div>
                     <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                      Reads as: {formatDeliverable({ name: dName, ...spec })}
+                      Appears as: {formatDeliverable({ name: dName, ...spec })}
                     </span>
                   </div>
                 );

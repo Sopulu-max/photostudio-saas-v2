@@ -183,20 +183,20 @@ export function ServiceFieldsEditor({
 
       {/* 1. Core Service Information */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)' }}>
-        <h3 className="q-section-title">Core Capability</h3>
+        <h3 className="q-section-title">Service</h3>
 
         <div className="q-row q-gap-md" style={{ alignItems: 'flex-start' }}>
           <label className="q-label" style={{ flex: 1 }}>
-            Service Domain (Parent)
+            Service domain
             <PickOne
               value={domain}
               onChange={setDomain}
               options={domainOptions}
-              placeholder="Choose a domain, or type a new one…"
+              placeholder="Select or enter a domain"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ marginTop: '4px', opacity: 0.7 }}>
-              Everything below reconfigures around this.
+              Determines the classifications and output types available below.
             </span>
           </label>
         </div>
@@ -210,15 +210,15 @@ export function ServiceFieldsEditor({
             value={name}
             onChange={setName}
             options={knownServices}
-            placeholder={domainName ? `Which ${domainName} service — or type your own` : 'Choose a domain first…'}
+            placeholder={domainName ? `Select or enter a ${domainName} service` : 'Select a domain first'}
             disabled={isPending || !domainName}
           />
           <span className="q-meta-sm" style={{ opacity: 0.7 }}>
             {!domainName
-              ? 'Pick a domain and this fills with the services it knows.'
+              ? 'Select a domain to see its known services.'
               : knownServices.length > 0
-                ? `${knownServices.length} known under ${domainName} — or add your own.`
-                : `Nothing known under ${domainName} yet — add the first.`}
+                ? `${knownServices.length} known under ${domainName}, or enter a new one.`
+                : `No known services under ${domainName} yet.`}
           </span>
         </label>
 
@@ -232,11 +232,9 @@ export function ServiceFieldsEditor({
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
         <div className="q-row q-row-between">
           <div>
-            <h3 className="q-section-title">
-              {domainName ? `How ${domainName} classifies this` : 'How this gets classified'}
-            </h3>
+            <h3 className="q-section-title">Classification</h3>
             <span className="q-meta-sm" style={{ opacity: 0.7 }}>
-              What this service is constrained to. Anything left unconstrained is asked of the client instead.
+              What this service is limited to. Anything left unset becomes a question for the client at booking.
             </span>
           </div>
           <Settings size={20} color="var(--q-color-primary)" opacity={0.5} />
@@ -245,13 +243,13 @@ export function ServiceFieldsEditor({
         <div className="q-stack q-gap-md" style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
           {!domainName ? (
             <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-              Choose a domain and its own questions appear here.
+              Select a service domain to see its classifications.
             </span>
           ) : (
             <>
               {questions.length === 0 && (
                 <span className="q-meta-sm" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-                  {domainName} doesn&rsquo;t classify its work by anything yet. Add the first way below.
+                  {domainName} has no classifications yet. Add one below.
                 </span>
               )}
 
@@ -275,8 +273,8 @@ export function ServiceFieldsEditor({
                         options={options}
                         placeholder={
                           q.example
-                            ? `e.g. ${q.example.split(',')[0].trim()} — choose or type`
-                            : `Add ${q.name.toLowerCase()} — choose or type`
+                            ? `e.g. ${q.example.split(',')[0].trim()}`
+                            : `Select or enter a value`
                         }
                         disabled={isPending}
                       />
@@ -311,12 +309,12 @@ export function ServiceFieldsEditor({
               ) : (
                 <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setAdding(true)} disabled={isPending}>
                   <Plus size={14} style={{ marginRight: '6px' }} />
-                  Another way to classify {domainName}
+                  Add classification
                 </button>
               )}
               <span className="q-meta-sm" style={{ opacity: 0.7 }}>
-                Whatever you add here belongs to {domainName} and is offered next time.{' '}
-                <a className="q-accent" href="/services/settings">Manage them all</a>.
+                Anything added here belongs to {domainName} and will be available for its other services.{' '}
+                <a className="q-accent" href="/services/settings">Manage classifications</a>.
               </span>
             </>
           )}
@@ -325,11 +323,11 @@ export function ServiceFieldsEditor({
 
       {/* 3. Output Configuration */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
-        <h3 className="q-section-title">Produces (Outputs)</h3>
+        <h3 className="q-section-title">Output types</h3>
 
         <div className="q-stack q-gap-sm" style={{ marginTop: '16px' }}>
           <label className="q-label">
-            Primary Asset
+            Primary output
             {/* Narrowed by the named service where the app knows it: Portrait
                 Photography produces edited photographs, not the whole studio
                 vocabulary. How many of them is a package's business. */}
@@ -337,22 +335,22 @@ export function ServiceFieldsEditor({
               value={primaryDeliverable}
               onChange={setPrimaryOutputType}
               options={outputSuggestions}
-              placeholder="What does this mainly produce — choose or type"
+              placeholder="Select or enter an output type"
               disabled={isPending}
             />
           </label>
 
           <div style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
-            <label className="q-label" style={{ marginBottom: '8px' }}>Also produces</label>
+            <label className="q-label" style={{ marginBottom: '8px' }}>Additional outputs</label>
             <PickMany
               values={deliverables}
               onChange={setDeliverables}
               options={outputSuggestions.filter((o) => o !== primaryDeliverable)}
-              placeholder="Add an output — choose or type"
+              placeholder="Select or enter an output type"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ display: 'block', marginTop: '8px', opacity: 0.7 }}>
-              What kind of thing, not how many — quantities and sizes belong to a package.
+              Output types only. Quantities and sizes are set on a package.
             </span>
           </div>
         </div>
@@ -363,7 +361,7 @@ export function ServiceFieldsEditor({
         <div className="q-row">
           <button className="q-btn q-btn-primary" onClick={handleSave} disabled={isPending}>
             <CheckCircle2 size={16} style={{ marginRight: '8px' }} />
-            {isPending ? 'Saving...' : 'Save Capability Engine'}
+            {isPending ? 'Saving…' : 'Save service'}
           </button>
           <button className="q-btn q-btn-secondary" onClick={() => router.push(mode === 'create' ? '/services' : `/services/${serviceId}`)}>
             Cancel
@@ -372,9 +370,9 @@ export function ServiceFieldsEditor({
         {mode === 'edit' && (
           <div className="q-row">
             {status === 'active' ? (
-              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'retired' }).then(() => router.refresh()))} disabled={isPending}>Archive Engine</button>
+              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'retired' }).then(() => router.refresh()))} disabled={isPending}>Retire service</button>
             ) : (
-              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'active' }).then(() => router.refresh()))} disabled={isPending}>Restore Engine</button>
+              <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'active' }).then(() => router.refresh()))} disabled={isPending}>Restore service</button>
             )}
             <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => duplicateService(serviceId!).then((newId) => router.push(`/services/${newId}/edit`)))} disabled={isPending}>Duplicate</button>
           </div>

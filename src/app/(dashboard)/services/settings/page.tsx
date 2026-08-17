@@ -83,16 +83,16 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">The questions you ask about your own work</h2>
+          <h2 className="q-section-title">Classifications</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            Each one is a <strong>question</strong> — &ldquo;what occasion is it for?&rdquo; — and under it, the{' '}
-            <strong>answers</strong> you actually use. Every service you define gets asked these, and
-            everything you tag becomes a way to look at your work later.
+            How each domain categorises its work. A classification is a question — &ldquo;What occasion is
+            it for?&rdquo; — and its values are the permitted answers. Services in that domain are
+            classified against them, which drives filtering and reporting.
           </p>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            The ones below came with the app. They are ordinary — rename them, switch off the ones you
-            don&rsquo;t think in, add your own. Each belongs to a single domain, so Photography can ask
-            about Style without Printing ever hearing about it.
+            Those listed below are supplied as defaults. Rename them, disable any you do not use, or add
+            your own. Each belongs to a single domain, so Photography can classify by Style without
+            affecting Printing.
           </p>
           <DimensionManager
             domains={domains.map((d: any) => ({ id: d.id, name: d.name }))}
@@ -102,11 +102,11 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">What each domain produces</h2>
+          <h2 className="q-section-title">Output types</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            The KINDS of thing a service can turn out — RAW images, edited video, a bound album. Like
-            dimensions, these belong to a domain. How many, how big and to what spec is a package&rsquo;s
-            business, so nothing here carries a quantity.
+            The types of output a service produces — RAW images, edited video, a bound album. Like
+            classifications, these belong to a domain. Quantities, sizes and specifications are set on a
+            package, not here.
           </p>
           <OutputTypeManager
             domains={domains.map((d: any) => ({ id: d.id, name: d.name }))}

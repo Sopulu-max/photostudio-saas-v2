@@ -52,7 +52,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
 
   return (
     <div className="q-page-narrow">
-      <Link className="q-back" href="/lens">&larr; Every angle</Link>
+      <Link className="q-back" href="/lens">&larr; All classifications</Link>
 
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
@@ -76,7 +76,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
           </p>
           {place.children.length > 0 && (
             <div className="q-row" style={{ gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-              <span className="q-meta-sm">Kinds of {value.name}:</span>
+              <span className="q-meta-sm">Includes:</span>
               {place.children.map((c) => (
                 <Link key={c.id} href={`/lens/${c.id}`} className="q-badge q-badge-neutral">{c.name}</Link>
               ))}
@@ -87,17 +87,17 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
 
       <div className="q-stack q-stack-lg">
         <section className="q-card q-section">
-          <h2 className="q-section-title">What you do for {value.name}</h2>
+          <h2 className="q-section-title">Services</h2>
           {place.children.length > 0 && (
             <p className="q-meta" style={{ marginBottom: '12px' }}>
-              Including what sits inside {value.name}. A service filed under one of those is filed
-              under this — it never had to be tagged twice, and where a match came from is named.
+              Includes services classified under narrower values. Where a match came through a narrower
+              value, that value is shown alongside the service.
             </p>
           )}
           {carried.services.length === 0 ? (
             <p className="q-empty">
-              No service is filed under {value.name} yet. It is part of {value.domainName || 'this domain'}&rsquo;s
-              vocabulary, but nothing has been classified with it.
+              No services are classified as {value.name}. It is part of{' '}
+              {value.domainName || 'this domain'}&rsquo;s vocabulary but has not been applied.
             </p>
           ) : (
             <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
@@ -117,13 +117,13 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">What you already sell for it</h2>
+          <h2 className="q-section-title">Packages</h2>
           <p className="q-meta" style={{ marginBottom: '12px' }}>
-            A package counts either way — because it says {value.name} itself, or because it bundles
-            something that does. The bundle already said so; nobody had to tag it twice.
+            Includes packages classified as {value.name} directly, and packages that bundle a service
+            classified as {value.name}.
           </p>
           {carried.packages.length === 0 ? (
-            <p className="q-empty">Nothing sold for {value.name} yet.</p>
+            <p className="q-empty">No packages include {value.name}.</p>
           ) : (
             <div className="q-stack q-stack-sm">
               {carried.packages.map((p) => (
@@ -151,15 +151,13 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
           */}
         <section className="q-card q-section">
           <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
-            <h2 className="q-section-title">What you&rsquo;ve actually booked</h2>
+            <h2 className="q-section-title">Bookings</h2>
             {booked.total > 0 && (
               <span className="q-num q-strong">{formatMoney(booked.total, currency)}</span>
             )}
           </div>
           {booked.bookings.length === 0 ? (
-            <p className="q-empty">
-              Nothing booked under {value.name} yet — what you can do for it is above.
-            </p>
+            <p className="q-empty">No bookings recorded for {value.name}.</p>
           ) : (
             <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
               {booked.bookings.map((b) => (
@@ -180,21 +178,20 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
             </div>
           )}
           <p className="q-meta-sm" style={{ marginTop: '12px', opacity: 0.7 }}>
-            Read live from how you classify things today. Renaming {value.name} re-reads every booking
-            above; moving a package to a different classification moves its history with it.
+            Based on current classifications. Renaming {value.name} updates every booking listed here;
+            reclassifying a package moves its bookings with it.
           </p>
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">What goes with it</h2>
+          <h2 className="q-section-title">Related values</h2>
           <p className="q-meta" style={{ marginBottom: '12px' }}>
-            Derived, not declared. {value.name} relates to these because your own services carry both —
-            no one typed the relationship anywhere, and nothing stores it.
+            Values that appear on the same services as {value.name}. Derived from your existing
+            classifications — no relationship is recorded anywhere.
           </p>
           {alongside.length === 0 ? (
             <p className="q-empty">
-              Nothing yet. Tag a second thing about a {value.name} service and the connection appears here
-              on its own.
+              None yet. Apply a second classification to a {value.name} service and it will appear here.
             </p>
           ) : (
             <div className="q-stack q-stack-sm">
@@ -209,7 +206,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
                   <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
                     {values.map((c) => (
                       <Link key={c.valueId} href={`/lens/${c.valueId}`} className="q-badge q-badge-neutral"
-                        title={`${c.services} of your ${value.name} service${c.services === 1 ? '' : 's'} also ${dimensionName.toLowerCase()} ${c.valueName}`}>
+                        title={`${c.services} ${value.name} service${c.services === 1 ? '' : 's'} also classified ${dimensionName}: ${c.valueName}`}>
                         {c.valueName}
                         <span style={{ marginLeft: '6px', opacity: 0.7 }}>{c.services}</span>
                       </Link>
@@ -224,11 +221,11 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
         {/* The fork. Stated as the question it is, because getting it wrong is
             how a studio ends up with forty near-identical services. */}
         <section className="q-card q-section">
-          <h2 className="q-section-title">Do something about {value.name}</h2>
+          <h2 className="q-section-title">Create</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            One question decides which: is it a <strong>different process</strong>, or the same process
-            framed differently? Repackaging what you already do for a {value.name} special is a package.
-            Work that runs differently start to finish is a service.
+            Is this a <strong>different process</strong>, or the same process sold differently?
+            Repackaging existing work for {value.name} is a package. Work that runs differently from
+            start to finish is a new service.
           </p>
           {/* Whichever answer the data supports leads. With nothing active
               filed under this value, a package has nothing to bundle, so
@@ -238,19 +235,19 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
               href={`/packages/new?value=${encodeURIComponent(value.id)}`}
               className={`q-btn ${activeServices.length > 0 ? 'q-btn-primary' : 'q-btn-secondary'}`}
             >
-              Package what you already do
+              Create package
             </Link>
             <Link
               href={newServiceHref}
               className={`q-btn ${activeServices.length > 0 ? 'q-btn-secondary' : 'q-btn-primary'}`}
             >
-              It&rsquo;s a different process — new service
+              Create service
             </Link>
           </div>
           {activeServices.length === 0 && (
             <p className="q-meta-sm" style={{ marginTop: '12px', opacity: 0.7 }}>
-              Nothing active is filed under {value.name} yet, so a package would have nothing to bundle —
-              the new service is the honest starting point.
+              No active services are classified as {value.name}, so a package would have nothing to
+              bundle. Create the service first.
             </p>
           )}
         </section>

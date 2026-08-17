@@ -24,7 +24,7 @@ export function TransactionActions({
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That didn’t work.'); }
+      catch (e: any) { alert(e?.message || 'The action could not be completed.'); }
     });
 
   if (confirming) {

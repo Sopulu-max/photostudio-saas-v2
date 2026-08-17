@@ -91,7 +91,7 @@ export function FacetManager({
   return (
     <div className="q-stack q-stack-md">
       {facets.length === 0 ? (
-        <p className="q-empty">Nothing yet — the first service that names one creates it.</p>
+        <p className="q-empty">None yet. Defining one on a service also creates it here.</p>
       ) : (
         <div className="q-stack q-stack-sm">
           {facets.map((f) => (
