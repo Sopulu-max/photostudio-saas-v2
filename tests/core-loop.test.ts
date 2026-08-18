@@ -1151,6 +1151,29 @@ describe('Core Loop Verification', () => {
     expect(days[0].checkedOutAt).toBeNull();
     expect(days[0].checkedInAt).toBe(arrival);
 
+    // A time given with the action is what gets recorded — no second step.
+    // Somebody who arrived at eight and taps at ten types eight and is done.
+    await setStudioTimezone('Africa/Lagos');
+    const { employeeId: late } = await addEmployee({ name: 'Ada Late', email: 'ada.late@example.com' });
+    await checkIn(late, '08:00');
+    const lateDay = (await listAttendanceForEmployee(late))[0];
+    const arrivedAt = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos',
+    }).format(new Date(lateDay.checkedInAt));
+    expect(arrivedAt).toBe('08:00');
+
+    // Coming back must not overwrite the morning. Pressing check-in again with
+    // no time reopens the day and leaves the recorded arrival where it was —
+    // otherwise somebody back from lunch loses the hours already worked.
+    await checkOut(late, '12:00');
+    await checkIn(late);
+    const reopened = (await listAttendanceForEmployee(late))[0];
+    expect(reopened.checkedOutAt).toBeNull();
+    expect(reopened.checkedInAt).toBe(lateDay.checkedInAt);
+
+    // And leaving before arriving is refused rather than stored.
+    await expect(checkOut(late, '06:00')).rejects.toThrow(/earlier than check-in/i);
+
     // You cannot leave a day you never started.
     const { employeeId: neverIn } = await addEmployee({ name: 'Never In', email: 'never.in@example.com' });
     await expect(checkOut(neverIn)).rejects.toThrow(/checked in/i);

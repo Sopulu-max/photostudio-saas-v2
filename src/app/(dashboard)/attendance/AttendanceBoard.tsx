@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { checkIn, checkOut, adjustAttendance } from '@/modules/team/interface';
+import { checkIn, checkOut } from '@/modules/team/interface';
 import type { AttendanceToday } from '@/modules/team/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 
@@ -13,9 +13,10 @@ import { ContactAvatar } from '@/components/ContactAvatar';
  * each state is legible at a glance. No one signs in — the studio's device is
  * signed in, and the operator is recorded on each row.
  *
- * Recorded times are editable. People forget to check in; someone arrives at
- * eight and remembers at ten. A register that cannot be corrected gets worked
- * around rather than used.
+ * The time is typed on the row, beside the action. People forget to check in —
+ * someone arrives at eight and taps at ten — so the field defaults to now and
+ * is overwritten in four keystrokes. Recording and correcting are one step,
+ * because they are one fact. Past days are corrected on the employee's profile.
  *
  * A record is a date and a time, not a time alone. This device is never closed,
  * so at 00:05 a bare "6:12 PM" reads as tonight when it means last night.
@@ -40,12 +41,6 @@ const exactly = (iso: string | null, timezone: string) =>
       }).format(new Date(iso))
     : '';
 
-/** "HH:MM" in the studio's timezone — the value a time input expects. */
-const inputTime = (iso: string | null, timezone: string) =>
-  iso
-    ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(new Date(iso))
-    : '';
-
 export function AttendanceBoard({
   roster, workDate, timezone,
 }: {
@@ -55,8 +50,45 @@ export function AttendanceBoard({
 }) {
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
   const router = useRouter();
+
+  /*
+   * The time is typed on the row, next to the action.
+   *
+   * There used to be a separate "Edit times" step: check in first, then correct
+   * it afterwards. That is two trips for one fact. Somebody who arrived at eight
+   * and is tapping at ten types eight and presses the button once.
+   *
+   * The field shows the current time until touched, and keeps ticking while it
+   * is untouched — a board left open since morning should not still be offering
+   * 08:00 at noon.
+   */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [nowLocal, setNowLocal] = useState('');
+
+  useEffect(() => {
+    const read = () => setNowLocal(
+      new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(new Date())
+    );
+    read();
+    const tick = setInterval(read, 15000);
+    return () => clearInterval(tick);
+  }, [timezone]);
+
+  /** What the field shows: what was typed, or the current time as a starting point. */
+  const timeFor = (key: string) => typed[key] ?? nowLocal;
+  const setTime = (key: string, v: string) => setTyped((prev) => ({ ...prev, [key]: v }));
+
+  /*
+   * What gets SENT: only a time somebody actually typed.
+   *
+   * The distinction matters most when reopening a day. Someone back from lunch
+   * presses Check in with the field sitting at the current time — sending it
+   * would overwrite this morning's arrival with the afternoon, losing the hours
+   * they had already worked. An untouched field means "use the clock, and leave
+   * what is already recorded alone".
+   */
+  const statedTime = (key: string) => typed[key] || undefined;
 
   /*
    * Confirmation of what was recorded.
@@ -98,6 +130,14 @@ export function AttendanceBoard({
         kind: kind === 'in' && result?.alreadyIn ? 'already' : kind,
         at: result?.at ?? null,
       });
+      // Back to tracking the clock. Without this the field kept the arrival
+      // time it was just given, so checking out an hour later defaulted to the
+      // moment they walked in.
+      setTyped((prev) => {
+        const next = { ...prev };
+        delete next[person.employeeId];
+        return next;
+      });
       startTransition(() => { router.refresh(); });
     } catch (e: any) {
       setConfirmation(null);
@@ -120,62 +160,6 @@ export function AttendanceBoard({
     );
   }
 
-  const EditTimes = ({ person }: { person: AttendanceToday }) => {
-    const [inAt, setInAt] = useState(inputTime(person.checkedInAt, timezone));
-    const [outAt, setOutAt] = useState(inputTime(person.checkedOutAt, timezone));
-    const [saving, setSaving] = useState(false);
-
-    const save = async () => {
-      if (!person.attendanceId) return;
-      setSaving(true);
-      try {
-        await adjustAttendance({
-          attendanceId: person.attendanceId,
-          checkedInAt: inAt,
-          checkedOutAt: outAt || null,
-        });
-        setEditing(null);
-        startTransition(() => { router.refresh(); });
-      } catch (e: any) {
-        alert(e?.message || 'The change could not be saved.');
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    return (
-      <div className="q-stack q-stack-sm" style={{ width: '100%', marginTop: '4px' }}>
-        <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-          <label className="q-meta-sm" style={{ minWidth: '5rem' }}>Check-in</label>
-          <input className="q-input q-input-sm" type="time" value={inAt}
-            onChange={(e) => setInAt(e.target.value)} disabled={saving} style={{ width: '8rem' }} />
-        </div>
-        <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-          <label className="q-meta-sm" style={{ minWidth: '5rem' }}>Check-out</label>
-          <input className="q-input q-input-sm" type="time" value={outAt}
-            onChange={(e) => setOutAt(e.target.value)} disabled={saving} style={{ width: '8rem' }} />
-          {outAt && (
-            <button className="q-btn-ghost q-meta-sm" style={{ padding: 0 }} disabled={saving}
-              onClick={() => setOutAt('')}>
-              Clear
-            </button>
-          )}
-        </div>
-        <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={saving || !inAt} onClick={save}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-          <button className="q-btn q-btn-secondary q-btn-sm" disabled={saving} onClick={() => setEditing(null)}>
-            Cancel
-          </button>
-        </div>
-        <span className="q-meta-sm" style={{ opacity: 0.7 }}>
-          Times are in {timezone}. Clearing the check-out time marks them as still present.
-        </span>
-      </div>
-    );
-  };
-
   const Row = ({ person }: { person: AttendanceToday }) => {
     const working = busy === person.employeeId;
     const arrived = timeOf(person.checkedInAt, timezone);
@@ -185,7 +169,9 @@ export function AttendanceBoard({
     // The date is repeated only when the two differ — a shift that ran past
     // midnight. Repeating it on a normal day is noise.
     const spanned = !!leftOn && leftOn !== arrivedOn;
-    const isEditing = editing === person.employeeId;
+    // Checking out is the next thing this row will do, so the field carries the
+    // leaving time; anyone else is arriving.
+    const key = person.employeeId;
 
     return (
       <div className="q-tile q-stack q-stack-sm">
@@ -211,16 +197,21 @@ export function AttendanceBoard({
             </div>
           </div>
 
-          <div className="q-row" style={{ gap: '8px' }}>
-            {person.attendanceId && !isEditing && (
-              <button className="q-btn q-btn-secondary q-btn-sm" disabled={working}
-                onClick={() => setEditing(person.employeeId)}>
-                Edit times
-              </button>
-            )}
+          <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+            {/* Defaults to now and stays current until touched, so the common
+                case is one press and the late case is typing four digits. */}
+            <input
+              className="q-input q-input-sm"
+              type="time"
+              value={timeFor(key)}
+              disabled={working}
+              aria-label={person.state === 'in' ? `Check-out time for ${person.name}` : `Check-in time for ${person.name}`}
+              onChange={(e) => setTime(key, e.target.value)}
+              style={{ width: '7.5rem' }}
+            />
             {person.state === 'in' ? (
               <button className="q-btn q-btn-secondary" disabled={working}
-                onClick={() => run(person, () => checkOut(person.employeeId), 'out')}>
+                onClick={() => run(person, () => checkOut(person.employeeId, statedTime(key)), 'out')}>
                 {working ? 'Saving…' : 'Check out'}
               </button>
             ) : (
@@ -229,15 +220,13 @@ export function AttendanceBoard({
               <button
                 className={`q-btn ${person.state === 'off' ? 'q-btn-secondary' : 'q-btn-primary'}`}
                 disabled={working}
-                onClick={() => run(person, () => checkIn(person.employeeId), 'in')}
+                onClick={() => run(person, () => checkIn(person.employeeId, statedTime(key)), 'in')}
               >
                 {working ? 'Saving…' : 'Check in'}
               </button>
             )}
           </div>
         </div>
-
-        {isEditing && <EditTimes person={person} />}
       </div>
     );
   };

@@ -78,6 +78,24 @@ async function studioToday(orgId: string): Promise<{ workDate: string; timezone:
   return { workDate, timezone, isoWeekday };
 }
 
+/**
+ * A wall-clock time on a working day, as an instant.
+ *
+ * Postgres does the conversion because it carries the timezone database and
+ * knows the offset that applied on that date. Doing it here would be wrong for
+ * one hour twice a year wherever daylight saving applies.
+ */
+async function instantFor(workDate: string, wallClock: string, timezone: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.rpc('attendance_local_instant', {
+    p_date: workDate, p_time: wallClock, p_timezone: timezone,
+  });
+  if (error || !data) {
+    console.error('Failed to resolve local time:', error);
+    throw new Error(`${wallClock} is not a valid time.`);
+  }
+  return data as string;
+}
+
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
   workDate: string; timezone: string; isoWeekday: number; roster: AttendanceToday[];
@@ -135,9 +153,12 @@ export async function getAttendanceToday(): Promise<{
  * clears rather than the arrival being overwritten, so the day keeps the time
  * they actually got in.
  */
-export async function checkIn(employeeId: string) {
+export async function checkIn(employeeId: string, atLocalTime?: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { workDate } = await studioToday(orgId);
+  const { workDate, timezone } = await studioToday(orgId);
+  // The time is part of the action, not a correction afterwards: somebody who
+  // arrived at eight and is tapping at ten types eight and is done.
+  const stampedAt = atLocalTime ? await instantFor(workDate, atLocalTime, timezone) : null;
 
   const { data: existing } = await supabaseAdmin
     .from('attendance')
@@ -155,14 +176,17 @@ export async function checkIn(employeeId: string) {
 
   if (existing) {
     at = existing.checked_in_at as string;
-    if (!existing.checked_out_at) {
+    if (!existing.checked_out_at && !stampedAt) {
       alreadyIn = true;
     } else {
+      // Reopening the day, correcting the arrival, or both. A stated time wins
+      // over what is already recorded — that is the point of typing it.
+      const patch: Record<string, unknown> = { checked_out_at: null, updated_at: new Date().toISOString() };
+      if (stampedAt) { patch.checked_in_at = stampedAt; at = stampedAt; }
       const { error } = await supabaseAdmin
-        .from('attendance')
-        .update({ checked_out_at: null, updated_at: new Date().toISOString() })
+        .from('attendance').update(patch)
         .eq('id', existing.id).eq('organization_id', orgId);
-      if (error) { console.error('Failed to reopen attendance:', error); throw new Error('Failed to check in'); }
+      if (error) { console.error('Failed to record check-in:', error); throw new Error('Failed to check in'); }
     }
   } else {
     const { data: created, error } = await supabaseAdmin.from('attendance').insert({
@@ -170,6 +194,7 @@ export async function checkIn(employeeId: string) {
       employee_id: employeeId,
       work_date: workDate,
       recorded_by: actorId ?? null,
+      ...(stampedAt ? { checked_in_at: stampedAt } : {}),
     }).select('checked_in_at').single();
     if (error || !created) { console.error('Failed to check in:', error); throw new Error('Failed to check in'); }
     at = created.checked_in_at as string;
@@ -185,9 +210,9 @@ export async function checkIn(employeeId: string) {
 }
 
 /** Left for the day. Nothing to stamp if they were never in — say so rather than inventing a morning. */
-export async function checkOut(employeeId: string) {
+export async function checkOut(employeeId: string, atLocalTime?: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { workDate } = await studioToday(orgId);
+  const { workDate, timezone } = await studioToday(orgId);
 
   const { data: existing } = await supabaseAdmin
     .from('attendance')
@@ -199,9 +224,17 @@ export async function checkOut(employeeId: string) {
 
   if (!existing) throw new Error('They haven’t checked in today.');
 
+  const leftAt = atLocalTime
+    ? await instantFor(workDate, atLocalTime, timezone)
+    : new Date().toISOString();
+
+  if (new Date(leftAt).getTime() < new Date(existing.checked_in_at as string).getTime()) {
+    throw new Error('Check-out cannot be earlier than check-in.');
+  }
+
   const { data: updated, error } = await supabaseAdmin
     .from('attendance')
-    .update({ checked_out_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ checked_out_at: leftAt, updated_at: new Date().toISOString() })
     .eq('id', existing.id).eq('organization_id', orgId)
     .select('checked_in_at, checked_out_at')
     .single();
