@@ -168,7 +168,25 @@ export function AttendanceBoard({
           <div className="q-row" style={{ gap: '12px', alignItems: 'center', minWidth: 0 }}>
             <ContactAvatar name={person.name} size="md" />
             <div style={{ minWidth: 0 }}>
-              <strong className="q-strong">{person.name}</strong>
+              {/*
+                * Roles sit beside the name in every state.
+                *
+                * They used to appear only for people who had not arrived, so
+                * checking someone in removed the one piece of information that
+                * says what they can do — and "four people are here, is one of
+                * them a photographer" became unanswerable on the screen that
+                * knows the answer. What someone does is true whether or not
+                * they have turned up, so it belongs to the name, not the state.
+                */}
+              <span className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <strong className="q-strong">{person.name}</strong>
+                {person.roles.map((r) => (
+                  <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
+                ))}
+                {person.roles.length === 0 && person.title && (
+                  <span className="q-meta-sm">{person.title}</span>
+                )}
+              </span>
               <div className="q-meta-sm" title={
                 person.checkedInAt
                   ? `Check-in: ${exactly(person.checkedInAt, timezone)}${person.checkedOutAt ? `\nCheck-out: ${exactly(person.checkedOutAt, timezone)}` : ''}`
@@ -179,9 +197,7 @@ export function AttendanceBoard({
                   ? `${arrivedOn}, ${arrived} – ${leftOn}, ${left}`
                   : `${arrivedOn}, ${arrived} – ${left}`)}
                 {person.state === 'off' && 'Not scheduled today'}
-                {person.state === 'away' && (person.roles.length > 0
-                  ? person.roles.map((r) => r.name).join(', ')
-                  : person.title || 'Not checked in')}
+                {person.state === 'away' && 'Not checked in'}
               </div>
             </div>
           </div>

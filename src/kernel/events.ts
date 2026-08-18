@@ -129,9 +129,17 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'employee.restored':      'restored a team member',
   'role.created':           'created a role',
 
+  // Attendance. Phrased without a name because the board is a shared device —
+  // whoever tapped is the actor, and they are usually recording someone else.
+  'employee.checked_in':       'checked a team member in',
+  'employee.checked_out':      'checked a team member out',
+  'employee.working_days_set': 'set a team member’s working days',
+  'attendance.adjusted':       'corrected an attendance record',
+
   // Studio
   'organization.created':        'set up the studio',
   'organization.status_updated': 'changed the studio’s status',
+  'organization.timezone_set':   'set the studio’s timezone',
 };
 
 /**

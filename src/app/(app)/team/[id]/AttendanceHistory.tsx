@@ -23,6 +23,8 @@ type Day = {
   checkedInAt: string;
   checkedOutAt: string | null;
   minutes: number | null;
+  /** Who last recorded or corrected this day, if it is known. */
+  recordedBy: string | null;
 };
 
 export function AttendanceHistory({
@@ -90,7 +92,8 @@ export function AttendanceHistory({
           </button>
         </div>
         <span className="q-meta-sm" style={{ opacity: 0.7 }}>
-          Times are in {timezone}. Clearing the check-out time marks the day as still open.
+          Times are in {timezone}. Clearing the check-out time marks the day as still open. Saving
+          records you as the person who last corrected this day.
         </span>
       </div>
     );
@@ -110,6 +113,12 @@ export function AttendanceHistory({
               {a.minutes != null
                 ? <span className="q-badge q-badge-neutral">{asSpan(a.minutes)}</span>
                 : <span className="q-badge q-badge-success">Present</span>}
+              {/* A shared device means anyone can tap any name, so a time with
+                  nobody's name on it is a time nobody can question. Rows from
+                  before this was kept simply have no one to name. */}
+              {a.recordedBy && (
+                <span className="q-meta-sm" style={{ opacity: 0.7 }}>by {a.recordedBy}</span>
+              )}
               {editing !== a.id && (
                 <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(a.id)}>
                   Edit

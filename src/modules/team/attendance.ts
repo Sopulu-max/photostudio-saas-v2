@@ -96,6 +96,28 @@ async function instantFor(workDate: string, wallClock: string, timezone: string)
   return data as string;
 }
 
+/**
+ * That this employee is actually ours.
+ *
+ * `organization_id` on the attendance row comes from the session, but
+ * `employee_id` arrives from the client, and the foreign key only checks that
+ * an employee with that id exists somewhere — not whose. Without this, a signed
+ * in operator could open an attendance row against another studio's employee
+ * and have it filed under their own.
+ *
+ * Reads rather than trusts: the row is only written after the employee has been
+ * found inside this organization.
+ */
+async function ourEmployee(orgId: string, employeeId: string): Promise<void> {
+  const { data } = await supabaseAdmin
+    .from('employees')
+    .select('id')
+    .eq('id', employeeId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!data) throw new Error('That person is not on this studio’s team.');
+}
+
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
   workDate: string; timezone: string; isoWeekday: number; roster: AttendanceToday[];
@@ -155,6 +177,7 @@ export async function getAttendanceToday(): Promise<{
  */
 export async function checkIn(employeeId: string, atLocalTime?: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await ourEmployee(orgId, employeeId);
   const { workDate, timezone } = await studioToday(orgId);
   // The time is part of the action, not a correction afterwards: somebody who
   // arrived at eight and is tapping at ten types eight and is done.
@@ -181,7 +204,11 @@ export async function checkIn(employeeId: string, atLocalTime?: string) {
     } else {
       // Reopening the day, correcting the arrival, or both. A stated time wins
       // over what is already recorded — that is the point of typing it.
-      const patch: Record<string, unknown> = { checked_out_at: null, updated_at: new Date().toISOString() };
+      const patch: Record<string, unknown> = {
+        checked_out_at: null,
+        recorded_by: actorId ?? null,
+        updated_at: new Date().toISOString(),
+      };
       if (stampedAt) { patch.checked_in_at = stampedAt; at = stampedAt; }
       const { error } = await supabaseAdmin
         .from('attendance').update(patch)
@@ -234,7 +261,7 @@ export async function checkOut(employeeId: string, atLocalTime?: string) {
 
   const { data: updated, error } = await supabaseAdmin
     .from('attendance')
-    .update({ checked_out_at: leftAt, updated_at: new Date().toISOString() })
+    .update({ checked_out_at: leftAt, recorded_by: actorId ?? null, updated_at: new Date().toISOString() })
     .eq('id', existing.id).eq('organization_id', orgId)
     .select('checked_in_at, checked_out_at')
     .single();
@@ -263,6 +290,9 @@ export async function checkOut(employeeId: string, atLocalTime?: string) {
  */
 export async function setWorkingDays(input: { employeeId: string; days: number[] }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  // Scoping the update alone would silently affect nothing for a foreign
+  // employee, and report success. Say so instead.
+  await ourEmployee(orgId, input.employeeId);
 
   const days = [...new Set((input.days || []).map(Number))]
     .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
@@ -333,7 +363,10 @@ export async function adjustAttendance(input: {
     return data as string;
   };
 
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const patch: Record<string, unknown> = {
+    recorded_by: actorId ?? null,
+    updated_at: new Date().toISOString(),
+  };
 
   if (input.checkedInAt !== undefined) {
     if (!input.checkedInAt) throw new Error('A record needs a check-in time.');
@@ -383,22 +416,37 @@ export async function adjustAttendance(input: {
   return { ok: true, at: saved.checked_in_at as string, out: (saved.checked_out_at ?? null) as string | null };
 }
 
-/** One person's recent days — the profile's "has this person been in" question. */
+/**
+ * One person's recent days — the profile's "has this person been in" question.
+ *
+ * The operator comes back with it. A shared device means anyone can tap any
+ * name, and a time nobody is accountable for is a time nobody trusts; the whole
+ * argument for not building a login for crew was that the row carries who
+ * entered it. It was carried and never shown, which is the same as not carrying
+ * it. `recordedBy` is whoever touched the row last — the event log holds the
+ * full chain when the question is who did what in what order.
+ */
 export async function listAttendanceForEmployee(employeeId: string, limit = 30) {
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('attendance')
-    .select('id, work_date, checked_in_at, checked_out_at')
+    .select('id, work_date, checked_in_at, checked_out_at, operator:contacts!attendance_recorded_by_fkey(display_name)')
     .eq('organization_id', orgId)
     .eq('employee_id', employeeId)
     .order('work_date', { ascending: false })
     .limit(limit);
+
+  // Said out loud rather than returned as an empty history. A join that stops
+  // resolving would otherwise look exactly like a person who has never been in.
+  if (error) console.error('Failed to load attendance history:', error);
 
   return ((data || []) as any[]).map((a) => ({
     id: a.id as string,
     workDate: a.work_date as string,
     checkedInAt: a.checked_in_at as string,
     checkedOutAt: (a.checked_out_at ?? null) as string | null,
+    /** Who last recorded or corrected this day. Null on records from before it was kept. */
+    recordedBy: (a.operator?.display_name ?? null) as string | null,
     /** Minutes between arriving and leaving, once they have left. */
     minutes: a.checked_out_at
       ? Math.max(0, Math.round((new Date(a.checked_out_at).getTime() - new Date(a.checked_in_at).getTime()) / 60000))
