@@ -49,6 +49,7 @@ export async function proxy(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/auth') &&
     request.nextUrl.pathname !== '/' && // let landing page be public
     !request.nextUrl.pathname.startsWith('/book') && // public booking pages
+    !request.nextUrl.pathname.startsWith('/storefront') && // the studio's public catalogue
     !request.nextUrl.pathname.startsWith('/gallery') && // client delivery galleries
     !request.nextUrl.pathname.startsWith('/invoice') && // client invoices
     !request.nextUrl.pathname.startsWith('/receipt') // client receipts
