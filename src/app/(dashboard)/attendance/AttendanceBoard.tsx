@@ -32,12 +32,6 @@ const dateOf = (iso: string | null, timezone: string) =>
     ? new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso))
     : '';
 
-/** "HH:MM" in the studio's timezone — the value a time input expects. */
-const inputTime = (iso: string | null, timezone: string) =>
-  iso
-    ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(new Date(iso))
-    : '';
-
 /** The full stamp, for a tooltip — to the second, when a rounded minute is not enough. */
 const exactly = (iso: string | null, timezone: string) =>
   iso
@@ -67,9 +61,16 @@ export function AttendanceBoard({
    * field instead, showing the current time as the likely answer, and nothing is
    * written until it is confirmed.
    *
-   * Prefilled with what the record already holds where there is one: someone
-   * back from lunch sees this morning's arrival rather than the afternoon, so
-   * confirming cannot silently erase the hours they have worked.
+   * Always prefilled with the current time, never with what the record already
+   * holds. The field answers "what time is it now, and is that when this
+   * happened" — the common case by a wide margin — so the studio confirms or
+   * types over it.
+   *
+   * The consequence, chosen deliberately: confirming a check-in on a day that
+   * was already closed records the confirmed time as the arrival. Someone back
+   * from lunch who confirms without reading replaces the morning. The record
+   * holds one arrival and one departure per day, so a return has nowhere else
+   * to go, and what is confirmed on screen is what gets stored.
    */
   const [asking, setAsking] = useState<{ employeeId: string; kind: 'in' | 'out'; time: string } | null>(null);
   const [nowLocal, setNowLocal] = useState('');
@@ -83,14 +84,8 @@ export function AttendanceBoard({
     return () => clearInterval(tick);
   }, [timezone]);
 
-  const ask = (person: AttendanceToday, kind: 'in' | 'out') => {
-    const existing = kind === 'in' ? person.checkedInAt : person.checkedOutAt;
-    setAsking({
-      employeeId: person.employeeId,
-      kind,
-      time: existing ? inputTime(existing, timezone) : nowLocal,
-    });
-  };
+  const ask = (person: AttendanceToday, kind: 'in' | 'out') =>
+    setAsking({ employeeId: person.employeeId, kind, time: nowLocal });
 
   /*
    * Confirmation of what was recorded.
