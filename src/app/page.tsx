@@ -6,7 +6,7 @@ import { Reveal } from '@/components/marketing/Reveal';
 export default async function LandingPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) redirect('/dashboard');
+  if (user) redirect('/home');
 
   return (
     <div>

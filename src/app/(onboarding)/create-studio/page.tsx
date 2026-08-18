@@ -14,7 +14,7 @@ export default async function CreateStudioPage(props: { searchParams: Promise<{ 
 
   // If they already have an organization, redirect them to the app grid
   if (user.user_metadata?.organization_id) {
-    redirect('/dashboard');
+    redirect('/home');
   }
 
   async function handleCreateOrg(formData: FormData) {
@@ -32,7 +32,7 @@ export default async function CreateStudioPage(props: { searchParams: Promise<{ 
       await supabase.auth.refreshSession();
       
       revalidatePath('/', 'layout');
-      redirect('/dashboard'); // Back to the App Grid
+      redirect('/home'); // Back to the App Grid
     } catch (e: any) {
       if (e.message === 'NEXT_REDIRECT') {
         throw e;

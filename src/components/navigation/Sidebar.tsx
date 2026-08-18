@@ -85,7 +85,7 @@ export function Sidebar({ studioName }: { studioName?: string; orgSlug?: string 
         padding: '20px 16px 16px',
         borderBottom: '1px solid var(--q-color-ink-100)',
       }}>
-        <Link href="/dashboard" style={{ textDecoration: 'none' }}>
+        <Link href="/home" style={{ textDecoration: 'none' }}>
           <div style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
             {studioName || 'Studio OS'}
           </div>

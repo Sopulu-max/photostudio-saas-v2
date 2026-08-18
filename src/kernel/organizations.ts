@@ -228,7 +228,7 @@ export async function updateStudio(input: {
   }
 
   revalidatePath('/settings');
-  revalidatePath('/dashboard');
+  revalidatePath('/home');
   // Every invoice reprints the studio's own block, so it changes with this.
   revalidatePath('/finances', 'layout');
   return { ok: true };
