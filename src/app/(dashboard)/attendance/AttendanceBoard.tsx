@@ -32,6 +32,12 @@ const dateOf = (iso: string | null, timezone: string) =>
     ? new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: timezone }).format(new Date(iso))
     : '';
 
+/** "HH:MM" in the studio's timezone — the value a time input expects. */
+const inputTime = (iso: string | null, timezone: string) =>
+  iso
+    ? new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(new Date(iso))
+    : '';
+
 /** The full stamp, for a tooltip — to the second, when a rounded minute is not enough. */
 const exactly = (iso: string | null, timezone: string) =>
   iso
@@ -53,17 +59,19 @@ export function AttendanceBoard({
   const router = useRouter();
 
   /*
-   * The time is typed on the row, next to the action.
+   * Pressing the button asks for the time before recording anything.
    *
-   * There used to be a separate "Edit times" step: check in first, then correct
-   * it afterwards. That is two trips for one fact. Somebody who arrived at eight
-   * and is tapping at ten types eight and presses the button once.
+   * Nobody taps a register at the moment they walk in. They arrive, put their
+   * bag down, talk to someone, and reach the screen twenty minutes later — so
+   * recording the moment of the tap records the wrong thing. The button opens a
+   * field instead, showing the current time as the likely answer, and nothing is
+   * written until it is confirmed.
    *
-   * The field shows the current time until touched, and keeps ticking while it
-   * is untouched — a board left open since morning should not still be offering
-   * 08:00 at noon.
+   * Prefilled with what the record already holds where there is one: someone
+   * back from lunch sees this morning's arrival rather than the afternoon, so
+   * confirming cannot silently erase the hours they have worked.
    */
-  const [typed, setTyped] = useState<Record<string, string>>({});
+  const [asking, setAsking] = useState<{ employeeId: string; kind: 'in' | 'out'; time: string } | null>(null);
   const [nowLocal, setNowLocal] = useState('');
 
   useEffect(() => {
@@ -75,20 +83,14 @@ export function AttendanceBoard({
     return () => clearInterval(tick);
   }, [timezone]);
 
-  /** What the field shows: what was typed, or the current time as a starting point. */
-  const timeFor = (key: string) => typed[key] ?? nowLocal;
-  const setTime = (key: string, v: string) => setTyped((prev) => ({ ...prev, [key]: v }));
-
-  /*
-   * What gets SENT: only a time somebody actually typed.
-   *
-   * The distinction matters most when reopening a day. Someone back from lunch
-   * presses Check in with the field sitting at the current time — sending it
-   * would overwrite this morning's arrival with the afternoon, losing the hours
-   * they had already worked. An untouched field means "use the clock, and leave
-   * what is already recorded alone".
-   */
-  const statedTime = (key: string) => typed[key] || undefined;
+  const ask = (person: AttendanceToday, kind: 'in' | 'out') => {
+    const existing = kind === 'in' ? person.checkedInAt : person.checkedOutAt;
+    setAsking({
+      employeeId: person.employeeId,
+      kind,
+      time: existing ? inputTime(existing, timezone) : nowLocal,
+    });
+  };
 
   /*
    * Confirmation of what was recorded.
@@ -130,14 +132,7 @@ export function AttendanceBoard({
         kind: kind === 'in' && result?.alreadyIn ? 'already' : kind,
         at: result?.at ?? null,
       });
-      // Back to tracking the clock. Without this the field kept the arrival
-      // time it was just given, so checking out an hour later defaulted to the
-      // moment they walked in.
-      setTyped((prev) => {
-        const next = { ...prev };
-        delete next[person.employeeId];
-        return next;
-      });
+      setAsking(null);
       startTransition(() => { router.refresh(); });
     } catch (e: any) {
       setConfirmation(null);
@@ -169,9 +164,8 @@ export function AttendanceBoard({
     // The date is repeated only when the two differ — a shift that ran past
     // midnight. Repeating it on a normal day is noise.
     const spanned = !!leftOn && leftOn !== arrivedOn;
-    // Checking out is the next thing this row will do, so the field carries the
-    // leaving time; anyone else is arriving.
     const key = person.employeeId;
+    const prompting = asking?.employeeId === key ? asking : null;
 
     return (
       <div className="q-tile q-stack q-stack-sm">
@@ -198,35 +192,59 @@ export function AttendanceBoard({
           </div>
 
           <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-            {/* Defaults to now and stays current until touched, so the common
-                case is one press and the late case is typing four digits. */}
-            <input
-              className="q-input q-input-sm"
-              type="time"
-              value={timeFor(key)}
-              disabled={working}
-              aria-label={person.state === 'in' ? `Check-out time for ${person.name}` : `Check-in time for ${person.name}`}
-              onChange={(e) => setTime(key, e.target.value)}
-              style={{ width: '7.5rem' }}
-            />
             {person.state === 'in' ? (
-              <button className="q-btn q-btn-secondary" disabled={working}
-                onClick={() => run(person, () => checkOut(person.employeeId, statedTime(key)), 'out')}>
-                {working ? 'Saving…' : 'Check out'}
+              <button className="q-btn q-btn-secondary" disabled={working || !!prompting}
+                onClick={() => ask(person, 'out')}>
+                Check out
               </button>
             ) : (
               // Someone not scheduled today can still check in — the register
               // records what happened. It is simply not the primary action.
               <button
                 className={`q-btn ${person.state === 'off' ? 'q-btn-secondary' : 'q-btn-primary'}`}
-                disabled={working}
-                onClick={() => run(person, () => checkIn(person.employeeId, statedTime(key)), 'in')}
+                disabled={working || !!prompting}
+                onClick={() => ask(person, 'in')}
               >
-                {working ? 'Saving…' : 'Check in'}
+                Check in
               </button>
             )}
           </div>
         </div>
+
+        {prompting && (
+          <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+            <label className="q-meta-sm" htmlFor={`t-${key}`} style={{ minWidth: '7.5rem' }}>
+              {prompting.kind === 'in' ? 'Time they arrived' : 'Time they left'}
+            </label>
+            <input
+              id={`t-${key}`}
+              className="q-input q-input-sm"
+              type="time"
+              autoFocus
+              value={prompting.time}
+              disabled={working}
+              onChange={(e) => setAsking({ ...prompting, time: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Escape') setAsking(null); }}
+              style={{ width: '8rem' }}
+            />
+            <button
+              className="q-btn q-btn-primary"
+              disabled={working || !prompting.time}
+              onClick={() => run(
+                person,
+                () => (prompting.kind === 'in'
+                  ? checkIn(person.employeeId, prompting.time)
+                  : checkOut(person.employeeId, prompting.time)),
+                prompting.kind,
+              )}
+            >
+              {working ? 'Saving…' : prompting.kind === 'in' ? 'Check in' : 'Check out'}
+            </button>
+            <button className="q-btn q-btn-secondary" disabled={working} onClick={() => setAsking(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     );
   };
