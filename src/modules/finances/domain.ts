@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { logEvent } from '@/kernel/events';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -34,6 +35,13 @@ export async function createTransaction(params: {
   dueDate?: string;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+
+  await assertOurs(orgId, [
+    { table: 'contracts', id: params.contractId, label: 'contract' },
+    { table: 'contacts', id: params.contactId, label: 'client' },
+    { table: 'bookings', id: params.bookingId, label: 'booking' },
+    { table: 'invoices', id: params.invoiceId, label: 'invoice' },
+  ]);
 
   const amount = Number(params.amount);
   if (!amount || amount <= 0) throw new Error('Enter an amount.');

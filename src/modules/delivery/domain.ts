@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
@@ -176,6 +177,10 @@ export async function registerFile(input: {
   sizeBytes?: number | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'deliveries', id: input.deliveryId, label: 'delivery' },
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+  ]);
 
   // If the delivery covers exactly one promised type, every file in it is that
   // type and we can say so. With two or more, nothing here knows which file is
@@ -340,6 +345,9 @@ export async function setDeliveryFulfils(input: {
 
   // A delivery can only claim what the booking actually promised — otherwise
   // the outstanding list could be cleared by pointing at something nobody sold.
+  // Which makes the booking the thing doing the constraining, so it has to be
+  // ours before its promises are worth anything.
+  await assertOurs(orgId, [{ table: 'bookings', id: input.bookingId, label: 'booking' }]);
   const promised = await getPromisedDeliverables(input.bookingId);
   const promisedIds = new Set(promised.map((p) => p.id));
   const ids = [...new Set(input.deliverableIds)].filter(Boolean);

@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
@@ -84,6 +85,15 @@ export async function draftContractForBooking(input: {
   terms: Record<string, unknown>;
   actorId?: string | null;
 }) {
+  // Composition-only by intention, but this file is `'use server'`, so every
+  // export is reachable by direct POST whatever our own callers do — and this
+  // one takes the organization as an argument rather than from a session. The
+  // check makes the argument prove itself.
+  await assertOurs(input.organizationId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'contacts', id: input.contactId, label: 'client' },
+  ]);
+
   const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', input.organizationId).maybeSingle();
   const agreementText = ((org?.metadata as any)?.contracts?.terms_template as string) || '';
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
 
@@ -67,6 +68,7 @@ export async function createDimension(input: {
   example?: string | null;
 }) {
   const { orgId } = await getAuthOrgId();
+  await assertOurs(orgId, [{ table: 'service_domains', id: input.serviceDomainId, label: 'service domain' }]);
   const name = (input.name || '').trim();
   if (!name) throw new Error('Give the dimension a name.');
 
@@ -153,6 +155,7 @@ export async function deleteDimension(dimensionId: string) {
 /** A value under a dimension — Outdoor under Context, Editorial under Purpose. */
 export async function addDimensionValue(input: { dimensionId: string; name: string }) {
   const { orgId } = await getAuthOrgId();
+  await assertOurs(orgId, [{ table: 'dimensions', id: input.dimensionId, label: 'classification' }]);
   const name = (input.name || '').trim();
   if (!name) throw new Error('Give the value a name.');
 

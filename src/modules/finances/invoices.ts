@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
@@ -241,6 +242,14 @@ export async function issueDepositInvoice(input: {
   if (!amount || amount <= 0) throw new Error('A deposit needs an amount.');
 
   const orgId = input.organizationId;
+  // No session on this path — the studio came from the share link. So this asks
+  // whether the booking really is that studio's, not whether the caller may.
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'contacts', id: input.contactId, label: 'client' },
+    { table: 'contracts', id: input.contractId, label: 'contract' },
+  ]);
+
   const { data: invoice, error } = await supabaseAdmin
     .from('invoices')
     .insert({

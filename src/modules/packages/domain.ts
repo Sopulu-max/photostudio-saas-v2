@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertAllOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
@@ -174,6 +175,19 @@ export async function createPackage(input: {
     ? { base_price: input.basePrice ?? 0, currency, deposit_percentage: paymentPolicy === 'full' ? 100 : (input.depositPercentage ?? 0) }
     : {};
 
+  // Everything a package points at comes from the form, so each set is checked
+  // against this studio before any of it is linked. The relink is destructive
+  // (delete then insert), which is exactly why it happens after the check.
+  await Promise.all([
+    assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
+    assertAllOurs(orgId, 'deliverables', input.deliverableIds, 'outputs'),
+    assertAllOurs(orgId, 'delivery_containers', input.containerIds, 'delivery containers'),
+    assertAllOurs(orgId, 'blueprints', input.workflowIds, 'workflows'),
+    assertAllOurs(orgId, 'dimension_values', input.dimensionValueIds, 'classifications'),
+    assertAllOurs(orgId, 'service_variables',
+      (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
+  ]);
+
   const { data: pkg, error } = await supabaseAdmin
     .from('packages')
     .insert({
@@ -263,6 +277,19 @@ export async function updatePackage(input: {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin.from('packages').select('id, name, pricing, payment_policy').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Package not found');
+
+  // Everything a package points at comes from the form, so each set is checked
+  // against this studio before any of it is linked. The relink is destructive
+  // (delete then insert), which is exactly why it happens after the check.
+  await Promise.all([
+    assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
+    assertAllOurs(orgId, 'deliverables', input.deliverableIds, 'outputs'),
+    assertAllOurs(orgId, 'delivery_containers', input.containerIds, 'delivery containers'),
+    assertAllOurs(orgId, 'blueprints', input.workflowIds, 'workflows'),
+    assertAllOurs(orgId, 'dimension_values', input.dimensionValueIds, 'classifications'),
+    assertAllOurs(orgId, 'service_variables',
+      (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
+  ]);
 
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name.trim() || existing.name;

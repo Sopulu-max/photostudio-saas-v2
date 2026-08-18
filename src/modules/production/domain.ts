@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { logEvent } from '@/kernel/events';
 import type { Task, TaskStatus } from '@/lib/types/engine';
 import { revalidatePath } from 'next/cache';
@@ -33,6 +34,10 @@ export async function startWorkForBookingLine(input: {
   stages: { name: string; order: number; roleId?: string | null; frontStage?: boolean | null }[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'booking_lines', id: input.lineId, label: 'booking line' },
+  ]);
 
   const stages = (input.stages?.length ?? 0) > 0 ? input.stages : [{ name: 'Do the work', order: 0 }];
 
@@ -237,6 +242,11 @@ export async function setTaskDueDate(input: { taskId: string; dueDate: string | 
  */
 export async function assignTask(input: { taskId: string; employeeId: string; roleId?: string | null }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'tasks', id: input.taskId, label: 'task' },
+    { table: 'employees', id: input.employeeId, label: 'team member' },
+    { table: 'roles', id: input.roleId, label: 'role' },
+  ]);
 
   const { error } = await supabaseAdmin
     .from('assignments')
@@ -275,6 +285,11 @@ export async function assignToBooking(input: { bookingId: string; employeeId: st
   // is skipped by every reader, so it looked like crew and staffed nothing.
   if (!input.roleId) throw new Error('Say what they are doing on this booking.');
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'employees', id: input.employeeId, label: 'team member' },
+    { table: 'roles', id: input.roleId, label: 'role' },
+  ]);
 
   const { error } = await supabaseAdmin
     .from('assignments')
@@ -654,6 +669,12 @@ export async function registerAssetForTask(input: {
   state?: string;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'tasks', id: input.taskId, label: 'task' },
+    { table: 'deliverables', id: input.deliverableId, label: 'output type' },
+    { table: 'assets', id: input.derivedFromAssetId, label: 'source file' },
+  ]);
 
   const { data: asset, error } = await supabaseAdmin
     .from('assets')

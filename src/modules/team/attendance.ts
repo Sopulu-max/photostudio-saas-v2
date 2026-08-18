@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
+import { assertOurs } from '@/kernel/tenancy';
 import { revalidatePath } from 'next/cache';
 // A 'use server' file may only export async functions, so the seven days live
 // in a plain module next door.
@@ -96,28 +97,6 @@ async function instantFor(workDate: string, wallClock: string, timezone: string)
   return data as string;
 }
 
-/**
- * That this employee is actually ours.
- *
- * `organization_id` on the attendance row comes from the session, but
- * `employee_id` arrives from the client, and the foreign key only checks that
- * an employee with that id exists somewhere — not whose. Without this, a signed
- * in operator could open an attendance row against another studio's employee
- * and have it filed under their own.
- *
- * Reads rather than trusts: the row is only written after the employee has been
- * found inside this organization.
- */
-async function ourEmployee(orgId: string, employeeId: string): Promise<void> {
-  const { data } = await supabaseAdmin
-    .from('employees')
-    .select('id')
-    .eq('id', employeeId)
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!data) throw new Error('That person is not on this studio’s team.');
-}
-
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
   workDate: string; timezone: string; isoWeekday: number; roster: AttendanceToday[];
@@ -177,7 +156,7 @@ export async function getAttendanceToday(): Promise<{
  */
 export async function checkIn(employeeId: string, atLocalTime?: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  await ourEmployee(orgId, employeeId);
+  await assertOurs(orgId, [{ table: 'employees', id: employeeId, label: 'team member' }]);
   const { workDate, timezone } = await studioToday(orgId);
   // The time is part of the action, not a correction afterwards: somebody who
   // arrived at eight and is tapping at ten types eight and is done.
@@ -292,7 +271,7 @@ export async function setWorkingDays(input: { employeeId: string; days: number[]
   const { orgId, personId: actorId } = await getAuthOrgId();
   // Scoping the update alone would silently affect nothing for a foreign
   // employee, and report success. Say so instead.
-  await ourEmployee(orgId, input.employeeId);
+  await assertOurs(orgId, [{ table: 'employees', id: input.employeeId, label: 'team member' }]);
 
   const days = [...new Set((input.days || []).map(Number))]
     .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)

@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
@@ -33,6 +34,8 @@ export async function createBooking(input: {
     .limit(1)
     .maybeSingle();
   if (!defaultStage) throw new Error('No booking stages configured for this studio.');
+
+  await assertOurs(orgId, [{ table: 'contacts', id: input.contactId, label: 'client' }]);
 
   // The name is composed from what's known — the studio never invents one.
   const custom = (input.title || '').trim();
@@ -122,6 +125,13 @@ export async function createBookingFromIntake(input: {
   scheduledFor?: string | null;
 }) {
   const orgId = input.organizationId;
+  // The public form has no session, so this is self-consistency rather than
+  // authorisation: the contact and package must belong to the studio whose
+  // booking page was filled in.
+  await assertOurs(orgId, [
+    { table: 'contacts', id: input.contactId, label: 'client' },
+    { table: 'packages', id: input.packageId, label: 'package' },
+  ]);
 
   // Land on an enquiry-kind stage if the studio has one, but never require it —
   // a studio may not use that idea at all. Then their default, then the first.
@@ -475,6 +485,10 @@ export async function addBookingLine(input: {
   variableAnswers?: { serviceVariableId: string; value: unknown }[];
 }) {
   const { orgId, personId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'packages', id: input.packageId, label: 'package' },
+  ]);
 
   // If seeded from a package, snapshot its pricing/title now — asked of the
   // Packages module, not read from its tables.

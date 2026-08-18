@@ -1,6 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
@@ -327,6 +328,10 @@ export async function listRoles() {
 
 export async function assignRole(input: { employeeId: string; roleId: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'employees', id: input.employeeId, label: 'team member' },
+    { table: 'roles', id: input.roleId, label: 'role' },
+  ]);
 
   const { error } = await supabaseAdmin
     .from('employee_roles')
