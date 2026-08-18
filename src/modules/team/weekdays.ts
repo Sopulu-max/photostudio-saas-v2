@@ -25,7 +25,3 @@ export const WEEKDAYS: Weekday[] = [
   { iso: 6, short: 'Sat', long: 'Saturday' },
   { iso: 7, short: 'Sun', long: 'Sunday' },
 ];
-
-/** Only the days a studio actually named, in week order. */
-export const namedDays = (days: number[]): Weekday[] =>
-  WEEKDAYS.filter((d) => days.includes(d.iso));

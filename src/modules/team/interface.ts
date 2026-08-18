@@ -30,6 +30,6 @@ export {
   setWorkingDays,
   adjustAttendance,
 } from './attendance';
-export { WEEKDAYS, namedDays } from './weekdays';
+export { WEEKDAYS } from './weekdays';
 export type { Weekday } from './weekdays';
 export type { AttendanceToday } from './attendance';
