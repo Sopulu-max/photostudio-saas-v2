@@ -78,7 +78,7 @@ lives in a small number of closed choices per module, not in a canvas.
 | # | Layer | What it is | Where |
 |---|---|---|---|
 | 1 | **Kernel** | The handful of things every studio needs regardless of what it sells: `organizations`, `contacts` (thin shared identity — no polymorphism), `events` (append-only audit log) | `src/kernel/` |
-| 2 | **Modules** | Self-contained capabilities: data + logic + surface, one public door | `src/modules/<name>/{domain.ts, interface.ts}` + `src/app/(dashboard)/<name>/` |
+| 2 | **Modules** | Self-contained capabilities: data + logic + surface, one public door | `src/modules/<name>/{domain.ts, interface.ts}` + `src/app/(app)/<name>/` |
 | 3 | **Views** | Read-only lenses over other modules' data, reached only through their interfaces. Own no data, no logic. | Command Center, Calendar, My Tasks, Analytics |
 | 4 | **Design system (Lumen)** | The one visual/motion language every surface is built from — see [08-DESIGN_SYSTEM](08-DESIGN_SYSTEM.md) | `.q-` classes in `globals.css` |
 | 5 | **Access & Identity** | Every row scoped by `organization_id`, enforced by RLS; every tenant-facing page force-dynamic so nothing caches across tenants | RLS policies + `getAuthOrgId()` |
@@ -109,7 +109,7 @@ short:
 Each module is `src/modules/<name>/domain.ts` (the actual logic, private) +
 `interface.ts` (the only public door — everything outside the module,
 including other modules, imports only from here) + its own pages under
-`src/app/(dashboard)/<name>/`.
+`src/app/(app)/<name>/`.
 
 | Module | Owns | Composes onto |
 |---|---|---|
