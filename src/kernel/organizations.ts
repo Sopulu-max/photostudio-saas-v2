@@ -48,7 +48,10 @@ export async function createOrganization(name: string, slug?: string) {
 
   const { error: employeeError } = await supabaseAdmin
     .from('employees')
-    .insert({ organization_id: org.id, contact_id: contact.id, title: 'Owner' });
+    // No title. The owner is known by their contact carrying auth_user_id, not
+    // by a word in a column — and what a person DOES is a role, which routes
+    // work. Owning the studio is not a production stage anyone gets staffed to.
+    .insert({ organization_id: org.id, contact_id: contact.id });
 
   if (employeeError) {
     console.error('Failed to create owner employee record:', employeeError);
