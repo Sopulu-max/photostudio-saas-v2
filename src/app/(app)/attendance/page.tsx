@@ -27,7 +27,7 @@ export default async function AttendancePage() {
     redirect('/login');
   }
 
-  const { workDate, timezone, roster } = await getAttendanceToday();
+  const { workDate, timezone, isoWeekday, roster } = await getAttendanceToday();
   const here = roster.filter((r) => r.state === 'in').length;
   // Only people whose day it is. Counting someone's day off as "still to come"
   // is how a register turns into a list of false alarms.
@@ -40,13 +40,14 @@ export default async function AttendancePage() {
           {/* The clock leads: on a device at the entrance the time is what
               people look up, and it confirms what is about to be recorded. */}
           <StudioClock timezone={timezone} />
-          <p className="q-page-subtitle" style={{ marginTop: '8px' }}>
-            {here === 0 && stillDue === 0
-              ? 'No employees scheduled today.'
-              : here === 0
-                ? `${stillDue} expected, none checked in.`
-                : `${here} present${stillDue > 0 ? `, ${stillDue} expected` : ''}.`}
-          </p>
+          {/* The sentence that used to live here counted the room in prose.
+              The board now counts it in figures, and saying both would be the
+              same fact twice in two shapes. */}
+          {roster.length > 0 && here === 0 && stillDue === 0 && (
+            <p className="q-page-subtitle" style={{ marginTop: '8px' }}>
+              Nobody is scheduled today.
+            </p>
+          )}
         </div>
         <Link href="/team" className="q-btn q-btn-secondary">Team</Link>
       </header>
@@ -58,7 +59,7 @@ export default async function AttendancePage() {
         </p>
       )}
 
-      <AttendanceBoard roster={roster} workDate={workDate} timezone={timezone} />
+      <AttendanceBoard roster={roster} workDate={workDate} timezone={timezone} isoWeekday={isoWeekday} />
     </div>
   );
 }

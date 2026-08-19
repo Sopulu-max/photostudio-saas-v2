@@ -1016,5 +1016,58 @@ body {
   box-shadow: var(--q-shadow-sm);
 }
 
+/* The count strip.
+   q-grid-cards asks for 250px a card, which is right for the app grid on the
+   home screen and wrong here: four counts inside a narrow page fall into a
+   vertical stack, which is a worse answer than the sentence they replaced.
+   These are four small numbers meant to be taken in together. */
+.q-count-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); gap: 12px; }
+.q-count-grid .q-stat-card { padding: 14px 16px; }
+
+/* Stat card carrying a state's colour.
+   The attendance board's counts are the state of the room, and four identical
+   grey cards say only that four numbers exist. Each hue comes from the same
+   token its badge uses, so a card and the rows it counts agree on sight. */
+.q-stat-c-green { border-color: color-mix(in srgb, var(--q-hue-green) 26%, var(--q-color-ink-100)); background: color-mix(in srgb, var(--q-hue-green) 7%, var(--q-color-paper-elevated)); }
+.q-stat-c-green .q-stat-value-lg { color: color-mix(in srgb, var(--q-hue-green) 74%, var(--q-color-ink-900)); }
+.q-stat-c-amber { border-color: color-mix(in srgb, var(--q-hue-amber) 30%, var(--q-color-ink-100)); background: color-mix(in srgb, var(--q-hue-amber) 8%, var(--q-color-paper-elevated)); }
+.q-stat-c-amber .q-stat-value-lg { color: color-mix(in srgb, var(--q-hue-amber) 76%, var(--q-color-ink-900)); }
+.q-stat-c-blue  { border-color: color-mix(in srgb, var(--q-hue-blue) 24%, var(--q-color-ink-100));  background: color-mix(in srgb, var(--q-hue-blue) 6%, var(--q-color-paper-elevated)); }
+.q-stat-c-blue .q-stat-value-lg  { color: color-mix(in srgb, var(--q-hue-blue) 74%, var(--q-color-ink-900)); }
+.q-stat-c-slate .q-stat-value-lg { color: var(--q-color-ink-500); }
+
+/* The working week, as seven pips.
+   Whether today is one of someone's days is the whole reason the board can tell
+   a day off from being late, and it was known and never shown. Small enough to
+   sit under a name without competing with it. */
+.q-daypips { display: flex; gap: 3px; }
+.q-daypip {
+  font-family: var(--q-font-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--q-color-ink-100);
+  color: var(--q-color-ink-400);
+  transition: background var(--q-dur-1) var(--q-ease), color var(--q-dur-1) var(--q-ease);
+}
+.q-daypip-on    { background: color-mix(in srgb, var(--q-color-accent) 13%, transparent); color: color-mix(in srgb, var(--q-color-accent) 76%, var(--q-color-ink-900)); }
+.q-daypip-today { background: var(--q-color-accent); color: var(--q-color-accent-text); }
+
+/* Rows arrive rather than appear. The stagger is in nth-child rather than an
+   inline delay per row, so the motion stays in the stylesheet with everything
+   else. Past the eighth the remainder rise together — a board this long is
+   being scrolled, not watched. Global prefers-reduced-motion cancels it. */
+.q-rise { animation: q-slide-up var(--q-dur-3) var(--q-ease) both; }
+.q-rise:nth-child(1) { animation-delay: 0ms; }
+.q-rise:nth-child(2) { animation-delay: 40ms; }
+.q-rise:nth-child(3) { animation-delay: 80ms; }
+.q-rise:nth-child(4) { animation-delay: 120ms; }
+.q-rise:nth-child(5) { animation-delay: 160ms; }
+.q-rise:nth-child(6) { animation-delay: 200ms; }
+.q-rise:nth-child(7) { animation-delay: 240ms; }
+.q-rise:nth-child(n+8) { animation-delay: 280ms; }
+
 @media print { .hide-on-print { display: none !important; } }
 

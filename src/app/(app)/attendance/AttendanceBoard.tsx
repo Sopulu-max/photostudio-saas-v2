@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { checkIn, checkOut } from '@/modules/team/interface';
 import type { AttendanceToday } from '@/modules/team/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
+import { WEEKDAYS } from '@/modules/team/weekdays';
 
 /**
  * The attendance register.
@@ -21,6 +22,24 @@ import { ContactAvatar } from '@/components/ContactAvatar';
  * A record is a date and a time, not a time alone. This device is never closed,
  * so at 00:05 a bare "6:12 PM" reads as tonight when it means last night.
  */
+
+/**
+ * What each state looks like, in one place.
+ *
+ * The board had four groups distinguished only by their headings, so telling
+ * "here" from "hasn't come" meant reading rather than glancing — on a screen by
+ * a door, read at arm's length, in a hurry. The hue is a Lumen token and the
+ * same one drives the row's badge and the count above it, so a card and the
+ * rows beneath it cannot drift apart.
+ */
+const STATES = {
+  in:   { label: 'Present',       count: 'Present',     badge: 'q-badge-c-green', card: 'q-stat-c-green' },
+  away: { label: 'Not in yet',    count: 'Not in yet',  badge: 'q-badge-c-amber', card: 'q-stat-c-amber' },
+  out:  { label: 'Checked out',   count: 'Checked out', badge: 'q-badge-c-blue',  card: 'q-stat-c-blue' },
+  // Shorter on the card than on the row: four counts sit side by side and this
+  // is the only label long enough to wrap, which drags its tile out of line.
+  off:  { label: 'Not scheduled', count: 'Off today',   badge: 'q-badge-c-slate', card: 'q-stat-c-slate' },
+} as const;
 
 const timeOf = (iso: string | null, timezone: string) =>
   iso
@@ -42,11 +61,13 @@ const exactly = (iso: string | null, timezone: string) =>
     : '';
 
 export function AttendanceBoard({
-  roster, workDate, timezone,
+  roster, workDate, timezone, isoWeekday,
 }: {
   roster: AttendanceToday[];
   workDate: string;
   timezone: string;
+  /** Which weekday it is where the studio is — so the pips can mark today. */
+  isoWeekday: number;
 }) {
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -150,6 +171,56 @@ export function AttendanceBoard({
     );
   }
 
+  /**
+   * The room at a glance, before any names.
+   *
+   * The page said "3 present, 2 expected" in a sentence. A sentence is read;
+   * numbers are seen. Expected leads because first thing in the morning it is
+   * the only figure anyone is acting on.
+   */
+  const Counts = () => (
+    <div className="q-count-grid">
+      {([
+        ['away', expected.length],
+        ['in', present.length],
+        ['out', departed.length],
+        ['off', notScheduled.length],
+      ] as const).map(([state, n]) => (
+        <div key={state} className={`q-stat-card ${STATES[state].card} q-rise`}>
+          <div className="q-stat-label">{STATES[state].count}</div>
+          <div className="q-stat-value-lg">{n}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  /**
+   * Which days are theirs, and whether today is one.
+   *
+   * The roster has carried `workingDays` since working days were built and the
+   * board never showed it, so "not scheduled" was an assertion you had to take
+   * on trust. Seven pips make it checkable without leaving the screen. Someone
+   * whose week nobody has stated has nothing to draw.
+   */
+  const DayPips = ({ person }: { person: AttendanceToday }) =>
+    person.workingDays.length === 0 ? null : (
+      <div className="q-daypips" title="The days this person works">
+        {WEEKDAYS.map((d) => {
+          const theirs = person.workingDays.includes(d.iso);
+          const today = d.iso === isoWeekday;
+          return (
+            <span
+              key={d.iso}
+              className={`q-daypip ${theirs ? (today ? 'q-daypip-today' : 'q-daypip-on') : ''}`}
+              title={d.long}
+            >
+              {d.short}
+            </span>
+          );
+        })}
+      </div>
+    );
+
   const Row = ({ person }: { person: AttendanceToday }) => {
     const working = busy === person.employeeId;
     const arrived = timeOf(person.checkedInAt, timezone);
@@ -180,6 +251,9 @@ export function AttendanceBoard({
                 */}
               <span className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <strong className="q-strong">{person.name}</strong>
+                <span className={`q-badge ${STATES[person.state].badge}`}>
+                  {STATES[person.state].label}
+                </span>
                 {person.roles.map((r) => (
                   <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
                 ))}
@@ -195,6 +269,9 @@ export function AttendanceBoard({
                   : `${arrivedOn}, ${arrived} – ${left}`)}
                 {person.state === 'off' && 'Not scheduled today'}
                 {person.state === 'away' && 'Not checked in'}
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                <DayPips person={person} />
               </div>
             </div>
           </div>
@@ -262,7 +339,11 @@ export function AttendanceBoard({
       <section>
         <h2 className="q-section-title">{title} <span className="q-meta-sm">{people.length}</span></h2>
         <div className="q-stack q-stack-sm" style={{ marginTop: '8px' }}>
-          {people.map((p) => <Row key={p.employeeId} person={p} />)}
+          {people.map((p) => (
+            <div key={p.employeeId} className="q-rise">
+              <Row person={p} />
+            </div>
+          ))}
         </div>
       </section>
     );
@@ -290,6 +371,8 @@ export function AttendanceBoard({
           )}
         </div>
       )}
+
+      <Counts />
 
       {/* Expected leads: first thing in the morning that is the whole list, and
           the only group anyone acts on. Not scheduled sits last, as context. */}
