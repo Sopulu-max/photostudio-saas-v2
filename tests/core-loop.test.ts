@@ -252,7 +252,7 @@ describe('Core Loop Verification', () => {
     // A booking's team is not a list anyone maintains. Giving someone a task is
     // what puts them on the booking — listCrewForBooking rolls task assignments
     // up, so there is no second act and nothing to keep in step.
-    const { employeeId } = await addEmployee({ name: 'Tunde Shooter' });
+    const { employeeId } = await addEmployee({ name: 'Tunde Shooter', email: 'tunde.shooter@example.com', phone: '+234 800 000 0001', role: 'Photographer' });
     await assignTask({ taskId: tasks![0].id, employeeId, roleId });
 
     const crew = await listCrewForBooking(bookingId);
@@ -1154,7 +1154,7 @@ describe('Core Loop Verification', () => {
     // A time given with the action is what gets recorded — no second step.
     // Somebody who arrived at eight and taps at ten types eight and is done.
     await setStudioTimezone('Africa/Lagos');
-    const { employeeId: late } = await addEmployee({ name: 'Ada Late', email: 'ada.late@example.com' });
+    const { employeeId: late } = await addEmployee({ name: 'Ada Late', email: 'ada.late@example.com', phone: '+234 800 000 0002' });
     await checkIn(late, '08:00');
     const lateDay = (await listAttendanceForEmployee(late))[0];
     const arrivedAt = new Intl.DateTimeFormat('en-GB', {
@@ -1175,7 +1175,7 @@ describe('Core Loop Verification', () => {
     await expect(checkOut(late, '06:00')).rejects.toThrow(/earlier than check-in/i);
 
     // You cannot leave a day you never started.
-    const { employeeId: neverIn } = await addEmployee({ name: 'Never In', email: 'never.in@example.com' });
+    const { employeeId: neverIn } = await addEmployee({ name: 'Never In', email: 'never.in@example.com', phone: '+234 800 000 0003' });
     await expect(checkOut(neverIn)).rejects.toThrow(/checked in/i);
 
     // The working day is the STUDIO's, not the server's. A studio in Lagos is
@@ -1194,7 +1194,7 @@ describe('Core Loop Verification', () => {
   }, 120000);
 
   it('tells a day off apart from being late', async () => {
-    const { employeeId } = await addEmployee({ name: 'Ada Weekly', email: 'ada.weekly@example.com' });
+    const { employeeId } = await addEmployee({ name: 'Ada Weekly', email: 'ada.weekly@example.com', phone: '+234 800 000 0004' });
 
     // Said nothing about their week: treated as possibly in, never as off. This
     // is the progressive-enrichment default — silence is not a claim.

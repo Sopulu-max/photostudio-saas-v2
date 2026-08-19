@@ -27,7 +27,7 @@ export default async function TeamPage() {
           <h1 className="q-page-title">Team</h1>
           <p className="q-page-subtitle">Who does the work — and the roles your studio defines for it.</p>
         </div>
-        <AddEmployeeForm />
+        <AddEmployeeForm roles={roles.map((r: any) => ({ id: r.id, name: r.name }))} />
       </header>
 
       <div className="q-stack q-stack-lg">

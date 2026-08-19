@@ -35,6 +35,14 @@ export function EmployeeEditor({
     email !== (initialEmail ?? '') ||
     phone !== (initialPhone ?? '');
 
+  /*
+   * Email and phone are required of an employee, so the button says so rather
+   * than the server saying it afterwards. This bites on people added before
+   * the rule existed: their next edit is where the missing detail gets filled
+   * in, and stating that on screen is better than an alert on save.
+   */
+  const reachable = email.trim() !== '' && phone.trim() !== '';
+
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
@@ -45,8 +53,8 @@ export function EmployeeEditor({
     run(() => updateEmployee({
       employeeId,
       name,
-      email: email.trim() || null,
-      phone: phone.trim() || null,
+      email: email.trim(),
+      phone: phone.trim(),
     }));
 
   const archived = status === 'archived';
@@ -64,7 +72,7 @@ export function EmployeeEditor({
         </div>
         <div className="q-field">
           <label className="q-label">Phone</label>
-          <input className="q-input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input className="q-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
       </div>
 
@@ -74,9 +82,14 @@ export function EmployeeEditor({
         * free-text list looked like capability and staffed nobody.
         */}
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !dirty} onClick={save}>
+        <button className="q-btn q-btn-primary" disabled={isPending || !dirty || !reachable} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}
         </button>
+        {!reachable && (
+          <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+            An employee needs both an email address and a phone number.
+          </span>
+        )}
         <span className="q-spacer" />
         <button
           className="q-btn q-btn-secondary"

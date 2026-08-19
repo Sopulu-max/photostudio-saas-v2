@@ -10,18 +10,42 @@ import { revalidatePath } from 'next/cache';
  * Team — who does the work. An employee specialises a kernel contact; roles are
  * studio-defined (not hardcoded) and attach to employees via employee_roles.
  */
-export async function addEmployee(input: { name: string; email?: string; phone?: string }) {
+export async function addEmployee(input: {
+  name: string;
+  email: string;
+  phone: string;
+  /**
+   * What they do, by name. Resolved against the studio's own roles and created
+   * if it is new — the same choose-or-type shape services use, which is also
+   * why no role id ever crosses this boundary.
+   */
+  role?: string;
+}) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('An employee needs a name.');
+
+  /*
+   * Required here, not on the contacts table.
+   *
+   * `contacts` is the kernel's, shared with clients — and a client may
+   * legitimately arrive with a phone and no email, or an enquiry with neither.
+   * A NOT NULL there would enforce the studio's rule about its own staff on
+   * everyone who ever walks in. The rule belongs to employment, so it lives
+   * where employment is expressed.
+   */
+  const email = (input.email || '').trim();
+  const phone = (input.phone || '').trim();
+  if (!email) throw new Error('An employee needs an email address.');
+  if (!phone) throw new Error('An employee needs a phone number.');
 
   const { data: contact, error: cErr } = await supabaseAdmin
     .from('contacts')
     .insert({
       organization_id: orgId,
       display_name: name,
-      email: input.email || null,
-      phone: input.phone || null,
+      email,
+      phone,
     })
     .select('id')
     .single();
@@ -40,13 +64,28 @@ export async function addEmployee(input: { name: string; email?: string; phone?:
     throw new Error('Failed to add employee');
   }
 
+  // The role is given now rather than in a second visit to the profile. A
+  // person added without one is invisible to staffing until someone remembers.
+  const roleName = (input.role || '').trim();
+  if (roleName) {
+    const roleId = await findOrCreateRole(roleName);
+    if (roleId) {
+      const { error: rErr } = await supabaseAdmin
+        .from('employee_roles')
+        .insert({ organization_id: orgId, employee_id: employee.id, role_id: roleId });
+      // The person is already real. A role that failed to attach is worth
+      // saying out loud, but not worth pretending the employee doesn't exist.
+      if (rErr) console.error('Failed to assign the role on creation:', rErr);
+    }
+  }
+
   await logEvent({
     organizationId: orgId,
     entityType: 'employee',
     entityId: employee.id,
     action: 'created',
     actorId: actorId ?? undefined,
-    payload: { name },
+    payload: { name, role: roleName || null },
   });
 
   revalidatePath('/team');
@@ -109,8 +148,18 @@ export async function updateEmployee(input: {
     if (!name) throw new Error('An employee needs a name.');
     contactPatch.display_name = name;
   }
-  if (input.email !== undefined) contactPatch.email = input.email || null;
-  if (input.phone !== undefined) contactPatch.phone = input.phone || null;
+  // Correctable, not clearable. An employee the studio cannot reach is the
+  // thing the add form exists to prevent, and editing is the other way in.
+  if (input.email !== undefined) {
+    const email = (input.email || '').trim();
+    if (!email) throw new Error('An employee needs an email address.');
+    contactPatch.email = email;
+  }
+  if (input.phone !== undefined) {
+    const phone = (input.phone || '').trim();
+    if (!phone) throw new Error('An employee needs a phone number.');
+    contactPatch.phone = phone;
+  }
   if (Object.keys(contactPatch).length > 0) {
     const { error } = await supabaseAdmin
       .from('contacts')
