@@ -533,7 +533,9 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       package_services(service:services(
         id, name
       )),
-      package_dimension_values(dimension_value_id)
+      package_dimension_values(dimension_value:dimension_values(
+        id, name, dimension:dimensions(id, name)
+      ))
     `)
     .eq('organization_id', orgId).eq('status', 'active')
     .order('created_at', { ascending: false });
@@ -549,12 +551,15 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       price_unit: (p.price_unit ?? null) as string | null,
       pricing_variant: p.pricing_variant as any,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
-      // Flat, because matching an enquiry is co-occurrence over values: how
-      // many of what the client chose does this package already carry. Which
-      // dimension each value came from never enters the arithmetic.
       dimensionValueIds: [...new Set(
-        (p.package_dimension_values || []).map((pv: any) => pv.dimension_value_id).filter(Boolean)
+        (p.package_dimension_values || []).map((pv: any) => pv.dimension_value?.id).filter(Boolean)
       )] as string[],
+      dimensions: (p.package_dimension_values || []).map((pv: any) => ({
+        valueId: pv.dimension_value?.id as string,
+        valueName: pv.dimension_value?.name as string,
+        dimensionId: pv.dimension_value?.dimension?.id as string,
+        dimensionName: pv.dimension_value?.dimension?.name as string
+      })).filter((d: any) => d.valueId),
     };
   });
 }

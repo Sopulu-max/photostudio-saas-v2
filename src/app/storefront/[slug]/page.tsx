@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getStudioBySlug } from '@/kernel/organizations';
-import { listPackagesPublic } from '@/modules/packages/interface';
-import { formatMoney } from '@/kernel/currency';
+import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
+import StorefrontExplorer from './StorefrontExplorer';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const packages = await listPackagesPublic(org.id);
+  const packages = await listPackagesPublicWithDimensions(org.id);
   const currencyCode = org.currency || 'USD';
   const meta = (org.metadata || {}) as Record<string, any>;
 
@@ -35,64 +35,11 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
       </header>
 
       <main className="q-page-narrow">
-        {packages.length === 0 ? (
-          <div className="q-card" style={{ textAlign: 'center', padding: '80px 24px' }}>
-            <span className="q-meta">Nothing available to book right now — check back soon.</span>
-          </div>
-        ) : (
-          <div className="q-gallery">
-            {packages.map((pkg: any) => {
-              const services: string[] = (pkg.services || []).map((s: any) => s.name).filter(Boolean);
-              return (
-                <Link key={pkg.id} href={`/book/${params.slug}/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack q-stack-sm">
-                  <div>
-                    <h3 className="q-section-title">{pkg.name}</h3>
-                    {pkg.description && (
-                      <p className="q-meta" style={{ marginTop: '4px' }}>{pkg.description}</p>
-                    )}
-                  </div>
-
-                  {services.length > 0 && (
-                    <div className="q-chip-row" style={{ marginTop: 'auto' }}>
-                      {services.map((s) => (
-                        <span key={s} className="q-chip q-meta-plain">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="q-row" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)', justifyContent: 'space-between' }}>
-                    <div>
-                      <span className="q-doc-strong" style={{ fontSize: '1.1rem' }}>
-                        {pkg.pricing?.base_price != null
-                          ? formatMoney(pkg.pricing.base_price, pkg.pricing.currency || currencyCode)
-                          : 'Custom quote'}
-                      </span>
-                      {pkg.price_unit && (
-                        <span className="q-meta" style={{ marginLeft: '4px' }}>/{pkg.price_unit}</span>
-                      )}
-                    </div>
-                    <span className="q-link">Book →</span>
-                  </div>
-                </Link>
-              );
-            })}
-
-            {/* Custom Enquiry Card */}
-            <Link href={`/book/${params.slug}`} className="q-card q-card-interactive q-plain-link q-stack q-stack-sm" style={{ border: '1px dashed var(--q-color-ink-300)', backgroundColor: 'transparent' }}>
-              <div>
-                <h3 className="q-section-title">Custom Quote</h3>
-                <p className="q-meta" style={{ marginTop: '4px' }}>
-                  Don&rsquo;t see what you need? Reach out with the details and we&rsquo;ll create a custom package just for you.
-                </p>
-              </div>
-              <div className="q-row" style={{ marginTop: 'auto', paddingTop: '16px', justifyContent: 'flex-end' }}>
-                <span className="q-link" style={{ color: 'var(--q-color-ink-600)' }}>Let&rsquo;s talk &rarr;</span>
-              </div>
-            </Link>
-          </div>
-        )}
+        <StorefrontExplorer 
+          packages={packages} 
+          slug={params.slug} 
+          currencyCode={currencyCode} 
+        />
       </main>
     </div>
   );
