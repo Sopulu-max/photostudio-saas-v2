@@ -41,6 +41,12 @@ const STATES = {
   off:  { label: 'Not scheduled', count: 'Off today',   badge: 'q-badge-c-slate', card: 'q-stat-c-slate' },
 } as const;
 
+/** "12m late", "1h 20m late" — the number matters more than the precision. */
+const lateness = (minutes: number) =>
+  minutes >= 60
+    ? `${Math.floor(minutes / 60)}h ${minutes % 60 ? `${minutes % 60}m` : ''}`.trim() + ' late'
+    : `${minutes}m late`;
+
 const timeOf = (iso: string | null, timezone: string) =>
   iso
     ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: timezone }).format(new Date(iso))
@@ -61,13 +67,15 @@ const exactly = (iso: string | null, timezone: string) =>
     : '';
 
 export function AttendanceBoard({
-  roster, workDate, timezone, isoWeekday,
+  roster, workDate, timezone, isoWeekday, opensAt,
 }: {
   roster: AttendanceToday[];
   workDate: string;
   timezone: string;
   /** Which weekday it is where the studio is — so the pips can mark today. */
   isoWeekday: number;
+  /** "08:30", or null when the studio has not said — then nobody is late. */
+  opensAt: string | null;
 }) {
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -162,6 +170,9 @@ export function AttendanceBoard({
   const departed = roster.filter((r) => r.state === 'out');
   const expected = roster.filter((r) => r.state === 'away');
   const notScheduled = roster.filter((r) => r.state === 'off');
+  // Everyone the studio can currently say arrived late — which is nobody at
+  // all until an opening time exists.
+  const lateToday = roster.filter((r) => r.lateBy !== null).length;
 
   if (roster.length === 0) {
     return (
@@ -191,6 +202,15 @@ export function AttendanceBoard({
           <div className="q-stat-value-lg">{n}</div>
         </div>
       ))}
+      {/* Only a studio that has said when it opens gets a late count. Without
+          an opening time there is no line to be late against, and a permanent
+          zero would imply one exists. */}
+      {opensAt && (
+        <div className="q-stat-card q-stat-c-red q-rise">
+          <div className="q-stat-label">Late</div>
+          <div className="q-stat-value-lg">{lateToday}</div>
+        </div>
+      )}
     </div>
   );
 
@@ -254,6 +274,13 @@ export function AttendanceBoard({
                 <span className={`q-badge ${STATES[person.state].badge}`}>
                   {STATES[person.state].label}
                 </span>
+                {/* How late, not just that they were. "12m" and "two hours"
+                    are different conversations, and the board knows which. */}
+                {person.lateBy !== null && (
+                  <span className="q-badge q-badge-c-red" title={`Arrived after ${opensAt}`}>
+                    {lateness(person.lateBy)}
+                  </span>
+                )}
                 {person.roles.map((r) => (
                   <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
                 ))}
@@ -312,6 +339,12 @@ export function AttendanceBoard({
               onKeyDown={(e) => { if (e.key === 'Escape') setAsking(null); }}
               style={{ width: '8rem' }}
             />
+            {/* Said before it is recorded, not after. Both are "HH:MM" wall
+                clock in the same studio's day, so comparing the strings is
+                exact — no timezone arithmetic, nothing to get wrong. */}
+            {prompting.kind === 'in' && opensAt && prompting.time > opensAt && (
+              <span className="q-badge q-badge-c-red">Late</span>
+            )}
             <button
               className="q-btn q-btn-primary"
               disabled={working || !prompting.time}

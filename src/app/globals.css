@@ -1021,7 +1021,7 @@ body {
    home screen and wrong here: four counts inside a narrow page fall into a
    vertical stack, which is a worse answer than the sentence they replaced.
    These are four small numbers meant to be taken in together. */
-.q-count-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); gap: 12px; }
+.q-count-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
 .q-count-grid .q-stat-card { padding: 14px 16px; }
 
 /* Stat card carrying a state's colour.
@@ -1034,6 +1034,8 @@ body {
 .q-stat-c-amber .q-stat-value-lg { color: color-mix(in srgb, var(--q-hue-amber) 76%, var(--q-color-ink-900)); }
 .q-stat-c-blue  { border-color: color-mix(in srgb, var(--q-hue-blue) 24%, var(--q-color-ink-100));  background: color-mix(in srgb, var(--q-hue-blue) 6%, var(--q-color-paper-elevated)); }
 .q-stat-c-blue .q-stat-value-lg  { color: color-mix(in srgb, var(--q-hue-blue) 74%, var(--q-color-ink-900)); }
+.q-stat-c-red   { border-color: color-mix(in srgb, var(--q-hue-red) 28%, var(--q-color-ink-100));   background: color-mix(in srgb, var(--q-hue-red) 7%, var(--q-color-paper-elevated)); }
+.q-stat-c-red .q-stat-value-lg   { color: color-mix(in srgb, var(--q-hue-red) 74%, var(--q-color-ink-900)); }
 .q-stat-c-slate .q-stat-value-lg { color: var(--q-color-ink-500); }
 
 /* The working week, as seven pips.

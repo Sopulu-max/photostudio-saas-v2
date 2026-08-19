@@ -27,6 +27,7 @@ export {
   checkOut,
   listAttendanceForEmployee,
   setStudioTimezone,
+  setStudioOpeningTime,
   setWorkingDays,
   adjustAttendance,
 } from './attendance';

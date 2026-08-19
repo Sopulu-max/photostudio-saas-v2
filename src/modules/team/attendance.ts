@@ -35,6 +35,8 @@ export type AttendanceToday = {
   /** Is today one of their days? False only when they have said, and today isn't. */
   expectedToday: boolean;
   attendanceId: string | null;
+  /** Minutes past opening, when the studio has said when it opens and they were late. */
+  lateBy: number | null;
   checkedInAt: string | null;
   checkedOutAt: string | null;
   /**
@@ -59,10 +61,14 @@ export type AttendanceToday = {
  * still today's shift. Resolved here so every caller agrees on which day it is,
  * and frozen onto the row so a later timezone correction cannot move history.
  */
-async function studioToday(orgId: string): Promise<{ workDate: string; timezone: string; isoWeekday: number }> {
+async function studioToday(orgId: string): Promise<{
+  workDate: string; timezone: string; isoWeekday: number; opensAt: string | null;
+}> {
   const { data } = await supabaseAdmin
-    .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
+    .from('organizations').select('timezone, opens_at').eq('id', orgId).maybeSingle();
   const timezone = (data?.timezone as string) || 'UTC';
+  // "08:30:00" from Postgres; the board and the forms both want "08:30".
+  const opensAt = data?.opens_at ? (data.opens_at as string).slice(0, 5) : null;
   const now = new Date();
   // en-CA gives YYYY-MM-DD, which is what a `date` column wants.
   const workDate = new Intl.DateTimeFormat('en-CA', {
@@ -75,7 +81,7 @@ async function studioToday(orgId: string): Promise<{ workDate: string; timezone:
   const short = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(now);
   const isoWeekday = WEEKDAYS.find((d) => d.short === short)?.iso ?? 1;
 
-  return { workDate, timezone, isoWeekday };
+  return { workDate, timezone, isoWeekday, opensAt };
 }
 
 /**
@@ -98,10 +104,24 @@ async function instantFor(workDate: string, wallClock: string, timezone: string)
 
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
-  workDate: string; timezone: string; isoWeekday: number; roster: AttendanceToday[];
+  workDate: string; timezone: string; isoWeekday: number; opensAt: string | null;
+  roster: AttendanceToday[];
 }> {
   const { orgId } = await getAuthOrgId();
-  const { workDate, timezone, isoWeekday } = await studioToday(orgId);
+  const { workDate, timezone, isoWeekday, opensAt } = await studioToday(orgId);
+
+  /*
+   * When today's opening actually was, as an instant.
+   *
+   * Resolved once for the whole board rather than per person, and resolved in
+   * Postgres because the offset that applied on THIS date is a timezone
+   * database question. Comparing two instants is then exact; comparing wall
+   * clocks in JavaScript would be wrong for an hour twice a year.
+   *
+   * A studio that has not said when it opens has no opening instant, and
+   * nobody on the board is late.
+   */
+  const openedAt = opensAt ? new Date(await instantFor(workDate, opensAt, timezone)).getTime() : null;
 
   const { data: employees } = await supabaseAdmin
     .from('employees')
@@ -132,6 +152,10 @@ export async function getAttendanceToday(): Promise<{
         workingDays,
         expectedToday,
         attendanceId: (record?.id ?? null) as string | null,
+        // Late is only ever a statement about someone who actually arrived.
+        lateBy: openedAt && record?.checked_in_at
+          ? Math.max(0, Math.round((new Date(record.checked_in_at).getTime() - openedAt) / 60000)) || null
+          : null,
         checkedInAt: (record?.checked_in_at ?? null) as string | null,
         checkedOutAt: (record?.checked_out_at ?? null) as string | null,
         state: record
@@ -141,7 +165,7 @@ export async function getAttendanceToday(): Promise<{
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { workDate, timezone, isoWeekday, roster };
+  return { workDate, timezone, isoWeekday, opensAt, roster };
 }
 
 /**
@@ -429,6 +453,34 @@ export async function listAttendanceForEmployee(employeeId: string, limit = 30) 
       ? Math.max(0, Math.round((new Date(a.checked_out_at).getTime() - new Date(a.checked_in_at).getTime()) / 60000))
       : null,
   }));
+}
+
+/**
+ * When the studio opens — what makes an arrival early, on time, or late.
+ *
+ * Clearable, and clearing it is a real answer: a studio with no fixed opening
+ * has no late, and the board stops claiming otherwise. Stored as wall clock
+ * because opening is the same hour whatever the offset that day.
+ */
+export async function setStudioOpeningTime(opensAt: string | null) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const clean = (opensAt || '').trim();
+  // "HH:MM", the shape an <input type="time"> produces.
+  if (clean && !/^([01]\d|2[0-3]):[0-5]\d$/.test(clean)) {
+    throw new Error('Give a time like 08:30.');
+  }
+
+  const { error } = await supabaseAdmin
+    .from('organizations').update({ opens_at: clean || null }).eq('id', orgId);
+  if (error) { console.error('Failed to set opening time:', error); throw new Error('Failed to save the opening time'); }
+
+  await logEvent({
+    organizationId: orgId, entityType: 'organization', entityId: orgId,
+    action: 'opening_time_set', actorId: actorId ?? undefined, payload: { opensAt: clean || null },
+  });
+  revalidatePath('/attendance');
+  revalidatePath('/settings');
+  return { ok: true };
 }
 
 /** The studio's own timezone — what decides where one working day ends. */

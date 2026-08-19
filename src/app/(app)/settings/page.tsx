@@ -7,6 +7,7 @@ import { StudioForm } from './StudioForm';
 import { DocumentDetailsForm } from './DocumentDetailsForm';
 import { CurrencyForm } from './CurrencyForm';
 import { TimezoneForm } from './TimezoneForm';
+import { OpeningTimeForm } from './OpeningTimeForm';
 import { CopyLinkButton } from './CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -74,6 +75,13 @@ export default async function SettingsPage() {
             day, so at UTC an evening in Lagos lands on tomorrow.
           </p>
           <TimezoneForm current={(org as any).timezone || 'UTC'} />
+
+          <h3 className="q-section-title" style={{ marginTop: '24px' }}>When you open</h3>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            The line an arrival is early or late against. Leave it empty and the board marks nobody
+            late — a studio without fixed hours should not have one assumed for it.
+          </p>
+          <OpeningTimeForm current={org.opensAt} />
         </section>
 
         <section className="q-card q-section">
