@@ -183,9 +183,6 @@ export function AttendanceBoard({
                 {person.roles.map((r) => (
                   <span key={r.id} className="q-badge q-badge-neutral">{r.name}</span>
                 ))}
-                {person.roles.length === 0 && person.title && (
-                  <span className="q-meta-sm">{person.title}</span>
-                )}
               </span>
               <div className="q-meta-sm" title={
                 person.checkedInAt

@@ -66,9 +66,6 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           <ContactAvatar name={contact.display_name || ''} url={contact.avatar_url} size="lg" />
           <div>
             <h1 className="q-page-title" style={{ marginBottom: '2px' }}>{contact.display_name}</h1>
-            {employee.title && (
-              <p className="q-page-subtitle" style={{ margin: 0 }}>{employee.title}</p>
-            )}
           </div>
         </div>
         <div className="q-row">
@@ -98,13 +95,7 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
                 <span>{contact.phone}</span>
               </div>
             )}
-            {employee.title && (
-              <div className="q-tile q-row q-row-between">
-                <span className="q-meta">Title</span>
-                <span>{employee.title}</span>
-              </div>
-            )}
-            {!contact.email && !contact.phone && !employee.title && (
+            {!contact.email && !contact.phone && (
               <p className="q-empty">No contact details yet. <Link href={`/team/${params.id}/edit`} className="q-accent">Add them →</Link></p>
             )}
           </div>

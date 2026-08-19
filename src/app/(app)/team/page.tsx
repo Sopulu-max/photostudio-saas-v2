@@ -38,8 +38,8 @@ export default async function TeamPage() {
               <tr>
                 <th className="q-table-th"></th>
                 <th className="q-table-th">Employee</th>
-                <th className="q-table-th">Contact</th>
-                <th className="q-table-th">Title</th>
+                <th className="q-table-th">Email</th>
+                <th className="q-table-th">Phone</th>
                 <th className="q-table-th">Roles</th>
                 <th className="q-table-th">Status</th>
               </tr>
@@ -60,10 +60,8 @@ export default async function TeamPage() {
                     <td className="q-table-td q-strong">
                       <Link href={`/team/${e.id}`} className="q-plain-link">{e.contact?.display_name}</Link>
                     </td>
-                    <td className="q-table-td q-meta">
-                      {e.contact?.email || e.contact?.phone || '—'}
-                    </td>
-                    <td className="q-table-td q-muted">{e.title || '—'}</td>
+                    <td className="q-table-td q-meta">{e.contact?.email || '—'}</td>
+                    <td className="q-table-td q-meta">{e.contact?.phone || '—'}</td>
                     <td className="q-table-td">
                       <div className="q-row">
                         {(e.employee_roles || []).map((er: any) => (

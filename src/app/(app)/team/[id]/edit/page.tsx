@@ -57,7 +57,6 @@ export default async function EditEmployeePage(props: { params: Promise<{ id: st
             name={employee.contact?.display_name || ''}
             email={employee.contact?.email ?? null}
             phone={employee.contact?.phone ?? null}
-            title={employee.title ?? null}
             status={employee.status}
           />
         </div>

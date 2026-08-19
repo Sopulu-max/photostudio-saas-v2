@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
  * Team — who does the work. An employee specialises a kernel contact; roles are
  * studio-defined (not hardcoded) and attach to employees via employee_roles.
  */
-export async function addEmployee(input: { name: string; email?: string; phone?: string; title?: string }) {
+export async function addEmployee(input: { name: string; email?: string; phone?: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
   if (!name) throw new Error('An employee needs a name.');
@@ -32,7 +32,7 @@ export async function addEmployee(input: { name: string; email?: string; phone?:
 
   const { data: employee, error } = await supabaseAdmin
     .from('employees')
-    .insert({ organization_id: orgId, contact_id: contact.id, title: input.title || null })
+    .insert({ organization_id: orgId, contact_id: contact.id })
     .select('id')
     .single();
   if (error || !employee) {
@@ -46,7 +46,7 @@ export async function addEmployee(input: { name: string; email?: string; phone?:
     entityId: employee.id,
     action: 'created',
     actorId: actorId ?? undefined,
-    payload: { name, title: input.title },
+    payload: { name },
   });
 
   revalidatePath('/team');
@@ -57,7 +57,7 @@ export async function listEmployees() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('employees')
-    .select('id, status, title, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
+    .select('id, status, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -72,7 +72,7 @@ export async function getEmployee(employeeId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('employees')
-    .select('id, status, title, working_days, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
+    .select('id, status, working_days, created_at, contact:contacts(id, display_name, email, phone, avatar_url), employee_roles(role:roles(id, name))')
     .eq('id', employeeId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -80,17 +80,18 @@ export async function getEmployee(employeeId: string) {
 }
 
 /**
- * An employee was write-once until now. Identity (name/email/phone) lives on
- * the kernel contact; role/skills live on the employee row — this updates
- * whichever side the caller actually passed.
+ * An employee was write-once until now.
+ *
+ * Everything editable here is identity, and identity lives on the kernel
+ * contact — the employee row itself now holds only the studio's relationship to
+ * that person: their status, the days they work, the roles they hold. Each of
+ * those has its own control, so this touches the contact alone.
  */
 export async function updateEmployee(input: {
   employeeId: string;
   name?: string;
   email?: string | null;
   phone?: string | null;
-  title?: string | null;
-
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -122,28 +123,13 @@ export async function updateEmployee(input: {
     }
   }
 
-  const employeePatch: Record<string, unknown> = {};
-  if (input.title !== undefined) employeePatch.title = input.title || null;
-
-  if (Object.keys(employeePatch).length > 0) {
-    const { error } = await supabaseAdmin
-      .from('employees')
-      .update(employeePatch)
-      .eq('id', input.employeeId)
-      .eq('organization_id', orgId);
-    if (error) {
-      console.error('Failed to update employee:', error);
-      throw new Error('Failed to save the employee');
-    }
-  }
-
   await logEvent({
     organizationId: orgId,
     entityType: 'employee',
     entityId: input.employeeId,
     action: 'updated',
     actorId: actorId ?? undefined,
-    payload: { ...contactPatch, ...employeePatch },
+    payload: { ...contactPatch },
   });
 
   revalidatePath('/team');

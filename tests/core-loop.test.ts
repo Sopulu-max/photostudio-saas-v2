@@ -252,7 +252,7 @@ describe('Core Loop Verification', () => {
     // A booking's team is not a list anyone maintains. Giving someone a task is
     // what puts them on the booking — listCrewForBooking rolls task assignments
     // up, so there is no second act and nothing to keep in step.
-    const { employeeId } = await addEmployee({ name: 'Tunde Shooter', title: 'Photographer' });
+    const { employeeId } = await addEmployee({ name: 'Tunde Shooter' });
     await assignTask({ taskId: tasks![0].id, employeeId, roleId });
 
     const crew = await listCrewForBooking(bookingId);
@@ -1119,7 +1119,7 @@ describe('Core Loop Verification', () => {
   }, 120000);
 
   it('records who turned up, once a day, on the studio’s own day', async () => {
-    const { employeeId } = await addEmployee({ name: 'Ada Crew', email: 'ada.crew@example.com', title: 'Photographer' });
+    const { employeeId } = await addEmployee({ name: 'Ada Crew', email: 'ada.crew@example.com', phone: '+234 800 000 0000' });
 
     // Nobody is in until somebody taps.
     const before = await getAttendanceToday();

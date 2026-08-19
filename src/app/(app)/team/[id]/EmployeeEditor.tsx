@@ -13,7 +13,6 @@ export function EmployeeEditor({
   name: initialName,
   email: initialEmail,
   phone: initialPhone,
-  title: initialTitle,
 
   status,
 }: {
@@ -21,14 +20,12 @@ export function EmployeeEditor({
   name: string;
   email: string | null;
   phone: string | null;
-  title: string | null;
 
   status: string;
 }) {
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail ?? '');
   const [phone, setPhone] = useState(initialPhone ?? '');
-  const [title, setTitle] = useState(initialTitle ?? '');
 
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -36,8 +33,7 @@ export function EmployeeEditor({
   const dirty =
     name.trim() !== initialName ||
     email !== (initialEmail ?? '') ||
-    phone !== (initialPhone ?? '') ||
-    title !== (initialTitle ?? '');
+    phone !== (initialPhone ?? '');
 
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
@@ -51,8 +47,6 @@ export function EmployeeEditor({
       name,
       email: email.trim() || null,
       phone: phone.trim() || null,
-      title: title.trim() || null,
-
     }));
 
   const archived = status === 'archived';
@@ -72,11 +66,6 @@ export function EmployeeEditor({
           <label className="q-label">Phone</label>
           <input className="q-input" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
-      </div>
-
-      <div className="q-field">
-        <label className="q-label">Job title</label>
-        <input className="q-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lead Photographer" />
       </div>
 
       {/*
