@@ -8,7 +8,7 @@ import { PackageFieldsEditor } from '../[id]/PackageFieldsEditor';
 export const dynamic = 'force-dynamic';
 
 /**
- * `?value=` arrives from the lens: entering at Birthday and choosing to package
+ * `?value=` arrives from the classification view: entering at Birthday and choosing to package
  * what the studio already does should not drop you into a blank form and make
  * you re-say Birthday. The value is preselected; everything else is the same
  * builder.

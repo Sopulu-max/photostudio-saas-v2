@@ -5,7 +5,7 @@ import { getStudio } from '@/kernel/organizations';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
   CalendarCheck, CalendarDays, FileSignature,
-  Package, Users, PieChart, Settings, Clock, Aperture,
+  Package, Users, PieChart, Settings, Clock,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,6 @@ const SECTIONS = [
     apps: [
       { label: 'Services', href: '/services', desc: 'What this studio knows how to do', icon: Layers },
       { label: 'Packages', href: '/packages', desc: 'What clients can book', icon: Package },
-      { label: 'Lens', href: '/lens', desc: 'The same work, read by how it is classified', icon: Aperture },
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
     ],
   },

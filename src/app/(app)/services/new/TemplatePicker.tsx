@@ -31,7 +31,7 @@ export function TemplatePicker({
   dimensionsByDomain,
 }: {
   /**
-   * Where the lens dropped you — a domain, and what it was already filed under.
+   * Where the classification view dropped you — a domain, and what it was filed under.
    * Present means the gallery is skipped: whoever arrived this way has already
    * decided none of the templates is the thing.
    */

@@ -176,7 +176,7 @@ export function DimensionManager({
                 *
                 * Hidden until there are two answers to relate, because with one
                 * there is nothing to say. Saying Beach is a kind of Outdoor is
-                * not filing — asking the Lens what this studio does outdoors
+                * not filing — asking what this studio does outdoors
                 * starts including its beach work, with no service tagged twice.
                 */}
               {d.values.length > 1 && (

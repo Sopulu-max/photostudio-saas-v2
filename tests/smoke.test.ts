@@ -65,7 +65,7 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/services', expect: /<\/html>/i },
   { path: '/services/settings', expect: /Classifications/i },
   { path: '/packages', expect: /<\/html>/i },
-  { path: '/lens', expect: /<\/html>/i },
+  { path: '/services/classifications', expect: /By classification/i },
   { path: '/calendar', expect: /<\/html>/i },
   { path: '/tasks', expect: /<\/html>/i },
   { path: '/analytics', expect: /<\/html>/i },

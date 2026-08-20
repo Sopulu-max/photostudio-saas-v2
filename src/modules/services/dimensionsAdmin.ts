@@ -236,7 +236,7 @@ export async function setValueParent(input: { valueId: string; parentId: string 
 
   revalidatePath('/services/settings');
   revalidatePath('/services');
-  revalidatePath('/lens');
+  revalidatePath('/services/classifications');
   return { ok: true };
 }
 

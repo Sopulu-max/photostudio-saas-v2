@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
  * Both are prefilled from here, so the answer to "what do I do for birthdays"
  * leads directly into doing it rather than into a blank form.
  */
-export default async function LensPage(props: { params: Promise<{ valueId: string }> }) {
+export default async function ClassificationPage(props: { params: Promise<{ valueId: string }> }) {
   const params = await props.params;
   try {
     await getAuthOrgId();
@@ -52,7 +52,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
 
   return (
     <div className="q-page-narrow">
-      <Link className="q-back" href="/lens">&larr; All classifications</Link>
+      <Link className="q-back" href="/services/classifications">&larr; All classifications</Link>
 
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
@@ -62,7 +62,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
           {place.ancestors.length > 0 && (
             <div className="q-row" style={{ gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
               {[...place.ancestors].reverse().map((a) => (
-                <Link key={a.id} href={`/lens/${a.id}`} className="q-meta-sm q-accent">
+                <Link key={a.id} href={`/services/classifications/${a.id}`} className="q-meta-sm q-accent">
                   {a.name} /
                 </Link>
               ))}
@@ -78,7 +78,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
             <div className="q-row" style={{ gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
               <span className="q-meta-sm">Includes:</span>
               {place.children.map((c) => (
-                <Link key={c.id} href={`/lens/${c.id}`} className="q-badge q-badge-neutral">{c.name}</Link>
+                <Link key={c.id} href={`/services/classifications/${c.id}`} className="q-badge q-badge-neutral">{c.name}</Link>
               ))}
             </div>
           )}
@@ -205,7 +205,7 @@ export default async function LensPage(props: { params: Promise<{ valueId: strin
                   <strong className="q-strong">{dimensionName}</strong>
                   <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
                     {values.map((c) => (
-                      <Link key={c.valueId} href={`/lens/${c.valueId}`} className="q-badge q-badge-neutral"
+                      <Link key={c.valueId} href={`/services/classifications/${c.valueId}`} className="q-badge q-badge-neutral"
                         title={`${c.services} ${value.name} service${c.services === 1 ? '' : 's'} also classified ${dimensionName}: ${c.valueName}`}>
                         {c.valueName}
                         <span style={{ marginLeft: '6px', opacity: 0.7 }}>{c.services}</span>

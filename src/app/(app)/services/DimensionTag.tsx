@@ -18,7 +18,12 @@ export function DimensionTag({
   value: { id: string; name: string } | null | undefined;
 }) {
   if (!value?.id) return null;
-  const href = `/services?value=${encodeURIComponent(value.id)}&label=${encodeURIComponent(`${dimension}: ${value.name}`)}`;
+  // Straight to the classification, which answers far more than the filtered
+  // service list this used to point at: the services carrying it, the packages,
+  // the bookings that resulted, and what tends to come with it. The thin read
+  // was the one wired into every badge in the app, and the rich one could only
+  // be reached from a menu.
+  const href = `/services/classifications/${encodeURIComponent(value.id)}`;
   return (
     <Link href={href} className="q-badge q-badge-neutral" title={`See every service tagged ${dimension}: ${value.name}`}>
       {dimension}: {value.name}

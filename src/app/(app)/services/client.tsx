@@ -56,6 +56,10 @@ export function ServicesClient({
           <p className="q-page-subtitle">What this studio actually knows how to do — independent of how it&rsquo;s sold.</p>
         </div>
         <div className="q-row">
+          {/* The second reading of this same list. It used to be a top-level
+              destination called Lens, which made a way of looking sit among the
+              things a studio owns; it is a view of what is on this page. */}
+          <Link href="/services/classifications" className="q-btn q-btn-secondary">By classification</Link>
           <Link href="/services/settings" className="q-btn q-btn-secondary">Domains, deliverables &amp; blueprints</Link>
           <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>

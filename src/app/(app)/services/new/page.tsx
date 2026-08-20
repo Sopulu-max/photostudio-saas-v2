@@ -10,7 +10,7 @@ import { TemplatePicker } from './TemplatePicker';
 export const dynamic = 'force-dynamic';
 
 /**
- * `?domain=&dimension=&value=` arrives from the lens: deciding that Birthday is
+ * `?domain=&dimension=&value=` arrives from the classification view: deciding that Birthday is
  * a genuinely different process should carry Birthday into the new service,
  * not make you say it again. It also skips the template gallery — the decision
  * that got you here was already "none of these".
