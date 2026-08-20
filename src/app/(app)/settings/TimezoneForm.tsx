@@ -24,10 +24,17 @@ const allZones = (): string[] => {
     // Available in every browser this app supports; guarded because it is the
     // one API here that a stale runtime might not have.
     const supported = (Intl as any).supportedValuesOf?.('timeZone');
-    if (Array.isArray(supported) && supported.length > 0) return supported;
+    if (Array.isArray(supported) && supported.length > 0) {
+      // UTC first, and deliberately: the list is IANA place names and does not
+      // contain the literal "UTC", which is the value every studio starts with.
+      // Leaving it out meant the one entry every studio needed to recognise was
+      // the one entry the list denied — the box said UTC and the menu offered
+      // to create it, as though the studio had made the word up.
+      return ['UTC', ...supported.filter((z: string) => z !== 'UTC')];
+    }
   } catch { /* fall through to the guess below */ }
   const guess = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return guess ? [guess, 'UTC'] : ['UTC'];
+  return guess && guess !== 'UTC' ? ['UTC', guess] : ['UTC'];
 };
 
 export function TimezoneForm({ current }: { current: string }) {

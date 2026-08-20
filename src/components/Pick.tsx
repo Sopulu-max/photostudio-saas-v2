@@ -35,6 +35,7 @@ function Combo({
   onCommit,
   disabled,
   clearOnCommit,
+  current,
 }: {
   text: string;
   setText: (v: string) => void;
@@ -43,6 +44,16 @@ function Combo({
   onCommit: (value: string) => void;
   disabled?: boolean;
   clearOnCommit?: boolean;
+  /**
+   * The value already chosen, when there is one.
+   *
+   * Sitting in the box unchanged is not typing, and must not narrow the list.
+   * Without this a value the options do not contain — a studio's timezone of
+   * "UTC" against a list of IANA names, a domain since renamed — filtered the
+   * menu down to the handful of entries containing that text, usually none, and
+   * the control looked empty until you deleted what was in it.
+   */
+  current?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -50,13 +61,22 @@ function Combo({
   useOutside(box, () => setOpen(false), open);
 
   const typed = text.trim();
-  // Filter as you type, but an exact match shouldn't hide the rest of the list —
-  // you may have opened it to change your mind, not to confirm.
-  const filtered = typed && !options.some((o) => o.toLowerCase() === typed.toLowerCase())
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  // Untouched: what is in the box is what was already chosen. Opening the menu
+  // then means "show me the alternatives", never "search for this".
+  const untouched = !!current && same(typed, current);
+  const known = options.some((o) => same(o, typed));
+
+  // Filter as you type — but neither an exact match nor the standing value
+  // should hide the rest of the list. You may have opened it to change your
+  // mind rather than to confirm.
+  const filtered = typed && !known && !untouched
     ? options.filter((o) => o.toLowerCase().includes(typed.toLowerCase()))
     : options;
 
-  const isNew = typed.length > 0 && !options.some((o) => o.toLowerCase() === typed.toLowerCase());
+  // Nothing is "new" until you have actually typed something new. Offering to
+  // create the value that is already saved reads as though it were not.
+  const isNew = typed.length > 0 && !known && !untouched;
 
   const commit = (value: string) => {
     const v = value.trim();
@@ -144,6 +164,7 @@ export function PickOne({
       placeholder={placeholder}
       disabled={disabled}
       onCommit={onChange}
+      current={value}
     />
   );
 }
