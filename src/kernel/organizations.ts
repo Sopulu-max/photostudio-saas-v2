@@ -46,17 +46,19 @@ export async function createOrganization(name: string, slug?: string) {
     throw new Error(contactError?.message || 'Failed to create your studio identity');
   }
 
-  const { error: employeeError } = await supabaseAdmin
-    .from('employees')
-    // No title. The owner is known by their contact carrying auth_user_id, not
-    // by a word in a column — and what a person DOES is a role, which routes
-    // work. Owning the studio is not a production stage anyone gets staffed to.
-    .insert({ organization_id: org.id, contact_id: contact.id });
-
-  if (employeeError) {
-    console.error('Failed to create owner employee record:', employeeError);
-    throw new Error(employeeError.message || 'Failed to add you to the team');
-  }
+  /*
+   * No employee record. Owning a studio is not working at one.
+   *
+   * Signing up used to put the owner on the team, so they appeared on the
+   * attendance register waiting to check in, in the staffing pickers, and in
+   * every count of who works here — none of which they had asked for, and none
+   * of which the app needed: identity runs through contacts.auth_user_id, and
+   * nothing anywhere looks up an employee by the signed-in user.
+   *
+   * A solo photographer who owns the studio and shoots it IS staff, and adds
+   * themselves on the Team page. That is a different fact from owning it, and
+   * the difference is exactly what this stops assuming.
+   */
 
   // 4. Update the user's Auth metadata to link to the new Organization
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {

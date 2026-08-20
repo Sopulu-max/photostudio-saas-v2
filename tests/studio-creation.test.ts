@@ -92,17 +92,20 @@ describe('Creating a studio', () => {
     expect(contact!.email).toBe(email);
 
     /*
-     * And as an employee. This is the assertion that had been missing: the
-     * insert here once carried a column that no longer existed, so it failed,
-     * so the whole signup threw — and nothing anywhere noticed.
+     * And NOT as an employee. Signing up used to put the owner on the team,
+     * so they turned up on the attendance register waiting to check in and in
+     * every count of who works here. Owning a studio is not working at one —
+     * a solo photographer who does both adds themselves on the Team page, and
+     * that is a second fact rather than the same one.
+     *
+     * This assertion used to be the opposite, and it is the reason the empty
+     * register now reads as empty.
      */
-    const { data: employee } = await supabaseAdmin
+    const { data: employees } = await supabaseAdmin
       .from('employees')
-      .select('id, contact_id, status')
-      .eq('organization_id', org.id)
-      .maybeSingle();
-    expect(employee, 'the owner is not on their own team').toBeTruthy();
-    expect(employee!.contact_id).toBe(contact!.id);
+      .select('id')
+      .eq('organization_id', org.id);
+    expect(employees ?? [], 'signing up put the owner on the team').toHaveLength(0);
 
     // The user is pointed back at the studio, or their next request lands on
     // "create a studio" again and they make a second one.
