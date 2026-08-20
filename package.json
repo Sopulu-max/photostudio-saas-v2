@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude \"**/smoke.test.ts\" --exclude \"**/node_modules/**\"",
+    "test:watch": "vitest",
+    "test:smoke": "vitest run tests/smoke.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
