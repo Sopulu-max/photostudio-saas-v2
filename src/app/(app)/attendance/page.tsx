@@ -27,7 +27,7 @@ export default async function AttendancePage() {
     redirect('/login');
   }
 
-  const { workDate, timezone, isoWeekday, opensAt, closed, openingLabel, roster } = await getAttendanceToday();
+  const { workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel, roster } = await getAttendanceToday();
   const here = roster.filter((r) => r.state === 'in').length;
   // Only people whose day it is. Counting someone's day off as "still to come"
   // is how a register turns into a list of false alarms.
@@ -65,6 +65,7 @@ export default async function AttendancePage() {
         timezone={timezone}
         isoWeekday={isoWeekday}
         opensAt={opensAt}
+        closesAt={closesAt}
         closed={closed}
         openingLabel={openingLabel}
       />

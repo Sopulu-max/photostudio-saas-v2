@@ -84,11 +84,11 @@ export async function createOrganization(name: string, slug?: string) {
 }
 
 /** Who this studio is — name, storefront slug, and the timezone its days run on. */
-export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; timezone: string; opensAt: string | null; metadata?: Record<string, any> } | null> {
+export async function getStudio(): Promise<{ id: string; name: string; slug: string | null; timezone: string; opensAt: string | null; closesAt: string | null; metadata?: Record<string, any> } | null> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, timezone, opens_at, metadata')
+    .select('id, name, slug, timezone, opens_at, closes_at, metadata')
     .eq('id', orgId)
     .maybeSingle();
   if (!data) return null;
@@ -98,6 +98,7 @@ export async function getStudio(): Promise<{ id: string; name: string; slug: str
     timezone: o.timezone || 'UTC',
     // Postgres returns "08:30:00"; every reader wants "08:30".
     opensAt: o.opens_at ? String(o.opens_at).slice(0, 5) : null,
+    closesAt: o.closes_at ? String(o.closes_at).slice(0, 5) : null,
     metadata: o.metadata || {},
   };
 }

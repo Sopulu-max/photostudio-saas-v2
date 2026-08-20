@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudio, getStudioCurrency, listStudioLogins } from '@/kernel/organizations';
-import { listOpeningExceptions } from '@/modules/team/interface';
+import { listStudioHours } from '@/modules/team/interface';
 import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
 import { DocumentDetailsForm } from './DocumentDetailsForm';
 import { CurrencyForm } from './CurrencyForm';
 import { TimezoneForm } from './TimezoneForm';
-import { OpeningTimeForm } from './OpeningTimeForm';
-import { OpeningExceptionsForm } from './OpeningExceptionsForm';
+import { DefaultHoursForm } from './DefaultHoursForm';
+import { StudioHoursForm } from './StudioHoursForm';
 import { CopyLinkButton } from './CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -29,8 +29,8 @@ export default async function SettingsPage() {
 
   // Who can sign in is a kernel identity question, not a Team one — Team is
   // about who does the work.
-  const [org, currencyCode, withLogins, openingExceptions] = await Promise.all([
-    getStudio(), getStudioCurrency(), listStudioLogins(), listOpeningExceptions(),
+  const [org, currencyCode, withLogins, hours] = await Promise.all([
+    getStudio(), getStudioCurrency(), listStudioLogins(), listStudioHours(),
   ]);
 
   if (!org) {
@@ -78,21 +78,17 @@ export default async function SettingsPage() {
           </p>
           <TimezoneForm current={(org as any).timezone || 'UTC'} />
 
-          <h3 className="q-section-title" style={{ marginTop: '24px' }}>When you open</h3>
+          <h3 className="q-section-title" style={{ marginTop: '24px' }}>The hours you keep</h3>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            The line an arrival is early or late against. Leave it empty and the board marks nobody
-            late — a studio without fixed hours should not have one assumed for it.
+            Which day a morning belongs to comes from the timezone above; whether an arrival was late
+            comes from these. Describe the week, then any day that breaks it. Leave a day unstated and
+            it falls through to the usual hours; leave everything unstated and nobody is ever marked
+            late, because there is no line to be late against.
           </p>
-          <OpeningTimeForm current={org.opensAt} />
-
-          <h3 className="q-section-title" style={{ marginTop: '24px' }}>Days that are different</h3>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>
-            No studio opens at the same time every day of the year. A rule here can name one date — a
-            public holiday, one Tuesday the power went — or a day of the week, narrowed to which one
-            in the month. The more specific rule wins, and the board says which applied, so a
-            different time explains itself rather than looking like a mistake.
-          </p>
-          <OpeningExceptionsForm exceptions={openingExceptions} />
+          <DefaultHoursForm opensAt={org.opensAt} closesAt={org.closesAt} />
+          <div style={{ marginTop: '20px' }}>
+            <StudioHoursForm week={hours.week} exceptions={hours.exceptions} />
+          </div>
         </section>
 
         <section className="q-card q-section">

@@ -67,7 +67,7 @@ const exactly = (iso: string | null, timezone: string) =>
     : '';
 
 export function AttendanceBoard({
-  roster, workDate, timezone, isoWeekday, opensAt, closed, openingLabel,
+  roster, workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel,
 }: {
   roster: AttendanceToday[];
   workDate: string;
@@ -76,6 +76,9 @@ export function AttendanceBoard({
   isoWeekday: number;
   /** "08:30", or null when the studio has not said — then nobody is late. */
   opensAt: string | null;
+  /** "17:00", or null. Shown, never used to judge anyone: leaving early is a
+      conversation, not a status a register should assign. */
+  closesAt: string | null;
   /** The studio is shut today, so nobody is expected and nobody is late. */
   closed: boolean;
   /** Why today differs — "Sanitation", "Public holiday". Null on an ordinary day. */
@@ -417,12 +420,12 @@ export function AttendanceBoard({
         * named the rule; this repeats the name back on the day it bites, so a
         * later opening reads as intended rather than as a fault.
         */}
-      {openingLabel && (
+      {(openingLabel || closed) && (
         <p className="q-note" role="status" style={{ margin: 0 }}>
-          <strong>{openingLabel}</strong>{' '}
+          {openingLabel && <strong>{openingLabel}</strong>}{openingLabel ? ' — ' : ''}
           {closed
-            ? '— the studio is closed today. Nobody is expected, and nobody is late. Anyone who comes in can still be checked in.'
-            : `— the studio opens at ${opensAt} today rather than its usual time.`}
+            ? 'the studio is closed today. Nobody is expected, and nobody is late. Anyone who comes in can still be checked in.'
+            : `the studio is open ${opensAt}${closesAt ? ` – ${closesAt}` : ''} today rather than its usual hours.`}
         </p>
       )}
 

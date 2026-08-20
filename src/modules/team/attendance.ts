@@ -63,7 +63,7 @@ export type AttendanceToday = {
  */
 async function studioToday(orgId: string): Promise<{
   workDate: string; timezone: string; isoWeekday: number;
-  opensAt: string | null; closed: boolean; openingLabel: string | null;
+  opensAt: string | null; closesAt: string | null; closed: boolean; openingLabel: string | null;
 }> {
   const { data } = await supabaseAdmin
     .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
@@ -90,12 +90,12 @@ async function studioToday(orgId: string): Promise<{
    * last Saturday, which beats a rule about every Saturday, which beats the
    * ordinary time.
    */
-  const { data: opening, error } = await supabaseAdmin
-    .rpc('studio_opens_at', { p_org: orgId, p_date: workDate });
-  if (error) console.error('Failed to resolve opening time:', error);
+  const { data: hours, error } = await supabaseAdmin
+    .rpc('studio_hours_for', { p_org: orgId, p_date: workDate });
+  if (error) console.error('Failed to resolve the studio hours:', error);
   // A set-returning function comes back as an array of one.
-  const today = (Array.isArray(opening) ? opening[0] : opening) as
-    { opens_at: string | null; closed: boolean; label: string | null } | undefined;
+  const today = (Array.isArray(hours) ? hours[0] : hours) as
+    { opens_at: string | null; closes_at: string | null; closed: boolean; label: string | null } | undefined;
 
   return {
     workDate,
@@ -103,6 +103,7 @@ async function studioToday(orgId: string): Promise<{
     isoWeekday,
     // "08:30:00" from Postgres; the board and the forms both want "08:30".
     opensAt: today?.opens_at ? today.opens_at.slice(0, 5) : null,
+    closesAt: today?.closes_at ? today.closes_at.slice(0, 5) : null,
     closed: !!today?.closed,
     openingLabel: today?.label ?? null,
   };
@@ -128,11 +129,12 @@ async function instantFor(workDate: string, wallClock: string, timezone: string)
 
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
-  workDate: string; timezone: string; isoWeekday: number; opensAt: string | null;
+  workDate: string; timezone: string; isoWeekday: number;
+  opensAt: string | null; closesAt: string | null;
   closed: boolean; openingLabel: string | null; roster: AttendanceToday[];
 }> {
   const { orgId } = await getAuthOrgId();
-  const { workDate, timezone, isoWeekday, opensAt, closed, openingLabel } = await studioToday(orgId);
+  const { workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel } = await studioToday(orgId);
 
   /*
    * When today's opening actually was, as an instant.
@@ -196,55 +198,146 @@ export async function getAttendanceToday(): Promise<{
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { workDate, timezone, isoWeekday, opensAt, closed, openingLabel, roster };
+  return { workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel, roster };
 }
 
+/** "09:00". The shape an <input type="time"> produces. */
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 /**
- * The days this studio does not open as usual.
+ * The hours this studio keeps.
  *
- * Ordered the way they are resolved — named dates, then rules about one
- * occurrence of a weekday, then rules about every occurrence — so the list on
- * screen reads in the same order the database decides in.
+ * Two parts on screen, one question in the database. The ordinary week is a
+ * schedule; a rule about the last Saturday is an exception to that schedule.
+ * Both resolve through the same function, in the same order of specificity.
  */
-export async function listOpeningExceptions() {
+export async function listStudioHours() {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
-    .from('opening_exceptions')
-    .select('id, label, on_date, weekday, week_of_month, opens_at, closed')
+    .from('studio_hours')
+    .select('id, label, on_date, weekday, week_of_month, opens_at, closes_at, closed')
     .eq('organization_id', orgId)
     .order('on_date', { ascending: true, nullsFirst: false })
     .order('weekday', { ascending: true });
-  if (error) console.error('Failed to list opening exceptions:', error);
+  if (error) console.error('Failed to load the studio hours:', error);
 
-  return ((data || []) as any[]).map((e) => ({
-    id: e.id as string,
-    label: e.label as string,
-    onDate: (e.on_date ?? null) as string | null,
-    weekday: (e.weekday ?? null) as number | null,
-    weekOfMonth: (e.week_of_month ?? null) as number | null,
-    opensAt: e.opens_at ? (e.opens_at as string).slice(0, 5) : null,
-    closed: !!e.closed,
+  const rows = ((data || []) as any[]).map((h) => ({
+    id: h.id as string,
+    label: (h.label ?? null) as string | null,
+    onDate: (h.on_date ?? null) as string | null,
+    weekday: (h.weekday ?? null) as number | null,
+    weekOfMonth: (h.week_of_month ?? null) as number | null,
+    opensAt: h.opens_at ? (h.opens_at as string).slice(0, 5) : null,
+    closesAt: h.closes_at ? (h.closes_at as string).slice(0, 5) : null,
+    closed: !!h.closed,
   }));
+
+  const weekly = rows.filter((r) => r.onDate === null && r.weekOfMonth === null);
+  // Always seven rows, in order, whether or not the studio has said anything
+  // about a given day. A schedule with gaps in it is not a schedule to edit.
+  const week = WEEKDAYS.map((d) => {
+    const found = weekly.find((r) => r.weekday === d.iso);
+    return {
+      weekday: d.iso,
+      opensAt: found?.opensAt ?? null,
+      closesAt: found?.closesAt ?? null,
+      closed: found?.closed ?? false,
+      /** False when the studio has never spoken about this day. */
+      stated: !!found,
+    };
+  });
+
+  return { week, exceptions: rows.filter((r) => r.onDate !== null || r.weekOfMonth !== null) };
 }
 
 /**
- * Say that one kind of day is different.
+ * The ordinary week, saved whole.
  *
- * Either a date or a weekday, never both — the check constraint says the same
- * thing, and this says it before the round trip so the studio gets a sentence
- * rather than a constraint name.
+ * Seven days arrive together because that is how the form is read and edited;
+ * saving one at a time would let a half-written week reach the board. The
+ * weekly rows are replaced rather than patched, so a day the studio has gone
+ * quiet about returns to unstated instead of keeping a time nobody meant.
  */
-export async function addOpeningException(input: {
+export async function setWeeklyHours(input: {
+  days: { weekday: number; opensAt?: string | null; closesAt?: string | null; closed?: boolean }[];
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const rows = (input.days || [])
+    .filter((d) => Number.isInteger(d.weekday) && d.weekday >= 1 && d.weekday <= 7)
+    .map((d) => {
+      const closed = !!d.closed;
+      const opensAt = closed ? null : (d.opensAt || '').trim() || null;
+      const closesAt = closed ? null : (d.closesAt || '').trim() || null;
+      if (opensAt && !TIME.test(opensAt)) throw new Error('Give the opening time as 09:00.');
+      if (closesAt && !TIME.test(closesAt)) throw new Error('Give the closing time as 17:00.');
+      // A closing time with no opening time says a studio shut without ever
+      // having opened. The schema would take it; it still means nothing.
+      if (!closed && closesAt && !opensAt) {
+        throw new Error('Say when that day opens before saying when it closes.');
+      }
+      return { weekday: d.weekday, closed, opensAt, closesAt };
+    });
+
+  // A day with nothing said about it keeps no row, so it falls through to the
+  // studio's default exactly as it did before anyone described the week.
+  const keep = rows.filter((r) => r.closed || r.opensAt);
+
+  const { error: clearError } = await supabaseAdmin
+    .from('studio_hours').delete()
+    .eq('organization_id', orgId)
+    .is('on_date', null)
+    .is('week_of_month', null);
+  if (clearError) {
+    console.error('Failed to clear the weekly hours:', clearError);
+    throw new Error('The week could not be saved.');
+  }
+
+  if (keep.length > 0) {
+    const { error } = await supabaseAdmin.from('studio_hours').insert(
+      keep.map((r) => ({
+        organization_id: orgId,
+        weekday: r.weekday,
+        opens_at: r.opensAt,
+        closes_at: r.closesAt,
+        closed: r.closed,
+      })),
+    );
+    if (error) {
+      console.error('Failed to save the weekly hours:', error);
+      throw new Error('The week could not be saved.');
+    }
+  }
+
+  await logEvent({
+    organizationId: orgId, entityType: 'organization', entityId: orgId,
+    action: 'weekly_hours_set', actorId: actorId ?? undefined, payload: { days: keep },
+  });
+  revalidatePath('/attendance');
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+/**
+ * A day that breaks the week.
+ *
+ * Either a date — a public holiday, one Tuesday the power went — or one
+ * occurrence of a weekday, which is how "the last Saturday of the month" is
+ * said without the system needing to know what happens on it.
+ */
+export async function addHoursException(input: {
   label: string;
   onDate?: string | null;
   weekday?: number | null;
-  /** -1 = last in the month, 1..5 = the nth, null = every one of them. */
+  /** -1 = last in the month, 1..5 = the nth. */
   weekOfMonth?: number | null;
   opensAt?: string | null;
+  closesAt?: string | null;
   closed?: boolean;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const label = (input.label || '').trim();
+  // Named, because the board has to say why today is not the usual time.
   if (!label) throw new Error('Give the day a name, so the board can say why.');
 
   const onDate = (input.onDate || '').trim() || null;
@@ -254,29 +347,33 @@ export async function addOpeningException(input: {
   if (weekday !== null && (weekday < 1 || weekday > 7)) throw new Error('That is not a day of the week.');
 
   const closed = !!input.closed;
-  const opensAt = closed ? null : (input.opensAt || '').trim();
-  if (!closed && !/^([01]\d|2[0-3]):[0-5]\d$/.test(opensAt || '')) {
-    throw new Error('Give a time like 10:00, or mark the studio closed.');
-  }
+  const opensAt = closed ? null : (input.opensAt || '').trim() || null;
+  const closesAt = closed ? null : (input.closesAt || '').trim() || null;
+  if (!closed && !opensAt) throw new Error('Give an opening time, or mark the studio closed.');
+  if (opensAt && !TIME.test(opensAt)) throw new Error('Give the opening time as 10:00.');
+  if (closesAt && !TIME.test(closesAt)) throw new Error('Give the closing time as 14:00.');
 
-  const { error } = await supabaseAdmin.from('opening_exceptions').insert({
+  const { error } = await supabaseAdmin.from('studio_hours').insert({
     organization_id: orgId,
     label,
     on_date: onDate,
     weekday: onDate ? null : weekday,
     week_of_month: onDate ? null : (input.weekOfMonth ?? null),
-    opens_at: opensAt || null,
+    opens_at: opensAt,
+    closes_at: closesAt,
     closed,
   });
   if (error) {
-    console.error('Failed to add opening exception:', error);
+    console.error('Failed to add the day:', error);
+    // The unique indexes: one rule per date, one per nth weekday.
+    if ((error as any).code === '23505') throw new Error('There is already a rule for that day.');
     throw new Error('That day could not be saved.');
   }
 
   await logEvent({
     organizationId: orgId, entityType: 'organization', entityId: orgId,
-    action: 'opening_exception_added', actorId: actorId ?? undefined,
-    payload: { label, onDate, weekday, weekOfMonth: input.weekOfMonth ?? null, opensAt, closed },
+    action: 'hours_exception_added', actorId: actorId ?? undefined,
+    payload: { label, onDate, weekday, weekOfMonth: input.weekOfMonth ?? null, opensAt, closesAt, closed },
   });
   revalidatePath('/attendance');
   revalidatePath('/settings');
@@ -284,18 +381,18 @@ export async function addOpeningException(input: {
 }
 
 /** The studio no longer treats that kind of day differently. */
-export async function removeOpeningException(id: string) {
+export async function removeHoursException(id: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { error } = await supabaseAdmin
-    .from('opening_exceptions').delete()
+    .from('studio_hours').delete()
     .eq('id', id).eq('organization_id', orgId);
   if (error) {
-    console.error('Failed to remove opening exception:', error);
+    console.error('Failed to remove the day:', error);
     throw new Error('That day could not be removed.');
   }
   await logEvent({
     organizationId: orgId, entityType: 'organization', entityId: orgId,
-    action: 'opening_exception_removed', actorId: actorId ?? undefined, payload: { id },
+    action: 'hours_exception_removed', actorId: actorId ?? undefined, payload: { id },
   });
   revalidatePath('/attendance');
   revalidatePath('/settings');
@@ -590,27 +687,38 @@ export async function listAttendanceForEmployee(employeeId: string, limit = 30) 
 }
 
 /**
- * When the studio opens — what makes an arrival early, on time, or late.
+ * The studio's usual hours — the answer for any day the week does not cover.
  *
- * Clearable, and clearing it is a real answer: a studio with no fixed opening
- * has no late, and the board stops claiming otherwise. Stored as wall clock
- * because opening is the same hour whatever the offset that day.
+ * Beneath the weekly schedule and everything that overrides it. A studio that
+ * fills in only this gets one set of hours every day, which is a real and
+ * common answer; a studio that describes its week never reaches this.
+ *
+ * Clearable, and clearing is itself an answer: with no opening time there is
+ * no line to be late against, and the board stops claiming there is. Stored as
+ * wall clock because opening is the same hour whatever the offset that day.
  */
-export async function setStudioOpeningTime(opensAt: string | null) {
+export async function setStudioDefaultHours(input: {
+  opensAt?: string | null;
+  closesAt?: string | null;
+}) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const clean = (opensAt || '').trim();
-  // "HH:MM", the shape an <input type="time"> produces.
-  if (clean && !/^([01]\d|2[0-3]):[0-5]\d$/.test(clean)) {
-    throw new Error('Give a time like 08:30.');
-  }
+  const opensAt = (input.opensAt || '').trim() || null;
+  const closesAt = (input.closesAt || '').trim() || null;
+  if (opensAt && !TIME.test(opensAt)) throw new Error('Give the opening time as 08:30.');
+  if (closesAt && !TIME.test(closesAt)) throw new Error('Give the closing time as 17:00.');
+  // Closing without opening describes a studio that shut without opening.
+  if (closesAt && !opensAt) throw new Error('Say when the studio opens before saying when it closes.');
 
   const { error } = await supabaseAdmin
-    .from('organizations').update({ opens_at: clean || null }).eq('id', orgId);
-  if (error) { console.error('Failed to set opening time:', error); throw new Error('Failed to save the opening time'); }
+    .from('organizations').update({ opens_at: opensAt, closes_at: closesAt }).eq('id', orgId);
+  if (error) {
+    console.error('Failed to set the studio hours:', error);
+    throw new Error('Failed to save the hours');
+  }
 
   await logEvent({
     organizationId: orgId, entityType: 'organization', entityId: orgId,
-    action: 'opening_time_set', actorId: actorId ?? undefined, payload: { opensAt: clean || null },
+    action: 'default_hours_set', actorId: actorId ?? undefined, payload: { opensAt, closesAt },
   });
   revalidatePath('/attendance');
   revalidatePath('/settings');
