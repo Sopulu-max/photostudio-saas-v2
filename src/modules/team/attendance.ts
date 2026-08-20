@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
+import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
 import { assertOurs } from '@/kernel/tenancy';
 import { revalidatePath } from 'next/cache';
 // A 'use server' file may only export async functions, so the seven days live
@@ -65,9 +66,7 @@ async function studioToday(orgId: string): Promise<{
   workDate: string; timezone: string; isoWeekday: number;
   opensAt: string | null; closesAt: string | null; closed: boolean; openingLabel: string | null;
 }> {
-  const { data } = await supabaseAdmin
-    .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
-  const timezone = (data?.timezone as string) || 'UTC';
+  const timezone = await studioTimezone(orgId);
   const now = new Date();
   // en-CA gives YYYY-MM-DD, which is what a `date` column wants.
   const workDate = new Intl.DateTimeFormat('en-CA', {
@@ -90,22 +89,16 @@ async function studioToday(orgId: string): Promise<{
    * last Saturday, which beats a rule about every Saturday, which beats the
    * ordinary time.
    */
-  const { data: hours, error } = await supabaseAdmin
-    .rpc('studio_hours_for', { p_org: orgId, p_date: workDate });
-  if (error) console.error('Failed to resolve the studio hours:', error);
-  // A set-returning function comes back as an array of one.
-  const today = (Array.isArray(hours) ? hours[0] : hours) as
-    { opens_at: string | null; closes_at: string | null; closed: boolean; label: string | null } | undefined;
+  const hours = await studioHoursFor(orgId, workDate);
 
   return {
     workDate,
     timezone,
     isoWeekday,
-    // "08:30:00" from Postgres; the board and the forms both want "08:30".
-    opensAt: today?.opens_at ? today.opens_at.slice(0, 5) : null,
-    closesAt: today?.closes_at ? today.closes_at.slice(0, 5) : null,
-    closed: !!today?.closed,
-    openingLabel: today?.label ?? null,
+    opensAt: hours.opensAt,
+    closesAt: hours.closesAt,
+    closed: hours.closed,
+    openingLabel: hours.label,
   };
 }
 
@@ -116,16 +109,7 @@ async function studioToday(orgId: string): Promise<{
  * knows the offset that applied on that date. Doing it here would be wrong for
  * one hour twice a year wherever daylight saving applies.
  */
-async function instantFor(workDate: string, wallClock: string, timezone: string): Promise<string> {
-  const { data, error } = await supabaseAdmin.rpc('attendance_local_instant', {
-    p_date: workDate, p_time: wallClock, p_timezone: timezone,
-  });
-  if (error || !data) {
-    console.error('Failed to resolve local time:', error);
-    throw new Error(`${wallClock} is not a valid time.`);
-  }
-  return data as string;
-}
+const instantFor = localInstant;
 
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
@@ -582,18 +566,9 @@ export async function adjustAttendance(input: {
     .maybeSingle();
   if (!existing) throw new Error('That attendance record no longer exists.');
 
-  const toInstant = async (wallClock: string) => {
-    const { data, error } = await supabaseAdmin.rpc('attendance_local_instant', {
-      p_date: existing.work_date,
-      p_time: wallClock,
-      p_timezone: timezone,
-    });
-    if (error || !data) {
-      console.error('Failed to resolve local time:', error);
-      throw new Error(`${wallClock} is not a valid time.`);
-    }
-    return data as string;
-  };
+  // Resolved against the record's OWN working day, so correcting a past
+  // Tuesday uses that Tuesday's offset rather than today's.
+  const toInstant = (wallClock: string) => localInstant(existing.work_date, wallClock, timezone);
 
   const patch: Record<string, unknown> = {
     recorded_by: actorId ?? null,

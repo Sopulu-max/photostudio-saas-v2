@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { assertOurs } from '@/kernel/tenancy';
+import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
@@ -14,6 +15,72 @@ import { revalidatePath } from 'next/cache';
  * contract, money, work) associates later, in any order. This is the hub that
  * independent things cohere around, not a wizard step.
  */
+/**
+ * When a booking actually happens, from what somebody typed.
+ *
+ * THE BUG THIS FIXES. The public form sent `new Date(value).toISOString()`,
+ * and the value from an <input type="datetime-local"> carries no zone — so
+ * JavaScript read it in the BROWSER's zone. A client booking from London for a
+ * Lagos studio picked 10:00 and the studio recorded 11:00. The wall clock never
+ * reached the server, so nothing downstream could correct it. Now the string
+ * arrives as typed and is resolved here, in the studio's own zone, by Postgres,
+ * which knows the offset that applied on that date.
+ *
+ * WHY THE HOURS CHECK LIVES HERE TOO. Both questions need the same two pieces —
+ * the studio's day and the studio's zone — and asking them together means a
+ * booking cannot be resolved without also being examined.
+ *
+ * ENFORCED FOR THE PUBLIC, NOT FOR THE STUDIO. A stranger on a booking page
+ * must not be able to choose a time the studio said it is closed; that is what
+ * publishing hours means. The studio itself is never blocked — a weekend shoot
+ * on a day the doors are shut is ordinary, and an operating system that argues
+ * with the operator about their own diary is wrong. Their out-of-hours booking
+ * simply stands.
+ *
+ * Accepts what is already an instant, unchanged. Anything with a zone in it was
+ * resolved by someone who knew what they meant.
+ */
+async function resolveScheduledFor(
+  orgId: string,
+  value: string | null | undefined,
+  opts: { enforceHours: boolean },
+): Promise<string | null> {
+  const raw = (value || '').trim();
+  if (!raw) return null;
+
+  // "2026-08-29T10:00" — a wall clock, no zone. Anything else (a Z, an offset)
+  // is already an instant and is taken as given.
+  const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T([012]\d:[0-5]\d)/);
+  if (!wall) return raw;
+  const [, date, time] = wall;
+
+  if (opts.enforceHours) {
+    const hours = await studioHoursFor(orgId, date);
+    const when = new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+    }).format(new Date(`${date}T00:00:00Z`));
+
+    if (hours.closed) {
+      throw new Error(
+        hours.label
+          ? `The studio is closed on ${when} (${hours.label}). Please choose another day.`
+          : `The studio is closed on ${when}. Please choose another day.`,
+      );
+    }
+    // Compared as wall clocks inside one studio day, so no timezone arithmetic
+    // reaches this decision. A studio that has not stated its hours constrains
+    // nothing, which is the same answer it gives everywhere else.
+    if (hours.opensAt && time < hours.opensAt) {
+      throw new Error(`The studio opens at ${hours.opensAt} on ${when}. Please choose a later time.`);
+    }
+    if (hours.closesAt && time >= hours.closesAt) {
+      throw new Error(`The studio closes at ${hours.closesAt} on ${when}. Please choose an earlier time.`);
+    }
+  }
+
+  return localInstant(date, time, await studioTimezone(orgId));
+}
+
 export async function createBooking(input: {
   contactId?: string | null;
   packageId?: string | null;
@@ -36,6 +103,8 @@ export async function createBooking(input: {
   if (!defaultStage) throw new Error('No booking stages configured for this studio.');
 
   await assertOurs(orgId, [{ table: 'contacts', id: input.contactId, label: 'client' }]);
+  // The studio scheduling its own work is never told it may not.
+  const scheduledFor = await resolveScheduledFor(orgId, input.scheduledFor, { enforceHours: false });
 
   // The name is composed from what's known — the studio never invents one.
   const custom = (input.title || '').trim();
@@ -53,7 +122,7 @@ export async function createBooking(input: {
   const title = custom || composeTitle({
     clientName,
     lineTitles: packageName ? [packageName] : [],
-    scheduledFor: input.scheduledFor ?? null,
+    scheduledFor,
   });
 
   const { data: booking, error } = await supabaseAdmin
@@ -64,7 +133,7 @@ export async function createBooking(input: {
       title_custom: !!custom,
       stage_id: defaultStage.id,
       contact_id: input.contactId ?? null,
-      scheduled_for: input.scheduledFor ?? null,
+      scheduled_for: scheduledFor,
     })
     .select()
     .single();
@@ -146,6 +215,13 @@ export async function createBookingFromIntake(input: {
     (stages || [])[0];
   if (!landingStage) throw new Error('This studio has no booking stages configured.');
 
+  /*
+   * A stranger picked this time on a public page, so it is checked against the
+   * hours the studio published. Before the stage is chosen and before anything
+   * is written, so a refusal leaves nothing behind.
+   */
+  const scheduledFor = await resolveScheduledFor(orgId, input.scheduledFor, { enforceHours: true });
+
   // The module's own naming, so an intake booking reads like every other one —
   // and title_custom stays false, so it keeps improving as facts arrive.
   const title = composeTitle({ clientName: input.clientName, lineTitles: [input.packageName] });
@@ -158,7 +234,7 @@ export async function createBookingFromIntake(input: {
       title,
       title_custom: false,
       stage_id: landingStage.id,
-      scheduled_for: input.scheduledFor || null,
+      scheduled_for: scheduledFor,
       metadata: { source: input.source || 'public_booking_page', form_responses: input.answers || {} },
     })
     .select('id')
@@ -671,8 +747,11 @@ export async function setBookingSchedule(input: {
   durationMinutes?: number | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
+  // Resolved in the studio's zone so a time typed here means the same thing as
+  // a time typed on the booking page. Not enforced: this is the studio's diary.
+  const scheduledFor = await resolveScheduledFor(orgId, input.scheduledFor, { enforceHours: false });
 
-  const patch: Record<string, unknown> = { scheduled_for: input.scheduledFor };
+  const patch: Record<string, unknown> = { scheduled_for: scheduledFor };
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
 
   const { error } = await supabaseAdmin
@@ -689,9 +768,9 @@ export async function setBookingSchedule(input: {
     organizationId: orgId,
     entityType: 'booking',
     entityId: input.bookingId,
-    action: input.scheduledFor ? 'scheduled' : 'unscheduled',
+    action: scheduledFor ? 'scheduled' : 'unscheduled',
     actorId: actorId ?? undefined,
-    payload: { scheduledFor: input.scheduledFor, durationMinutes: input.durationMinutes },
+    payload: { scheduledFor, durationMinutes: input.durationMinutes },
   });
 
   await refreshBookingTitle(input.bookingId);

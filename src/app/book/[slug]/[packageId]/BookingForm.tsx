@@ -205,7 +205,11 @@ export function BookingForm({
               parseVariableValue(v.kind, variableAnswers[v.id]),
           })),
         tierIndex: tierIndex ?? undefined,
-        scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined,
+        // Sent exactly as typed — "2026-08-29T10:00", no zone. new Date() here
+        // read it in the BROWSER's zone, so a client booking from London for a
+        // Lagos studio picked 10:00 and the studio recorded 11:00. The server
+        // resolves it against the studio's own timezone instead.
+        scheduledFor: scheduledFor || undefined,
         fromCustomPath: isCustom,
       });
       setIsSuccess(true);

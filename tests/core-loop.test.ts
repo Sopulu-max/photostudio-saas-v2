@@ -35,7 +35,7 @@ import { parseVariableValue } from '@/modules/services/variableTypes';
 import { buildVariableSuggestions } from '@/modules/services/suggestions';
 import { createBookingFromIntake, createBooking, setBookingClient, addBookingLine, createContractForBooking, startWorkForLine, getStaffingNeedsForBooking, getBooking, getLineConfiguration, setLineConfiguration, updateBookingRecord } from '@/modules/bookings/domain';
 import { createClient } from '@/modules/clients/domain';
-import { getAttendanceToday, checkIn, checkOut, listAttendanceForEmployee, setStudioTimezone, setWorkingDays } from '@/modules/team/attendance';
+import { getAttendanceToday, checkIn, checkOut, listAttendanceForEmployee, setStudioTimezone, setWorkingDays, setWeeklyHours, addHoursException } from '@/modules/team/attendance';
 import { createDelivery, setDeliveryFulfils, getFulfilmentForBooking, shareDelivery, registerFile } from '@/modules/delivery/domain';
 import { listNotifications, markNotificationsSeen } from '@/kernel/notifications';
 import { assignTask, listCrewForBooking } from '@/modules/production/domain';
@@ -72,7 +72,7 @@ export const PURGE_ORDER = [
   'blueprints',
   'employee_roles', 'employees', 'clients',
   'contacts',
-  'attendance',
+  'attendance', 'studio_hours',
   'roles', 'booking_stages', 'delivery_containers', 'deliverables',
   // Values before dimensions before domains: a value points at a dimension,
   // and a dimension at the domain that owns it.
@@ -1240,5 +1240,70 @@ describe('Core Loop Verification', () => {
     const cleared = (await getAttendanceToday()).roster.find((r) => r.employeeId === employeeId)!;
     expect(cleared.workingDays).toEqual([]);
     expect(cleared.expectedToday).toBe(true);
+  }, 120000);
+
+
+/**
+ * The studio's hours, and the two things they decide.
+ *
+ * Kept honest against a real database because both answers are calendar
+ * arithmetic resolved in Postgres — a mock would only prove the mock agrees
+ * with itself.
+ */
+  it('studio hours: refuses a public booking outside them, and reads a wall clock as the studio meant it', async () => {
+    await setStudioTimezone('Africa/Lagos');
+
+    const contact = await createClient({ name: 'Hours Client' });
+    const contactId = (contact as any).contactId ?? (contact as any).id;
+
+    // A week the studio actually keeps: open 09:00–17:00 Monday to Friday,
+    // shut at the weekend.
+    await setWeeklyHours({
+      days: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, opensAt: '09:00', closesAt: '17:00' }))
+        .concat([6, 7].map((weekday) => ({ weekday, closed: true }) as any)),
+    });
+
+    // 2026-08-31 is a Monday; 2026-08-30 the Sunday before it.
+    const intake = (scheduledFor: string) => createBookingFromIntake({
+      organizationId: TEST_ORG_ID,
+      contactId,
+      clientName: 'Hours Client',
+      packageName: 'A shoot',
+      scheduledFor,
+    });
+
+    // Shut that day — refused, and the refusal says why.
+    await expect(intake('2026-08-30T10:00')).rejects.toThrow(/closed/i);
+    // Open that day, but before the doors do.
+    await expect(intake('2026-08-31T07:30')).rejects.toThrow(/opens at 09:00/i);
+    // And after they shut.
+    await expect(intake('2026-08-31T18:30')).rejects.toThrow(/closes at 17:00/i);
+
+    // Inside the hours: accepted, and stored as the instant that reads back as
+    // the time the client typed AT THE STUDIO. This is the bug that was fixed —
+    // the wall clock used to be resolved in the browser's zone, so the same
+    // string produced a different instant depending on where the client sat.
+    const { bookingId } = await intake('2026-08-31T10:00');
+    const { data: booked } = await supabaseAdmin
+      .from('bookings').select('scheduled_for').eq('id', bookingId).single();
+    const atStudio = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Lagos', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date(booked!.scheduled_for as string));
+    expect(atStudio).toBe('10:00');
+
+    // A named day beats the week beneath it, and the reason reaches the client.
+    await addHoursException({
+      label: 'Sanitation', weekday: 6, weekOfMonth: -1, opensAt: '10:00', closesAt: '14:00',
+    });
+    // 2026-08-29 is the last Saturday of August. The week says closed; the rule
+    // says open from ten — so nine is refused and eleven is taken.
+    await expect(intake('2026-08-29T09:00')).rejects.toThrow(/opens at 10:00/i);
+    const late = await intake('2026-08-29T11:00');
+    expect(late.bookingId).toBeTruthy();
+
+    // The studio's own diary is never blocked by its own hours: a Sunday shoot
+    // it books itself simply stands.
+    const own = await createBooking({ title: 'Sunday shoot', scheduledFor: '2026-08-30T10:00' });
+    expect(own.bookingId).toBeTruthy();
   }, 120000);
 });
