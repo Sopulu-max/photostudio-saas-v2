@@ -62,13 +62,12 @@ export type AttendanceToday = {
  * and frozen onto the row so a later timezone correction cannot move history.
  */
 async function studioToday(orgId: string): Promise<{
-  workDate: string; timezone: string; isoWeekday: number; opensAt: string | null;
+  workDate: string; timezone: string; isoWeekday: number;
+  opensAt: string | null; closed: boolean; openingLabel: string | null;
 }> {
   const { data } = await supabaseAdmin
-    .from('organizations').select('timezone, opens_at').eq('id', orgId).maybeSingle();
+    .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
   const timezone = (data?.timezone as string) || 'UTC';
-  // "08:30:00" from Postgres; the board and the forms both want "08:30".
-  const opensAt = data?.opens_at ? (data.opens_at as string).slice(0, 5) : null;
   const now = new Date();
   // en-CA gives YYYY-MM-DD, which is what a `date` column wants.
   const workDate = new Intl.DateTimeFormat('en-CA', {
@@ -81,7 +80,32 @@ async function studioToday(orgId: string): Promise<{
   const short = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(now);
   const isoWeekday = WEEKDAYS.find((d) => d.short === short)?.iso ?? 1;
 
-  return { workDate, timezone, isoWeekday, opensAt };
+  /*
+   * What time the studio opens TODAY, which is not always its usual time.
+   *
+   * Asked of the database rather than worked out here, because the question is
+   * calendar arithmetic — is this the last Saturday of the month, has the month
+   * run out — and because the answer depends on rules the studio wrote. The
+   * function already knows the precedence: a named date beats a rule about the
+   * last Saturday, which beats a rule about every Saturday, which beats the
+   * ordinary time.
+   */
+  const { data: opening, error } = await supabaseAdmin
+    .rpc('studio_opens_at', { p_org: orgId, p_date: workDate });
+  if (error) console.error('Failed to resolve opening time:', error);
+  // A set-returning function comes back as an array of one.
+  const today = (Array.isArray(opening) ? opening[0] : opening) as
+    { opens_at: string | null; closed: boolean; label: string | null } | undefined;
+
+  return {
+    workDate,
+    timezone,
+    isoWeekday,
+    // "08:30:00" from Postgres; the board and the forms both want "08:30".
+    opensAt: today?.opens_at ? today.opens_at.slice(0, 5) : null,
+    closed: !!today?.closed,
+    openingLabel: today?.label ?? null,
+  };
 }
 
 /**
@@ -105,10 +129,10 @@ async function instantFor(workDate: string, wallClock: string, timezone: string)
 /** What today looks like: the whole roster, each with where they stand. */
 export async function getAttendanceToday(): Promise<{
   workDate: string; timezone: string; isoWeekday: number; opensAt: string | null;
-  roster: AttendanceToday[];
+  closed: boolean; openingLabel: string | null; roster: AttendanceToday[];
 }> {
   const { orgId } = await getAuthOrgId();
-  const { workDate, timezone, isoWeekday, opensAt } = await studioToday(orgId);
+  const { workDate, timezone, isoWeekday, opensAt, closed, openingLabel } = await studioToday(orgId);
 
   /*
    * When today's opening actually was, as an instant.
@@ -121,7 +145,9 @@ export async function getAttendanceToday(): Promise<{
    * A studio that has not said when it opens has no opening instant, and
    * nobody on the board is late.
    */
-  const openedAt = opensAt ? new Date(await instantFor(workDate, opensAt, timezone)).getTime() : null;
+  const openedAt = opensAt && !closed
+    ? new Date(await instantFor(workDate, opensAt, timezone)).getTime()
+    : null;
 
   const { data: employees } = await supabaseAdmin
     .from('employees')
@@ -143,7 +169,12 @@ export async function getAttendanceToday(): Promise<{
       const workingDays = ((e.working_days || []) as number[]).slice().sort((a, b) => a - b);
       // Nothing said means nothing assumed: they are treated as possibly in,
       // exactly as before anyone described their week.
-      const expectedToday = workingDays.length === 0 || workingDays.includes(isoWeekday);
+      // A closed studio expects nobody. The studio's own day outranks a
+      // person's week: someone whose Saturday it is, is still not due in on a
+      // Saturday the studio has shut. They can still be checked in — the
+      // register records what happened, not what was planned.
+      const expectedToday = !closed
+        && (workingDays.length === 0 || workingDays.includes(isoWeekday));
 
       return {
         employeeId: e.id as string,
@@ -165,7 +196,110 @@ export async function getAttendanceToday(): Promise<{
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return { workDate, timezone, isoWeekday, opensAt, roster };
+  return { workDate, timezone, isoWeekday, opensAt, closed, openingLabel, roster };
+}
+
+/**
+ * The days this studio does not open as usual.
+ *
+ * Ordered the way they are resolved — named dates, then rules about one
+ * occurrence of a weekday, then rules about every occurrence — so the list on
+ * screen reads in the same order the database decides in.
+ */
+export async function listOpeningExceptions() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('opening_exceptions')
+    .select('id, label, on_date, weekday, week_of_month, opens_at, closed')
+    .eq('organization_id', orgId)
+    .order('on_date', { ascending: true, nullsFirst: false })
+    .order('weekday', { ascending: true });
+  if (error) console.error('Failed to list opening exceptions:', error);
+
+  return ((data || []) as any[]).map((e) => ({
+    id: e.id as string,
+    label: e.label as string,
+    onDate: (e.on_date ?? null) as string | null,
+    weekday: (e.weekday ?? null) as number | null,
+    weekOfMonth: (e.week_of_month ?? null) as number | null,
+    opensAt: e.opens_at ? (e.opens_at as string).slice(0, 5) : null,
+    closed: !!e.closed,
+  }));
+}
+
+/**
+ * Say that one kind of day is different.
+ *
+ * Either a date or a weekday, never both — the check constraint says the same
+ * thing, and this says it before the round trip so the studio gets a sentence
+ * rather than a constraint name.
+ */
+export async function addOpeningException(input: {
+  label: string;
+  onDate?: string | null;
+  weekday?: number | null;
+  /** -1 = last in the month, 1..5 = the nth, null = every one of them. */
+  weekOfMonth?: number | null;
+  opensAt?: string | null;
+  closed?: boolean;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const label = (input.label || '').trim();
+  if (!label) throw new Error('Give the day a name, so the board can say why.');
+
+  const onDate = (input.onDate || '').trim() || null;
+  const weekday = input.weekday ?? null;
+  if (!onDate && !weekday) throw new Error('Choose a date or a day of the week.');
+  if (onDate && weekday) throw new Error('A date or a day of the week, not both.');
+  if (weekday !== null && (weekday < 1 || weekday > 7)) throw new Error('That is not a day of the week.');
+
+  const closed = !!input.closed;
+  const opensAt = closed ? null : (input.opensAt || '').trim();
+  if (!closed && !/^([01]\d|2[0-3]):[0-5]\d$/.test(opensAt || '')) {
+    throw new Error('Give a time like 10:00, or mark the studio closed.');
+  }
+
+  const { error } = await supabaseAdmin.from('opening_exceptions').insert({
+    organization_id: orgId,
+    label,
+    on_date: onDate,
+    weekday: onDate ? null : weekday,
+    week_of_month: onDate ? null : (input.weekOfMonth ?? null),
+    opens_at: opensAt || null,
+    closed,
+  });
+  if (error) {
+    console.error('Failed to add opening exception:', error);
+    throw new Error('That day could not be saved.');
+  }
+
+  await logEvent({
+    organizationId: orgId, entityType: 'organization', entityId: orgId,
+    action: 'opening_exception_added', actorId: actorId ?? undefined,
+    payload: { label, onDate, weekday, weekOfMonth: input.weekOfMonth ?? null, opensAt, closed },
+  });
+  revalidatePath('/attendance');
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+/** The studio no longer treats that kind of day differently. */
+export async function removeOpeningException(id: string) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('opening_exceptions').delete()
+    .eq('id', id).eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to remove opening exception:', error);
+    throw new Error('That day could not be removed.');
+  }
+  await logEvent({
+    organizationId: orgId, entityType: 'organization', entityId: orgId,
+    action: 'opening_exception_removed', actorId: actorId ?? undefined, payload: { id },
+  });
+  revalidatePath('/attendance');
+  revalidatePath('/settings');
+  return { ok: true };
 }
 
 /**

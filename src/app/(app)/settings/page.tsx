@@ -2,12 +2,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudio, getStudioCurrency, listStudioLogins } from '@/kernel/organizations';
+import { listOpeningExceptions } from '@/modules/team/interface';
 import { CURRENCIES } from '@/kernel/currency';
 import { StudioForm } from './StudioForm';
 import { DocumentDetailsForm } from './DocumentDetailsForm';
 import { CurrencyForm } from './CurrencyForm';
 import { TimezoneForm } from './TimezoneForm';
 import { OpeningTimeForm } from './OpeningTimeForm';
+import { OpeningExceptionsForm } from './OpeningExceptionsForm';
 import { CopyLinkButton } from './CopyLinkButton';
 
 export const dynamic = 'force-dynamic';
@@ -27,8 +29,8 @@ export default async function SettingsPage() {
 
   // Who can sign in is a kernel identity question, not a Team one — Team is
   // about who does the work.
-  const [org, currencyCode, withLogins] = await Promise.all([
-    getStudio(), getStudioCurrency(), listStudioLogins(),
+  const [org, currencyCode, withLogins, openingExceptions] = await Promise.all([
+    getStudio(), getStudioCurrency(), listStudioLogins(), listOpeningExceptions(),
   ]);
 
   if (!org) {
@@ -82,6 +84,15 @@ export default async function SettingsPage() {
             late — a studio without fixed hours should not have one assumed for it.
           </p>
           <OpeningTimeForm current={org.opensAt} />
+
+          <h3 className="q-section-title" style={{ marginTop: '24px' }}>Days that are different</h3>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            No studio opens at the same time every day of the year. A rule here can name one date — a
+            public holiday, one Tuesday the power went — or a day of the week, narrowed to which one
+            in the month. The more specific rule wins, and the board says which applied, so a
+            different time explains itself rather than looking like a mistake.
+          </p>
+          <OpeningExceptionsForm exceptions={openingExceptions} />
         </section>
 
         <section className="q-card q-section">

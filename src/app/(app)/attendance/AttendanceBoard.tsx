@@ -67,7 +67,7 @@ const exactly = (iso: string | null, timezone: string) =>
     : '';
 
 export function AttendanceBoard({
-  roster, workDate, timezone, isoWeekday, opensAt,
+  roster, workDate, timezone, isoWeekday, opensAt, closed, openingLabel,
 }: {
   roster: AttendanceToday[];
   workDate: string;
@@ -76,6 +76,10 @@ export function AttendanceBoard({
   isoWeekday: number;
   /** "08:30", or null when the studio has not said — then nobody is late. */
   opensAt: string | null;
+  /** The studio is shut today, so nobody is expected and nobody is late. */
+  closed: boolean;
+  /** Why today differs — "Sanitation", "Public holiday". Null on an ordinary day. */
+  openingLabel: string | null;
 }) {
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -205,7 +209,7 @@ export function AttendanceBoard({
       {/* Only a studio that has said when it opens gets a late count. Without
           an opening time there is no line to be late against, and a permanent
           zero would imply one exists. */}
-      {opensAt && (
+      {opensAt && !closed && (
         <div className="q-stat-card q-stat-c-red q-rise">
           <div className="q-stat-label">Late</div>
           <div className="q-stat-value-lg">{lateToday}</div>
@@ -403,6 +407,23 @@ export function AttendanceBoard({
             </>
           )}
         </div>
+      )}
+
+      {/*
+        * Why today is different, said before the counts.
+        *
+        * A board that opens at ten on one Saturday a month and half past eight
+        * the rest looks broken unless it says which rule applied. The studio
+        * named the rule; this repeats the name back on the day it bites, so a
+        * later opening reads as intended rather than as a fault.
+        */}
+      {openingLabel && (
+        <p className="q-note" role="status" style={{ margin: 0 }}>
+          <strong>{openingLabel}</strong>{' '}
+          {closed
+            ? '— the studio is closed today. Nobody is expected, and nobody is late. Anyone who comes in can still be checked in.'
+            : `— the studio opens at ${opensAt} today rather than its usual time.`}
+        </p>
       )}
 
       <Counts />
