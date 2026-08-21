@@ -59,6 +59,9 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/attendance', expect: /Recorded against|No employees yet/i },
   { path: '/team', expect: /Who does the work/i },
   { path: '/bookings', expect: /<\/html>/i },
+  // Matched on a column heading, not the word "Galleries": that now sits in the
+  // sidebar on every page, so it would pass even for a crashed one.
+  { path: '/galleries', expect: /Client opened/i },
   { path: '/clients', expect: /<\/html>/i },
   { path: '/contracts', expect: /<\/html>/i },
   { path: '/finances', expect: /<\/html>/i },

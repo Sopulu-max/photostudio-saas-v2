@@ -14,7 +14,7 @@ import { formatVariableValue } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { TaskStatusControl } from '@/components/TaskStatusControl';
 import { TaskAssignControl } from '@/components/TaskAssignControl';
-import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl } from './DeliveryForms';
+import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl, CoverButton } from './DeliveryForms';
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
@@ -482,7 +482,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       {d.files.map((f: any) => (
                         <div key={f.id} className="q-row q-row-between">
                           <span className="q-meta">{f.file_name}</span>
-                          <RemoveFileButton fileId={f.id} bookingId={booking.id} />
+                          <div className="q-row">
+                            {(f.mime_type || '').startsWith('image/') && (
+                              <CoverButton
+                                deliveryId={d.id}
+                                bookingId={booking.id}
+                                deliveryAssetId={f.id}
+                                isCover={d.coverAssetId === f.id}
+                              />
+                            )}
+                            <RemoveFileButton fileId={f.id} bookingId={booking.id} />
+                          </div>
                         </div>
                       ))}
                     </div>

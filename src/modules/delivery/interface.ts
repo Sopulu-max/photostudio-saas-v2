@@ -16,9 +16,16 @@ export {
   shareDelivery,
   unshareDelivery,
   listDeliveriesForBooking,
+  listGalleries,
   getGalleryByToken,
+  // The gallery's own surface: the image it opens with, and one file at a size
+  setDeliveryCover,
+  resolveGalleryAsset,
   // The promise a booking made, and whether it has been kept
   setDeliveryFulfils,
   getPromisedDeliverables,
   getFulfilmentForBooking,
 } from './domain';
+
+/** The sizes the gallery serves, and the guard that validates a requested one. */
+export { GALLERY_RENDITIONS, isGalleryRendition, type GalleryRendition } from './renditions';

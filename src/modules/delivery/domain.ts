@@ -7,6 +7,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { getDeliverablesForPackages } from '@/modules/packages/interface';
+import { GALLERY_RENDITIONS, type GalleryRendition } from './renditions';
 
 /**
  * Delivery — handing finished work to the client.
@@ -262,6 +263,95 @@ export async function removeFile(input: { fileId: string; bookingId: string }) {
   return { ok: true };
 }
 
+/**
+ * Choose the image the gallery opens with. Passing null clears it, and the
+ * gallery falls back to its first image — a delivery is never coverless, it
+ * just may not have been told which one to lead with.
+ */
+export async function setDeliveryCover(input: {
+  deliveryId: string;
+  bookingId: string;
+  deliveryAssetId: string | null;
+}) {
+  const { orgId } = await getAuthOrgId();
+
+  // A cover has to be one of this delivery's own images. Without this check the
+  // id is an open door onto any delivery_asset row in the tenant.
+  if (input.deliveryAssetId) {
+    const { data: link } = await supabaseAdmin
+      .from('delivery_assets')
+      .select('id')
+      .eq('id', input.deliveryAssetId)
+      .eq('delivery_id', input.deliveryId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!link) throw new Error('That file is not part of this delivery.');
+  }
+
+  const { error } = await supabaseAdmin
+    .from('deliveries')
+    .update({ cover_asset_id: input.deliveryAssetId })
+    .eq('id', input.deliveryId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to set delivery cover:', error);
+    throw new Error('Failed to set the cover image');
+  }
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * One image out of a shared gallery, as a signed URL at the requested size.
+ *
+ * This exists because the gallery page used to sign every file up front: a
+ * 400-image delivery made 400 storage calls before a single byte of HTML went
+ * out, and every one of them expired an hour later mid-browse. Now the page
+ * ships plain <img> tags pointing back here and the browser asks for what it
+ * actually scrolls to.
+ *
+ * Public by design — the share token is the whole capability, exactly as it is
+ * for the gallery itself. The asset must belong to the delivery that token
+ * opens, so a valid token for one gallery cannot read another's files.
+ */
+export async function resolveGalleryAsset(
+  token: string,
+  deliveryAssetId: string,
+  size: GalleryRendition
+): Promise<{ url: string; fileName: string } | null> {
+  if (!token || !deliveryAssetId) return null;
+
+  const { data: delivery } = await supabaseAdmin
+    .from('deliveries')
+    .select('id, status')
+    .eq('share_token', token)
+    .maybeSingle();
+  if (!delivery || delivery.status !== 'shared') return null;
+
+  const { data: link } = await supabaseAdmin
+    .from('delivery_assets')
+    .select('id, asset:assets(storage_path, file_name)')
+    .eq('id', deliveryAssetId)
+    .eq('delivery_id', delivery.id)
+    .maybeSingle();
+
+  const asset = (link as any)?.asset;
+  if (!asset?.storage_path) return null;
+
+  const transform = size === 'original' ? undefined : GALLERY_RENDITIONS[size];
+  const { data: signed, error } = await supabaseAdmin.storage
+    .from('deliveries')
+    .createSignedUrl(asset.storage_path, SIGNED_URL_TTL_SECONDS, transform ? { transform } : undefined);
+
+  if (error || !signed?.signedUrl) {
+    console.error(`Failed to sign gallery asset ${deliveryAssetId} (${asset.storage_path}):`, error);
+    return null;
+  }
+
+  return { url: signed.signedUrl, fileName: asset.file_name || 'download' };
+}
+
 /** Share the delivery: mint the capability token and open the gallery. */
 export async function shareDelivery(input: { deliveryId: string; bookingId: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
@@ -442,7 +532,9 @@ export async function listDeliveriesForBooking(bookingId: string) {
 
   const { data, error } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, delivery_assets(id, position, asset:assets(id, file_name, mime_type, size_bytes)), delivery_deliverables(deliverable:deliverables(id, name))')
+    // Pinned to the delivery_id key for the same reason as the gallery query:
+    // cover_asset_id makes a bare `delivery_assets` embed ambiguous.
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, cover_asset_id, delivery_assets!delivery_assets_delivery_id_fkey(id, position, asset:assets(id, file_name, mime_type, size_bytes)), delivery_deliverables(deliverable:deliverables(id, name))')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId)
     .order('created_at', { ascending: false });
@@ -459,6 +551,7 @@ export async function listDeliveriesForBooking(bookingId: string) {
     sharedAt: d.shared_at,
     lastViewedAt: d.last_viewed_at,
     archivedAt: d.archived_at,
+    coverAssetId: d.cover_asset_id,
     fulfils: (d.delivery_deliverables || [])
       .map((dd: any) => dd.deliverable)
       .filter(Boolean)
@@ -474,50 +567,104 @@ export async function listDeliveriesForBooking(bookingId: string) {
 }
 
 /**
- * The client-facing gallery for a share token. Public: no session. Returns
- * signed URLs so files stay private in storage, and stamps the view.
+ * Every gallery in the studio, newest first — the index a booking cannot give.
+ *
+ * Deliveries hang off bookings, so on their own they answer "what did we send
+ * for this job?" but never "which galleries are still sitting unsent, and who
+ * has actually opened theirs?". Same edges, read across the organization
+ * instead of down one booking.
+ */
+export async function listGalleries(): Promise<{
+  id: string;
+  title: string;
+  status: string;
+  shareToken: string | null;
+  sharedAt: string | null;
+  lastViewedAt: string | null;
+  createdAt: string;
+  bookingId: string | null;
+  bookingTitle: string | null;
+  clientName: string | null;
+  fileCount: number;
+}[]> {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('deliveries')
+    // Pinned to the delivery_id key: cover_asset_id makes a bare embed ambiguous.
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, created_at, booking:bookings(id, title, contact:contacts(display_name)), delivery_assets!delivery_assets_delivery_id_fkey(id)')
+    .eq('organization_id', orgId)
+    .is('archived_at', null)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to list galleries:', error);
+    throw new Error('Failed to load galleries');
+  }
+
+  return (data || []).map((d: any) => ({
+    id: d.id,
+    title: d.title,
+    status: d.status,
+    shareToken: d.share_token,
+    sharedAt: d.shared_at,
+    lastViewedAt: d.last_viewed_at,
+    createdAt: d.created_at,
+    bookingId: d.booking?.id ?? null,
+    bookingTitle: d.booking?.title ?? null,
+    clientName: d.booking?.contact?.display_name ?? null,
+    fileCount: (d.delivery_assets || []).length,
+  }));
+}
+
+/**
+ * The client-facing gallery for a share token. Public: no session.
+ *
+ * Returns file *metadata* and nothing else — no signed URLs. Each image is
+ * fetched back through `resolveGalleryAsset` by the browser as it scrolls, so
+ * opening a gallery costs one query no matter how many photographs are in it.
+ * Files stay private in storage either way; the token is still the only key.
  */
 export async function getGalleryByToken(token: string) {
   if (!token) return null;
 
-  const { data: delivery } = await supabaseAdmin
+  const { data: delivery, error } = await supabaseAdmin
     .from('deliveries')
-    .select('id, title, status, organization_id, booking_id, last_viewed_at, booking:bookings(title, contact_id), delivery_assets(id, position, asset:assets(id, file_name, mime_type, storage_path))')
+    // The embed is pinned to the delivery_id foreign key by name: `cover_asset_id`
+    // points back at delivery_assets too, so an unqualified embed is ambiguous
+    // and PostgREST refuses it outright.
+    .select('id, title, status, organization_id, booking_id, last_viewed_at, cover_asset_id, booking:bookings(title, contact_id), delivery_assets!delivery_assets_delivery_id_fkey(id, position, asset:assets(id, file_name, mime_type, size_bytes, storage_path))')
     .eq('share_token', token)
     .maybeSingle();
 
+  // A malformed select resolves to data: null here, which is indistinguishable
+  // from "no such gallery" and renders as a 404 the client cannot explain and
+  // the studio cannot debug. Say so in the log; still a 404 to the visitor.
+  if (error) console.error('Failed to load gallery by token:', error);
   if (!delivery || delivery.status !== 'shared') return null;
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('name')
+    .select('name, metadata')
     .eq('id', delivery.organization_id)
     .maybeSingle();
 
   const sortedAssets = ((delivery as any).delivery_assets || []).sort((a: any, b: any) => a.position - b.position);
-  const files = await Promise.all(
-    sortedAssets.map(async (da: any) => {
-      const f = da.asset;
-      if (!f || !f.storage_path) return null;
-      const { data: signed, error: signError } = await supabaseAdmin.storage
-        .from('deliveries')
-        .createSignedUrl(f.storage_path, SIGNED_URL_TTL_SECONDS);
-      // A file that fails to sign was silently dropping out of the gallery
-      // with no trace anywhere — at least log it, so a missing file is
-      // diagnosable instead of just "the gallery looked a bit short."
-      if (signError) console.error(`Failed to sign delivery asset ${f.id} (${f.storage_path}):`, signError);
-      return {
-        id: da.id, // Delivery Asset Link ID
-        assetId: f.id,
-        name: f.file_name,
-        mimeType: f.mime_type,
-        url: signed?.signedUrl || null,
-        isImage: (f.mime_type || '').startsWith('image/'),
-      };
-    })
-  );
-  
-  const validFiles = files.filter(Boolean);
+  const validFiles = sortedAssets
+    .filter((da: any) => da.asset?.storage_path)
+    .map((da: any) => ({
+      id: da.id, // Delivery Asset Link ID — what the asset route takes
+      assetId: da.asset.id,
+      name: da.asset.file_name,
+      mimeType: da.asset.mime_type,
+      sizeBytes: da.asset.size_bytes,
+      isImage: (da.asset.mime_type || '').startsWith('image/'),
+    }));
+
+  // The chosen cover, if it is still one of the files; otherwise lead with the
+  // first image so a gallery nobody configured still opens with a picture.
+  const images = validFiles.filter((f: any) => f.isImage);
+  const chosenCover = images.find((f: any) => f.id === (delivery as any).cover_asset_id);
+  const cover = chosenCover || images[0] || null;
 
   // Stamp the view so the studio can see it landed.
   const firstView = !(delivery as any).last_viewed_at;
@@ -542,9 +689,12 @@ export async function getGalleryByToken(token: string) {
   }
 
   return {
+    token,
     title: delivery.title,
     studioName: org?.name || 'Studio',
+    studioLogoUrl: ((org?.metadata as any) || {}).logo_url || null,
     bookingTitle: (delivery as any).booking?.title || null,
+    cover,
     files: validFiles,
   };
 }

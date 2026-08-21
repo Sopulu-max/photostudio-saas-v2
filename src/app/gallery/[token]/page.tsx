@@ -1,67 +1,93 @@
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getGalleryByToken } from '@/modules/delivery/interface';
+import { GalleryImages, DownloadAllButton, OtherFiles, type GalleryFile } from './GalleryClient';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The client gallery. Public: the share token is the only capability. Files stay
- * private in storage — these are short-lived signed URLs minted per view.
+ * Metadata and the page both need the gallery, and Next may run them in
+ * parallel. Loading it twice would race the view stamp inside and could log the
+ * client's first visit as two — deduped to one call per request.
+ */
+const loadGallery = cache(getGalleryByToken);
+
+export async function generateMetadata(props: { params: Promise<{ token: string }> }) {
+  const { token } = await props.params;
+  const gallery = await loadGallery(token);
+  if (!gallery) return { title: 'Gallery' };
+  return {
+    title: `${gallery.title} · ${gallery.studioName}`,
+    // A shared link is pasted into messages and chat apps, which will render a
+    // preview of it. Left alone that preview is the raw URL.
+    description: gallery.bookingTitle || `${gallery.files.length} files from ${gallery.studioName}`,
+    robots: { index: false, follow: false },
+  };
+}
+
+/**
+ * The client gallery. Public: the share token is the only capability.
+ *
+ * Nothing here is signed at render time — every image points back at the asset
+ * route and is fetched lazily as it scrolls into view, so this page costs one
+ * query whether the delivery holds six photographs or six hundred.
  */
 export default async function GalleryPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
-  const gallery = await getGalleryByToken(token);
+  const gallery = await loadGallery(token);
 
   if (!gallery) notFound();
 
-  const images = gallery.files.filter((f: any) => f.isImage && f.url);
-  const others = gallery.files.filter((f: any) => !f.isImage && f.url);
+  const files = gallery.files as GalleryFile[];
+  const images = files.filter((f) => f.isImage);
+  const others = files.filter((f) => !f.isImage);
+  const cover = gallery.cover as GalleryFile | null;
 
   return (
-    <div className="q-public">
-      <header className="q-public-header">
-        <div style={{ fontSize: '0.72rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--q-color-ink-500)', marginBottom: '8px' }}>
-          {gallery.studioName}
-        </div>
-        <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem, 4vw, 2.2rem)', fontWeight: 620, letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
-          {gallery.title}
-        </h1>
-        {gallery.bookingTitle && (
-          <p style={{ margin: '6px 0 0', color: 'var(--q-color-ink-500)' }}>{gallery.bookingTitle}</p>
+    <div className="q-gal">
+      <header className={`q-gal-cover${cover ? '' : ' q-gal-head-plain'}`}>
+        {cover && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            className="q-gal-cover-img"
+            src={`/gallery/${token}/asset/${cover.id}?size=full`}
+            alt=""
+            /* The one image worth blocking on: it is the whole first screen. */
+            fetchPriority="high"
+          />
         )}
+        <div className="q-gal-cover-inner">
+          {gallery.studioLogoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img className="q-gal-logo" src={gallery.studioLogoUrl} alt={gallery.studioName} />
+          ) : (
+            <div className="q-gal-studio">{gallery.studioName}</div>
+          )}
+          <h1 className="q-gal-title">{gallery.title}</h1>
+          {gallery.bookingTitle && <p className="q-gal-sub">{gallery.bookingTitle}</p>}
+        </div>
       </header>
 
-      <main className="q-public-main q-public-wide">
-        {gallery.files.length === 0 ? (
+      {files.length > 0 && (
+        <div className="q-gal-bar">
+          <div className="q-gal-bar-in">
+            <span className="q-gal-count">
+              {images.length > 0 && `${images.length} photo${images.length === 1 ? '' : 's'}`}
+              {images.length > 0 && others.length > 0 && ' · '}
+              {others.length > 0 && `${others.length} file${others.length === 1 ? '' : 's'}`}
+            </span>
+            <DownloadAllButton token={token} files={files} />
+          </div>
+        </div>
+      )}
+
+      <main className="q-gal-main">
+        {files.length === 0 ? (
           <p className="q-center-text q-muted">Nothing here yet.</p>
         ) : (
           <>
-            {images.length > 0 && (
-              <div className="q-gallery">
-                {images.map((f: any) => (
-                  <figure className="q-media" key={f.id}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={f.url} alt={f.name} style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }} />
-                    <figcaption className="q-media-cap">
-                      <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                      <a href={f.url} download={f.name} className="q-btn q-btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', flexShrink: 0 }}>
-                        Download
-                      </a>
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-
-            {others.length > 0 && (
-              <div style={{ marginTop: images.length > 0 ? '32px' : 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {others.map((f: any) => (
-                  <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '14px 16px', background: 'var(--q-color-paper)', border: '1px solid var(--q-color-ink-100)', borderRadius: '10px' }}>
-                    <span style={{ fontSize: '0.9rem' }}>{f.name}</span>
-                    <a href={f.url} download={f.name} className="q-btn q-btn-secondary" style={{ fontSize: '0.8rem' }}>Download</a>
-                  </div>
-                ))}
-              </div>
-            )}
+            <GalleryImages token={token} images={images} />
+            <OtherFiles token={token} files={others} />
           </>
         )}
       </main>

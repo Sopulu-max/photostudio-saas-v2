@@ -8,8 +8,7 @@ import {
   CalendarCheck,
   CalendarDays,
   FileSignature,
-  FolderOpen,
-  GitMerge,
+  Images,
   Users,
   Boxes,
   Package,
@@ -37,6 +36,7 @@ const NAV_SECTIONS = [
     label: 'Work',
     items: [
       { label: 'Bookings', href: '/bookings', icon: CalendarCheck },
+      { label: 'Galleries', href: '/galleries', icon: Images },
       { label: 'Clients', href: '/clients', icon: Users },
       { label: 'Contracts', href: '/contracts', icon: FileSignature },
       { label: 'Finances', href: '/finances', icon: DollarSign },

@@ -15,6 +15,7 @@ import {
   shareDelivery,
   unshareDelivery,
   setDeliveryFulfils,
+  setDeliveryCover,
 } from '@/modules/delivery/interface';
 
 function useAction() {
@@ -187,6 +188,42 @@ export function RemoveFileButton({ fileId, bookingId }: { fileId: string; bookin
       onClick={() => run(() => removeFile({ fileId, bookingId }))}
     >
       Remove
+    </button>
+  );
+}
+
+/**
+ * The image the client's gallery opens with.
+ *
+ * Only offered on images, because a PDF cannot be a cover. Choosing nothing is
+ * valid and common — the gallery then leads with the first photograph, so this
+ * is a way to overrule that rather than a field that must be filled.
+ */
+export function CoverButton({
+  deliveryId,
+  bookingId,
+  deliveryAssetId,
+  isCover,
+}: {
+  deliveryId: string;
+  bookingId: string;
+  deliveryAssetId: string;
+  isCover: boolean;
+}) {
+  const { isPending, run } = useAction();
+
+  return (
+    <button
+      className={`q-btn q-btn-xs ${isCover ? 'q-btn-primary' : 'q-btn-secondary'}`}
+      disabled={isPending}
+      title={isCover ? 'This opens the gallery. Click to clear it.' : 'Open the gallery with this image'}
+      onClick={() =>
+        run(() =>
+          setDeliveryCover({ deliveryId, bookingId, deliveryAssetId: isCover ? null : deliveryAssetId })
+        )
+      }
+    >
+      {isCover ? 'Cover' : 'Set as cover'}
     </button>
   );
 }
