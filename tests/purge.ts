@@ -19,7 +19,8 @@ export const PURGE_ORDER = [
   'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
   'bookings',
   'package_services', 'package_deliverables', 'package_workflows', 'package_delivery_containers',
-  'package_dimension_values', 'package_variable_values',
+  // Narrowings hang off package_services and go with it, so they need no line.
+  'package_variable_values',
   'packages',
   'service_deliverables', 'service_variables', 'service_dimension_values',
   'services',

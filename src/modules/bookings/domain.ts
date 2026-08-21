@@ -1589,10 +1589,10 @@ export async function listBookingsForDimensionValue(valueId: string) {
   const { getValuePlace } = await import('@/modules/services/interface');
   const { narrowerIds } = await getValuePlace(valueId);
 
-  // Packages that say it themselves.
+  // Packages that narrowed a bundled service to it.
   const { data: direct } = await supabaseAdmin
-    .from('package_dimension_values')
-    .select('package_id')
+    .from('package_service_dimension_values')
+    .select('package_service:package_services(package_id)')
     .eq('organization_id', orgId)
     .in('dimension_value_id', narrowerIds);
 
@@ -1615,7 +1615,7 @@ export async function listBookingsForDimensionValue(valueId: string) {
   }
 
   const packageIds = [...new Set([
-    ...((direct || []) as any[]).map((r) => r.package_id),
+    ...((direct || []) as any[]).map((r) => r.package_service?.package_id).filter(Boolean),
     ...bundled.map((r) => r.package_id),
   ])];
   if (packageIds.length === 0) return { bookings: [], total: 0 };

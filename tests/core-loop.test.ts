@@ -770,7 +770,7 @@ describe('Core Loop Verification', () => {
         { name: 'Subject', values: ['Person'] },
       ],
     });
-    await createService({
+    const { serviceId: passportShoot } = await createService({
       serviceDomain: 'Photography',
       name: 'Passport Photography',
       dimensions: [
@@ -804,11 +804,24 @@ describe('Core Loop Verification', () => {
     expect(bundled.via).toBe('bundled');
     expect(bundled.through!.sort()).toEqual(['Wedding Film', 'Wedding Photography']);
 
-    // Saying it directly makes it direct, and the services that also say it
-    // are still named — both are true and neither is dropped.
-    await updatePackage({ packageId, dimensionValueIds: [wedding.id] });
+    // Narrowing one of the bundled services to it makes the answer direct, and
+    // names the service that was narrowed — the package never says it alone.
+    await updatePackage({
+      packageId,
+      narrowings: [{ serviceId: weddingShoot, valueId: wedding.id }],
+    });
     const direct = (await whatCarries(wedding.id)).packages.find((p) => p.id === packageId)!;
     expect(direct.via).toBe('direct');
+    // The narrowed service, plus the other bundled one that carries Wedding
+    // anyway — both true, named once each.
+    expect(direct.through!.sort()).toEqual(['Wedding Film', 'Wedding Photography']);
+
+    // A narrowing has to name a service the package bundles, and one whose
+    // domain owns the value. Neither is silently dropped.
+    await expect(updatePackage({
+      packageId,
+      narrowings: [{ serviceId: passportShoot, valueId: wedding.id }],
+    })).rejects.toThrow(/does not include/i);
 
     // And the derived half: Wedding relates to On-location because two
     // services carry both. Nobody typed that anywhere, and nothing stores it.

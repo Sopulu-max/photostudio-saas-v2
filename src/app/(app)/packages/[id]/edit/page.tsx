@@ -84,8 +84,9 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
               [d.id, { quantity: d.quantity, unit: d.unit, spec: d.spec }])),
             containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
             workflowIds: ((pkg as any).workflows || []).map((d: any) => d.id),
-            dimensionValueIds: (((pkg as any).dimensions || []) as { values: { id: string }[] }[])
-              .flatMap((d) => d.values.map((v) => v.id)),
+            narrowings: (((pkg as any).services || []) as any[]).flatMap((s) =>
+              ((s.narrowedTo || []) as { values: { id: string }[] }[])
+                .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
             pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
             variableValues: ((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),

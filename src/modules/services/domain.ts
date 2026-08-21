@@ -821,6 +821,49 @@ export async function listVariablesForServices(serviceIds: string[]): Promise<Se
 }
 
 /**
+ * Which classification values each of these services can legitimately be
+ * narrowed to — every value in the service's own domain.
+ *
+ * Packages ask this before recording a narrowing. A dimension belongs to a
+ * domain and a service sits in exactly one, so the domain is the whole of the
+ * answer: a Printing service cannot be narrowed to a Photography occasion,
+ * however the form was submitted.
+ */
+export async function listDimensionValueIdsForServices(
+  serviceIds: string[]
+): Promise<{ serviceId: string; valueIds: string[] }[]> {
+  if (serviceIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+
+  const { data: services } = await supabaseAdmin
+    .from('services').select('id, service_domain_id')
+    .eq('organization_id', orgId).in('id', serviceIds);
+  const rows = (services || []) as { id: string; service_domain_id: string | null }[];
+
+  const domainIds = [...new Set(rows.map((s) => s.service_domain_id).filter(Boolean))] as string[];
+  if (domainIds.length === 0) return rows.map((s) => ({ serviceId: s.id, valueIds: [] }));
+
+  const { data: values } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id, dimension:dimensions!inner(service_domain_id)')
+    .eq('organization_id', orgId)
+    .in('dimensions.service_domain_id', domainIds);
+
+  const byDomain = new Map<string, string[]>();
+  for (const v of ((values || []) as any[])) {
+    const domainId = v.dimension?.service_domain_id;
+    if (!domainId) continue;
+    if (!byDomain.has(domainId)) byDomain.set(domainId, []);
+    byDomain.get(domainId)!.push(v.id as string);
+  }
+
+  return rows.map((s) => ({
+    serviceId: s.id,
+    valueIds: s.service_domain_id ? (byDomain.get(s.service_domain_id) || []) : [],
+  }));
+}
+
+/**
  * Replace a service's variables wholesale — the editor sends the full list it
  * wants, so removals are expressed by absence rather than a separate delete.
  *

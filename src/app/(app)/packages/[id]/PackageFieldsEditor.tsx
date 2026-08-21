@@ -48,6 +48,7 @@ export function PackageFieldsEditor({
   suggestedDeliverablesByService,
   dimensionsByDomain,
   roleOptions,
+  intendedValueId = null,
   initial,
 }: {
   mode: 'create' | 'edit';
@@ -63,6 +64,11 @@ export function PackageFieldsEditor({
   /** Domain name → the dimensions it classifies by. A package may draw on several. */
   dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
+  /**
+   * A classification the operator started from, before there was any service to
+   * attach it to. Applied to the first bundled service whose domain owns it.
+   */
+  intendedValueId?: string | null;
   initial: {
     name?: string;
     description?: string | null;
@@ -77,7 +83,8 @@ export function PackageFieldsEditor({
     deliverableSpecs?: Record<string, { quantity?: number | null; unit?: string | null; spec?: string | null }>;
     containerIds?: string[];
     workflowIds?: string[];
-    dimensionValueIds?: string[];
+    /** Each value paired with the bundled service this package narrows to it. */
+    narrowings?: { serviceId: string; valueId: string }[];
     pricingVariant?: PricingVariant | null;
     extraStages?: Stage[];
     variableValues?: { serviceVariableId: string; value: unknown }[];
@@ -123,14 +130,25 @@ export function PackageFieldsEditor({
   const [newWorkflowId, setNewWorkflowId] = useState('');
 
   /*
-   * How this package is classified — dimension_value ids, flat.
+   * How this package narrows each service it bundles, keyed by service id.
+   *
+   * Per service rather than one flat list, because the narrowing is a fact
+   * about a service inside this package: bundle two Photography services and a
+   * bare value could not say which of them it applied to.
    *
    * A package selects; it never redefines. There is no free-text escape here on
-   * purpose: inventing a value is an act on a domain's vocabulary, which
+   * purpose — inventing a value is an act on a domain's vocabulary, which
    * belongs to the service layer. What a package can say is drawn from what it
-   * bundles.
+   * bundles, and a service left untouched sells everything it offers.
    */
-  const [dimensionValueIds, setDimensionValueIds] = useState<string[]>(initial.dimensionValueIds || []);
+  const [narrowings, setNarrowings] = useState<Record<string, string[]>>(() => {
+    const byService: Record<string, string[]> = {};
+    for (const n of (initial.narrowings || [])) {
+      if (!byService[n.serviceId]) byService[n.serviceId] = [];
+      byService[n.serviceId].push(n.valueId);
+    }
+    return byService;
+  });
   const [pendingValue, setPendingValue] = useState<Record<string, string>>({});
   /*
    * What this package includes (fixed variables).
@@ -179,23 +197,13 @@ export function PackageFieldsEditor({
           return next;
         });
 
-        // 2. Prune Dimensions
-        const remainingDomains = new Set(
-          allServices.filter(s => newServiceIds.includes(s.id)).map(s => s.domain?.name).filter(Boolean)
-        );
-        setDimensionValueIds((prevDims) => {
-          return prevDims.filter(dimValId => {
-            let belongsToValidDomain = false;
-            for (const [domainName, dims] of Object.entries(dimensionsByDomain)) {
-              if (remainingDomains.has(domainName)) {
-                if (dims.some(d => d.values.some(v => v.id === dimValId))) {
-                  belongsToValidDomain = true;
-                  break;
-                }
-              }
-            }
-            return belongsToValidDomain;
-          });
+        // 2. Prune this service's narrowings. Keyed by service, so dropping the
+        //    service drops exactly its own — no domain guesswork, and a sibling
+        //    service in the same domain keeps what it narrowed.
+        setNarrowings((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
         });
 
         // 3. Prune Base Deliverables
@@ -220,6 +228,17 @@ export function PackageFieldsEditor({
             addedService.deliverables!.forEach(d => next.add(d.id));
             return Array.from(next);
           });
+        }
+
+        // The value the operator came in with finally has a service to narrow,
+        // but only if this one's domain is the one that owns it.
+        const domainName = addedService?.domain?.name;
+        const speaksIt = Boolean(intendedValueId) && Boolean(domainName)
+          && (dimensionsByDomain[domainName!] || []).some((d) => d.values.some((v) => v.id === intendedValueId));
+        if (speaksIt) {
+          setNarrowings((prev) => prev[id]?.includes(intendedValueId!)
+            ? prev
+            : { ...prev, [id]: [...(prev[id] || []), intendedValueId!] });
         }
       }
       return newServiceIds;
@@ -275,7 +294,11 @@ export function PackageFieldsEditor({
       })),
       containerIds: containers,
       workflowIds: workflows,
-      dimensionValueIds,
+      // Only for services still bundled, so deselecting one cannot leave a
+      // narrowing behind that the server would then reject.
+      narrowings: serviceIds.flatMap((sid) =>
+        (narrowings[sid] || []).map((valueId) => ({ serviceId: sid, valueId }))
+      ),
       pricingVariant: (hasVariant && axisLabel.trim() && tiers.some((t) => t.label.trim()))
         ? { axisLabel: axisLabel.trim(), tiers: tiers.filter((t) => t.label.trim()).map((t) => ({ label: t.label.trim(), price: parseFloat(t.price) || 0 })) }
         : null,
@@ -301,11 +324,16 @@ export function PackageFieldsEditor({
 
   const retired = status === 'retired';
 
-  const renderDimension = (dim: DimensionOption) => {
-    const chosen = dimensionValueIds.filter((id) => dim.values.some((v) => v.id === id));
+  const renderDimension = (dim: DimensionOption, serviceId: string) => {
+    const forService = narrowings[serviceId] || [];
+    const chosen = forService.filter((id) => dim.values.some((v) => v.id === id));
+    // Scoped to the card it is drawn in, so the same dimension on two bundled
+    // services keeps two independent answers.
+    const pendingKey = `${serviceId}:${dim.id}`;
+    const setFor = (next: string[]) => setNarrowings((prev) => ({ ...prev, [serviceId]: next }));
     const add = (id: string) => {
-      if (id && !dimensionValueIds.includes(id)) setDimensionValueIds((prev) => [...prev, id]);
-      setPendingValue((prev) => ({ ...prev, [dim.id]: '' }));
+      if (id && !forService.includes(id)) setFor([...forService, id]);
+      setPendingValue((prev) => ({ ...prev, [pendingKey]: '' }));
     };
     return (
       <div className="q-field" key={dim.id}>
@@ -316,7 +344,7 @@ export function PackageFieldsEditor({
             const name = dim.values.find((v) => v.id === id)?.name || id;
             return (
               <span key={id} className="q-badge q-badge-neutral">
-                {name} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setDimensionValueIds((prev) => prev.filter((x) => x !== id))}>×</button>
+                {name} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setFor(forService.filter((x) => x !== id))}>×</button>
               </span>
             );
           })}
@@ -324,14 +352,14 @@ export function PackageFieldsEditor({
         <div className="q-row">
           <select
             className="q-select"
-            value={pendingValue[dim.id] || ''}
-            onChange={(e) => setPendingValue((prev) => ({ ...prev, [dim.id]: e.target.value }))}
+            value={pendingValue[pendingKey] || ''}
+            onChange={(e) => setPendingValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
             style={{ minWidth: '12rem' }}
           >
             <option value="">Select...</option>
-            {dim.values.filter((v) => !dimensionValueIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {dim.values.filter((v) => !forService.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
-          <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[dim.id] || '')} disabled={!pendingValue[dim.id]}>+ Add</button>
+          <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[pendingKey] || '')} disabled={!pendingValue[pendingKey]}>+ Add</button>
         </div>
       </div>
     );
@@ -381,7 +409,7 @@ export function PackageFieldsEditor({
                       {s.dimensions && s.dimensions.length > 0 && (
                         <div className="q-stack q-stack-sm">
                           <h4 className="q-strong">Classifications</h4>
-                          {s.dimensions.map(d => renderDimension({ ...d, domainName: s.domain?.name || '' }))}
+                          {s.dimensions.map(d => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
                         </div>
                       )}
                       

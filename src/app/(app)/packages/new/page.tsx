@@ -53,7 +53,11 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         suggestedDeliverablesByService={suggestedDeliverablesByService}
         dimensionsByDomain={dimensionsByDomain}
         roleOptions={(roles as any[]).map((r) => r.name)}
-        initial={sp.value ? { dimensionValueIds: [sp.value], variableValues: [] } : { variableValues: [] }}
+        // Arrived from the classifications lens — "build a package for Weddings".
+        // It cannot become a narrowing until a service is chosen to narrow, so it
+        // is carried as intent and applied to the first service that speaks it.
+        intendedValueId={sp.value || null}
+        initial={{ variableValues: [] }}
       />
     </div>
   );

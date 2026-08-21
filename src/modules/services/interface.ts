@@ -27,6 +27,9 @@ export {
   getProductionPlanForService, getDeliverableIdsForServices,
   // Service Variables — the quantities that scope a service (outfits, hours)
   listServiceVariables, listVariablesForServices, setServiceVariables,
+  // What a bundled service may be narrowed to — asked by Packages before it
+  // records a narrowing, so the check lives with the domain that owns it.
+  listDimensionValueIdsForServices,
   // Services — the specific transformation
   createService, updateService, duplicateService, setServiceStatus,
   listServices, listActiveServices, getService, getPublicIntakeDimensions,

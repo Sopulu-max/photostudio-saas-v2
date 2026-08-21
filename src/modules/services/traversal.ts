@@ -27,9 +27,13 @@ export type Carrier = {
   name: string;
   status: string | null;
   domainName: string | null;
-  /** Packages can carry a value themselves, or inherit it from what they bundle. */
+  /**
+   * How a package got here: 'direct' means it narrowed a bundled service to
+   * this value, 'bundled' means a service it bundles carries the value and the
+   * package never said anything about it.
+   */
   via: 'direct' | 'bundled';
-  /** Which bundled services brought it, when `via` is 'bundled'. */
+  /** Which bundled services brought it — named for either reading. */
   through?: string[];
   /**
    * Set when the match came through a narrower value: a beach shoot answers
@@ -219,11 +223,11 @@ export async function listValueEntries(): Promise<ValueEntry[]> {
 /**
  * What is filed under this value.
  *
- * Packages come back two ways deliberately. One tagged Wedding itself is a
- * direct answer; one that bundles a Wedding service is just as true an answer
- * and nobody had to tag it twice — the bundle already said so. Collapsing the
- * two would either lose real matches or claim a package says something it
- * doesn't, so the distinction is carried rather than flattened.
+ * Packages come back two ways deliberately. One that narrowed a bundled service
+ * to Wedding is a direct answer; one that bundles a Wedding service without
+ * narrowing it is just as true an answer and nobody had to say it twice — the
+ * bundle already did. Collapsing the two would either lose real matches or claim
+ * a package says something it doesn't, so the distinction is carried.
  */
 export async function whatCarries(valueId: string): Promise<{ services: Carrier[]; packages: Carrier[] }> {
   const { orgId } = await getAuthOrgId();
@@ -261,21 +265,33 @@ export async function whatCarries(valueId: string): Promise<{ services: Carrier[
 
   const serviceIds = services.map((s) => s.id);
 
+  // A package narrows a service it bundles, so the "direct" answer is reached
+  // through the bundle row rather than from the package itself — which means it
+  // can name the service it narrowed, the same as the bundled reading below.
   const { data: directPackages } = await supabaseAdmin
-    .from('package_dimension_values')
-    .select('dimension_value_id, package:packages(id, name, status)')
+    .from('package_service_dimension_values')
+    .select('dimension_value_id, package_service:package_services(package:packages(id, name, status), service:services(id, name))')
     .eq('organization_id', orgId)
     .in('dimension_value_id', narrowerIds);
 
   const byId = new Map<string, Carrier>();
   for (const l of ((directPackages || []) as any[])) {
-    const p = l.package;
+    const p = l.package_service?.package;
     if (!p) continue;
     const viaNarrower = l.dimension_value_id !== valueId;
+    const serviceName = l.package_service?.service?.name;
     const existing = byId.get(p.id);
-    if (existing && !existing.narrower) continue;
+    if (existing) {
+      if (serviceName && !existing.through?.includes(serviceName)) {
+        existing.through = [...(existing.through || []), serviceName];
+      }
+      // Narrowed to the value itself beats narrowed to something inside it.
+      if (!viaNarrower) delete existing.narrower;
+      continue;
+    }
     byId.set(p.id, {
       id: p.id, name: p.name, status: p.status ?? null, domainName: null, via: 'direct',
+      through: serviceName ? [serviceName] : [],
       ...(viaNarrower ? { narrower: nameOf.get(l.dimension_value_id) } : {}),
     });
   }
@@ -292,10 +308,13 @@ export async function whatCarries(valueId: string): Promise<{ services: Carrier[
       if (!p) continue;
       const existing = byId.get(p.id);
       const serviceName = row.service?.name;
-      // A package that says it itself stays 'direct'; the bundled services are
-      // still worth naming, because they are why it turned up at all.
+      // A package that narrowed to it stays 'direct'; the other bundled services
+      // carrying the value are still worth naming, because they are why it would
+      // have turned up anyway. Deduped — the narrowed one is already listed.
       if (existing) {
-        if (serviceName) existing.through = [...(existing.through || []), serviceName];
+        if (serviceName && !existing.through?.includes(serviceName)) {
+          existing.through = [...(existing.through || []), serviceName];
+        }
         continue;
       }
       byId.set(p.id, {
