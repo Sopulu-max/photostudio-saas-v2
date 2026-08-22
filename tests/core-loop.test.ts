@@ -145,9 +145,9 @@ describe('Core Loop Verification', () => {
       depositPercentage: 50,
       durationMinutes: 60,
       serviceIds: [serviceId],
-      deliverableIds: [outputTypeId],
+      deliverables: [{ serviceId, deliverableId: outputTypeId }],
       // The process lives here now — this is what startWorkForLine resolves.
-      workflowIds: [blueprintId],
+      workflows: [{ serviceId, blueprintId }],
       // The package SELECTS from what the service declared. Fixing outfits but
       // not edited_images is the point: an unset variable stays open, a
       // question for the client rather than part of the offer.
@@ -335,7 +335,10 @@ describe('Core Loop Verification', () => {
       name: 'Two-Promise Package',
       basePrice: 900,
       serviceIds: [serviceId],
-      deliverableIds: [photosId, albumId],
+      deliverables: [
+        { serviceId, deliverableId: photosId },
+        { serviceId, deliverableId: albumId },
+      ],
     });
 
     const { contactId } = await createClient({ name: 'Ada Promise', email: 'ada.promise@example.com' });
@@ -919,11 +922,10 @@ describe('Core Loop Verification', () => {
     const { packageId } = await createPackage({
       name: 'Specific Package',
       serviceIds: [serviceId],
-      deliverableIds: [photos, film, print],
-      deliverableSpecs: [
-        { deliverableId: photos, quantity: 6 },
-        { deliverableId: film, quantity: 30, unit: 'second' },
-        { deliverableId: print, spec: '20x30' },
+      deliverables: [
+        { serviceId, deliverableId: photos, quantity: 6 },
+        { serviceId, deliverableId: film, quantity: 30, unit: 'second' },
+        { serviceId, deliverableId: print, spec: '20x30' },
       ],
     });
 
@@ -944,11 +946,10 @@ describe('Core Loop Verification', () => {
     // number behind — the editor sends every field every time.
     await updatePackage({
       packageId,
-      deliverableIds: [photos, film, print],
-      deliverableSpecs: [
-        { deliverableId: photos, quantity: 8 },
-        { deliverableId: film, quantity: null, unit: null },
-        { deliverableId: print, spec: '20x30' },
+      deliverables: [
+        { serviceId, deliverableId: photos, quantity: 8 },
+        { serviceId, deliverableId: film, quantity: null, unit: null },
+        { serviceId, deliverableId: print, spec: '20x30' },
       ],
     });
     const after = await getPackage(packageId);

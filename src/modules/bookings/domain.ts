@@ -356,19 +356,30 @@ export async function setLineConfiguration(input: {
     }
   } else if (line.package_id) {
     // First configuration: inherit whatever the package fixed, snapshotted.
+    // Read through the bundle, since a fixed value belongs to a service inside
+    // the package rather than to the package.
     const { data: fixed } = await supabaseAdmin
-      .from('package_variable_values')
-      .select('service_variable_id, value')
+      .from('package_services')
+      .select('package_variable_values(service_variable_id, value)')
       .eq('organization_id', orgId)
       .eq('package_id', line.package_id);
-    for (const f of ((fixed || []) as any[])) {
-      inherited.push({
-        organization_id: orgId,
-        booking_line_id: input.lineId,
-        service_variable_id: f.service_variable_id,
-        value: f.value,
-        source: 'package',
-      });
+    // A line's configuration is keyed by variable, so bundling the same service
+    // twice fixes the variable twice and only the first can be carried. The
+    // snapshot cannot express "2 outfits on day one, 3 on day two" — noted
+    // rather than solved, because solving it belongs to the booking line.
+    const taken = new Set<string>();
+    for (const row of ((fixed || []) as any[])) {
+      for (const f of (row.package_variable_values || [])) {
+        if (taken.has(f.service_variable_id)) continue;
+        taken.add(f.service_variable_id);
+        inherited.push({
+          organization_id: orgId,
+          booking_line_id: input.lineId,
+          service_variable_id: f.service_variable_id,
+          value: f.value,
+          source: 'package',
+        });
+      }
     }
   }
 

@@ -437,7 +437,11 @@ export async function checkIn(employeeId: string, atLocalTime?: string) {
       employee_id: employeeId,
       work_date: workDate,
       recorded_by: actorId ?? null,
-      ...(stampedAt ? { checked_in_at: stampedAt } : {}),
+      // Stamped here rather than left to the column default, so arrival and
+      // departure are told by the same clock. Letting the database fire now()
+      // for one and not the other makes leaving refuse itself whenever the two
+      // clocks differ by more than the walk to the door.
+      checked_in_at: stampedAt ?? new Date().toISOString(),
     }).select('checked_in_at').single();
     if (error || !created) { console.error('Failed to check in:', error); throw new Error('Failed to check in'); }
     at = created.checked_in_at as string;

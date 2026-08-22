@@ -27,11 +27,6 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     listDimensionsByDomain(),
   ]);
 
-  const suggestedDeliverablesByService: Record<string, string[]> = {};
-  for (const s of (allServices as any[])) {
-    suggestedDeliverablesByService[s.id] = (s.deliverables || []).map((d: any) => d.id);
-  }
-
   const allVariables = await listVariablesForServices((allServices as any[]).map(s => s.id));
 
   return (
@@ -50,7 +45,6 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         allDeliverables={allDeliverables as any}
         allContainers={allContainers as any}
         allWorkflows={allWorkflows as any}
-        suggestedDeliverablesByService={suggestedDeliverablesByService}
         dimensionsByDomain={dimensionsByDomain}
         roleOptions={(roles as any[]).map((r) => r.name)}
         // Arrived from the classifications lens — "build a package for Weddings".

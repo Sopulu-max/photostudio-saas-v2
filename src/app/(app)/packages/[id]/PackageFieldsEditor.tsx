@@ -27,6 +27,15 @@ type DimensionOption = {
 type Tier = { label: string; price: string };
 type Stage = { name: string; roleName: string; frontStage: boolean };
 
+/**
+ * One thing this package promises, and the bundled service that produces it.
+ *
+ * The service is part of the promise rather than looked up from it. A package
+ * bundling Photography and Framing promises prints through Framing; without the
+ * pairing, "20 prints" floats free of anything that makes them.
+ */
+type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null };
+
 import type { ServiceVariable } from '@/modules/services/interface';
 
 /**
@@ -45,7 +54,6 @@ export function PackageFieldsEditor({
   allDeliverables,
   allContainers,
   allWorkflows,
-  suggestedDeliverablesByService,
   dimensionsByDomain,
   roleOptions,
   intendedValueId = null,
@@ -60,7 +68,6 @@ export function PackageFieldsEditor({
   allDeliverables: { id: string; name: string }[];
   allContainers: { id: string; name: string }[];
   allWorkflows: { id: string; name: string }[];
-  suggestedDeliverablesByService: Record<string, string[]>;
   /** Domain name → the dimensions it classifies by. A package may draw on several. */
   dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
@@ -78,11 +85,11 @@ export function PackageFieldsEditor({
     depositPercentage?: number | null;
     durationMinutes?: number | null;
     serviceIds?: string[];
-    deliverableIds?: string[];
-    /** Quantity, unit and spec per deliverable — a package is where things get specific. */
-    deliverableSpecs?: Record<string, { quantity?: number | null; unit?: string | null; spec?: string | null }>;
+    /** What the package promises, each on the bundled service that produces it. */
+    deliverables?: Promise_[];
     containerIds?: string[];
-    workflowIds?: string[];
+    /** The production sequences to run, each on the bundled service it belongs to. */
+    workflows?: { serviceId: string; blueprintId: string }[];
     /** Each value paired with the bundled service this package narrows to it. */
     narrowings?: { serviceId: string; valueId: string }[];
     pricingVariant?: PricingVariant | null;
@@ -105,29 +112,45 @@ export function PackageFieldsEditor({
   const [deposit, setDeposit] = useState(String(initial.depositPercentage ?? 0));
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
   
-  const [deliverables, setDeliverables] = useState<string[]>(initial.deliverableIds || []);
-  const [newDeliverableId, setNewDeliverableId] = useState('');
-
   /*
-   * How much of it, in what unit, to what spec.
+   * What this package promises, and how much of it, in what unit, to what spec.
    *
    * A service says the KIND — edited photographs. Only a package says six of
-   * them, or thirty seconds, or 20x30. That rule is why these fields exist here
-   * and nowhere in the service form, and why they were the last thing missing:
-   * the columns, the writes and every renderer were already in place, so a
-   * studio could see "6 edited photographs" on an invoice it had no way to say.
+   * them, or thirty seconds, or 20x30. Held against the service that produces
+   * it, so a package promising prints has to bundle something that prints.
    */
-  const [specs, setSpecs] = useState<Record<string, { quantity?: number | null; unit?: string | null; spec?: string | null }>>(
-    initial.deliverableSpecs || {}
-  );
-  const patchSpec = (id: string, patch: { quantity?: number | null; unit?: string | null; spec?: string | null }) =>
-    setSpecs((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
-  
+  const [promises, setPromises] = useState<Promise_[]>(initial.deliverables || []);
+  const [newDeliverableId, setNewDeliverableId] = useState<Record<string, string>>({});
+
+  const promisesFor = (sid: string) => promises.filter((p) => p.serviceId === sid);
+  const addPromise = (sid: string, deliverableId: string) => {
+    if (!deliverableId) return;
+    setPromises((prev) => prev.some((p) => p.serviceId === sid && p.deliverableId === deliverableId)
+      ? prev
+      : [...prev, { serviceId: sid, deliverableId, quantity: null, unit: null, spec: null }]);
+    setNewDeliverableId((prev) => ({ ...prev, [sid]: '' }));
+  };
+  const removePromise = (sid: string, deliverableId: string) =>
+    setPromises((prev) => prev.filter((p) => !(p.serviceId === sid && p.deliverableId === deliverableId)));
+  const patchPromise = (sid: string, deliverableId: string, patch: Partial<Promise_>) =>
+    setPromises((prev) => prev.map((p) => (p.serviceId === sid && p.deliverableId === deliverableId ? { ...p, ...patch } : p)));
+
   const [containers, setContainers] = useState<string[]>(initial.containerIds || []);
   const [newContainerId, setNewContainerId] = useState('');
-  
-  const [workflows, setWorkflows] = useState<string[]>(initial.workflowIds || []);
-  const [newWorkflowId, setNewWorkflowId] = useState('');
+
+  const [workflows, setWorkflows] = useState<{ serviceId: string; blueprintId: string }[]>(initial.workflows || []);
+  const [newWorkflowId, setNewWorkflowId] = useState<Record<string, string>>({});
+
+  const workflowsFor = (sid: string) => workflows.filter((w) => w.serviceId === sid);
+  const addWorkflow = (sid: string, blueprintId: string) => {
+    if (!blueprintId) return;
+    setWorkflows((prev) => prev.some((w) => w.serviceId === sid && w.blueprintId === blueprintId)
+      ? prev
+      : [...prev, { serviceId: sid, blueprintId }]);
+    setNewWorkflowId((prev) => ({ ...prev, [sid]: '' }));
+  };
+  const removeWorkflow = (sid: string, blueprintId: string) =>
+    setWorkflows((prev) => prev.filter((w) => !(w.serviceId === sid && w.blueprintId === blueprintId)));
 
   /*
    * How this package narrows each service it bundles, keyed by service id.
@@ -174,60 +197,38 @@ export function PackageFieldsEditor({
    */
   const effectiveName = nameTouched ? name : composed;
 
-  /**
-   * Output types the bundled services produce that this package has not
-   * promised yet — offered as one-click additions above the full list, so the
-   * common case does not mean hunting through every output type the studio has.
-   */
-  const suggestedDeliverables: string[] = [...new Set(
-    serviceIds.flatMap((sid) => suggestedDeliverablesByService[sid] || [])
-  )].filter((d) => !deliverables.includes(d));
-
   const toggleService = (id: string) => {
     setServiceIds((prevIds) => {
       const isRemoving = prevIds.includes(id);
       const newServiceIds = isRemoving ? prevIds.filter((x) => x !== id) : [...prevIds, id];
-      
+
       if (isRemoving) {
-        // 1. Prune Variables
+        // Everything a package says is said about a bundled service, so dropping
+        // one drops exactly its own — no set arithmetic, and a sibling service
+        // keeps what it promised even if the two produce the same thing.
         setVariableValues((prevVars) => {
           const next = { ...prevVars };
-          const variablesToPrune = allVariables.filter(v => v.serviceId === id);
-          variablesToPrune.forEach(v => delete next[v.id]);
+          allVariables.filter((v) => v.serviceId === id).forEach((v) => delete next[v.id]);
           return next;
         });
-
-        // 2. Prune this service's narrowings. Keyed by service, so dropping the
-        //    service drops exactly its own — no domain guesswork, and a sibling
-        //    service in the same domain keeps what it narrowed.
         setNarrowings((prev) => {
           const next = { ...prev };
           delete next[id];
           return next;
         });
-
-        // 3. Prune Base Deliverables
-        const removedService = allServices.find(s => s.id === id);
-        const removedBaseIds = removedService?.deliverables?.map(d => d.id) || [];
-        const remainingBaseIds = new Set(
-          allServices.filter(s => newServiceIds.includes(s.id))
-            .flatMap(s => s.deliverables?.map(d => d.id) || [])
-        );
-        
-        setDeliverables((prevDelivs) => {
-          return prevDelivs.filter(dId => {
-            return !(removedBaseIds.includes(dId) && !remainingBaseIds.has(dId));
-          });
-        });
+        setPromises((prev) => prev.filter((p) => p.serviceId !== id));
+        setWorkflows((prev) => prev.filter((w) => w.serviceId !== id));
       } else {
-        // Adding a service: auto-promise its base deliverables to save clicks
-        const addedService = allServices.find(s => s.id === id);
-        if (addedService && addedService.deliverables) {
-          setDeliverables(prev => {
-            const next = new Set(prev);
-            addedService.deliverables!.forEach(d => next.add(d.id));
-            return Array.from(next);
-          });
+        // Adding a service: auto-promise what it produces, to save clicks.
+        const addedService = allServices.find((s) => s.id === id);
+        const produces = addedService?.deliverables || [];
+        if (produces.length > 0) {
+          setPromises((prev) => [
+            ...prev,
+            ...produces
+              .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
+              .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null })),
+          ]);
         }
 
         // The value the operator came in with finally has a service to narrow,
@@ -245,14 +246,8 @@ export function PackageFieldsEditor({
     });
   };
 
-  const addDeliverable = (id: string) => { if (id && !deliverables.includes(id)) setDeliverables(d => [...d, id]); setNewDeliverableId(''); };
-  const removeDeliverable = (id: string) => setDeliverables(d => d.filter(x => x !== id));
-  
   const addContainer = (id: string) => { if (id && !containers.includes(id)) setContainers(d => [...d, id]); setNewContainerId(''); };
   const removeContainer = (id: string) => setContainers(d => d.filter(x => x !== id));
-  
-  const addWorkflow = (id: string) => { if (id && !workflows.includes(id)) setWorkflows(d => [...d, id]); setNewWorkflowId(''); };
-  const removeWorkflow = (id: string) => setWorkflows(d => d.filter(x => x !== id));
 
   const addTier = () => setTiers((t) => [...t, { label: '', price: '' }]);
   const patchTier = (i: number, updates: Partial<Tier>) => setTiers((t) => t.map((row, idx) => (idx === i ? { ...row, ...updates } : row)));
@@ -285,17 +280,11 @@ export function PackageFieldsEditor({
       depositPercentage: policy === 'deposit' ? (deposit === '' ? 0 : parseInt(deposit, 10)) : null,
       durationMinutes: duration > 0 ? duration : null,
       serviceIds,
-      deliverableIds: deliverables,
-      deliverableSpecs: deliverables.map((deliverableId) => ({
-        deliverableId,
-        quantity: specs[deliverableId]?.quantity ?? null,
-        unit: specs[deliverableId]?.unit || null,
-        spec: specs[deliverableId]?.spec || null,
-      })),
+      // Everything below is filtered to services still bundled, so deselecting
+      // one cannot leave a link behind that the server would then reject.
+      deliverables: promises.filter((p) => serviceIds.includes(p.serviceId)),
       containerIds: containers,
-      workflowIds: workflows,
-      // Only for services still bundled, so deselecting one cannot leave a
-      // narrowing behind that the server would then reject.
+      workflows: workflows.filter((w) => serviceIds.includes(w.serviceId)),
       narrowings: serviceIds.flatMap((sid) =>
         (narrowings[sid] || []).map((valueId) => ({ serviceId: sid, valueId }))
       ),
@@ -360,6 +349,113 @@ export function PackageFieldsEditor({
             {dim.values.filter((v) => !forService.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[pendingKey] || '')} disabled={!pendingValue[pendingKey]}>+ Add</button>
+        </div>
+      </div>
+    );
+  };
+
+  /**
+   * What this package promises through one bundled service.
+   *
+   * Drawn inside the service's card, which is the whole point: the quantity and
+   * spec are the package's to set, but the thing being quantified is produced by
+   * this service and by nothing else in the bundle.
+   */
+  const renderPromises = (s: ServiceOption) => {
+    const mine = promisesFor(s.id);
+    const produces = s.deliverables || [];
+    const suggested = produces.filter((d) => !mine.some((p) => p.deliverableId === d.id));
+    return (
+      <div className="q-stack q-stack-sm">
+        <h4 className="q-strong">Promises</h4>
+        {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
+        {mine.map((p) => {
+          const dName = allDeliverables.find((d) => d.id === p.deliverableId)?.name || p.deliverableId;
+          return (
+            <div key={p.deliverableId} className="q-tile q-stack q-stack-sm">
+              <div className="q-row q-row-between">
+                <strong className="q-strong">{dName}</strong>
+                <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removePromise(s.id, p.deliverableId)}>×</button>
+              </div>
+              <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                <input
+                  className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
+                  value={p.quantity ?? ''}
+                  onChange={(e) => patchPromise(s.id, p.deliverableId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
+                  style={{ maxWidth: '7rem' }}
+                />
+                <input
+                  className="q-input q-input-sm" placeholder="Unit — image, second, page"
+                  value={p.unit ?? ''}
+                  onChange={(e) => patchPromise(s.id, p.deliverableId, { unit: e.target.value || null })}
+                  style={{ maxWidth: '13rem' }}
+                />
+                <input
+                  className="q-input q-input-sm" placeholder="Specification — 20x30, matte"
+                  value={p.spec ?? ''}
+                  onChange={(e) => patchPromise(s.id, p.deliverableId, { spec: e.target.value || null })}
+                  style={{ minWidth: '12rem', flex: 1 }}
+                />
+              </div>
+              <span className="q-meta-sm" style={{ opacity: 0.8 }}>
+                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, unit: p.unit, spec: p.spec })}
+              </span>
+            </div>
+          );
+        })}
+
+        {suggested.length > 0 && (
+          <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
+            <span className="q-meta-sm">Also produces:</span>
+            {suggested.map((d) => (
+              <button key={d.id} type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addPromise(s.id, d.id)}>
+                + {d.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="q-row">
+          <select
+            className="q-select" value={newDeliverableId[s.id] || ''}
+            onChange={(e) => setNewDeliverableId((prev) => ({ ...prev, [s.id]: e.target.value }))}
+            style={{ minWidth: '12rem' }}
+          >
+            <option value="">Select an output type</option>
+            {allDeliverables.filter((d) => !mine.some((p) => p.deliverableId === d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addPromise(s.id, newDeliverableId[s.id] || '')} disabled={!newDeliverableId[s.id]}>+ Add</button>
+        </div>
+      </div>
+    );
+  };
+
+  /** The production sequences to run for this bundled service. */
+  const renderWorkflows = (s: ServiceOption) => {
+    const mine = workflowsFor(s.id);
+    return (
+      <div className="q-stack q-stack-sm">
+        <h4 className="q-strong">Production</h4>
+        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: mine.length > 0 ? '8px' : '0' }}>
+          {mine.map((w) => {
+            const wName = allWorkflows.find((x) => x.id === w.blueprintId)?.name || w.blueprintId;
+            return (
+              <span key={w.blueprintId} className="q-badge q-badge-neutral">
+                {wName} <button type="button" className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeWorkflow(s.id, w.blueprintId)}>×</button>
+              </span>
+            );
+          })}
+        </div>
+        <div className="q-row">
+          <select
+            className="q-select" value={newWorkflowId[s.id] || ''}
+            onChange={(e) => setNewWorkflowId((prev) => ({ ...prev, [s.id]: e.target.value }))}
+            style={{ minWidth: '12rem' }}
+          >
+            <option value="">Select a workflow...</option>
+            {allWorkflows.filter((x) => !mine.some((w) => w.blueprintId === x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addWorkflow(s.id, newWorkflowId[s.id] || '')} disabled={!newWorkflowId[s.id]}>+ Add</button>
         </div>
       </div>
     );
@@ -461,6 +557,9 @@ export function PackageFieldsEditor({
                           })}
                         </div>
                       )}
+
+                      {renderPromises(s)}
+                      {renderWorkflows(s)}
                     </div>
                   </div>
                 )}
@@ -561,103 +660,13 @@ export function PackageFieldsEditor({
         
         <div className="q-stack q-stack-md">
           {/*
-            * One list of what the package promises.
+            * What the package promises, and how it is produced, are edited on
+            * the service cards above — each is a fact about one bundled service,
+            * so there is nothing to say about them at package level.
             *
-            * This was two: deliverables a bundled service produces were edited
-            * inside that service's card, and everything else in a separate
-            * "Extra outputs" section that filtered the first set out. Nothing
-            * was ever shown twice, but the split meant the answer to "what does
-            * this package deliver" was in two places, and where a row appeared
-            * depended on which services happened to be bundled — so ticking a
-            * service off moved its deliverable to another part of the form.
-            *
-            * One list now, with the source service named on the row. Where it
-            * came from is a label, not a location.
+            * A container is different, and stays here: it transports outputs
+            * without transforming them, so it belongs to no single service.
             */}
-          <div>
-            <label className="q-label">Deliverables</label>
-            <span className="q-meta-sm" style={{ display: 'block', marginBottom: '8px', opacity: 0.7 }}>
-              What this package promises the client. Quantities and specifications are set here, not on
-              the service.
-            </span>
-
-            <div className="q-stack q-stack-sm" style={{ marginBottom: '12px' }}>
-              {deliverables.length === 0 && (
-                <p className="q-empty" style={{ margin: 0 }}>
-                  Nothing promised yet. Add an output below.
-                </p>
-              )}
-              {deliverables.map((dId) => {
-                const dName = allDeliverables.find(d => d.id === dId)?.name || dId;
-                const spec = specs[dId] || {};
-                // Which bundled service produces this, if any. A deliverable
-                // added independently simply has no source.
-                const fromService = allServices.find(
-                  s => serviceIds.includes(s.id) && s.deliverables?.some(d => d.id === dId)
-                );
-                return (
-                  <div key={dId} className="q-tile q-stack q-stack-sm">
-                    <div className="q-row q-row-between">
-                      <span className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{dName}</strong>
-                        {fromService && <span className="q-meta-sm">from {fromService.name}</span>}
-                      </span>
-                      <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removeDeliverable(dId)}>×</button>
-                    </div>
-                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                      <input
-                        className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
-                        value={spec.quantity ?? ''}
-                        onChange={(e) => patchSpec(dId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
-                        style={{ maxWidth: '7rem' }}
-                      />
-                      <input
-                        className="q-input q-input-sm" placeholder="Unit — image, second, page"
-                        value={spec.unit ?? ''}
-                        onChange={(e) => patchSpec(dId, { unit: e.target.value })}
-                        style={{ maxWidth: '13rem' }}
-                      />
-                      <input
-                        className="q-input q-input-sm" placeholder="Specification — 20x30, matte"
-                        value={spec.spec ?? ''}
-                        onChange={(e) => patchSpec(dId, { spec: e.target.value })}
-                        style={{ minWidth: '12rem', flex: 1 }}
-                      />
-                    </div>
-                    <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                      Appears as: {formatDeliverable({ name: dName, ...spec })}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* What the bundled services produce but this package has not
-                promised. One click rather than finding it in the full list. */}
-            {suggestedDeliverables.length > 0 && (
-              <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px', gap: '6px' }}>
-                <span className="q-meta-sm">Produced by the bundled services:</span>
-                {suggestedDeliverables.map((dId) => {
-                  const dName = allDeliverables.find(d => d.id === dId)?.name || dId;
-                  return (
-                    <button key={dId} type="button" className="q-btn q-btn-secondary q-btn-xs"
-                      onClick={() => addDeliverable(dId)}>
-                      + {dName}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="q-row">
-              <select className="q-select" value={newDeliverableId} onChange={(e) => setNewDeliverableId(e.target.value)} style={{ minWidth: '12rem' }}>
-                <option value="">Select an output type</option>
-                {allDeliverables.filter(d => !deliverables.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addDeliverable(newDeliverableId)} disabled={!newDeliverableId}>+ Add</button>
-            </div>
-          </div>
-          
           <div>
             <label className="q-label">Delivery Containers</label>
             <span className="q-meta-sm">How these deliverables are handed to the client (e.g. Online Gallery, USB Drive)</span>
@@ -685,30 +694,6 @@ export function PackageFieldsEditor({
             <select className="q-select" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
               {DURATION_CHOICES.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
             </select>
-          </div>
-          
-          <div>
-            <label className="q-label">Production Workflows (Blueprints)</label>
-            <p className="q-meta" style={{ marginBottom: '8px' }}>
-              The standard sequences of stages to run for this package.
-            </p>
-            <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: workflows.length > 0 ? '8px' : '0' }}>
-              {workflows.map((dId) => {
-                const dName = allWorkflows.find(d => d.id === dId)?.name || dId;
-                return (
-                  <span key={dId} className="q-badge q-badge-neutral">
-                    {dName} <button type="button" className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeWorkflow(dId)}>×</button>
-                  </span>
-                );
-              })}
-            </div>
-            <div className="q-row">
-              <select className="q-select" value={newWorkflowId} onChange={(e) => setNewWorkflowId(e.target.value)} style={{ minWidth: '12rem' }}>
-                <option value="">Select a workflow...</option>
-                {allWorkflows.filter(d => !workflows.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addWorkflow(newWorkflowId)} disabled={!newWorkflowId}>+ Add</button>
-            </div>
           </div>
           
           <div>

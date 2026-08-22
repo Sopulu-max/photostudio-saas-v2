@@ -83,6 +83,8 @@ const password = `Sm0ke-${randomUUID()}`;
 let userId = '';
 let orgId = '';
 let cookieHeader = '';
+let packageId = '';
+let blueprintId = '';
 
 describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
   beforeAll(async () => {
@@ -146,11 +148,53 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
 
     cookieHeader = [...jar].map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join('; ');
     expect(cookieHeader.length).toBeGreaterThan(0);
+
+    /*
+     * A package that actually bundles something.
+     *
+     * The empty studio above cannot reach a package's own two pages, and those
+     * are the ones that read the bundle: what a package promises and how it is
+     * produced hang off package_services, not off the package. A page still
+     * asking the package directly renders an error boundary, which is precisely
+     * what an empty fixture would never show.
+     */
+    // A swallowed insert here would strand the fixture and blame the page.
+    const seed = async (table: string, row: Record<string, unknown>) => {
+      const { data, error } = await supabaseAdmin.from(table).insert(row).select('id').single();
+      if (error || !data) throw new Error(`Could not seed ${table}: ${error?.message}`);
+      return data.id as string;
+    };
+
+    const domainId = await seed('service_domains', { organization_id: orgId, name: 'Smoke Domain' });
+    const [serviceId, deliverableId] = await Promise.all([
+      seed('services', { organization_id: orgId, name: 'Smoke Service', service_domain_id: domainId, status: 'active' }),
+      seed('deliverables', { organization_id: orgId, name: 'Smoke Output', service_domain_id: domainId }),
+    ]);
+    blueprintId = await seed('blueprints', { organization_id: orgId, name: 'Smoke Blueprint', stages: [] });
+    packageId = await seed('packages', { organization_id: orgId, name: 'Smoke Package', status: 'active' });
+
+    const bundledId = await seed('package_services', {
+      organization_id: orgId, package_id: packageId, service_id: serviceId,
+    });
+    // These two are keyed on the bundle row, not on an id of their own.
+    const [promised, produced] = await Promise.all([
+      supabaseAdmin.from('package_deliverables').insert({
+        organization_id: orgId, package_service_id: bundledId, deliverable_id: deliverableId, quantity: 20,
+      }),
+      supabaseAdmin.from('package_workflows').insert({
+        organization_id: orgId, package_service_id: bundledId, blueprint_id: blueprintId,
+      }),
+    ]);
+    if (promised.error) throw new Error(`Could not seed what the package promises: ${promised.error.message}`);
+    if (produced.error) throw new Error(`Could not seed how the package is produced: ${produced.error.message}`);
   });
 
   afterAll(async () => {
     // Order matters: contacts refuse to cascade from organizations.
     if (orgId) {
+      // Packages and blueprints do not cascade from the studio, so they go first.
+      await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('blueprints').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('events').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('contacts').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('booking_stages').delete().eq('organization_id', orgId);
@@ -175,6 +219,21 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     expect(html, `${path} did not contain its own markup`).toMatch(marker);
     // A signed-in page that renders the login form has been silently bounced.
     expect(html, `${path} rendered the login screen`).not.toMatch(/Log in to your Weave account/i);
+  });
+
+  it.each([
+    { where: 'detail', path: () => `/packages/${packageId}`, marker: /Outputs promised/i },
+    { where: 'editor', path: () => `/packages/${packageId}/edit`, marker: /Smoke Package/i },
+  ])('reads a bundled package on its $where page', async ({ path, marker }) => {
+    const res = await fetch(`${BASE}${path()}`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
+    expect(res.status, `${path()} returned ${res.status}`).toBe(200);
+
+    const html = await res.text();
+    expect(html, `${path()} rendered Next's error page`).not.toMatch(CRASHED);
+    // Proves the page reached through package_services rather than rendering an
+    // empty shell that would pass any check for its own furniture.
+    expect(html, `${path()} did not show what the package bundles`).toMatch(/Smoke Service/i);
+    expect(html, `${path()} did not show what it promises`).toMatch(marker);
   });
 
   it('serves the public storefront without a session at all', async () => {

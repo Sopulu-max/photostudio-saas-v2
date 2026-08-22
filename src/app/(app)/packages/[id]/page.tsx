@@ -33,9 +33,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
 
   const services = (pkg as any).services || [];
-  const deliverables = (pkg as any).deliverables || [];
   const containers = (pkg as any).containers || [];
-  const workflows = (pkg as any).workflows || [];
   const extraStages = (pkg as any).extra_stages || [];
 
   return (
@@ -93,9 +91,9 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           ) : (
             <div className="q-stack q-stack-md">
               {services.map((s: any) => {
-                const serviceVariables = ((pkg as any).variableValues || []).filter((v: any) => v.serviceId === s.id);
-                // Base deliverables for this service that are promised in this package
-                const baseDeliverables = deliverables.filter((d: any) => s.deliverables?.some((sd: any) => sd.id === d.id));
+                const serviceVariables = s.variableValues || [];
+                const promises = s.deliverables || [];
+                const serviceWorkflows = s.workflows || [];
                 const serviceTags = (s.dimensions || []).flatMap((d: any) => d.values);
 
                 return (
@@ -133,12 +131,11 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                         </div>
                       )}
                       
-                      {/* Base Deliverables */}
-                      {baseDeliverables.length > 0 && (
+                      {promises.length > 0 && (
                         <div className="q-stack q-stack-sm">
-                          <h4 className="q-strong">Base Outputs</h4>
+                          <h4 className="q-strong">Outputs promised</h4>
                           <div className="q-stack" style={{ gap: '4px' }}>
-                            {baseDeliverables.map((d: any) => (
+                            {promises.map((d: any) => (
                               <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
                                 <div className="q-strong">{d.name}</div>
                                 {(d.quantity || d.spec) && (
@@ -147,6 +144,17 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                                   </div>
                                 )}
                               </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {serviceWorkflows.length > 0 && (
+                        <div className="q-stack q-stack-sm">
+                          <h4 className="q-strong">How it is produced</h4>
+                          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                            {serviceWorkflows.map((w: any) => (
+                              <span key={w.id} className="q-badge q-badge-primary">{w.name}</span>
                             ))}
                           </div>
                         </div>
@@ -177,69 +185,29 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
         <div className="q-grid-2">
           <div className="q-card q-section">
-            <h2 className="q-section-title">Extra Outputs & Delivery</h2>
-            {(() => {
-              // Extra deliverables are those NOT in any service's base deliverables
-              const extraDeliverables = deliverables.filter((d: any) => !services.some((s: any) => s.deliverables?.some((sd: any) => sd.id === d.id)));
-              if (extraDeliverables.length === 0 && containers.length === 0) {
-                return <p className="q-text-meta">No extra deliverables or containers defined.</p>;
-              }
-              return (
-                <div className="q-stack q-stack-sm">
-                  {extraDeliverables.length > 0 && (
-                    <div>
-                      <div className="q-stat-label" style={{ marginBottom: '8px' }}>Ad-hoc Outputs</div>
-                      <div className="q-stack" style={{ gap: '4px' }}>
-                        {extraDeliverables.map((d: any) => (
-                          <div key={d.id} className="q-tile" style={{ padding: '6px 12px' }}>
-                            <div className="q-strong">{d.name}</div>
-                            {(d.quantity || d.spec) && (
-                              <div className="q-meta-sm">Reads as: {formatDeliverable(d)}</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {containers.length > 0 && (
-                    <div style={{ marginTop: extraDeliverables.length > 0 ? '16px' : '0' }}>
-                      <div className="q-stat-label" style={{ marginBottom: '8px' }}>Delivery Containers</div>
-                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                        {containers.map((d: any) => <span key={d.id} className="q-badge q-badge-neutral">{d.name}</span>)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            <h2 className="q-section-title">Delivery</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>How the outputs reach the client.</p>
+            {containers.length === 0 ? (
+              <p className="q-text-meta">No delivery containers set.</p>
+            ) : (
+              <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                {containers.map((d: any) => <span key={d.id} className="q-badge q-badge-neutral">{d.name}</span>)}
+              </div>
+            )}
           </div>
           <div className="q-card q-section">
-            <h2 className="q-section-title">Production Plan</h2>
-            {workflows.length === 0 && extraStages.length === 0 ? (
-              <p className="q-text-meta">No standard blueprints or extra stages set.</p>
+            <h2 className="q-section-title">Extra Stages</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>Work this package adds beyond its services&apos; blueprints.</p>
+            {extraStages.length === 0 ? (
+              <p className="q-text-meta">No extra stages set.</p>
             ) : (
-              <div className="q-stack q-stack-sm">
-                {workflows.length > 0 && (
-                  <div>
-                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Blueprints</div>
-                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                      {workflows.map((w: any) => <span key={w.id} className="q-badge q-badge-primary">{w.name}</span>)}
-                    </div>
-                  </div>
-                )}
-                {extraStages.length > 0 && (
-                  <div style={{ marginTop: workflows.length > 0 ? '16px' : '0' }}>
-                    <div className="q-stat-label" style={{ marginBottom: '8px' }}>Extra Stages</div>
-                    <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
-                      {extraStages.map((s: any, idx: number) => (
-                        <li key={idx} style={{ marginBottom: '4px' }}>
-                          {s.name} {s.roleName && <span className="q-text-meta">— {s.roleName}</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
+                {extraStages.map((s: any, idx: number) => (
+                  <li key={idx} style={{ marginBottom: '4px' }}>
+                    {s.name} {s.roleName && <span className="q-text-meta">— {s.roleName}</span>}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </div>
