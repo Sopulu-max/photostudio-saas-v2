@@ -168,7 +168,11 @@ export function ServiceFieldsEditor({
           dimensions,
         };
         if (mode === 'create') {
-          const newId = await createService(payload);
+          // createService answers { serviceId }, not the id. Interpolating the
+          // object gave /services/[object Object] — a 404 at the end of filling
+          // in the whole form, with the service actually created. Packages
+          // destructures the same shape correctly a directory away.
+          const { serviceId: newId } = await createService(payload);
           router.push(`/services/${newId}`);
         } else {
           await updateService({ serviceId: serviceId!, ...payload });
@@ -374,7 +378,7 @@ export function ServiceFieldsEditor({
             ) : (
               <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => setServiceStatus({ serviceId: serviceId!, status: 'active' }).then(() => router.refresh()))} disabled={isPending}>Restore service</button>
             )}
-            <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => duplicateService(serviceId!).then((newId) => router.push(`/services/${newId}/edit`)))} disabled={isPending}>Duplicate</button>
+            <button className="q-btn q-btn-secondary" onClick={() => startTransition(() => duplicateService(serviceId!).then(({ serviceId: copyId }) => router.push(`/services/${copyId}/edit`)))} disabled={isPending}>Duplicate</button>
           </div>
         )}
       </div>
