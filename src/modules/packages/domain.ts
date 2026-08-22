@@ -5,6 +5,7 @@ import { assertAllOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
+import { priceOf } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
 import { formatDeliverable } from './deliverableSpec';
@@ -623,7 +624,7 @@ export async function listPackagesForService(serviceId: string) {
       id: p.id as string,
       name: p.name as string,
       status: (p.status ?? null) as string | null,
-      basePrice: (p.pricing?.base_price ?? null) as number | null,
+      basePrice: priceOf(p.pricing)?.amount ?? null,
       currency: (p.pricing?.currency ?? null) as string | null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -6,6 +6,7 @@ import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
+import { amountOf } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { settlementOf } from './money';
 
@@ -115,7 +116,7 @@ export async function createInvoiceForBooking(input: {
       .filter((c: any) => c.value != null)
       .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit }))
       .join(' · ');
-    const unitPrice = Number((l.price as any)?.base_price || 0);
+    const unitPrice = amountOf(l.price);
     const quantity = Number(l.quantity ?? 1);
     rows.push({
       organization_id: orgId,

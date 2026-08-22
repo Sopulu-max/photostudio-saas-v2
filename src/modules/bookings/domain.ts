@@ -5,6 +5,7 @@ import { assertOurs } from '@/kernel/tenancy';
 import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
+import { amountOf } from '@/kernel/money';
 import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
@@ -666,7 +667,7 @@ export async function createContractForBooking(bookingId: string) {
   let currency = 'USD';
   for (const l of lines || []) {
     const p: any = l.price || {};
-    total += Number(p.base_price || 0) * Number((l as any).quantity ?? 1);
+    total += amountOf(l.price) * Number((l as any).quantity ?? 1);
     if (p.currency) currency = p.currency;
   }
 
@@ -678,7 +679,7 @@ export async function createContractForBooking(bookingId: string) {
   const lineItems = (lines || []).map((l: any) => {
     const p: any = l.price || {};
     const quantity = Number(l.quantity ?? 1);
-    const unitPrice = Number(p.base_price || 0);
+    const unitPrice = amountOf(l.price);
     return { title: l.title, quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity };
   });
 
@@ -952,7 +953,7 @@ export async function listBookingsForContact(contactId: string) {
     let currency = 'USD';
     for (const l of b.booking_lines || []) {
       const p: any = l.price || {};
-      total += Number(p.base_price || 0) * Number(l.quantity ?? 1);
+      total += amountOf(l.price) * Number(l.quantity ?? 1);
       if (p.currency) currency = p.currency;
     }
     return {
@@ -1649,7 +1650,7 @@ export async function listBookingsForDimensionValue(valueId: string) {
     if (!b) continue;
     // `price` is the JSONB snapshot of what the package cost when it was sold,
     // read the same way invoices and contracts read it.
-    const amount = Number((l.price as any)?.base_price || 0) * Number(l.quantity ?? 1);
+    const amount = amountOf(l.price) * Number(l.quantity ?? 1);
     const existing = byBooking.get(b.id);
     if (existing) {
       existing.total += amount;
