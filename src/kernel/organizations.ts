@@ -46,6 +46,19 @@ export async function createOrganization(name: string, slug?: string) {
     throw new Error(contactError?.message || 'Failed to create your studio identity');
   }
 
+  // 4. Seed default booking stages so intake forms have a place to land
+  const { error: stageError } = await supabaseAdmin.from('booking_stages').insert([
+    { organization_id: org.id, name: 'Enquiry', kind: 'enquiry', position: 0, is_default: true },
+    { organization_id: org.id, name: 'Booked', kind: 'booked', position: 1, is_default: false },
+    { organization_id: org.id, name: 'Completed', kind: 'completed', position: 2, is_default: false },
+    { organization_id: org.id, name: 'Cancelled', kind: 'cancelled', position: 3, is_default: false },
+  ]);
+  
+  if (stageError) {
+    console.error('Failed to seed booking stages:', stageError);
+    // Non-fatal, but they won't be able to receive public bookings until they configure stages
+  }
+
   /*
    * No employee record. Owning a studio is not working at one.
    *
