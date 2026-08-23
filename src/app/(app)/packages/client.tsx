@@ -55,9 +55,21 @@ export function PackagesClient({
         <div className="q-meta">{(pkg.services || []).map((s: any) => s.name).join(' + ') || 'No services bundled'}</div>
         {tags.length > 0 && (
           <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-            {tags.flatMap((d) => d.values.map((v) => (
-              <DimensionTag key={v.id} dimension={d.name} value={v} />
-            )))}
+            {tags.map((d) => (
+              <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
+                <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
+                <span className="q-row" style={{ gap: '4px' }}>
+                  {d.values.map((v, i) => (
+                    <span key={v.id}>
+                      <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {v.name}
+                      </Link>
+                      {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ))}
           </div>
         )}
         <div className="q-tile-sub">

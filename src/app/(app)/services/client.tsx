@@ -37,9 +37,21 @@ export function ServicesClient({
           however many values it carries under each. */}
       {((svc.dimensions || []) as ServiceDimensionTag[]).length > 0 && (
         <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-          {((svc.dimensions || []) as ServiceDimensionTag[]).flatMap((d) =>
-            d.values.map((v) => <DimensionTag key={v.id} dimension={d.name} value={v} />)
-          )}
+          {((svc.dimensions || []) as ServiceDimensionTag[]).map((d) => (
+            <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
+              <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
+              <span className="q-row" style={{ gap: '4px' }}>
+                {d.values.map((v, i) => (
+                  <span key={v.id}>
+                    <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {v.name}
+                    </Link>
+                    {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
+                  </span>
+                ))}
+              </span>
+            </div>
+          ))}
         </div>
       )}
       <div className="q-tile-sub">

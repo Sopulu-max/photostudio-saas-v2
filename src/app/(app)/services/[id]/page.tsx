@@ -58,10 +58,27 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
       )}
 
       {tags.length > 0 && (
-        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: '32px', gap: '6px' }}>
-          {tags.flatMap((d) =>
-            d.values.map((v) => <DimensionTag key={v.id} dimension={d.name} value={v} />)
-          )}
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Classifications</h2>
+          <div className="q-grid-3">
+            {tags.map((d) => (
+              <div key={d.id} className="q-panel">
+                <div className="q-stat-label">{d.name}</div>
+                <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                  {d.values.map((v) => (
+                    <Link
+                      key={v.id}
+                      href={`/services/classifications/${encodeURIComponent(v.id)}`}
+                      className="q-badge q-badge-neutral"
+                      title={`See every service tagged ${d.name}: ${v.name}`}
+                    >
+                      {v.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
