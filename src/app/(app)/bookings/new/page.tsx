@@ -4,6 +4,9 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from '../NewBookingForm';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
+import { listActiveServices, listDimensionsByDomain, listDeliverables, listDeliveryContainers, listBlueprints, listVariablesForServices } from '@/modules/services/interface';
+import { listRoles } from '@/modules/team/interface';
+import { getStudioCurrency } from '@/kernel/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +17,16 @@ export default async function NewBookingPage() {
     redirect('/login');
   }
 
-  const [clientRows, packageRows] = await Promise.all([
-    listClients(), listPackages(),
+  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, allContainers, allWorkflows] = await Promise.all([
+    listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
+    listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints()
   ]);
+
+  const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
+    .map((v: any) => {
+      const sName = (activeServices as any[]).find(s => s.id === v.serviceId)?.name || 'Service';
+      return { ...v, serviceName: sName };
+    });
 
   const clientOptions = clientRows
     .filter((c: any) => c.status !== 'archived')
@@ -34,14 +44,17 @@ export default async function NewBookingPage() {
       id: p.id as string, 
       name: p.name as string,
       description: p.description as string | null,
-      pricing: p.pricing as any,           
-      priceUnit: p.price_unit as string | null,       
-      pricingVariant: p.pricing_variant as any, 
       durationMinutes: p.duration_minutes as number | null,
-      paymentPolicy: p.payment_policy as string | null,
-      services: (p.services || []).map((s: any) => s.name as string),  
-      deliverables: (p.deliverables || []).map((d: any) => d.name as string), 
+      services: p.services || [],  
+      deliverables: p.deliverables || [], 
+      dimensions: p.dimensions || [],
     }));
+
+  const serviceOptions = activeServices.map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    domainName: s.domain?.name || ''
+  }));
 
   return (
     <div className="q-page-narrow">
@@ -53,7 +66,19 @@ export default async function NewBookingPage() {
         </div>
       </header>
       
-      <NewBookingForm clients={clientOptions} packages={packageOptions} />
+      <NewBookingForm 
+        clients={clientOptions} 
+        packages={packageOptions} 
+        services={serviceOptions}
+        dimensionsByDomain={dimensionsByDomain}
+        allServices={activeServices as any}
+        allVariables={allVariables as any}
+        allDeliverables={allDeliverables as any}
+        allContainers={allContainers as any}
+        allWorkflows={allWorkflows as any}
+        roleOptions={(roles as any[]).map((r) => r.name)}
+        currencyCode={currencyCode}
+      />
     </div>
   );
 }

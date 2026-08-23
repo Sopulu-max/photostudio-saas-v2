@@ -25,8 +25,6 @@ export default async function BookingPage(props: {
   const currencyCode = org.currency;
   const services = pkg.serviceNames;
   const deliverables = pkg.deliverableNames;
-  const pricing: any = pkg.pricing || {};
-  const variant: any = pkg.pricing_variant || null;
   const durationMin: number | null = pkg.durationMinutes;
 
   const durationLabel = durationMin
@@ -65,20 +63,12 @@ export default async function BookingPage(props: {
               packageName={pkg.name}
               formSchema={pkg.formSchema}
               openVariables={openVariables}
-              variant={variant}
-              currencyCode={currencyCode}
+                            currencyCode={currencyCode}
             />
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '32px', padding: '24px 0', borderTop: '1px solid var(--q-color-ink-100)' }}>
-            {pricing.base_price != null && !variant && (
-              <div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--q-color-ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Price</div>
-                <div style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--q-color-ink-900)', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatMoney(pricing.base_price, pricing.currency || currencyCode)}
-                </div>
-              </div>
-            )}
+
             {durationLabel && (
               <div>
                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--q-color-ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Duration</div>

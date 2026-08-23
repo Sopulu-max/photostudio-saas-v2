@@ -35,13 +35,6 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
       return { ...v, serviceName: sName };
     });
 
-  const pricing: any = pkg.pricing || {};
-  const hasPrice = pricing.base_price != null;
-  const basePrice = Number(pricing.base_price || 0);
-  const paymentPolicy = pkg.payment_policy as 'deposit' | 'full' | null;
-  const depositPct = paymentPolicy === 'full' ? 100 : Number(pricing.deposit_percentage || 0);
-  const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
-
   return (
     <div className="q-page-narrow">
       <Link className="q-back" href={`/packages/${pkg.id}`}>&larr; Back to Package</Link>
@@ -67,10 +60,6 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           initial={{
             name: pkg.name,
             description: (pkg as any).description,
-            basePrice: hasPrice ? basePrice : null,
-            priceUnit: (pkg as any).price_unit,
-            paymentPolicy,
-            depositPercentage: depositPct,
             durationMinutes: (pkg as any).duration_minutes,
             serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
             // Read back off each bundled service, which is where they are held.
@@ -85,7 +74,6 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             narrowings: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.narrowedTo || []) as { values: { id: string }[] }[])
                 .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
-            pricingVariant: variant ? { axisLabel: variant.axis_label, tiers: variant.tiers } : null,
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
             variableValues: ((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),
           }}

@@ -20,7 +20,7 @@ export {
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   // Backwards: where is this service sold? The edge lives here, so the read does.
   listPackagesForService,
-  getProductionPlanForPackage, getPaymentPoliciesForPackages,
+  getProductionPlanForPackage,
   // What these packages promise the client will end up with
   getDeliverablesForPackages,
   // What a package left open — the questions a client still has to answer
@@ -30,7 +30,6 @@ export {
   // Intake questions
   getIntakeQuestions, getIntakeQuestionsPublic, updatePackageQuestions, getLockedQuestionIds,
 } from './domain';
-export type { PaymentPolicy, PricingVariant } from './domain';
 
 // How a deliverable's specification reads — one phrasing everywhere a client sees it.
 export { formatDeliverable } from './deliverableSpec';

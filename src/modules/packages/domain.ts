@@ -5,7 +5,6 @@ import { assertAllOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
-import { priceOf } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
 import { formatDeliverable } from './deliverableSpec';
@@ -22,7 +21,6 @@ import { formatDeliverable } from './deliverableSpec';
  */
 
 export type PaymentPolicy = 'deposit' | 'full';
-export type PricingVariant = { axisLabel: string; tiers: { label: string; price: number }[] };
 type StageInput = { name: string; roleName?: string | null; frontStage?: boolean | null };
 
 // ── Facet-style, studio-editable vocabulary (Category only — how work gets
@@ -54,12 +52,7 @@ function shapeDimensionLinks(links: any[] | null | undefined) {
 
 // ── The core: Package bundles Services ───────────────────────────────────────
 
-function cleanPricingVariant(input: PricingVariant | null | undefined): { axis_label: string; tiers: { label: string; price: number }[] } | null {
-  if (!input || !input.axisLabel?.trim()) return null;
-  const tiers = (input.tiers || []).map((t) => ({ label: (t.label || '').trim(), price: Number(t.price) || 0 })).filter((t) => t.label);
-  if (tiers.length === 0) return null;
-  return { axis_label: input.axisLabel.trim(), tiers };
-}
+
 
 async function buildExtraStages(raw: StageInput[]): Promise<{ name: string; order: number; role_id: string | null; front_stage: boolean | null }[]> {
   const { findOrCreateRole } = await import('@/modules/team/interface');
@@ -290,10 +283,6 @@ async function writePackageNarrowings(
 export async function createPackage(input: {
   name?: string;
   description?: string | null;
-  basePrice?: number | null;
-  priceUnit?: string | null;
-  paymentPolicy?: PaymentPolicy | null;
-  depositPercentage?: number | null;
   durationMinutes?: number | null;
   serviceIds?: string[];
   /**
@@ -317,7 +306,6 @@ export async function createPackage(input: {
    * services and a bare value could not say which one it narrowed.
    */
   narrowings?: { serviceId: string; valueId: string }[];
-  pricingVariant?: PricingVariant | null;
   formSchema?: any[];
   extraStages?: StageInput[];
 }) {
@@ -337,12 +325,7 @@ export async function createPackage(input: {
   const name = (input.name || '').trim() || bundledServiceNames.join(' + ') || 'Untitled package';
 
   const currency = await getStudioCurrency();
-  const paymentPolicy: PaymentPolicy | null = input.paymentPolicy === 'full' ? 'full' : input.paymentPolicy === 'deposit' ? 'deposit' : null;
-  const hasPrice = input.basePrice !== undefined && input.basePrice !== null;
-  const pricing = hasPrice || paymentPolicy
-    ? { base_price: input.basePrice ?? 0, currency, deposit_percentage: paymentPolicy === 'full' ? 100 : (input.depositPercentage ?? 0) }
-    : {};
-
+  
   // Everything a package points at comes from the form, so each set is checked
   // against this studio before any of it is linked. The relink is destructive
   // (delete then insert), which is exactly why it happens after the check.
@@ -362,11 +345,7 @@ export async function createPackage(input: {
       organization_id: orgId,
       name,
       description: input.description || null,
-      pricing,
-      payment_policy: paymentPolicy,
       duration_minutes: input.durationMinutes ?? null,
-      price_unit: (input.priceUnit || '').trim() || null,
-      pricing_variant: cleanPricingVariant(input.pricingVariant),
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
       status: 'active',
@@ -403,10 +382,6 @@ export async function updatePackage(input: {
   packageId: string;
   name?: string;
   description?: string | null;
-  basePrice?: number | null;
-  priceUnit?: string | null;
-  paymentPolicy?: PaymentPolicy | null;
-  depositPercentage?: number | null;
   durationMinutes?: number | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
@@ -425,11 +400,10 @@ export async function updatePackage(input: {
    * services and a bare value could not say which one it narrowed.
    */
   narrowings?: { serviceId: string; valueId: string }[];
-  pricingVariant?: PricingVariant | null;
   extraStages?: StageInput[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { data: existing } = await supabaseAdmin.from('packages').select('id, name, pricing, payment_policy').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from('packages').select('id, name').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Package not found');
 
   // Everything a package points at comes from the form, so each set is checked
@@ -449,18 +423,7 @@ export async function updatePackage(input: {
   if (input.name !== undefined) patch.name = input.name.trim() || existing.name;
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
-  if (input.priceUnit !== undefined) patch.price_unit = (input.priceUnit || '').trim() || null;
-  if (input.pricingVariant !== undefined) patch.pricing_variant = cleanPricingVariant(input.pricingVariant);
   if (input.extraStages !== undefined) patch.extra_stages = await buildExtraStages(input.extraStages);
-
-  const nextPolicy: PaymentPolicy | null = input.paymentPolicy !== undefined ? input.paymentPolicy : (existing.payment_policy as PaymentPolicy | null);
-  if (input.paymentPolicy !== undefined) patch.payment_policy = nextPolicy;
-  if (input.basePrice !== undefined || input.depositPercentage !== undefined || input.paymentPolicy !== undefined) {
-    const pricing: any = { ...(existing.pricing as any) };
-    if (input.basePrice !== undefined) { if (input.basePrice === null) delete pricing.base_price; else pricing.base_price = input.basePrice; }
-    if (nextPolicy) pricing.deposit_percentage = nextPolicy === 'full' ? 100 : (input.depositPercentage ?? pricing.deposit_percentage ?? 0);
-    patch.pricing = pricing;
-  }
 
   if (Object.keys(patch).length > 0) {
     const { error } = await supabaseAdmin.from('packages').update(patch).eq('id', input.packageId).eq('organization_id', orgId);
@@ -534,13 +497,13 @@ export async function duplicatePackage(packageId: string) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin
     .from('packages')
-    .select('name, description, pricing, payment_policy, duration_minutes, price_unit, pricing_variant, extra_stages, form_schema')
+    .select('name, description, duration_minutes, extra_stages, form_schema')
     .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Package not found');
 
   const { data: copy, error } = await supabaseAdmin
     .from('packages')
-    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, pricing: existing.pricing, payment_policy: existing.payment_policy, duration_minutes: existing.duration_minutes, price_unit: existing.price_unit, pricing_variant: existing.pricing_variant, extra_stages: existing.extra_stages, form_schema: existing.form_schema, status: 'active' })
+    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, duration_minutes: existing.duration_minutes, extra_stages: existing.extra_stages, form_schema: existing.form_schema, status: 'active' })
     .select('id').single();
   if (error || !copy) { console.error('Failed to duplicate package:', error); throw new Error('Failed to duplicate the package'); }
 
@@ -624,8 +587,6 @@ export async function listPackagesForService(serviceId: string) {
       id: p.id as string,
       name: p.name as string,
       status: (p.status ?? null) as string | null,
-      basePrice: priceOf(p.pricing)?.amount ?? null,
-      currency: (p.pricing?.currency ?? null) as string | null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -649,7 +610,7 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, pricing, status, duration_minutes, price_unit, payment_policy, pricing_variant, extra_stages,
+  id, name, description, status, duration_minutes, extra_stages,
   package_delivery_containers(container:delivery_containers(id, name)),
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
@@ -747,7 +708,7 @@ export async function listPackages() {
 export async function listPackagesPublic(orgId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
-    .select('id, name, description, pricing, duration_minutes, price_unit, pricing_variant, package_services(service:services(id, name))')
+    .select('id, name, description, duration_minutes, package_services(service:services(id, name))')
     .eq('organization_id', orgId).eq('status', 'active').order('created_at', { ascending: false });
   if (error) { console.error('Failed to list public packages:', error); return []; }
   return (data || []).map((p: any) => ({ ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean) }));
@@ -763,7 +724,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
   const { data } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, pricing, duration_minutes, price_unit, pricing_variant,
+      id, name, description, duration_minutes,
       package_services(id, service:services(
         id, name
       ), package_service_dimension_values(dimension_value:dimension_values(
@@ -780,10 +741,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id: p.id as string,
       name: p.name as string,
       description: (p.description ?? null) as string | null,
-      pricing: p.pricing as any,
       duration_minutes: (p.duration_minutes ?? null) as number | null,
-      price_unit: (p.price_unit ?? null) as string | null,
-      pricing_variant: p.pricing_variant as any,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
       dimensionValueIds: [...new Set(
         links.map((pv: any) => pv.dimension_value?.id).filter(Boolean)
@@ -803,7 +761,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, pricing, pricing_variant, duration_minutes, form_schema,
+      id, name, description, pricing_variant, duration_minutes, form_schema,
       package_services(service:services(name), package_deliverables(quantity, unit, spec, deliverable:deliverables(name)))
     `)
     .eq('id', packageId)
@@ -817,8 +775,6 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     id: p.id as string,
     name: p.name as string,
     description: (p.description ?? null) as string | null,
-    pricing: p.pricing,
-    pricing_variant: p.pricing_variant,
     durationMinutes: (p.duration_minutes ?? null) as number | null,
     formSchema: (p.form_schema || []) as any[],
     serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
@@ -945,10 +901,10 @@ export async function getDeliverablesForPackages(packageIds: string[]): Promise<
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** What Bookings needs to build a line — id, price, and its aggregated routing inputs. */
+/** What Bookings needs to build a line — id and its aggregated routing inputs. */
 export async function getPackageForBooking(packageId: string) {
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select('id, name, pricing, duration_minutes, price_unit, payment_policy, pricing_variant').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
+  const { data } = await supabaseAdmin.from('packages').select('id, name, duration_minutes, payment_policy').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   return data;
 }
 
@@ -994,7 +950,7 @@ export async function getProductionPlanForPackage(
 export async function getPaymentPoliciesForPackages(packageIds: string[]): Promise<Record<string, { policy: PaymentPolicy; depositPercentage: number }>> {
   if (packageIds.length === 0) return {};
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select('id, pricing, payment_policy').in('id', packageIds).eq('organization_id', orgId);
+  const { data } = await supabaseAdmin.from('packages').select('id, payment_policy').in('id', packageIds).eq('organization_id', orgId);
   const map: Record<string, { policy: PaymentPolicy; depositPercentage: number }> = {};
   for (const row of (data || []) as any[]) {
     const policy: PaymentPolicy = row.payment_policy === 'full' ? 'full' : 'deposit';

@@ -61,12 +61,16 @@ function deriveKey(label: string) {
 
 export function ServiceVariablesEditor({
   serviceId,
+  mode = 'edit',
+  onChange,
   initial,
   suggestions,
   domainName = '',
   serviceName = '',
 }: {
-  serviceId: string;
+  serviceId?: string;
+  mode?: 'create' | 'edit';
+  onChange?: (variables: any[]) => void;
   initial: ServiceVariable[];
   /** What the library and this studio's own services say varies about work like this. */
   suggestions?: VariableSuggestions;
@@ -78,6 +82,24 @@ export function ServiceVariablesEditor({
   const [rows, setRows] = useState<Row[]>(initial.map(toRow));
   const [saved, setSaved] = useState(false);
 
+  // When rows change, if we have an onChange handler, bubble them up in the API format
+  React.useEffect(() => {
+    if (onChange) {
+      onChange(rows
+        .filter((r) => r.label.trim())
+        .map((r) => ({
+          id: r.id,
+          key: r.key.trim() || deriveKey(r.label),
+          label: r.label.trim(),
+          kind: r.kind,
+          unit: variableIsNumeric(r.kind) ? r.unit.trim() || null : null,
+          options: variableNeedsOptions(r.kind) ? r.options : [],
+          min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
+          max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
+        })));
+    }
+  }, [rows]);
+
   const original = JSON.stringify(initial.map(toRow));
   const dirty = JSON.stringify(rows) !== original;
 
@@ -85,7 +107,7 @@ export function ServiceVariablesEditor({
    * What the app already knows varies about work like this — the library's own
    * services first where the name is recognised, the domain's union otherwise.
    */
-  const labelOptions = narrowFor(suggestions?.labels, domainName, serviceName)
+  const labelOptions = narrowFor(suggestions?.labels, domainName || '', serviceName || '')
     .filter((l) => !rows.some((r) => r.label.trim().toLowerCase() === l.toLowerCase()));
   const unitOptions = suggestions?.units || [];
 
@@ -125,7 +147,7 @@ export function ServiceVariablesEditor({
     startTransition(async () => {
       try {
         await setServiceVariables({
-          serviceId,
+          serviceId: serviceId!,
           variables: rows
             .filter((r) => r.label.trim())
             .map((r) => ({
@@ -251,12 +273,12 @@ export function ServiceVariablesEditor({
           + Add something that varies
         </button>
         <span className="q-spacer" />
-        {dirty && (
+        {mode !== 'create' && dirty && (
           <>
             <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setRows(initial.map(toRow))}>
               Cancel
             </button>
-            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending || !serviceId} onClick={save}>
               {isPending ? 'Saving…' : 'Save'}
             </button>
           </>

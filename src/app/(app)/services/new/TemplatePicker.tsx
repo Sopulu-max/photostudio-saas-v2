@@ -27,6 +27,7 @@ export function TemplatePicker({
   serviceSuggestions,
   deliverableSuggestions,
   dimensionSuggestions,
+  variableSuggestions,
   outputTypesByDomain,
   dimensionsByDomain,
 }: {
@@ -40,6 +41,7 @@ export function TemplatePicker({
   serviceSuggestions: Record<string, string[]>;
   deliverableSuggestions: Narrowed;
   dimensionSuggestions: DimensionSuggestions;
+  variableSuggestions: any;
   outputTypesByDomain: Record<string, { id: string; name: string }[]>;
   dimensionsByDomain: Record<string, StudioDimensionShape[]>;
 }) {
@@ -73,6 +75,7 @@ export function TemplatePicker({
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
           dimensionSuggestions={dimensionSuggestions}
+          variableSuggestions={variableSuggestions}
           outputTypesByDomain={outputTypesByDomain}
           dimensionsByDomain={dimensionsByDomain}
           initial={startFrom || {}}
@@ -99,6 +102,7 @@ export function TemplatePicker({
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
           dimensionSuggestions={dimensionSuggestions}
+          variableSuggestions={variableSuggestions}
           outputTypesByDomain={outputTypesByDomain}
           dimensionsByDomain={dimensionsByDomain}
           initial={{

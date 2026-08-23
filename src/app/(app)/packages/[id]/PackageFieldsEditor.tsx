@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, forwardRef, useImperativeHandle } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
-import type { PaymentPolicy, PricingVariant } from '@/modules/packages/interface';
 import { formatDeliverable } from '@/modules/packages/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
 
@@ -15,6 +14,7 @@ type ServiceOption = {
   deliverables?: { id: string; name: string }[];
   /** However many dimensions this service's domain asks, with what it carries. */
   dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
+  workflows?: { id: string; name: string }[];
 };
 
 /** A dimension a package can be classified by, and the domain that owns it. */
@@ -24,7 +24,6 @@ type DimensionOption = {
   domainName: string;
   values: { id: string; name: string }[];
 };
-type Tier = { label: string; price: string };
 type Stage = { name: string; roleName: string; frontStage: boolean };
 
 /**
@@ -44,7 +43,7 @@ import type { ServiceVariable } from '@/modules/services/interface';
  * single priced offering. Its routing is the union of every bundled
  * Service's Process, plus whatever this specific offering adds on its own.
  */
-export function PackageFieldsEditor({
+export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   mode,
   packageId,
   status,
@@ -58,6 +57,8 @@ export function PackageFieldsEditor({
   roleOptions,
   intendedValueId = null,
   initial,
+  onSubmitOverride,
+  hideControls,
 }: {
   mode: 'create' | 'edit';
   packageId?: string;
@@ -79,10 +80,6 @@ export function PackageFieldsEditor({
   initial: {
     name?: string;
     description?: string | null;
-    basePrice?: number | null;
-    priceUnit?: string | null;
-    paymentPolicy?: PaymentPolicy | null;
-    depositPercentage?: number | null;
     durationMinutes?: number | null;
     serviceIds?: string[];
     /** What the package promises, each on the bundled service that produces it. */
@@ -92,11 +89,12 @@ export function PackageFieldsEditor({
     workflows?: { serviceId: string; blueprintId: string }[];
     /** Each value paired with the bundled service this package narrows to it. */
     narrowings?: { serviceId: string; valueId: string }[];
-    pricingVariant?: PricingVariant | null;
     extraStages?: Stage[];
     variableValues?: { serviceVariableId: string; value: unknown }[];
   };
-}) {
+  onSubmitOverride?: (payload: any) => Promise<void> | void;
+  hideControls?: boolean;
+}, ref) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -104,12 +102,6 @@ export function PackageFieldsEditor({
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>(initial.serviceIds || []);
-  const [hasPrice, setHasPrice] = useState(initial.basePrice != null);
-  const [price, setPrice] = useState(String(initial.basePrice ?? ''));
-  const [unit, setUnit] = useState(initial.priceUnit ?? '');
-  const [hasPolicy, setHasPolicy] = useState(!!initial.paymentPolicy);
-  const [policy, setPolicy] = useState<PaymentPolicy>(initial.paymentPolicy ?? 'deposit');
-  const [deposit, setDeposit] = useState(String(initial.depositPercentage ?? 0));
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
   
   /*
@@ -210,9 +202,6 @@ export function PackageFieldsEditor({
   const [variableValues, setVariableValues] = useState<Record<string, string>>(initialVarsMap);
   const setVariable = (id: string, raw: string) => setVariableValues((v) => ({ ...v, [id]: raw }));
 
-  const [hasVariant, setHasVariant] = useState(!!initial.pricingVariant);
-  const [axisLabel, setAxisLabel] = useState(initial.pricingVariant?.axisLabel ?? '');
-  const [tiers, setTiers] = useState<Tier[]>((initial.pricingVariant?.tiers || []).map((t) => ({ label: t.label, price: String(t.price) })));
   const [extraStages, setExtraStages] = useState<Stage[]>(initial.extraStages || []);
 
   const bundledNames = allServices.filter((s) => serviceIds.includes(s.id)).map((s) => s.name);
@@ -247,14 +236,38 @@ export function PackageFieldsEditor({
       } else {
         // Adding a service: auto-promise what it produces, to save clicks.
         const addedService = allServices.find((s) => s.id === id);
-        const produces = addedService?.deliverables || [];
-        if (produces.length > 0) {
-          setPromises((prev) => [
-            ...prev,
-            ...produces
-              .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
-              .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null })),
-          ]);
+        if (addedService) {
+          const produces = addedService.deliverables || [];
+          if (produces.length > 0) {
+            setPromises((prev) => [
+              ...prev,
+              ...produces
+                .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
+                .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null })),
+            ]);
+          }
+
+          const sw = addedService.workflows || [];
+          if (sw.length > 0) {
+            setWorkflows((prev) => [
+              ...prev,
+              ...sw.filter((w) => !prev.some((pw) => pw.serviceId === id && pw.blueprintId === w.id))
+                   .map((w) => ({ serviceId: id, blueprintId: w.id }))
+            ]);
+          }
+
+          const sDims = addedService.dimensions || [];
+          if (sDims.length > 0) {
+            const defaultTags = sDims.flatMap((d) => d.values.map((v: any) => v.id));
+            if (defaultTags.length > 0) {
+              setNarrowings((prev) => {
+                const existing = prev[id] || [];
+                const toAdd = defaultTags.filter(tid => !existing.includes(tid));
+                if (toAdd.length === 0) return prev;
+                return { ...prev, [id]: [...existing, ...toAdd] };
+              });
+            }
+          }
         }
 
         // The value the operator came in with finally has a service to narrow,
@@ -275,9 +288,6 @@ export function PackageFieldsEditor({
   const addContainer = (id: string) => { if (id && !containers.includes(id)) setContainers(d => [...d, id]); setNewContainerId(''); };
   const removeContainer = (id: string) => setContainers(d => d.filter(x => x !== id));
 
-  const addTier = () => setTiers((t) => [...t, { label: '', price: '' }]);
-  const patchTier = (i: number, updates: Partial<Tier>) => setTiers((t) => t.map((row, idx) => (idx === i ? { ...row, ...updates } : row)));
-  const removeTier = (i: number) => setTiers((t) => t.filter((_, idx) => idx !== i));
 
   const addStage = () => setExtraStages((s) => [...s, { name: '', roleName: '', frontStage: true }]);
   const patchStage = (i: number, updates: Partial<Stage>) => setExtraStages((s) => s.map((row, idx) => (idx === i ? { ...row, ...updates } : row)));
@@ -300,10 +310,6 @@ export function PackageFieldsEditor({
     return {
       name: effectiveName,
       description: description.trim() || null,
-      basePrice: hasPrice ? (price === '' ? 0 : parseFloat(price)) : null,
-      priceUnit: unit.trim() || null,
-      paymentPolicy: hasPolicy ? policy : null,
-      depositPercentage: policy === 'deposit' ? (deposit === '' ? 0 : parseInt(deposit, 10)) : null,
       durationMinutes: duration > 0 ? duration : null,
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
@@ -314,17 +320,19 @@ export function PackageFieldsEditor({
       narrowings: serviceIds.flatMap((sid) =>
         (narrowings[sid] || []).map((valueId) => ({ serviceId: sid, valueId }))
       ),
-      pricingVariant: (hasVariant && axisLabel.trim() && tiers.some((t) => t.label.trim()))
-        ? { axisLabel: axisLabel.trim(), tiers: tiers.filter((t) => t.label.trim()).map((t) => ({ label: t.label.trim(), price: parseFloat(t.price) || 0 })) }
-        : null,
       extraStages: extraStages.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), roleName: s.roleName.trim() || null, frontStage: s.frontStage })),
       variableValues: payloadVariableValues,
     };
   };
 
+  useImperativeHandle(ref, () => ({
+    buildPayload,
+  }), [buildPayload]);
+
   const submit = () => {
     if (packageId) startTransition(async () => {
       try { 
+        if (onSubmitOverride) { await onSubmitOverride({ packageId, ...buildPayload() }); return; }
         await updatePackage({ packageId, ...buildPayload() }); 
         router.refresh(); 
         router.push(`/packages/${packageId}`);
@@ -333,7 +341,11 @@ export function PackageFieldsEditor({
     });
   };
   const submitCreate = () => startTransition(async () => {
-    try { const { packageId: newId } = await createPackage(buildPayload()); router.push(`/packages/${newId}`); }
+    try { 
+      if (onSubmitOverride) { await onSubmitOverride(buildPayload()); return; }
+      const { packageId: newId } = await createPackage(buildPayload()); 
+      router.push(`/packages/${newId}`); 
+    }
     catch (e: any) { alert(e?.message || 'Failed to create the package.'); }
   });
 
@@ -513,7 +525,24 @@ export function PackageFieldsEditor({
   return (
     <div className="q-stack q-stack-lg">
       <div className="q-card q-section">
-        <h2 className="q-section-title">1. What it bundles</h2>
+        <h2 className="q-section-title">1. Package Identity</h2>
+        <div className="q-stack q-stack-md">
+          <div className="q-field">
+            <label className="q-label">Name</label>
+            <input className="q-input" value={effectiveName}
+              onFocus={() => { if (!nameTouched) setName(composed); }}
+              onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
+            <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled above — type here to give it a name of your own.'}</span>
+          </div>
+          <div className="q-field">
+            <label className="q-label">Description</label>
+            <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
+          </div>
+        </div>
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">2. What it bundles</h2>
         <p className="q-meta" style={{ marginBottom: '12px' }}>Pick the real Services this offering is built from. Once selected, configure their specifics below.</p>
         <div className="q-stack q-stack-md">
           {allServices.map((s) => {
@@ -551,12 +580,15 @@ export function PackageFieldsEditor({
                   <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
                     {s.description && <p className="q-meta-sm" style={{ marginBottom: '16px' }}>{s.description}</p>}
                     <div className="q-grid-cards">
-                      {s.dimensions && s.dimensions.length > 0 && (
-                        <div className="q-stack q-stack-sm">
-                          <h4 className="q-strong">Classifications</h4>
-                          {s.dimensions.map(d => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
-                        </div>
-                      )}
+                      {(() => {
+                        const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
+                        return domainDims.length > 0 && (
+                          <div className="q-stack q-stack-sm">
+                            <h4 className="q-strong">Classifications</h4>
+                            {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
+                          </div>
+                        );
+                      })()}
                       
                       {vars.length > 0 && (
                         <div className="q-stack q-stack-sm">
@@ -597,6 +629,37 @@ export function PackageFieldsEditor({
                                   {v.kind === 'text' && (
                                     <input className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem' }} />
                                   )}
+                                  {v.kind === 'textarea' && (
+                                    <textarea className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem', minHeight: '3rem' }} />
+                                  )}
+                                  {v.kind === 'date' && (
+                                    <input className="q-input" type="date" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }} />
+                                  )}
+                                  {v.kind === 'url' && (
+                                    <input className="q-input" type="url" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="https://..." style={{ minWidth: '10rem' }} />
+                                  )}
+                                  {v.kind === 'multichoice' && (
+                                    <div className="q-stack q-stack-xs">
+                                      {v.options.map((o: string) => {
+                                        const selected = current.split(',').filter(Boolean);
+                                        const isOn = selected.includes(o);
+                                        return (
+                                          <label key={o} className="q-row" style={{ gap: '6px', cursor: 'pointer' }}>
+                                            <input
+                                              type="checkbox"
+                                              checked={isOn}
+                                              disabled={isPending}
+                                              onChange={() => {
+                                                const next = isOn ? selected.filter(x => x !== o) : [...selected, o];
+                                                setVariable(v.id, next.join(','));
+                                              }}
+                                            />
+                                            <span>{o}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                   {current !== '' && (
                                     <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
                                   )}
@@ -620,92 +683,7 @@ export function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">2. Package Identity</h2>
-        <div className="q-stack q-stack-md">
-          <div className="q-field">
-            <label className="q-label">Name</label>
-            <input className="q-input" value={effectiveName}
-              onFocus={() => { if (!nameTouched) setName(composed); }}
-              onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
-            <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled above — type here to give it a name of your own.'}</span>
-          </div>
-          <div className="q-field">
-            <label className="q-label">Description</label>
-            <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
-          </div>
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">3. Price</h2>
-        <label className="q-row q-meta-plain" style={{ gap: '8px', marginBottom: '12px' }}>
-          <input type="checkbox" checked={hasPrice} onChange={(e) => setHasPrice(e.target.checked)} />
-          This package has a price
-        </label>
-        {hasPrice && (
-          <div className="q-stack q-stack-md">
-            <div className="q-grid-3">
-              <div className="q-field">
-                <label className="q-label">Base price ({currencyCode})</label>
-                <input className="q-input" type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-              </div>
-              <div className="q-field">
-                <label className="q-label">Priced per</label>
-                <input className="q-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="flat price" list="unit-suggestions" />
-                <datalist id="unit-suggestions"><option value="hour" /><option value="day" /><option value="person" /></datalist>
-              </div>
-            </div>
-            <label className="q-row q-meta-plain" style={{ gap: '8px' }}>
-              <input type="checkbox" checked={hasPolicy} onChange={(e) => setHasPolicy(e.target.checked)} />
-              Decide payment policy now (deposit or full)
-            </label>
-            {hasPolicy && (
-               <div className="q-grid-3">
-                 <div className="q-field">
-                   <label className="q-label">Payment</label>
-                   <select className="q-select" value={policy} onChange={(e) => setPolicy(e.target.value as PaymentPolicy)}>
-                     <option value="deposit">Deposit required</option>
-                     <option value="full">Full payment required</option>
-                   </select>
-                 </div>
-                 {policy === 'deposit' && (
-                   <div className="q-field">
-                     <label className="q-label">Deposit (%)</label>
-                     <input className="q-input" type="number" min="0" max="100" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
-                   </div>
-                 )}
-               </div>
-            )}
-          </div>
-        )}
-
-        <div className="q-stack q-stack-md" style={{ marginTop: '16px' }}>
-          <label className="q-row q-meta-plain" style={{ gap: '8px' }}>
-            <input type="checkbox" checked={hasVariant} onChange={(e) => setHasVariant(e.target.checked)} />
-            Price varies by scope (outfits, hours, locations…)
-          </label>
-          {hasVariant && (
-            <div className="q-stack q-stack-sm">
-              <div className="q-field" style={{ maxWidth: '16rem' }}>
-                <label className="q-label">What varies</label>
-                <input className="q-input" value={axisLabel} onChange={(e) => setAxisLabel(e.target.value)} placeholder="e.g. Outfits" />
-              </div>
-              {tiers.map((t, i) => (
-                <div key={i} className="q-row">
-                  <input className="q-input q-fill" placeholder="e.g. 2 outfits" value={t.label} onChange={(e) => patchTier(i, { label: e.target.value })} />
-                  <span className="q-meta-sm">{currencyCode}</span>
-                  <input className="q-input" type="number" min="0" step="0.01" style={{ width: '8rem' }} value={t.price} onChange={(e) => patchTier(i, { price: e.target.value })} />
-                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => removeTier(i)}>Remove</button>
-                </div>
-              ))}
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={addTier} style={{ alignSelf: 'flex-start' }}>+ Add tier</button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">4. Delivery & Workflows</h2>
+        <h2 className="q-section-title">3. Delivery & Workflows</h2>
         
         <div className="q-stack q-stack-md">
           {/*
@@ -769,38 +747,42 @@ export function PackageFieldsEditor({
         </div>
       </div>
 
-      <div className="q-row">
-        {mode === 'create' ? (
-          <button className="q-btn q-btn-primary" disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create package'}</button>
-        ) : (
-          <>
-            <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
-            <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/packages/${packageId}`)}>Cancel</button>
-            <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
-              onClick={() => startTransition(async () => {
-                try { const { packageId: copyId } = await duplicatePackage(packageId!); router.push(`/packages/${copyId}`); }
-                catch (e: any) { alert(e?.message || 'Failed to duplicate the package.'); }
-              })}>
-              Duplicate
-            </button>
-            <span className="q-spacer" />
-            <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
-              onClick={() => startTransition(async () => {
-                try { await setPackageStatus({ packageId: packageId!, status: retired ? 'active' : 'retired' }); router.refresh(); }
-                catch (e: any) { alert(e?.message || 'Something went wrong.'); }
-              })}>
-              {retired ? 'Make sellable again' : 'Retire this package'}
-            </button>
-          </>
-        )}
-      </div>
-      {mode === 'edit' && (
-        retired ? (
-          <div className="q-note q-note-warn"><span className="q-meta-plain">Retired — it won&rsquo;t appear when adding services to a booking.</span></div>
-        ) : (
-          <span className="q-meta-sm">Retiring hides it from new bookings. Past bookings keep their line and price — nothing is deleted.</span>
-        )
+      {!hideControls && (
+        <>
+          <div className="q-row">
+            {mode === 'create' ? (
+              <button className="q-btn q-btn-primary" disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create package'}</button>
+            ) : (
+              <>
+                <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
+                <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/packages/${packageId}`)}>Cancel</button>
+                <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    try { const { packageId: copyId } = await duplicatePackage(packageId!); router.push(`/packages/${copyId}`); }
+                    catch (e: any) { alert(e?.message || 'Failed to duplicate the package.'); }
+                  })}>
+                  Duplicate
+                </button>
+                <span className="q-spacer" />
+                <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    try { await setPackageStatus({ packageId: packageId!, status: retired ? 'active' : 'retired' }); router.refresh(); }
+                    catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+                  })}>
+                  {retired ? 'Make sellable again' : 'Retire this package'}
+                </button>
+              </>
+            )}
+          </div>
+          {mode === 'edit' && (
+            retired ? (
+              <div className="q-note q-note-warn"><span className="q-meta-plain">Retired — it won&rsquo;t appear when adding services to a booking.</span></div>
+            ) : (
+              <span className="q-meta-sm">Retiring hides it from new bookings. Past bookings keep their line and price — nothing is deleted.</span>
+            )
+          )}
+        </>
       )}
     </div>
   );
-}
+});

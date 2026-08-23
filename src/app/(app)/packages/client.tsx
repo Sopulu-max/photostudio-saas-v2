@@ -49,7 +49,6 @@ export function PackagesClient({
         <div className="q-row q-row-between">
           <div>
             <h3 className="q-section-title">{pkg.name}</h3>
-            <div className="q-num q-strong">{formatMoney(pkg.pricing?.base_price, pkg.pricing?.currency || currencyCode)}</div>
           </div>
           <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
         </div>

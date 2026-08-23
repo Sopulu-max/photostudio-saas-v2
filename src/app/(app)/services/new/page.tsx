@@ -4,6 +4,7 @@ import {
   listBlueprints, listServiceDomains, listServices,
   listDimensionsByDomain, listOutputTypesByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
+  buildVariableSuggestions,
 } from '@/modules/services/interface';
 import { TemplatePicker } from './TemplatePicker';
 
@@ -35,6 +36,7 @@ export default async function NewServicePage(props: {
   const serviceSuggestions = buildServiceSuggestions(services as any);
   const deliverableSuggestions = buildDeliverableSuggestions(services as any);
   const dimensionSuggestions = buildDimensionSuggestions(services as any);
+  const variableSuggestions = buildVariableSuggestions(services as any);
 
   return (
     <TemplatePicker
@@ -46,6 +48,7 @@ export default async function NewServicePage(props: {
       serviceSuggestions={serviceSuggestions}
       deliverableSuggestions={deliverableSuggestions}
       dimensionSuggestions={dimensionSuggestions}
+      variableSuggestions={variableSuggestions}
       outputTypesByDomain={outputTypesByDomain}
       dimensionsByDomain={dimensionsByDomain}
     />

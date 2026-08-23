@@ -25,13 +25,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
     getIntakeQuestions(params.id)
   ]);
 
-  const pricing: any = pkg.pricing || {};
-  const hasPrice = pricing.base_price != null;
-  const basePrice = Number(pricing.base_price || 0);
-  const paymentPolicy = pkg.payment_policy as 'deposit' | 'full' | null;
-  const depositPct = paymentPolicy === 'full' ? 100 : Number(pricing.deposit_percentage || 0);
-  const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
-
   const services = (pkg as any).services || [];
   const containers = (pkg as any).containers || [];
   const extraStages = (pkg as any).extra_stages || [];
@@ -67,15 +60,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         <div className="q-card q-section">
           <h2 className="q-section-title">At a glance</h2>
           <div className="q-grid-3">
-            <div className="q-panel">
-              <div className="q-stat-label">Price</div>
-              <div className="q-stat-value">{hasPrice ? formatMoney(basePrice, currencyCode) : '—'}</div>
-              {variant && <span className="q-meta-sm">Varies by {variant.axis_label.toLowerCase()}</span>}
-            </div>
-            <div className="q-panel">
-              <div className="q-stat-label">Payment</div>
-              <div className="q-stat-value">{paymentPolicy === 'full' ? 'Full price' : paymentPolicy === 'deposit' ? `${depositPct}% deposit` : 'Not set'}</div>
-            </div>
             <div className="q-panel">
               <div className="q-stat-label">Duration</div>
               <div className="q-stat-value">{(pkg as any).duration_minutes ? `${(pkg as any).duration_minutes} min` : 'Not set'}</div>

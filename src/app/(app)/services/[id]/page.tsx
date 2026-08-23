@@ -6,7 +6,6 @@ import type { ServiceDimensionTag } from '@/modules/services/interface';
 // Composed here rather than reached for: Packages owns `package ↔ service`, and
 // Services never reads package tables. The page joins the two modules.
 import { listPackagesForService } from '@/modules/packages/interface';
-import { formatMoney } from '@/kernel/currency';
 import { DimensionTag } from '../DimensionTag';
 import { CheckCircle2, CircleDashed, Package as PackageIcon } from 'lucide-react';
 
@@ -94,6 +93,27 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           )}
         </div>
 
+        {/* What varies — the quantities a package can fix or leave for the client */}
+        {dims.variables && dims.variables.length > 0 && (
+          <div className="q-card q-section">
+            <h2 className="q-section-title">What varies</h2>
+            <p className="q-meta" style={{ marginBottom: '16px' }}>
+              These are the quantities a package can fix or leave open for the client to answer at booking time.
+            </p>
+            <div className="q-stack q-stack-sm">
+              {dims.variables.map((v: any, i: number) => (
+                <div key={i} className="q-tile q-row q-row-between">
+                  <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    <strong className="q-strong">{v.label}</strong>
+                    {v.unit && <span className="q-meta-sm">({v.unit})</span>}
+                  </span>
+                  <span className="q-badge q-badge-neutral">{v.kind}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/*
           * Where this is sold — `package ↔ service`, read from this end.
           *
@@ -118,9 +138,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
                     <strong className="q-strong">{p.name}</strong>
                   </span>
                   <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-                    {p.basePrice != null && (
-                      <span className="q-num">{formatMoney(p.basePrice, p.currency || 'USD')}</span>
-                    )}
+
                     {p.status === 'retired' && <span className="q-badge q-badge-neutral">retired</span>}
                   </span>
                 </Link>

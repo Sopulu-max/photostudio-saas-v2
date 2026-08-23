@@ -140,9 +140,9 @@ describe('Core Loop Verification', () => {
     const { packageId } = await createPackage({
       name: 'Standard Portrait Package',
       description: 'Everything you need',
-      basePrice: 500,
-      paymentPolicy: 'deposit',
-      depositPercentage: 50,
+      
+      
+      
       durationMinutes: 60,
       serviceIds: [serviceId],
       deliverables: [{ serviceId, deliverableId: outputTypeId }],
@@ -277,7 +277,7 @@ describe('Core Loop Verification', () => {
     // The package fixes one and deliberately leaves the other open.
     const { packageId } = await createPackage({
       name: 'Half-fixed Package',
-      basePrice: 300,
+      
       serviceIds: [serviceId],
       variableValues: [{ serviceVariableId: outfits.id, value: 2 }],
     });
@@ -333,7 +333,7 @@ describe('Core Loop Verification', () => {
     const { serviceId } = await createService({ serviceDomain: 'Photography', name: 'Promised Session' });
     const { packageId } = await createPackage({
       name: 'Two-Promise Package',
-      basePrice: 900,
+      
       serviceIds: [serviceId],
       deliverables: [
         { serviceId, deliverableId: photosId },
@@ -400,7 +400,7 @@ describe('Core Loop Verification', () => {
     const [outfits] = await listServiceVariables(serviceId);
     const { packageId } = await createPackage({
       name: 'Billable Package',
-      basePrice: 120000,
+      
       serviceIds: [serviceId],
       variableValues: [{ serviceVariableId: outfits.id, value: 2 }],
     });
@@ -444,7 +444,7 @@ describe('Core Loop Verification', () => {
 
     // Re-pricing the package afterwards must not rewrite a document already
     // issued — the same snapshot rule booking lines follow.
-    await updatePackage({ packageId, basePrice: 500000 });
+    await updatePackage({ packageId,  });
     expect((await getInvoice(invoiceId))!.total).toBe(120000);
 
     // Part payment leaves it outstanding, not paid.
@@ -968,13 +968,12 @@ describe('Core Loop Verification', () => {
     expect(await listPackagesForService(serviceId)).toEqual([]);
 
     const { packageId } = await createPackage({
-      name: 'Portrait Session', serviceIds: [serviceId], basePrice: 25000,
+      name: 'Portrait Session', serviceIds: [serviceId], 
     });
     await createPackage({ name: 'Portrait Deluxe', serviceIds: [serviceId] });
 
     const sold = await listPackagesForService(serviceId);
     expect(sold.map((p) => p.name)).toEqual(['Portrait Deluxe', 'Portrait Session']);
-    expect(sold.find((p) => p.id === packageId)!.basePrice).toBe(25000);
 
     // Retiring the package is not retiring the service, and the read says so
     // rather than quietly dropping it.
@@ -992,7 +991,7 @@ describe('Core Loop Verification', () => {
       dimensions: [{ name: 'Occasion', values: ['Anniversary'] }],
     });
     const { packageId } = await createPackage({
-      name: 'Anniversary Package', serviceIds: [serviceId], basePrice: 40000,
+      name: 'Anniversary Package', serviceIds: [serviceId], 
     });
 
     const domains = await listServiceDomains();

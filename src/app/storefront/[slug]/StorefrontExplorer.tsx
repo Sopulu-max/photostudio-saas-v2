@@ -2,10 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-// The shared formatter, not a local one. It is a pure function with no server
-// dependency, so a client component can use it — and prices on the storefront
-// must read exactly as they do on the package page, the contract and the invoice.
-import { formatMoney } from '@/kernel/currency';
 
 interface Service {
   id: string;
@@ -23,8 +19,6 @@ interface Package {
   id: string;
   name: string;
   description: string | null;
-  pricing: any;
-  price_unit: string | null;
   services: Service[];
   dimensions?: Dimension[];
 }
@@ -156,13 +150,8 @@ export default function StorefrontExplorer({ packages, slug, currencyCode }: Pro
             <div className="q-row" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)', justifyContent: 'space-between' }}>
               <div>
                 <span className="q-doc-strong" style={{ fontSize: '1.1rem' }}>
-                  {pkg.pricing?.base_price != null
-                    ? formatMoney(pkg.pricing.base_price, pkg.pricing.currency || currencyCode)
-                    : 'Custom quote'}
+                  Custom quote
                 </span>
-                {pkg.price_unit && (
-                  <span className="q-meta" style={{ marginLeft: '4px' }}>/{pkg.price_unit}</span>
-                )}
               </div>
               <span className="q-link">Book →</span>
             </div>

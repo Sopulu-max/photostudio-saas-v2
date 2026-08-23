@@ -692,6 +692,31 @@ export async function duplicateService(serviceId: string) {
     );
   }
 
+  // A fork is the same work — what varies about it varies the same way.
+  const { data: vars } = await supabaseAdmin
+    .from('service_variables')
+    .select('key, label, kind, unit, options, default_value, min_value, max_value, position')
+    .eq('service_id', serviceId)
+    .eq('organization_id', orgId)
+    .order('position');
+  if (vars && vars.length > 0) {
+    await supabaseAdmin.from('service_variables').insert(
+      vars.map((v: any) => ({
+        organization_id: orgId,
+        service_id: copy.id,
+        key: v.key,
+        label: v.label,
+        kind: v.kind,
+        unit: v.unit,
+        options: v.options,
+        default_value: v.default_value,
+        min_value: v.min_value,
+        max_value: v.max_value,
+        position: v.position,
+      }))
+    );
+  }
+
   await logEvent({ organizationId: orgId, entityType: 'service', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromServiceId: serviceId } });
   revalidatePath('/services');
   return { serviceId: copy.id };

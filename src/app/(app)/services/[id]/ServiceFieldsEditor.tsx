@@ -7,6 +7,7 @@ import { narrowFor, dimensionKey } from '@/modules/services/interface';
 import type { Narrowed, DimensionSuggestions, StudioDimensionShape, DimensionWrite } from '@/modules/services/interface';
 import { CheckCircle2, Plus, Settings } from 'lucide-react';
 import { PickOne, PickMany } from '@/components/Pick';
+import { ServiceVariablesEditor } from './ServiceVariablesEditor';
 
 /**
  * Defining a service, in the vocabulary of its own domain.
@@ -30,7 +31,7 @@ import { PickOne, PickMany } from '@/components/Pick';
  */
 export function ServiceFieldsEditor({
   mode, serviceId, status, domainOptions, outputTypesByDomain, dimensionsByDomain,
-  serviceSuggestions, deliverableSuggestions, dimensionSuggestions,
+  serviceSuggestions, deliverableSuggestions, dimensionSuggestions, variableSuggestions,
   initial,
 }: {
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
@@ -43,6 +44,7 @@ export function ServiceFieldsEditor({
   serviceSuggestions?: Record<string, string[]>;
   deliverableSuggestions?: Narrowed;
   dimensionSuggestions?: DimensionSuggestions;
+  variableSuggestions?: any;
   initial: any;
 }) {
   const router = useRouter();
@@ -53,6 +55,7 @@ export function ServiceFieldsEditor({
   const [domain, setDomain] = useState(initial.serviceDomain ?? '');
   const [primaryDeliverable, setPrimaryOutputType] = useState(initial.primaryDeliverable ?? '');
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
+  const [variables, setVariables] = useState<any[]>(initial.variables || []);
 
   /*
    * Chosen values, keyed by dimension name rather than by dimension id.
@@ -166,6 +169,7 @@ export function ServiceFieldsEditor({
           primaryDeliverable: primaryDeliverable || null,
           deliverables,
           dimensions,
+          variables,
         };
         if (mode === 'create') {
           // createService answers { serviceId }, not the id. Interpolating the
@@ -359,6 +363,26 @@ export function ServiceFieldsEditor({
           </div>
         </div>
       </div>
+
+      {/* Variables Section - Only rendered if in create mode (edit mode has it as a separate page section) */}
+      {mode === 'create' && (
+        <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
+          <h3 className="q-section-title">Variables</h3>
+          <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+            What may vary about this service when a client books it (e.g., hours of coverage, outfits).
+          </span>
+          <div style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
+            <ServiceVariablesEditor
+              mode="create"
+              initial={variables}
+              onChange={setVariables}
+              suggestions={variableSuggestions}
+              domainName={domainName}
+              serviceName={name}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 4. Actions */}
       <div className="q-row q-row-between" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--q-color-border)' }}>

@@ -6,7 +6,7 @@ import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHou
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf } from '@/kernel/money';
-import { getPackageForBooking, getProductionPlanForPackage, getPaymentPoliciesForPackages, getPackageVariables } from '@/modules/packages/interface';
+import { getPackageForBooking, getProductionPlanForPackage, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
 import { startWorkForBookingLine } from '@/modules/production/interface';
 import { revalidatePath } from 'next/cache';
@@ -84,11 +84,14 @@ async function resolveScheduledFor(
 
 export async function createBooking(input: {
   contactId?: string | null;
-  packageId?: string | null;
-  linePrice?: Record<string, unknown>;
+  lines?: {
+    packageId?: string | null;
+    linePrice?: Record<string, unknown>;
+    title?: string;
+    variableAnswers?: { serviceVariableId: string; value: unknown }[];
+  }[];
   scheduledFor?: string | null;
   title?: string;
-  variableAnswers?: { serviceVariableId: string; value: unknown }[];
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -115,14 +118,18 @@ export async function createBooking(input: {
       .from('contacts').select('display_name').eq('id', input.contactId).eq('organization_id', orgId).maybeSingle();
     clientName = c?.display_name ?? null;
   }
-  let packageName: string | null = null;
-  if (input.packageId) {
-    const pkg = await getPackageForBooking(input.packageId);
-    packageName = pkg?.name ?? null;
+  const pkgNames = [];
+  if (input.lines) {
+    for (const line of input.lines) {
+      if (line.packageId) {
+        const pkg = await getPackageForBooking(line.packageId);
+        if (pkg?.name) pkgNames.push(pkg.name);
+      }
+    }
   }
   const title = custom || composeTitle({
     clientName,
-    lineTitles: packageName ? [packageName] : [],
+    lineTitles: pkgNames,
     scheduledFor,
   });
 
@@ -153,15 +160,19 @@ export async function createBooking(input: {
     payload: { title },
   });
 
-  // A chosen package becomes the booking's first line straight away.
-  if (input.packageId) {
-    await addBookingLine({ 
-      bookingId: booking.id, 
-      packageId: input.packageId, 
-      title: '', 
-      price: input.linePrice,
-      variableAnswers: input.variableAnswers,
-    });
+  // Create lines.
+  if (input.lines) {
+    for (const line of input.lines) {
+      if (line.packageId) {
+        await addBookingLine({ 
+          bookingId: booking.id, 
+          packageId: line.packageId, 
+          title: line.title || '', 
+          price: line.linePrice,
+          variableAnswers: line.variableAnswers,
+        });
+      }
+    }
   }
 
   revalidatePath('/bookings');
@@ -691,17 +702,7 @@ export async function createContractForBooking(bookingId: string) {
   // conservative reading — nothing assumed due to book, the full amount
   // invoiced later — rather than a studio-configurable default that no
   // longer exists.
-  const packageIds = [...new Set((lines || []).map((l: any) => l.package_id).filter(Boolean))] as string[];
-  const policies = await getPaymentPoliciesForPackages(packageIds);
-  const resolved = Object.values(policies) as { policy: string; depositPercentage: number }[];
-  let depositPercentage: number;
-  if (resolved.some((p) => p.policy === 'full')) {
-    depositPercentage = 100;
-  } else if (resolved.length > 0) {
-    depositPercentage = Math.max(...resolved.map((p) => p.depositPercentage));
-  } else {
-    depositPercentage = 0;
-  }
+  const depositPercentage = 0;
 
   const terms = { base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems };
 
@@ -1519,11 +1520,10 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
 
   // The questions come from Packages — never read its tables from here.
   const { getIntakeQuestions } = await import('@/modules/packages/interface');
-  const packageIds = Array.from(
-    new Set(((booking as any).booking_lines || []).map((l: any) => l.package_id).filter(Boolean))
-  ) as string[];
+  
 
-  const questions = (await Promise.all(packageIds.map((id) => getIntakeQuestions(id)))).flat();
+  const packageIds = Array.from(new Set((booking?.booking_lines || []).map((l: any) => l.package_id).filter(Boolean))) as string[];
+  const questions = (await Promise.all(packageIds.map((id: string) => getIntakeQuestions(id)))).flat();
   const byId = new Map(questions.map((q) => [q.id, q]));
 
   const { fieldType } = await import('@/modules/services/fieldTypes');

@@ -77,9 +77,9 @@ describe('A booking, all the way to paid', () => {
     const { packageId } = await createPackage({
       name: 'Golden Hour Portrait',
       serviceIds: [serviceId],
-      basePrice: 200000,
-      paymentPolicy: 'deposit',
-      depositPercentage: 50,
+      
+      
+      
     });
 
     // ── The booking ───────────────────────────────────────────────────────

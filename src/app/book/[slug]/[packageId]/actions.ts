@@ -63,12 +63,7 @@ export async function submitBookingForm(
     resolvedPackageId = pkg.id;
     pkgName = pkg.name;
 
-    // Never trust the browser for price: re-look-up the chosen tier server-side.
-    const variant = pkg.pricing_variant as { axis_label: string; tiers: { label: string; price: number }[] } | null;
-    const chosenTier = variant && formData.tierIndex != null ? variant.tiers[formData.tierIndex] : null;
-    linePrice = chosenTier
-      ? { ...((pkg.pricing as any) || {}), base_price: chosenTier.price, unit: chosenTier.label }
-      : (pkg.pricing || {});
+
 
     // Validate the answers against the package's own questions
     const questions = await getIntakeQuestionsPublic(pkg.id);

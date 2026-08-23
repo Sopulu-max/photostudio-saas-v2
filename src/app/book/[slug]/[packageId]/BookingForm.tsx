@@ -25,11 +25,8 @@ type PackageWithDimensions = {
   id: string;
   name: string;
   description: string | null;
-  pricing: any;
-  duration_minutes: number | null;
-  price_unit: string | null;
-  pricing_variant: any;
-  services: { id: string; name: string }[];
+    duration_minutes: number | null;
+      services: { id: string; name: string }[];
   dimensionValueIds: string[];
 };
 
@@ -518,50 +515,10 @@ export function BookingForm({
                                 <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.9rem', lineHeight: 1.5 }}>{pkg.description}</div>
                               )}
                             </div>
-                            {pkg.pricing?.base_price != null && (
-                              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--q-color-ink-700)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                {formatMoney(pkg.pricing.base_price, currencyCode)}
-                              </div>
-                            )}
                           </div>
-                          {isSelected && (
-                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--q-color-accent)', fontSize: '0.85rem', fontWeight: 600 }}>
-                              <span>✓</span> Selected
-                            </div>
-                          )}
                         </button>
                       );
                     })}
-                  </div>
-
-                  {resolvedPackageId && (
-                    <div style={{ marginTop: '20px' }}>
-                      <button
-                        type="button"
-                        className="q-btn q-btn-outline"
-                        onClick={() => { setResolvedPackageId(null); setResolvedPackageName(null); }}
-                        style={{ borderRadius: '24px', fontSize: '0.9rem' }}
-                      >
-                        Clear — continue as custom request
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step: Tiers */}
-              {activeStep.id === 'tiers' && variant && (
-                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>{variant.axis_label}</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Select the option that best fits your needs.</p>
-                  <div className="q-stack q-stack-md">
-                    {variant.tiers.map((t, i) => (
-                      <label key={i} className="q-row q-meta-plain" style={{ gap: '16px', padding: '24px', border: tierIndex === i ? '2px solid var(--q-color-accent)' : '1px solid var(--q-color-ink-200)', borderRadius: '12px', cursor: 'pointer', background: tierIndex === i ? 'color-mix(in srgb, var(--q-color-accent) 4%, transparent)' : 'transparent', transition: 'all 0.2s ease', alignItems: 'center' }}>
-                        <input type="radio" name="tier" checked={tierIndex === i} onChange={() => setTierIndex(i)} style={{ accentColor: 'var(--q-color-accent)', width: '24px', height: '24px' }} />
-                        <span style={{ flex: 1, fontSize: '1.2rem', fontWeight: tierIndex === i ? 600 : 500, color: 'var(--q-color-ink-900)' }}>{t.label}</span>
-                        <span style={{ fontSize: '1.2rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatMoney(t.price, currencyCode)}</span>
-                      </label>
-                    ))}
                   </div>
                 </div>
               )}
