@@ -119,7 +119,33 @@ export function PackageFieldsEditor({
    * them, or thirty seconds, or 20x30. Held against the service that produces
    * it, so a package promising prints has to bundle something that prints.
    */
-  const [promises, setPromises] = useState<Promise_[]>(initial.deliverables || []);
+  const [promises, setPromises] = useState<Promise_[]>(() => {
+    /*
+     * Open a package and see what its services already produce.
+     *
+     * Selecting a service auto-promises what it makes, to save clicks. Coming
+     * back to edit did not, so a bundle assembled before that — or by any path
+     * other than the checkbox — opened with an empty promises list beside a
+     * service that plainly produces things. Editing a bundled service is meant
+     * to feel like editing the service, and a service does not forget its own
+     * outputs.
+     *
+     * Materialised rather than merely shown, unlike the classifications above:
+     * there, absence has a documented meaning — untouched sells everything —
+     * so drawing the inheritance is enough. Here absence means nothing is
+     * promised, and the rest of the app reads it that way, so parity with what
+     * adding a service does is the honest fix.
+     */
+    const seeded = [...(initial.deliverables || [])];
+    for (const sid of (initial.serviceIds || [])) {
+      if (seeded.some((p) => p.serviceId === sid)) continue;
+      const produces = (allServices.find((x) => x.id === sid)?.deliverables || []) as { id: string }[];
+      for (const d of produces) {
+        seeded.push({ serviceId: sid, deliverableId: d.id, quantity: null, unit: null, spec: null });
+      }
+    }
+    return seeded;
+  });
   const [newDeliverableId, setNewDeliverableId] = useState<Record<string, string>>({});
 
   const promisesFor = (sid: string) => promises.filter((p) => p.serviceId === sid);
@@ -313,8 +339,28 @@ export function PackageFieldsEditor({
 
   const retired = status === 'retired';
 
+  /** Everything the service itself is classified as — what it sells untouched. */
+  const offeredBy = (serviceId: string) =>
+    ((allServices.find((x) => x.id === serviceId)?.dimensions || []) as DimensionOption[])
+      .flatMap((d) => d.values.map((v) => v.id));
+
   const renderDimension = (dim: DimensionOption, serviceId: string) => {
-    const forService = narrowings[serviceId] || [];
+    /*
+     * Untouched means "sells everything it offers" — so show that.
+     *
+     * The rule was already right and already written down a few lines above;
+     * only the drawing of it was wrong. An empty answer rendered as an empty
+     * field, which reads as though the service carried no classification at
+     * all — so coming back to edit a package looked like the section had lost
+     * what you put in it, when in fact nothing had ever needed storing.
+     *
+     * Inherited values are shown as the service's own. Touch one and the set
+     * becomes this package's own answer, which is the moment narrowing
+     * actually happens: subtraction from what the service offers.
+     */
+    const explicit = narrowings[serviceId];
+    const inherited = explicit === undefined;
+    const forService = explicit ?? offeredBy(serviceId);
     const chosen = forService.filter((id) => dim.values.some((v) => v.id === id));
     // Scoped to the card it is drawn in, so the same dimension on two bundled
     // services keeps two independent answers.
@@ -327,7 +373,10 @@ export function PackageFieldsEditor({
     return (
       <div className="q-field" key={dim.id}>
         <label className="q-label">{dim.name}</label>
-        <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>{dim.domainName}</span>
+        <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>
+          {dim.domainName}
+          {inherited && chosen.length > 0 && ' · as the service is classified'}
+        </span>
         <div className="q-row" style={{ flexWrap: 'wrap', margin: chosen.length > 0 ? '8px 0' : '0' }}>
           {chosen.map((id) => {
             const name = dim.values.find((v) => v.id === id)?.name || id;
