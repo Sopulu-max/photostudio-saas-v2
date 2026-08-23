@@ -321,29 +321,31 @@ export function BookingForm({
                                 </select>
                               </div>
                             )}
-                            {askedDimensions.map(dim => (
-                              <div key={dim.id}>
-                                <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                                  {dim.question || dim.name}
-                                  {!activeDomain && dim.domainName && (
-                                    <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>
-                                      ({dim.domainName})
-                                    </span>
-                                  )}
-                                  <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
-                                </label>
-                                <select
-                                  className="q-select q-input-lg"
-                                  value={dimensionSelections[dim.id] || ''}
-                                  onChange={(e) => setDimensionSelections(prev => ({ ...prev, [dim.id]: e.target.value }))}
-                                >
-                                  <option value="">Any</option>
-                                  {dim.values.map(opt => (
-                                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            ))}
+                            <div className="q-grid-2">
+                              {askedDimensions.map(dim => (
+                                <div key={dim.id}>
+                                  <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
+                                    {dim.question || dim.name}
+                                    {!activeDomain && dim.domainName && (
+                                      <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>
+                                        ({dim.domainName})
+                                      </span>
+                                    )}
+                                    <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
+                                  </label>
+                                  <select
+                                    className="q-select q-input-lg"
+                                    value={dimensionSelections[dim.id] || ''}
+                                    onChange={(e) => setDimensionSelections(prev => ({ ...prev, [dim.id]: e.target.value }))}
+                                  >
+                                    <option value="">Any</option>
+                                    {dim.values.map(opt => (
+                                      <option key={opt.id} value={opt.id}>{opt.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         <div className="q-field">
@@ -488,6 +490,18 @@ export function BookingForm({
                         <button
                           key={pkg.id}
                           type="button"
+                          className={`q-tile q-card-interactive ${isSelected ? 'q-selected' : ''}`}
+                          style={{
+                            textAlign: 'left',
+                            width: '100%',
+                            border: `2px solid ${isSelected ? 'var(--q-color-accent)' : 'var(--q-color-ink-200)'}`,
+                            background: isSelected ? 'var(--q-color-accent-subtle)' : 'var(--q-color-paper)',
+                            padding: '20px 24px',
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            opacity: isDimmed ? 0.45 : 1,
+                          }}
                           onClick={() => {
                             if (isSelected) {
                               setResolvedPackageId(null);
@@ -497,23 +511,25 @@ export function BookingForm({
                               setResolvedPackageName(pkg.name);
                             }
                           }}
-                          style={{
-                            width: '100%', textAlign: 'left', padding: '20px 24px',
-                            border: isSelected ? '2px solid var(--q-color-accent)' : '1px solid var(--q-color-ink-200)',
-                            borderRadius: '12px', cursor: 'pointer',
-                            background: isSelected ? 'color-mix(in srgb, var(--q-color-accent) 5%, var(--q-color-paper))' : 'var(--q-color-paper)',
-                            transition: 'all 0.2s ease',
-                            opacity: isDimmed ? 0.45 : 1,
-                          }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--q-color-ink-900)', marginBottom: pkg.description ? '4px' : 0 }}>
-                                {pkg.name}
-                              </div>
+                          <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                            <div>
+                              <div className="q-strong" style={{ fontSize: '1.1rem' }}>{pkg.name}</div>
                               {pkg.description && (
-                                <div style={{ color: 'var(--q-color-ink-500)', fontSize: '0.9rem', lineHeight: 1.5 }}>{pkg.description}</div>
+                                <div className="q-meta" style={{ marginTop: '6px' }}>{pkg.description}</div>
                               )}
+                              <div className="q-meta-sm" style={{ marginTop: '12px', display: 'flex', gap: '12px', color: 'var(--q-color-ink-500)', flexWrap: 'wrap' }}>
+                                {pkg.duration_minutes ? <span>⏱ {pkg.duration_minutes} minutes</span> : null}
+                                {(pkg as any).deliverablesCount ? (
+                                  <span>📦 {(pkg as any).deliverablesCount} deliverable{(pkg as any).deliverablesCount === 1 ? '' : 's'}</span>
+                                ) : null}
+                                {pkg.services && pkg.services.length > 0 ? (
+                                  <span>🛠 {pkg.services.length} service{pkg.services.length === 1 ? '' : 's'}</span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div style={{ marginLeft: '16px' }}>
+                              <div className={`q-radio ${isSelected ? 'checked' : ''}`} />
                             </div>
                           </div>
                         </button>

@@ -727,7 +727,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id, name, description, duration_minutes,
       package_services(id, service:services(
         id, name
-      ), package_service_dimension_values(dimension_value:dimension_values(
+      ), package_deliverables(id), package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
     `)
@@ -743,6 +743,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       description: (p.description ?? null) as string | null,
       duration_minutes: (p.duration_minutes ?? null) as number | null,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
+      deliverablesCount: (p.package_services || []).reduce((acc: number, ps: any) => acc + (ps.package_deliverables?.length || 0), 0),
       dimensionValueIds: [...new Set(
         links.map((pv: any) => pv.dimension_value?.id).filter(Boolean)
       )] as string[],
