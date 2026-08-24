@@ -21,7 +21,8 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     redirect('/login');
   }
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listDeliverables, listDeliveryContainers } = await import('@/modules/deliverables/interface');
   const [allServices, roles, currencyCode, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints(),
     listDimensionsByDomain(),

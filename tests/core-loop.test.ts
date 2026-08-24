@@ -23,7 +23,8 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 // Now import the domain functions
 import { createRole, addEmployee } from '@/modules/team/domain';
-import { createServiceDomain, createDeliverable, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
+import { createServiceDomain, createService, updateService, getService, listServiceDomains, createBlueprint, setServiceVariables, listServiceVariables } from '@/modules/services/domain';
+import { createDeliverable } from '@/modules/deliverables/domain';
 import { listDimensionsForDomain, setValueParent, renameDimension } from '@/modules/services/dimensionsAdmin';
 import { listBookingsForDimensionValue } from '@/modules/bookings/domain';
 import { listValueEntries, whatCarries, whatCoOccursWith } from '@/modules/services/traversal';
@@ -924,23 +925,22 @@ describe('Core Loop Verification', () => {
       serviceIds: [serviceId],
       deliverables: [
         { serviceId, deliverableId: photos, quantity: 6 },
-        { serviceId, deliverableId: film, quantity: 30, unit: 'second' },
-        { serviceId, deliverableId: print, spec: '20x30' },
+        { serviceId, deliverableId: film, quantity: 30 },
+        { serviceId, deliverableId: print },
       ],
     });
 
     const pkg = await getPackage(packageId);
     const byName = Object.fromEntries(((pkg as any).deliverables as any[]).map((d) => [d.name, d]));
     expect(Number(byName['Edited photographs'].quantity)).toBe(6);
-    expect(byName['Highlight video'].unit).toBe('second');
-    expect(byName['Framed print'].spec).toBe('20x30');
+    expect(Number(byName['Highlight video'].quantity)).toBe(30);
 
     // One voice everywhere. The storefront, the package page and the invoice
     // all render through this, so a client never reads the same promise twice
     // in two phrasings.
     expect(formatDeliverable({ name: 'Edited photographs', quantity: 6 })).toBe('Edited photographs × 6');
     expect(formatDeliverable({ name: 'Highlight video', quantity: 30, unit: 'second' })).toBe('30 seconds highlight video');
-    expect(formatDeliverable({ name: 'Framed print', spec: '20x30' })).toBe('Framed print · 20x30');
+    expect(formatDeliverable({ name: 'Framed print', spec_values: { size: '20x30' } })).toBe('Framed print · 20x30');
 
     // Re-saving with a spec cleared removes it rather than leaving the old
     // number behind — the editor sends every field every time.
@@ -948,15 +948,14 @@ describe('Core Loop Verification', () => {
       packageId,
       deliverables: [
         { serviceId, deliverableId: photos, quantity: 8 },
-        { serviceId, deliverableId: film, quantity: null, unit: null },
-        { serviceId, deliverableId: print, spec: '20x30' },
+        { serviceId, deliverableId: film, quantity: null },
+        { serviceId, deliverableId: print },
       ],
     });
     const after = await getPackage(packageId);
     const now = Object.fromEntries(((after as any).deliverables as any[]).map((d) => [d.name, d]));
     expect(Number(now['Edited photographs'].quantity)).toBe(8);
     expect(now['Highlight video'].quantity).toBeNull();
-    expect(now['Highlight video'].unit).toBeNull();
   }, 120000);
 
   it('answers where a service is sold, from the service end', async () => {

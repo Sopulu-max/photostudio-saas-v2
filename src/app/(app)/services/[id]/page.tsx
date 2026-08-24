@@ -6,7 +6,7 @@ import type { ServiceDimensionTag } from '@/modules/services/interface';
 // Composed here rather than reached for: Packages owns `package ↔ service`, and
 // Services never reads package tables. The page joins the two modules.
 import { listPackagesForService } from '@/modules/packages/interface';
-import { DimensionTag } from '../DimensionTag';
+
 import { CheckCircle2, CircleDashed, Package as PackageIcon } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';

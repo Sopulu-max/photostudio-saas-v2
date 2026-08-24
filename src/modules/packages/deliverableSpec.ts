@@ -13,7 +13,7 @@ export type DeliverableSpec = {
   name: string;
   quantity?: number | null;
   unit?: string | null;
-  spec?: string | null;
+  spec_values?: Record<string, unknown> | null;
 };
 
 export function formatDeliverable(d: DeliverableSpec): string {
@@ -29,6 +29,13 @@ export function formatDeliverable(d: DeliverableSpec): string {
     }
   }
 
-  if (d.spec) parts.push(d.spec);
+  if (d.spec_values && Object.keys(d.spec_values).length > 0) {
+    const specs = Object.values(d.spec_values)
+      .filter(v => v !== null && v !== '')
+      .map(v => String(v));
+    if (specs.length > 0) {
+      parts.push(specs.join(', '));
+    }
+  }
   return parts.join(' · ');
 }

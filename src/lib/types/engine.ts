@@ -170,6 +170,9 @@ export interface Deliverable {
   id: string;
   organization_id: string;
   name: string;
+  default_unit: string | null;
+  spec_schema: Record<string, unknown> | null;
+  spec_values: Record<string, unknown> | null;
   created_at: string;
 }
 

@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
-import { DimensionTag } from './DimensionTag';
+
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 
 /**

@@ -4,7 +4,8 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from '../NewBookingForm';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
-import { listActiveServices, listDimensionsByDomain, listDeliverables, listDeliveryContainers, listBlueprints, listVariablesForServices } from '@/modules/services/interface';
+import { listActiveServices, listDimensionsByDomain, listBlueprints, listVariablesForServices } from '@/modules/services/interface';
+import { listDeliverables, listDeliveryContainers } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 

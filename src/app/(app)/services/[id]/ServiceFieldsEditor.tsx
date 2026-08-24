@@ -343,7 +343,7 @@ export function ServiceFieldsEditor({
               value={primaryDeliverable}
               onChange={setPrimaryOutputType}
               options={outputSuggestions}
-              placeholder="Select or enter an output type"
+              placeholder="Select or type a new output type"
               disabled={isPending}
             />
           </label>
@@ -354,7 +354,7 @@ export function ServiceFieldsEditor({
               values={deliverables}
               onChange={setDeliverables}
               options={outputSuggestions.filter((o) => o !== primaryDeliverable)}
-              placeholder="Select or enter an output type"
+              placeholder="Select or type new output types"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ display: 'block', marginTop: '8px', opacity: 0.7 }}>

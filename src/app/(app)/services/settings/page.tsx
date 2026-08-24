@@ -5,8 +5,10 @@ import {
   listServices, listBlueprints, listDimensionsByDomain,
   buildDimensionSuggestions, buildDeliverableSuggestions,
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
-  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
 } from '@/modules/services/interface';
+import {
+  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
+} from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { FacetManager } from '@/components/FacetManager';
 import { NewBlueprintForm } from '../NewBlueprintForm';
@@ -46,7 +48,7 @@ export default async function ServiceSettingsPage() {
   // domains already ask. Printing could classify by Style because Photography
   // does — that is the studio teaching itself, not the engine prescribing.
   const questionNames = [...new Set(
-    Object.values(dimensionsByDomain).flat().map((d) => d.name)
+    Object.values(dimensionsByDomain).flat().map((d: any) => d.name)
   )].sort();
   const roleOptions = (roles as any[]).map((r) => r.name);
 

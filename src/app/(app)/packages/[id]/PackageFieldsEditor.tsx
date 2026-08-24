@@ -33,7 +33,7 @@ type Stage = { name: string; roleName: string; frontStage: boolean };
  * bundling Photography and Framing promises prints through Framing; without the
  * pairing, "20 prints" floats free of anything that makes them.
  */
-type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null };
+type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null; specValues?: Record<string, unknown> | null };
 
 import type { ServiceVariable } from '@/modules/services/interface';
 
@@ -133,7 +133,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       if (seeded.some((p) => p.serviceId === sid)) continue;
       const produces = (allServices.find((x) => x.id === sid)?.deliverables || []) as { id: string }[];
       for (const d of produces) {
-        seeded.push({ serviceId: sid, deliverableId: d.id, quantity: null, unit: null, spec: null });
+        seeded.push({ serviceId: sid, deliverableId: d.id, quantity: null, unit: null, spec: null, specValues: null });
       }
     }
     return seeded;
@@ -145,7 +145,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     if (!deliverableId) return;
     setPromises((prev) => prev.some((p) => p.serviceId === sid && p.deliverableId === deliverableId)
       ? prev
-      : [...prev, { serviceId: sid, deliverableId, quantity: null, unit: null, spec: null }]);
+      : [...prev, { serviceId: sid, deliverableId, quantity: null, unit: null, spec: null, specValues: null }]);
     setNewDeliverableId((prev) => ({ ...prev, [sid]: '' }));
   };
   const removePromise = (sid: string, deliverableId: string) =>
@@ -243,7 +243,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               ...prev,
               ...produces
                 .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
-                .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null })),
+                .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null, specValues: null })),
             ]);
           }
 
@@ -314,7 +314,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
-      deliverables: promises.filter((p) => serviceIds.includes(p.serviceId)),
+      deliverables: promises.filter((p) => serviceIds.includes(p.serviceId)).map(p => ({
+        serviceId: p.serviceId,
+        deliverableId: p.deliverableId,
+        quantity: p.quantity,
+        specValues: p.specValues
+      })),
       containerIds: containers,
       workflows: workflows.filter((w) => serviceIds.includes(w.serviceId)),
       narrowings: serviceIds.flatMap((sid) =>
@@ -422,13 +427,95 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * spec are the package's to set, but the thing being quantified is produced by
    * this service and by nothing else in the bundle.
    */
+  const renderVariables = (s: ServiceOption) => {
+    const vars = allVariables.filter(v => v.serviceId === s.id);
+    if (vars.length === 0) return null;
+    return (
+      <div className="q-stack q-stack-sm">
+        {vars.map((v) => {
+          const current = variableValues[v.id] ?? '';
+          return (
+            <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
+              <div>
+                <strong className="q-strong">{v.label}</strong>
+                {current === '' && <span className="q-meta-sm"> &middot; asked at booking</span>}
+              </div>
+              <div className="q-row">
+                {v.kind === 'number' && (
+                  <>
+                    <input
+                      className="q-input q-num" type="number" value={current} disabled={isPending}
+                      min={v.min ?? undefined} max={v.max ?? undefined}
+                      onChange={(e) => setVariable(v.id, e.target.value)}
+                      placeholder="&mdash;" style={{ width: '7rem' }}
+                    />
+                    {v.unit && <span className="q-meta-sm">{Number(current) === 1 ? v.unit : `${v.unit}s`}</span>}
+                  </>
+                )}
+                {v.kind === 'choice' && (
+                  <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
+                    <option value="">Ask the client</option>
+                    {v.options.map((o: string) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                )}
+                {v.kind === 'boolean' && (
+                  <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
+                    <option value="">Ask the client</option>
+                    <option value="true">Included</option>
+                    <option value="false">Not included</option>
+                  </select>
+                )}
+                {v.kind === 'text' && (
+                  <input className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem' }} />
+                )}
+                {v.kind === 'textarea' && (
+                  <textarea className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem', minHeight: '3rem' }} />
+                )}
+                {v.kind === 'date' && (
+                  <input className="q-input" type="date" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }} />
+                )}
+                {v.kind === 'url' && (
+                  <input className="q-input" type="url" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="https://..." style={{ minWidth: '10rem' }} />
+                )}
+                {v.kind === 'multichoice' && (
+                  <div className="q-stack q-stack-xs">
+                    {v.options.map((o: string) => {
+                      const selected = current.split(',').filter(Boolean);
+                      const isOn = selected.includes(o);
+                      return (
+                        <label key={o} className="q-row" style={{ gap: '6px', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={isOn}
+                            disabled={isPending}
+                            onChange={() => {
+                              const next = isOn ? selected.filter((x: string) => x !== o) : [...selected, o];
+                              setVariable(v.id, next.join(','));
+                            }}
+                          />
+                          <span>{o}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {current !== '' && (
+                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderPromises = (s: ServiceOption) => {
     const mine = promisesFor(s.id);
     const produces = s.deliverables || [];
     const suggested = produces.filter((d) => !mine.some((p) => p.deliverableId === d.id));
     return (
       <div className="q-stack q-stack-sm">
-        <h4 className="q-strong">Promises</h4>
         {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
         {mine.map((p) => {
           const dName = allDeliverables.find((d) => d.id === p.deliverableId)?.name || p.deliverableId;
@@ -445,21 +532,66 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                   onChange={(e) => patchPromise(s.id, p.deliverableId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
                   style={{ maxWidth: '7rem' }}
                 />
-                <input
-                  className="q-input q-input-sm" placeholder="Unit — image, second, page"
-                  value={p.unit ?? ''}
-                  onChange={(e) => patchPromise(s.id, p.deliverableId, { unit: e.target.value || null })}
-                  style={{ maxWidth: '13rem' }}
-                />
-                <input
-                  className="q-input q-input-sm" placeholder="Specification — 20x30, matte"
-                  value={p.spec ?? ''}
-                  onChange={(e) => patchPromise(s.id, p.deliverableId, { spec: e.target.value || null })}
-                  style={{ minWidth: '12rem', flex: 1 }}
-                />
               </div>
+
+              {/* Dynamic Deliverable Form */}
+              {(() => {
+                const def = (allDeliverables as any[]).find((d) => d.id === p.deliverableId);
+                if (!def) return null;
+                
+                // If it's a baked instance, there is no form to show
+                if (def.spec_values) {
+                  return (
+                    <div className="q-meta-sm q-banner q-banner-info">
+                      <strong>Locked SKU:</strong> The details for this deliverable are predefined and locked by the studio.
+                    </div>
+                  );
+                }
+
+                // If it's a class with a schema, render the form
+                const schema = def.spec_schema;
+                if (!schema || !Array.isArray(schema) || schema.length === 0) return null;
+                
+                const currentVals = p.specValues || {};
+
+                return (
+                  <div className="q-stack q-stack-sm" style={{ paddingLeft: '16px', borderLeft: '2px solid var(--q-color-neutral-300)' }}>
+                    {schema.map((field: any, i: number) => {
+                      if (!field.key) return null;
+                      
+                      const setVal = (v: any) => patchPromise(s.id, p.deliverableId, { specValues: { ...currentVals, [field.key]: v } });
+                      
+                      return (
+                        <div key={i} className="q-field">
+                          <label className="q-label q-label-sm">{field.key}</label>
+                          {field.type === 'select' && field.options ? (
+                            <select 
+                              className="q-select q-select-sm" 
+                              value={(currentVals[field.key] as string) || ''} 
+                              onChange={(e) => setVal(e.target.value)}
+                            >
+                              <option value="">Select...</option>
+                              {field.options.map((opt: string) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input 
+                              type="text" 
+                              className="q-input q-input-sm" 
+                              value={(currentVals[field.key] as string) || ''} 
+                              onChange={(e) => setVal(e.target.value)} 
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
               <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, unit: p.unit, spec: p.spec })}
+                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, spec_values: p.specValues || (allDeliverables as any[]).find((d) => d.id === p.deliverableId)?.spec_values })}
               </span>
             </div>
           );
@@ -476,17 +608,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           </div>
         )}
 
-        <div className="q-row">
-          <select
-            className="q-select" value={newDeliverableId[s.id] || ''}
-            onChange={(e) => setNewDeliverableId((prev) => ({ ...prev, [s.id]: e.target.value }))}
-            style={{ minWidth: '12rem' }}
-          >
-            <option value="">Select an output type</option>
-            {allDeliverables.filter((d) => !mine.some((p) => p.deliverableId === d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addPromise(s.id, newDeliverableId[s.id] || '')} disabled={!newDeliverableId[s.id]}>+ Add</button>
-        </div>
+        {suggested.length === 0 && mine.length > 0 && (
+          <span className="q-meta-sm" style={{ opacity: 0.7 }}>All outputs produced by this service have been promised.</span>
+        )}
       </div>
     );
   };
@@ -496,7 +620,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     const mine = workflowsFor(s.id);
     return (
       <div className="q-stack q-stack-sm">
-        <h4 className="q-strong">Production</h4>
         <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: mine.length > 0 ? '8px' : '0' }}>
           {mine.map((w) => {
             const wName = allWorkflows.find((x) => x.id === w.blueprintId)?.name || w.blueprintId;
@@ -543,8 +666,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
       <div className="q-card q-section">
         <h2 className="q-section-title">2. What it bundles</h2>
-        <p className="q-meta" style={{ marginBottom: '12px' }}>Pick the real Services this offering is built from. Once selected, configure their specifics below.</p>
-        <div className="q-stack q-stack-md">
+        <p className="q-meta" style={{ marginBottom: '16px' }}>Pick the real Services this offering is built from. Once selected, configure their specifics below.</p>
+        <div className="q-grid-cards">
           {allServices.map((s) => {
             const isSelected = serviceIds.includes(s.id);
             const allTags = (s.dimensions || []).flatMap((d) => d.values);
@@ -557,124 +680,42 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                   borderColor: isSelected ? 'var(--q-color-primary)' : 'var(--q-color-ink-100)',
                   backgroundColor: isSelected ? 'var(--q-color-primary-light)' : undefined,
                   transition: 'all var(--q-ease) 0.2s',
-                  padding: '16px'
+                  padding: '16px',
+                  cursor: 'pointer'
                 }}
+                onClick={() => toggleService(s.id)}
               >
-                <div className="q-row q-row-between" style={{ alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => toggleService(s.id)}>
+                <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                   <div>
                     <h3 className="q-section-title">{s.name}</h3>
                     <div className="q-meta-sm">{s.domain?.name || 'No domain'}</div>
-                    {s.description && !isSelected && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
-                    {!isSelected && allTags.length > 0 && (
-                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
-                        {allTags.map(t => (
-                          <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <input type="checkbox" checked={isSelected} readOnly style={{ pointerEvents: 'none', marginTop: '4px' }} />
                 </div>
                 
-                {isSelected && (
-                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
-                    {s.description && <p className="q-meta-sm" style={{ marginBottom: '16px' }}>{s.description}</p>}
-                    <div className="q-grid-cards">
-                      {(() => {
-                        const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
-                        return domainDims.length > 0 && (
-                          <div className="q-stack q-stack-sm">
-                            <h4 className="q-strong">Classifications</h4>
-                            {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
-                          </div>
-                        );
-                      })()}
-                      
-                      {vars.length > 0 && (
-                        <div className="q-stack q-stack-sm">
-                          <h4 className="q-strong">Variables to fix</h4>
-                          {vars.map((v) => {
-                            const current = variableValues[v.id] ?? '';
-                            return (
-                              <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
-                                <div>
-                                  <strong className="q-strong">{v.label}</strong>
-                                  {current === '' && <span className="q-meta-sm"> &middot; asked at booking</span>}
-                                </div>
-                                <div className="q-row">
-                                  {v.kind === 'number' && (
-                                    <>
-                                      <input
-                                        className="q-input q-num" type="number" value={current} disabled={isPending}
-                                        min={v.min ?? undefined} max={v.max ?? undefined}
-                                        onChange={(e) => setVariable(v.id, e.target.value)}
-                                        placeholder="&mdash;" style={{ width: '7rem' }}
-                                      />
-                                      {v.unit && <span className="q-meta-sm">{Number(current) === 1 ? v.unit : `${v.unit}s`}</span>}
-                                    </>
-                                  )}
-                                  {v.kind === 'choice' && (
-                                    <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                                      <option value="">Ask the client</option>
-                                      {v.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                                    </select>
-                                  )}
-                                  {v.kind === 'boolean' && (
-                                    <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                                      <option value="">Ask the client</option>
-                                      <option value="true">Included</option>
-                                      <option value="false">Not included</option>
-                                    </select>
-                                  )}
-                                  {v.kind === 'text' && (
-                                    <input className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem' }} />
-                                  )}
-                                  {v.kind === 'textarea' && (
-                                    <textarea className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem', minHeight: '3rem' }} />
-                                  )}
-                                  {v.kind === 'date' && (
-                                    <input className="q-input" type="date" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }} />
-                                  )}
-                                  {v.kind === 'url' && (
-                                    <input className="q-input" type="url" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="https://..." style={{ minWidth: '10rem' }} />
-                                  )}
-                                  {v.kind === 'multichoice' && (
-                                    <div className="q-stack q-stack-xs">
-                                      {v.options.map((o: string) => {
-                                        const selected = current.split(',').filter(Boolean);
-                                        const isOn = selected.includes(o);
-                                        return (
-                                          <label key={o} className="q-row" style={{ gap: '6px', cursor: 'pointer' }}>
-                                            <input
-                                              type="checkbox"
-                                              checked={isOn}
-                                              disabled={isPending}
-                                              onChange={() => {
-                                                const next = isOn ? selected.filter(x => x !== o) : [...selected, o];
-                                                setVariable(v.id, next.join(','));
-                                              }}
-                                            />
-                                            <span>{o}</span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  {current !== '' && (
-                                    <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {renderPromises(s)}
-                      {renderWorkflows(s)}
+                {s.description && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
+                
+                <div className="q-stack q-stack-sm" style={{ marginTop: '12px', opacity: isSelected ? 1 : 0.6, transition: 'opacity 0.2s' }}>
+                  {allTags.length > 0 && (
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px' }}>
+                      {allTags.map(t => (
+                        <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
+                      ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                  {(s.deliverables || []).length > 0 && (
+                    <div className="q-meta-sm">
+                      <strong className="q-strong">Outputs: </strong>
+                      {(s.deliverables || []).map(d => d.name).join(', ')}
+                    </div>
+                  )}
+                  {vars.length > 0 && (
+                    <div className="q-meta-sm">
+                      <strong className="q-strong">Variables: </strong>
+                      {vars.map(v => v.label).join(', ')}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -683,67 +724,117 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">3. Delivery & Workflows</h2>
+        <h2 className="q-section-title">3. Classifications</h2>
+        <div className="q-stack q-stack-md">
+          {(() => {
+            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
+            if (bundledServices.length === 0) return <p className="q-empty">Select services above to narrow their classifications.</p>;
+            const withDims = bundledServices.filter(s => (s.domain?.name && (dimensionsByDomain[s.domain.name] || []).length > 0));
+            if (withDims.length === 0) return <p className="q-meta-sm">None of the bundled services have classifications.</p>;
+            return withDims.map((s) => {
+              const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
+              return (
+                <div key={s.id} style={{ marginBottom: '16px' }}>
+                  <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
+                  <div className="q-grid-cards">
+                    {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">4. Variables</h2>
         
         <div className="q-stack q-stack-md">
-          {/*
-            * What the package promises, and how it is produced, are edited on
-            * the service cards above — each is a fact about one bundled service,
-            * so there is nothing to say about them at package level.
-            *
-            * A container is different, and stays here: it transports outputs
-            * without transforming them, so it belongs to no single service.
-            */}
-          <div>
-            <label className="q-label">Delivery Containers</label>
-            <span className="q-meta-sm">How these deliverables are handed to the client (e.g. Online Gallery, USB Drive)</span>
-            <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: containers.length > 0 ? '8px' : '0', marginTop: '4px' }}>
-              {containers.map((dId) => {
-                const dName = allContainers.find(d => d.id === dId)?.name || dId;
+          {(() => {
+            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
+            if (bundledServices.length === 0) return <p className="q-empty">Select services above to see their variables.</p>;
+            const withVars = bundledServices.filter(s => allVariables.some(v => v.serviceId === s.id));
+            if (withVars.length === 0) return <p className="q-meta-sm">None of the bundled services have variables.</p>;
+            return withVars.map((s) => (
+              <div key={s.id} style={{ marginBottom: '16px' }}>
+                <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
+                {renderVariables(s)}
+              </div>
+            ));
+          })()}
+        </div>
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">5. Delivery</h2>
+        
+        <div className="q-stack q-stack-md">
+          {(() => {
+            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
+            if (bundledServices.length === 0) return <p className="q-empty">Select services above to configure what they deliver.</p>;
+            return bundledServices.map((s) => (
+              <div key={s.id} style={{ marginBottom: '16px' }}>
+                <h3 className="q-strong" style={{ marginBottom: '8px' }}>From {s.name}</h3>
+                {renderPromises(s)}
+              </div>
+            ));
+          })()}
+
+          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--q-color-border)' }}>
+            <h3 className="q-strong" style={{ marginBottom: '8px' }}>Delivery Vessels</h3>
+            <span className="q-meta-sm" style={{ display: 'block', marginBottom: '16px', opacity: 0.7 }}>
+              How the final outputs are delivered to the client.
+            </span>
+            <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              {containers.map(id => {
+                const c = allContainers.find(x => x.id === id);
                 return (
-                  <span key={dId} className="q-badge q-badge-neutral">
-                    {dName} <button type="button" className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeContainer(dId)}>×</button>
+                  <span key={id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => removeContainer(id)}>
+                    {c?.name || id} &times;
                   </span>
                 );
               })}
             </div>
-            <div className="q-row">
-              <select className="q-select" value={newContainerId} onChange={(e) => setNewContainerId(e.target.value)} style={{ minWidth: '12rem' }}>
+            <div className="q-row" style={{ marginTop: '12px' }}>
+              <select
+                className="q-select"
+                value={newContainerId}
+                onChange={(e) => setNewContainerId(e.target.value)}
+                style={{ minWidth: '12rem' }}
+                disabled={isPending}
+              >
                 <option value="">Select a container...</option>
-                {allContainers.filter(d => !containers.includes(d.id)).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {allContainers.filter(x => !containers.includes(x.id)).map(x => (
+                  <option key={x.id} value={x.id}>{x.name}</option>
+                ))}
               </select>
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addContainer(newContainerId)} disabled={!newContainerId}>+ Add</button>
+              <button
+                type="button"
+                className="q-btn q-btn-secondary q-btn-xs"
+                onClick={() => addContainer(newContainerId)}
+                disabled={!newContainerId || isPending}
+              >
+                + Add
+              </button>
             </div>
           </div>
-          
-          <div className="q-field">
-            <label className="q-label">Usually takes</label>
-            <select className="q-select" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-              {DURATION_CHOICES.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
-            </select>
-          </div>
-          
-          <div>
-            <label className="q-label">Ad-hoc stages</label>
-            <p className="q-meta" style={{ marginBottom: '8px' }}>
-              Add anything specific to this package on top of its standard workflows — a second photographer, drone coverage, etc.
-            </p>
-            <div className="q-stack q-stack-sm">
-              {extraStages.map((s, i) => (
-                <div key={i} className="q-row">
-                  <input className="q-input q-fill" placeholder="Stage — e.g. Drone Coverage" value={s.name} onChange={(e) => patchStage(i, { name: e.target.value })} />
-                  <input className="q-input" list="role-options" placeholder="Role (optional)" value={s.roleName} onChange={(e) => patchStage(i, { roleName: e.target.value })} style={{ width: '11rem' }} />
-                  <label className="q-row q-meta-plain" style={{ gap: '4px' }}>
-                    <input type="checkbox" checked={s.frontStage} onChange={(e) => patchStage(i, { frontStage: e.target.checked })} />
-                    Front-stage
-                  </label>
-                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => removeStage(i)}>Remove</button>
-                </div>
-              ))}
-              <datalist id="role-options">{roleOptions.map((r) => <option key={r} value={r} />)}</datalist>
-              <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={addStage} style={{ alignSelf: 'flex-start' }}>+ Add stage</button>
-            </div>
-          </div>
+        </div>
+      </div>
+      <div className="q-card q-section">
+        <h2 className="q-section-title">6. Workflows</h2>
+        
+        <div className="q-stack q-stack-md">
+          {(() => {
+            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
+            if (bundledServices.length === 0) return <p className="q-empty">Select services above to configure how they are produced.</p>;
+            return bundledServices.map((s) => (
+              <div key={s.id} style={{ marginBottom: '16px' }}>
+                <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
+                {renderWorkflows(s)}
+              </div>
+            ));
+          })()}
+
         </div>
       </div>
 

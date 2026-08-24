@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable } from '@/modules/services/interface';
+import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable } from '@/modules/deliverables/interface';
 import { narrowFor } from '@/modules/services/interface';
 import type { Narrowed } from '@/modules/services/interface';
 import { PickToAdd } from '@/components/Pick';

@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   getService, listServiceDomains, listServices, listServiceVariables,
-  listDimensionsByDomain, listOutputTypesByDomain,
+  listDimensionsByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
   buildVariableSuggestions,
 } from '@/modules/services/interface';
+import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
 import { ServiceVariablesEditor } from '../ServiceVariablesEditor';

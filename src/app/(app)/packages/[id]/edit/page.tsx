@@ -22,7 +22,8 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listDeliverables, listDeliveryContainers, listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listDeliverables, listDeliveryContainers } = await import('@/modules/deliverables/interface');
   const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
     getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(), listDeliveryContainers(), listBlueprints(),
@@ -66,7 +67,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             deliverables: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.deliverables || []) as any[]).map((d) => ({
                 serviceId: s.id as string, deliverableId: d.id as string,
-                quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null,
+                quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null, specValues: d.spec_values ?? null,
               }))),
             containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
             workflows: (((pkg as any).services || []) as any[]).flatMap((s) =>

@@ -164,7 +164,7 @@ async function writePackageVariableValues(
 async function writePackageDeliverables(
   orgId: string,
   rows: { id: string; service_id: string }[],
-  promises?: { serviceId: string; deliverableId: string; quantity?: number | null; unit?: string | null; spec?: string | null }[]
+  promises?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[]
 ) {
   const rowIdOf = new Map(rows.map((r) => [r.service_id, r.id]));
   const seen = new Set<string>();
@@ -181,8 +181,7 @@ async function writePackageDeliverables(
       package_service_id: packageServiceId,
       deliverable_id: p.deliverableId,
       quantity: p.quantity ?? null,
-      unit: p.unit ?? null,
-      spec: p.spec ?? null,
+      spec_values: p.specValues ?? null,
     });
   }
   await replaceBundleLinks(orgId, 'package_deliverables', rows, links, 'Failed to save what this package promises');
@@ -291,7 +290,7 @@ export async function createPackage(input: {
    * kind of thing it produces; this is where it gets specific, which is what a
    * package is for. Each promise names the bundled service that produces it.
    */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; unit?: string | null; spec?: string | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
   containerIds?: string[];
   /** The production sequences to run, each on the bundled service it belongs to. */
   workflows?: { serviceId: string; blueprintId: string }[];
@@ -385,7 +384,7 @@ export async function updatePackage(input: {
   durationMinutes?: number | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; unit?: string | null; spec?: string | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
   containerIds?: string[];
   /** The production sequences to run, each on the bundled service it belongs to. */
   workflows?: { serviceId: string; blueprintId: string }[];
@@ -531,7 +530,7 @@ export async function duplicatePackage(packageId: string) {
   const rekey = (packageServiceId: string) => copyRowOf.get(serviceOfOriginal.get(packageServiceId) as string);
 
   const [outputs, workflows, narrowings, fixed] = await Promise.all([
-    supabaseAdmin.from('package_deliverables').select('package_service_id, deliverable_id, quantity, unit, spec').eq('organization_id', orgId).in('package_service_id', originalIds),
+    supabaseAdmin.from('package_deliverables').select('package_service_id, deliverable_id, quantity').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_workflows').select('package_service_id, blueprint_id').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_service_dimension_values').select('package_service_id, dimension_value_id').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_variable_values').select('package_service_id, service_variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
@@ -548,7 +547,7 @@ export async function duplicatePackage(packageId: string) {
   };
 
   await Promise.all([
-    carry('package_deliverables', outputs.data, (r, to) => ({ organization_id: orgId, package_service_id: to, deliverable_id: r.deliverable_id, quantity: r.quantity, unit: r.unit, spec: r.spec })),
+    carry('package_deliverables', outputs.data, (r, to) => ({ organization_id: orgId, package_service_id: to, deliverable_id: r.deliverable_id, quantity: r.quantity })),
     carry('package_workflows', workflows.data, (r, to) => ({ organization_id: orgId, package_service_id: to, blueprint_id: r.blueprint_id })),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
     carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, service_variable_id: r.service_variable_id, value: r.value })),
@@ -615,10 +614,11 @@ const PACKAGE_SELECT = `
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     service_deliverables(deliverable:deliverables(id, name)),
-    service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position)))
+    service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
+    service_variables(id, service_id, key, label, unit, kind, options)
   ),
   package_service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
-  package_deliverables(quantity, unit, spec, deliverable:deliverables(id, name)),
+  package_deliverables(quantity, spec_values, deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)),
   package_workflows(blueprint:blueprints(id, name, stages)),
   package_variable_values(value, variable:service_variables(id, service_id, key, label, unit, kind)))
 `;
@@ -636,7 +636,7 @@ function shapePackage(p: any) {
   const promised = bundle.flatMap((ps) =>
     (ps.package_deliverables || [])
       .filter((pd: any) => pd.deliverable)
-      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec, serviceId: ps.service?.id }))
+      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, serviceId: ps.service?.id }))
   );
   return {
     ...p,
@@ -647,10 +647,13 @@ function shapePackage(p: any) {
       offers: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
       deliverables: (ps.package_deliverables || [])
         .filter((pd: any) => pd.deliverable)
-        .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
+        .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity })),
       workflows: (ps.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
       narrowedTo: shapeDimensionLinks(ps.package_service_dimension_values),
+      variables: (ps.service?.service_variables || []).map((v: any) => ({
+        id: v.id, serviceId: v.service_id, key: v.key, label: v.label, unit: v.unit, kind: v.kind, options: v.options
+      })),
       variableValues: (ps.package_variable_values || [])
         .filter((pv: any) => pv.variable)
         .map((pv: any) => ({
@@ -785,7 +788,21 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     deliverableNames: ((p.package_services || []) as any[])
       .flatMap((ps) => (ps.package_deliverables || []) as any[])
       .filter((pd) => pd.deliverable?.name)
-      .map((pd) => formatDeliverable({ name: pd.deliverable.name, quantity: pd.quantity, unit: pd.unit, spec: pd.spec })),
+      .map((pd) => ({
+        id: pd.deliverable.id,
+        name: pd.deliverable.name,
+        default_unit: pd.deliverable.default_unit,
+        spec_schema: pd.deliverable.spec_schema,
+        spec_values: pd.deliverable.spec_values,
+        quantity: pd.quantity,
+        package_spec_values: pd.spec_values
+      }))
+      .map((pd) => formatDeliverable({ 
+        name: pd.name, 
+        quantity: pd.quantity, 
+        unit: pd.default_unit,
+        spec_values: pd.spec_values || pd.package_spec_values 
+      })),
   };
 }
 
@@ -793,7 +810,7 @@ export async function getPackage(packageId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin.from('packages').select(PACKAGE_SELECT)
     .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-  if (error) { console.error('Failed to get package:', error); throw new Error('Failed to load the package'); }
+  if (error) { console.error('Failed to get package:', error, error?.message, error?.details); throw new Error('Failed to load the package'); }
   if (!data) return null;
   return shapePackage(data);
 }

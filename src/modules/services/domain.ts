@@ -47,13 +47,13 @@ type NamedTable = 'service_domains' | 'delivery_containers' | 'deliverables';
 async function findOrCreateNamed(table: NamedTable, orgId: string, name: string): Promise<string | null> {
   const clean = (name || '').trim();
   if (!clean) return null;
-  const { data: existing } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).eq('name', clean).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).ilike('name', clean).maybeSingle();
   if (existing) return existing.id;
   const { data: last } = await supabaseAdmin.from(table).select('position').eq('organization_id', orgId).order('position', { ascending: false }).limit(1).maybeSingle();
   const { data: created, error } = await supabaseAdmin.from(table).insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 }).select('id').maybeSingle();
   if (error) {
     if (error.code === '23505') {
-      const { data: retry } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).eq('name', clean).maybeSingle();
+      const { data: retry } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).ilike('name', clean).maybeSingle();
       if (retry) return retry.id;
     }
     console.error(`Failed to create ${table} value:`, error);
@@ -187,42 +187,7 @@ function shapeServiceDimensions(row: any): ServiceDimensionTag[] {
   return [...byDimension.values()].sort((a, b) => a.position - b.position);
 }
 
-/**
- * Find-or-create an output type inside one domain.
- *
- * The counterpart of resolveDimensionValueId, and for the same reason: what a
- * studio types in the service form should just work, and what it types becomes
- * the domain's vocabulary. Photography producing "Contact sheet" says nothing
- * about Printing.
- */
-async function findOrCreateOutputType(orgId: string, domainId: string, name: string): Promise<string | null> {
-  const clean = (name || '').trim();
-  if (!clean || !domainId) return null;
-
-  const { data: existing } = await supabaseAdmin
-    .from('deliverables').select('id')
-    .eq('organization_id', orgId).eq('service_domain_id', domainId)
-    .ilike('name', clean).maybeSingle();
-  if (existing) return existing.id as string;
-
-  const { data: last } = await supabaseAdmin
-    .from('deliverables').select('position')
-    .eq('organization_id', orgId).eq('service_domain_id', domainId)
-    .order('position', { ascending: false }).limit(1).maybeSingle();
-
-  const { data: created, error } = await supabaseAdmin
-    .from('deliverables')
-    .insert({ organization_id: orgId, service_domain_id: domainId, name: clean, position: ((last?.position as number) ?? -1) + 1 })
-    .select('id').maybeSingle();
-  if (error) {
-    if (error.code === '23505') {
-      const { data: retry } = await supabaseAdmin.from('deliverables').select('id').eq('organization_id', orgId).eq('service_domain_id', domainId).ilike('name', clean).maybeSingle();
-      if (retry) return retry.id as string;
-    }
-    console.error('Failed to create output type:', error); return null;
-  }
-  return (created?.id as string) ?? null;
-}
+import { findOrCreateOutputType } from '@/modules/deliverables/domain';
 
 type Facet = { id: string; name: string; position: number };
 
@@ -232,6 +197,7 @@ async function listNamed(table: NamedTable): Promise<Facet[]> {
   if (error) { console.error(`Failed to list ${table}:`, error); return []; }
   return data || [];
 }
+
 async function renameNamed(table: NamedTable, id: string, name: string, label: string) {
   const { orgId } = await getAuthOrgId();
   const clean = (name || '').trim();
@@ -242,6 +208,7 @@ async function renameNamed(table: NamedTable, id: string, name: string, label: s
   revalidatePath('/packages');
   return { ok: true };
 }
+
 async function deleteNamed(table: NamedTable, id: string, label: string) {
   const { orgId } = await getAuthOrgId();
   const { error } = await supabaseAdmin.from(table).delete().eq('id', id).eq('organization_id', orgId);
@@ -253,17 +220,6 @@ async function deleteNamed(table: NamedTable, id: string, label: string) {
 
 /**
  * The service parents this studio works in.
- *
- * A domain classifies — it is the parent a service is defined in relation to,
- * and nothing more. It used to also carry a declared "DNA" of deliverables and
- * dimensions, edited on its own page, which nothing ever read: the suggestions
- * a service editor offers are built from the template library and the services
- * the studio has actually created. That is the better source, because it is
- * knowledge earned from real work rather than a form somebody filled in once.
- *
- * Output types belong to the service. A domain cannot sensibly say what its
- * services produce — Portrait Photography and Film Developing are both
- * Photography and share no output.
  */
 export async function listServiceDomains() {
   const { orgId } = await getAuthOrgId();
@@ -298,64 +254,6 @@ export async function createServiceDomain(name: string) {
 }
 export async function renameServiceDomain(id: string, name: string) { return renameNamed('service_domains', id, name, 'service domain'); }
 export async function deleteServiceDomain(id: string) { return deleteNamed('service_domains', id, 'service domain'); }
-
-/**
- * Output types, like dimensions, belong to a service domain.
- *
- * A KIND of thing a domain can produce — edited photographs under Photography,
- * a bound album under Printing. Same rule as everywhere below a domain: the
- * vocabulary is the domain's, and Printing never inherits Photography's.
- *
- * Listed studio-wide here because Packages bundles across domains and needs to
- * see everything; each row carries the domain that owns it so a surface can
- * group or narrow. Writing always goes through a domain.
- */
-export async function listDeliverables(): Promise<(Facet & { serviceDomainId: string; domainName: string | null })[]> {
-  const { orgId } = await getAuthOrgId();
-  const { data, error } = await supabaseAdmin
-    .from('deliverables')
-    .select('id, name, position, service_domain_id, domain:service_domains(name)')
-    .eq('organization_id', orgId)
-    .order('position');
-  if (error) { console.error('Failed to list output types:', error); return []; }
-  return ((data || []) as any[]).map((d) => ({
-    id: d.id, name: d.name, position: d.position ?? 0,
-    serviceDomainId: d.service_domain_id,
-    domainName: d.domain?.name ?? null,
-  }));
-}
-
-/** Output types grouped by the domain that owns them — what a form narrows with. */
-export async function listOutputTypesByDomain(): Promise<Record<string, { id: string; name: string }[]>> {
-  const all = await listDeliverables();
-  const out: Record<string, { id: string; name: string }[]> = {};
-  for (const d of all) {
-    if (!d.domainName) continue;
-    (out[d.domainName] ||= []).push({ id: d.id, name: d.name });
-  }
-  return out;
-}
-
-export async function createDeliverable(input: { serviceDomainId: string; name: string }) {
-  const { orgId } = await getAuthOrgId();
-  const id = await findOrCreateOutputType(orgId, input.serviceDomainId, input.name);
-  if (!id) throw new Error('Give the output type a name.');
-  revalidatePath('/services');
-  return { outputTypeId: id };
-}
-export async function renameDeliverable(id: string, name: string) { return renameNamed('deliverables', id, name, 'output type'); }
-export async function deleteDeliverable(id: string) { return deleteNamed('deliverables', id, 'output type'); }
-
-export async function listDeliveryContainers() { return listNamed('delivery_containers'); }
-export async function createDeliveryContainer(name: string) {
-  const { orgId } = await getAuthOrgId();
-  const id = await findOrCreateNamed('delivery_containers', orgId, name);
-  if (!id) throw new Error('Give the delivery container a name.');
-  revalidatePath('/services');
-  return { deliveryContainerId: id };
-}
-export async function renameDeliveryContainer(id: string, name: string) { return renameNamed('delivery_containers', id, name, 'delivery container'); }
-export async function deleteDeliveryContainer(id: string) { return deleteNamed('delivery_containers', id, 'delivery container'); }
 
 // ── How each domain classifies its work ──────────────────────────────────────
 // A dimension belongs to a service domain, so there is no studio-wide "which

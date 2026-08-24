@@ -2,10 +2,11 @@ import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   listBlueprints, listServiceDomains, listServices,
-  listDimensionsByDomain, listOutputTypesByDomain,
+  listDimensionsByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
   buildVariableSuggestions,
 } from '@/modules/services/interface';
+import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
 import { TemplatePicker } from './TemplatePicker';
 
 export const dynamic = 'force-dynamic';

@@ -35,6 +35,7 @@ function Combo({
   onCommit,
   disabled,
   clearOnCommit,
+  allowCreate,
   current,
 }: {
   text: string;
@@ -44,6 +45,7 @@ function Combo({
   onCommit: (value: string) => void;
   disabled?: boolean;
   clearOnCommit?: boolean;
+  allowCreate?: boolean;
   /**
    * The value already chosen, when there is one.
    *
@@ -76,7 +78,7 @@ function Combo({
 
   // Nothing is "new" until you have actually typed something new. Offering to
   // create the value that is already saved reads as though it were not.
-  const isNew = typed.length > 0 && !known && !untouched;
+  const isNew = (allowCreate !== false) && typed.length > 0 && !known && !untouched;
 
   const commit = (value: string) => {
     const v = value.trim();
@@ -104,11 +106,11 @@ function Combo({
             e.preventDefault();
             // What's highlighted, or what you typed — typing wins if it's new.
             if (open && filtered[active] && !isNew) commit(filtered[active]);
-            else if (typed) commit(typed);
+            else if (isNew && typed) commit(typed);
           }
           else if (e.key === 'Escape') { setOpen(false); }
         }}
-        onBlur={() => { if (!clearOnCommit && typed) onCommit(typed); }}
+        onBlur={() => { if (!clearOnCommit && typed && (known || isNew)) onCommit(typed); }}
       />
 
       {open && (filtered.length > 0 || isNew) && (
@@ -144,12 +146,14 @@ export function PickOne({
   options,
   placeholder = 'Choose or type…',
   disabled,
+  allowCreate,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
   placeholder?: string;
   disabled?: boolean;
+  allowCreate?: boolean;
 }) {
   const [text, setText] = useState(value);
   // The parent can reset this (picking a template, switching service), and the
@@ -163,6 +167,8 @@ export function PickOne({
       options={options}
       placeholder={placeholder}
       disabled={disabled}
+      clearOnCommit={false}
+      allowCreate={allowCreate}
       onCommit={onChange}
       current={value}
     />
@@ -176,12 +182,14 @@ export function PickMany({
   options,
   placeholder = 'Choose or type…',
   disabled,
+  allowCreate,
 }: {
   values: string[];
   onChange: (v: string[]) => void;
   options: string[];
   placeholder?: string;
   disabled?: boolean;
+  allowCreate?: boolean;
 }) {
   const [text, setText] = useState('');
   const remaining = options.filter((o) => !values.some((v) => v.toLowerCase() === o.toLowerCase()));
@@ -205,6 +213,7 @@ export function PickMany({
         placeholder={placeholder}
         disabled={disabled}
         clearOnCommit
+        allowCreate={allowCreate}
         onCommit={(v) => {
           if (values.some((x) => x.toLowerCase() === v.toLowerCase())) return;
           onChange([...values, v]);

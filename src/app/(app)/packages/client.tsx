@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
-import { DimensionTag } from './DimensionTag';
+
 
 type DimensionTagShape = { id: string; name: string; values: { id: string; name: string }[] };
 
@@ -54,7 +54,7 @@ export function PackagesClient({
         </div>
         <div className="q-meta">{(pkg.services || []).map((s: any) => s.name).join(' + ') || 'No services bundled'}</div>
         {tags.length > 0 && (
-          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
             {tags.map((d) => (
               <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
                 <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
@@ -70,6 +70,30 @@ export function PackagesClient({
                 </span>
               </div>
             ))}
+          </div>
+        )}
+        
+        {((pkg.deliverables || []).length > 0 || (pkg.services || []).some((s: any) => (s.variables || []).length > (s.variableValues || []).length)) && (
+          <div className="q-stack q-stack-sm" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--q-color-ink-100)' }}>
+            {(pkg.deliverables || []).length > 0 && (
+              <div className="q-meta-sm">
+                <strong className="q-strong">Promises: </strong>
+                {(pkg.deliverables || []).map((d: any) => d.name).join(', ')}
+              </div>
+            )}
+            {(() => {
+              const openVars = (pkg.services || []).flatMap((s: any) => {
+                const fixedIds = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
+                return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
+              });
+              if (openVars.length === 0) return null;
+              return (
+                <div className="q-meta-sm">
+                  <strong className="q-strong">Questions for client: </strong>
+                  {openVars.map((v: any) => v.label).join(', ')}
+                </div>
+              );
+            })()}
           </div>
         )}
         <div className="q-tile-sub">

@@ -16,8 +16,7 @@ export {
   createServiceDomain,
   renameServiceDomain, deleteServiceDomain,
   // Deliverables and Delivery Containers — the vocabulary of what a Service produces
-  listDeliverables, listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable,
-  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
+  // Moved to @/modules/deliverables/interface
   // How each domain classifies its work. Owned here since Packages already
   // depends on Services one-way, never the reverse — and read per domain,
   // because a domain is the boundary everything below it belongs to.

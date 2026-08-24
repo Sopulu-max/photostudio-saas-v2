@@ -18,6 +18,7 @@ import {
   CheckSquare,
   Clock,
   Settings,
+  Box,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -47,6 +48,7 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Services', href: '/services', icon: Layers },
       { label: 'Packages', href: '/packages', icon: Package },
+      { label: 'Deliverables', href: '/deliverables', icon: Box },
       { label: 'Team', href: '/team', icon: Boxes },
     ]
   },
