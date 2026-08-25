@@ -1,11 +1,9 @@
 'use server';
 
-import { createDeliverable as createOutput, createDeliveryContainer as createContainer } from '@/modules/deliverables/interface';
+import {
+  createDeliverable
+} from '@/modules/deliverables/interface';
 
-export async function createDeliverable(serviceDomainId: string, name: string) {
-  return createOutput({ serviceDomainId, name });
-}
-
-export async function createDeliveryContainer(name: string) {
-  return createContainer(name);
+export async function createDeliverableAction(input: { type?: 'output' | 'container', name: string, domainId?: string }) {
+  return createDeliverable({ name: input.name, serviceDomainId: input.domainId || '' });
 }

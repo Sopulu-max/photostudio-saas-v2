@@ -2,20 +2,17 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  listServices, listBlueprints, listDimensionsByDomain,
+  listServices, listDimensionsByDomain,
   buildDimensionSuggestions, buildDeliverableSuggestions,
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
 } from '@/modules/services/interface';
-import {
-  listDeliveryContainers, createDeliveryContainer, renameDeliveryContainer, deleteDeliveryContainer,
-} from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { FacetManager } from '@/components/FacetManager';
-import { NewBlueprintForm } from '../NewBlueprintForm';
-import { BlueprintRow } from '../BlueprintRow';
 import { DimensionManager } from './DimensionManager';
 import { OutputTypeManager } from './OutputTypeManager';
 import { DomainManager } from './DomainManager';
+import { WorkflowManager } from './WorkflowManager';
+import { listWorkflowsByDomain, saveWorkflow, deleteWorkflow } from '@/modules/services/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,9 +31,9 @@ export default async function ServiceSettingsPage() {
     redirect('/login');
   }
 
-  const [services, blueprints, domains, containers, roles, dimensionsByDomain] = await Promise.all([
-    listServices(), listBlueprints(), listServiceDomains(), listDeliveryContainers(), listRoles(),
-    listDimensionsByDomain(),
+  const [services, domains, roles, dimensionsByDomain, workflowsByDomain] = await Promise.all([
+    listServices(), listServiceDomains(), listRoles(),
+    listDimensionsByDomain(), listWorkflowsByDomain(),
   ]);
 
   // The same knowledge the service form narrows with. Defining the vocabulary
@@ -104,6 +101,20 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
+          <h2 className="q-section-title">Workflows</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            The standard production workflows defined for each domain. These are available as templates when creating a service.
+          </p>
+          <WorkflowManager
+            domains={domains}
+            workflowsByDomain={workflowsByDomain}
+            roleOptions={roleOptions}
+            onSave={saveWorkflow}
+            onDelete={deleteWorkflow}
+          />
+        </section>
+
+        <section className="q-card q-section">
           <h2 className="q-section-title">Output types</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             The types of output a service produces — RAW images, edited video, a bound album. Like
@@ -116,27 +127,7 @@ export default async function ServiceSettingsPage() {
           />
         </section>
 
-        <section className="q-card q-section">
-          <h2 className="q-section-title">Delivery Containers</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>How deliverables are handed to the client — Online Gallery, USB Drive, Photobook.</p>
-          <FacetManager
-            facets={containers} counts={{}} noun="package" placeholder="e.g. Online Gallery"
-            onCreate={createDeliveryContainer} onRename={renameDeliveryContainer} onDelete={deleteDeliveryContainer}
-          />
-        </section>
-
-        <section className="q-card q-section">
-          <h2 className="q-section-title">Blueprints</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>A Service&rsquo;s Process — the stages it runs through, each optionally routed to a role.</p>
-          {blueprints.length === 0 ? (
-            <p className="q-empty">No blueprints yet.</p>
-          ) : (
-            <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-              {blueprints.map((bp: any) => <BlueprintRow key={bp.id} blueprint={bp} roleOptions={roleOptions} />)}
-            </div>
-          )}
-          <NewBlueprintForm roleOptions={roleOptions} />
-        </section>
+        
       </div>
     </div>
   );

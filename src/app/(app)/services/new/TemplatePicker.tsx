@@ -30,6 +30,9 @@ export function TemplatePicker({
   variableSuggestions,
   outputTypesByDomain,
   dimensionsByDomain,
+  workflowsByDomain,
+  domains,
+  roleOptions,
 }: {
   /**
    * Where the classification view dropped you — a domain, and what it was filed under.
@@ -44,6 +47,9 @@ export function TemplatePicker({
   variableSuggestions: any;
   outputTypesByDomain: Record<string, { id: string; name: string }[]>;
   dimensionsByDomain: Record<string, StudioDimensionShape[]>;
+  workflowsByDomain?: Record<string, any[]>;
+  domains?: { id: string; name: string }[];
+  roleOptions?: string[];
 }) {
   const [chosen, setChosen] = useState<ServiceTemplate | null>(null);
   const [custom, setCustom] = useState(!!startFrom);
@@ -71,6 +77,7 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
+          domains={domains}
           domainOptions={domainOptions}
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
@@ -78,6 +85,8 @@ export function TemplatePicker({
           variableSuggestions={variableSuggestions}
           outputTypesByDomain={outputTypesByDomain}
           dimensionsByDomain={dimensionsByDomain}
+          workflowsByDomain={workflowsByDomain}
+          roleOptions={roleOptions}
           initial={startFrom || {}}
         />
       </div>
@@ -98,6 +107,7 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
+          domains={domains}
           domainOptions={domainOptions}
           serviceSuggestions={serviceSuggestions}
           deliverableSuggestions={deliverableSuggestions}
@@ -105,6 +115,8 @@ export function TemplatePicker({
           variableSuggestions={variableSuggestions}
           outputTypesByDomain={outputTypesByDomain}
           dimensionsByDomain={dimensionsByDomain}
+          workflowsByDomain={workflowsByDomain}
+          roleOptions={roleOptions}
           initial={{
             name: chosen.name,
             description: chosen.summary,

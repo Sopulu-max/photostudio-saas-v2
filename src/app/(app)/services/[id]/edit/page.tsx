@@ -4,10 +4,12 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   getService, listServiceDomains, listServices, listServiceVariables,
   listDimensionsByDomain,
+  listWorkflowsByDomain,
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
   buildVariableSuggestions,
 } from '@/modules/services/interface';
 import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
+import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
 import { ServiceVariablesEditor } from '../ServiceVariablesEditor';
@@ -25,9 +27,9 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const service = await getService(params.id);
   if (!service) notFound();
 
-  const [domains, outputTypesByDomain, dimensionsByDomain, services, variables] = await Promise.all([
-    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(),
-    listServices(), listServiceVariables(params.id),
+  const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, variables, roles] = await Promise.all([
+    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(),
+    listServices(), listServiceVariables(params.id), listRoles()
   ]);
 
   // The same knowledge the create form gets — editing a service should narrow
@@ -36,8 +38,8 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const deliverableSuggestions = buildDeliverableSuggestions(services as any);
   const dimensionSuggestions = buildDimensionSuggestions(services as any);
   // What varies about work like this — the library's, plus what this studio's
-  // own services already declare.
   const variableSuggestions = buildVariableSuggestions(services as any);
+  const roleOptions = (roles as any[]).map(r => r.name);
 
   return (
     <div className="q-page-narrow">
@@ -52,12 +54,16 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         mode="edit"
         serviceId={service.id}
         status={service.status}
+        domains={domains}
         domainOptions={domains.map((d: any) => d.name)}
         serviceSuggestions={serviceSuggestions}
         deliverableSuggestions={deliverableSuggestions}
         dimensionSuggestions={dimensionSuggestions}
+        variableSuggestions={variableSuggestions}
         outputTypesByDomain={outputTypesByDomain}
         dimensionsByDomain={dimensionsByDomain}
+        workflowsByDomain={workflowsByDomain}
+        roleOptions={roleOptions}
         initial={{
           name: service.name,
           description: (service as any).description,

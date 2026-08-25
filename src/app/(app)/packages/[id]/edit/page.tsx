@@ -22,11 +22,11 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
-  const { listDeliverables, listDeliveryContainers } = await import('@/modules/deliverables/interface');
-  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
+  const { listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listDeliverables } = await import('@/modules/deliverables/interface');
+  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
-    getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(), listDeliveryContainers(), listBlueprints(),
+    getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(),
     listDimensionsByDomain(),
   ]);
 
@@ -54,8 +54,6 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           allServices={allServices as any}
           allVariables={allVariables as any}
           allDeliverables={allDeliverables as any}
-          allContainers={allContainers as any}
-          allWorkflows={allWorkflows as any}
           dimensionsByDomain={dimensionsByDomain}
           roleOptions={(roles as any[]).map((r) => r.name)}
           initial={{
@@ -69,14 +67,22 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
                 serviceId: s.id as string, deliverableId: d.id as string,
                 quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null, specValues: d.spec_values ?? null,
               }))),
-            containerIds: ((pkg as any).containers || []).map((d: any) => d.id),
-            workflows: (((pkg as any).services || []) as any[]).flatMap((s) =>
-              ((s.workflows || []) as any[]).map((w) => ({ serviceId: s.id as string, blueprintId: w.id as string }))),
             narrowings: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.narrowedTo || []) as { values: { id: string }[] }[])
                 .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
             variableValues: ((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),
+            tasks: (((pkg as any).services || []) as any[]).flatMap((s) =>
+              ((s.tasks || []) as any[]).map((t) => ({
+                serviceId: s.id as string,
+                taskId: t.id as string,
+                workflowTaskId: t.workflowTaskId as string,
+                name: t.name as string,
+                roleId: t.roleId as string | null,
+                roleName: t.roleName as string | null,
+                isActive: t.isActive as boolean,
+              }))
+            ),
           }}
         />
 

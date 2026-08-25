@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getEmployee, listAttendanceForEmployee } from '@/modules/team/interface';
 import { getStudio } from '@/kernel/organizations';
-import { listTasksForEmployee, listBookingAssignmentsForEmployee } from '@/modules/production/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { WorkingDaysForm } from './WorkingDaysForm';
 import { AttendanceHistory } from './AttendanceHistory';
@@ -35,15 +34,13 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
   const employee: any = await getEmployee(params.id);
   if (!employee) notFound();
 
-  const [tasks, bookingAssignments, attendance, studio] = await Promise.all([
-    listTasksForEmployee(params.id),
-    listBookingAssignmentsForEmployee(params.id),
+  const [attendance, studio] = await Promise.all([
+    
+    
     listAttendanceForEmployee(params.id, 14),
     getStudio(),
   ]);
   const timezone = studio?.timezone || 'UTC';
-  const openTasks = tasks.filter((t) => t.status !== 'completed');
-  const doneTasks = tasks.filter((t) => t.status === 'completed');
 
   const contact = employee.contact || {};
   const roles: { id: string; name: string }[] = (employee.employee_roles || [])
@@ -144,82 +141,6 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
             <AttendanceHistory days={attendance} timezone={timezone} />
           )}
         </Section>
-
-        <Section title={`Tasks${openTasks.length > 0 ? ` · ${openTasks.length} open` : ''}`}>
-          {tasks.length === 0 ? (
-            <p className="q-empty">Nothing assigned yet.</p>
-          ) : (
-            <>
-              {openTasks.length > 0 && (
-                <div className="q-stack q-stack-sm" style={{ marginBottom: doneTasks.length > 0 ? '16px' : 0 }}>
-                  {openTasks.map((t) => (
-                    <Link key={t.taskId} href={`/bookings/${t.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
-                      <div>
-                        <strong className="q-strong">{t.stageName}</strong>
-                        <div className="q-meta">
-                          {t.bookingTitle}
-                          {t.lineTitle && t.lineTitle !== t.bookingTitle ? ` · ${t.lineTitle}` : ''}
-                        </div>
-                      </div>
-                      <div className="q-row">
-                        {t.dueDate && (
-                          <span className="q-meta-sm">
-                            due {new Date(t.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                          </span>
-                        )}
-                        <span className={`q-badge ${TASK_BADGE[t.status] ?? 'q-badge-neutral'}`}>
-                          {TASK_LABEL[t.status] ?? t.status}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-              {doneTasks.length > 0 && (
-                <details>
-                  <summary className="q-meta" style={{ cursor: 'pointer' }}>
-                    {doneTasks.length} completed task{doneTasks.length === 1 ? '' : 's'}
-                  </summary>
-                  <div className="q-stack q-stack-sm" style={{ marginTop: '8px', opacity: 0.65 }}>
-                    {doneTasks.map((t) => (
-                      <Link key={t.taskId} href={`/bookings/${t.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
-                        <div>
-                          <strong className="q-strong">{t.stageName}</strong>
-                          <div className="q-meta">{t.bookingTitle}</div>
-                        </div>
-                        <span className="q-badge q-badge-success">Done</span>
-                      </Link>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </>
-          )}
-        </Section>
-
-        {/* Booking-level assignments (shoot roster, before tasks exist) */}
-        {bookingAssignments.length > 0 && (
-          <Section title={`On ${bookingAssignments.length} booking${bookingAssignments.length === 1 ? '' : 's'}`}>
-            <div className="q-stack q-stack-sm">
-              {bookingAssignments.map((a) => (
-                <Link key={a.assignmentId} href={`/bookings/${a.bookingId}`} className="q-tile q-row q-row-between q-plain-link">
-                  <div>
-                    <strong className="q-strong">{a.bookingTitle}</strong>
-                    <div className="q-meta">
-                      {a.role && <span>{a.role} · </span>}
-                      {a.scheduledFor
-                        ? new Date(a.scheduledFor).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
-                        : 'No date set'}
-                    </div>
-                  </div>
-                  {a.stage && (
-                    <span className={`q-badge ${stageBadgeClass(a.stage)}`}>{a.stage.name}</span>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </Section>
-        )}
 
       </div>
     </div>

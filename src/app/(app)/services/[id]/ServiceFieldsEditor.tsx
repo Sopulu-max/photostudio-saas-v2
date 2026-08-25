@@ -8,6 +8,8 @@ import type { Narrowed, DimensionSuggestions, StudioDimensionShape, DimensionWri
 import { CheckCircle2, Plus, Settings } from 'lucide-react';
 import { PickOne, PickMany } from '@/components/Pick';
 import { ServiceVariablesEditor } from './ServiceVariablesEditor';
+import { WorkflowEditor } from './WorkflowEditor';
+import type { WorkflowInput } from '@/modules/services/interface';
 
 /**
  * Defining a service, in the vocabulary of its own domain.
@@ -30,11 +32,14 @@ import { ServiceVariablesEditor } from './ServiceVariablesEditor';
  *    settings — the questions are as open as the answers.
  */
 export function ServiceFieldsEditor({
-  mode, serviceId, status, domainOptions, outputTypesByDomain, dimensionsByDomain,
+  mode, serviceId, status, domains, domainOptions, outputTypesByDomain, dimensionsByDomain,
   serviceSuggestions, deliverableSuggestions, dimensionSuggestions, variableSuggestions,
+  workflowsByDomain,
+  roleOptions,
   initial,
 }: {
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
+  domains?: { id: string; name: string }[];
   domainOptions: string[];
   /** Domain name → the KINDS it can produce. Output types belong to a domain too. */
   outputTypesByDomain: Record<string, { id: string; name: string }[]>;
@@ -45,6 +50,8 @@ export function ServiceFieldsEditor({
   deliverableSuggestions?: Narrowed;
   dimensionSuggestions?: DimensionSuggestions;
   variableSuggestions?: any;
+  workflowsByDomain?: Record<string, any[]>;
+  roleOptions?: string[];
   initial: any;
 }) {
   const router = useRouter();
@@ -56,6 +63,7 @@ export function ServiceFieldsEditor({
   const [primaryDeliverable, setPrimaryOutputType] = useState(initial.primaryDeliverable ?? '');
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
   const [variables, setVariables] = useState<any[]>(initial.variables || []);
+  const [workflow, setWorkflow] = useState<WorkflowInput | null>(initial.workflow || null);
 
   /*
    * Chosen values, keyed by dimension name rather than by dimension id.
@@ -79,6 +87,7 @@ export function ServiceFieldsEditor({
   const [newDimension, setNewDimension] = useState('');
 
   const domainName = domain.trim();
+  const domainId = domains?.find((d) => d.name.toLowerCase() === domainName.toLowerCase())?.id;
 
   /*
    * The questions this form asks right now.
@@ -170,6 +179,7 @@ export function ServiceFieldsEditor({
           deliverables,
           dimensions,
           variables,
+          workflow,
         };
         if (mode === 'create') {
           // createService answers { serviceId }, not the id. Interpolating the
@@ -361,6 +371,22 @@ export function ServiceFieldsEditor({
               Output types only. Quantities and sizes are set on a package.
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Workflow Configuration */}
+      <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
+        <h3 className="q-section-title">Workflow Tasks</h3>
+        <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+          Define the production tasks that must happen to deliver this service.
+        </span>
+        <div style={{ marginTop: '16px', borderTop: '1px solid var(--q-color-border)', paddingTop: '16px' }}>
+          <WorkflowEditor
+            workflow={workflow}
+            availableWorkflows={workflowsByDomain && domainId ? workflowsByDomain[domainId] : []}
+            roleOptions={roleOptions}
+            onChange={setWorkflow}
+          />
         </div>
       </div>
 

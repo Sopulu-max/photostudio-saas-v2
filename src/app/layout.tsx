@@ -40,9 +40,13 @@ export default function RootLayout({
           * We use next/script with strategy="beforeInteractive" which is the
           * modern Next.js way to handle early-running scripts without warnings.
           */}
-        <Script id="theme-script" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
-        </Script>
+        <Script 
+          id="theme-script" 
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`
+          }}
+        />
       </head>
       <body className="q-bg-surface-base q-text-body">
         {children}

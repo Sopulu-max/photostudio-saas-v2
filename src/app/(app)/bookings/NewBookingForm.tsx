@@ -210,8 +210,8 @@ export function NewBookingForm({
   allServices,
   allVariables,
   allDeliverables,
-  allContainers,
-  allWorkflows,
+  
+  
   roleOptions,
   currencyCode
 }: { 
@@ -222,8 +222,6 @@ export function NewBookingForm({
   allServices: any[];
   allVariables: any[];
   allDeliverables: any[];
-  allContainers: any[];
-  allWorkflows: any[];
   roleOptions: string[];
   currencyCode: string;
 }) {
@@ -663,8 +661,7 @@ export function NewBookingForm({
                         allServices={allServices}
                         allVariables={allVariables}
                         allDeliverables={allDeliverables}
-                        allContainers={allContainers}
-                        allWorkflows={allWorkflows}
+                        
                         dimensionsByDomain={dimensionsByDomain}
                         roleOptions={roleOptions}
                         hideControls={true}
@@ -680,9 +677,6 @@ export function NewBookingForm({
                                 serviceId: s.id as string, deliverableId: d.id as string,
                                 quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null,
                               }))),
-                            containerIds: (line.selectedPackageDeep.containers || []).map((d: any) => d.id),
-                            workflows: ((line.selectedPackageDeep.services || []) as any[]).flatMap((s) =>
-                              ((s.workflows || []) as any[]).map((w) => ({ serviceId: s.id as string, blueprintId: w.id as string }))),
                             narrowings: ((line.selectedPackageDeep.services || []) as any[]).flatMap((s) =>
                               ((s.narrowedTo || []) as { values: { id: string }[] }[])
                                 .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),

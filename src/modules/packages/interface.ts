@@ -20,8 +20,7 @@ export {
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   // Backwards: where is this service sold? The edge lives here, so the read does.
   listPackagesForService,
-  getProductionPlanForPackage,
-  // What these packages promise the client will end up with
+    // What these packages promise the client will end up with
   getDeliverablesForPackages,
   // What a package left open — the questions a client still has to answer
   getOpenVariablesForPackage, getOpenVariablesForPackagePublic,

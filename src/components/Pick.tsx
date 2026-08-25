@@ -27,7 +27,7 @@ function useOutside(ref: React.RefObject<HTMLElement | null>, onOut: () => void,
   }, [ref, onOut, active]);
 }
 
-function Combo({
+export function Combo({
   text,
   setText,
   options,

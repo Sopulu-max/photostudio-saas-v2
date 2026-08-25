@@ -7,7 +7,6 @@ import { listRecentActivity } from '@/kernel/events';
 import { listBookings, listBookingsInRange } from '@/modules/bookings/interface';
 import { listTransactions } from '@/modules/finances/interface';
 import { listContracts } from '@/modules/contracts/interface';
-import { listTaskDeadlinesInRange } from '@/modules/production/interface';
 import { listServices } from '@/modules/services/interface';
 import { listPackages } from '@/modules/packages/interface';
 
@@ -59,7 +58,7 @@ async function getOverviewData() {
       listServices(),
       listPackages(),
       listContracts(),
-      listTaskDeadlinesInRange(todayStart, weekEnd),
+      Promise.resolve([]),
     ]);
     if (!org) return null;
 

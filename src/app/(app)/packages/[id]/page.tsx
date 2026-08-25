@@ -77,7 +77,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               {services.map((s: any) => {
                 const serviceVariables = s.variableValues || [];
                 const promises = s.deliverables || [];
-                const serviceWorkflows = s.workflows || [];
                 const serviceTags = (s.dimensions || []).flatMap((d: any) => d.values);
 
                 return (
@@ -128,17 +127,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                                   </div>
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {serviceWorkflows.length > 0 && (
-                        <div className="q-stack q-stack-sm">
-                          <h4 className="q-strong">How it is produced</h4>
-                          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                            {serviceWorkflows.map((w: any) => (
-                              <span key={w.id} className="q-badge q-badge-primary">{w.name}</span>
                             ))}
                           </div>
                         </div>

@@ -4,8 +4,8 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { NewBookingForm } from '../NewBookingForm';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
-import { listActiveServices, listDimensionsByDomain, listBlueprints, listVariablesForServices } from '@/modules/services/interface';
-import { listDeliverables, listDeliveryContainers } from '@/modules/deliverables/interface';
+import { listActiveServices, listDimensionsByDomain, listVariablesForServices } from '@/modules/services/interface';
+import { listDeliverables } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 
@@ -18,9 +18,11 @@ export default async function NewBookingPage() {
     redirect('/login');
   }
 
-  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, allContainers, allWorkflows] = await Promise.all([
+  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables] = await Promise.all([
+
+
     listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
-    listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints()
+    listRoles(), getStudioCurrency(), listDeliverables()
   ]);
 
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
@@ -75,8 +77,6 @@ export default async function NewBookingPage() {
         allServices={activeServices as any}
         allVariables={allVariables as any}
         allDeliverables={allDeliverables as any}
-        allContainers={allContainers as any}
-        allWorkflows={allWorkflows as any}
         roleOptions={(roles as any[]).map((r) => r.name)}
         currencyCode={currencyCode}
       />

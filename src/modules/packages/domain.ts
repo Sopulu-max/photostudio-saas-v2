@@ -73,6 +73,53 @@ async function buildExtraStages(raw: StageInput[]): Promise<{ name: string; orde
  * here rather than trusting whatever the form sent. Read after the bundle is
  * reconciled, never before.
  */
+
+async function copyWorkflowTasksToPackage(orgId: string, rows: { id: string; service_id: string }[]) {
+  if (rows.length === 0) return;
+  // Get workflows for these services
+  const { data: services } = await supabaseAdmin
+    .from('services')
+    .select('id, workflow_id')
+    .in('id', rows.map(r => r.service_id))
+    .eq('organization_id', orgId);
+    
+  if (!services || services.length === 0) return;
+  
+  const workflowIds = [...new Set(services.map((s: any) => s.workflow_id).filter(Boolean))] as string[];
+  if (workflowIds.length === 0) return;
+
+  const { data: workflowTasks } = await supabaseAdmin
+    .from('workflow_tasks')
+    .select('id, workflow_id, name, default_role_id, position')
+    .in('workflow_id', workflowIds)
+    .eq('organization_id', orgId);
+    
+  if (!workflowTasks || workflowTasks.length === 0) return;
+  
+  const packageTasksToInsert: any[] = [];
+  
+  for (const row of rows) {
+    const service = services.find((s: any) => s.id === row.service_id);
+    if (!service || !service.workflow_id) continue;
+    
+    const tasks = workflowTasks.filter((t: any) => t.workflow_id === service.workflow_id);
+    for (const t of tasks) {
+      packageTasksToInsert.push({
+        organization_id: orgId,
+        package_service_id: row.id,
+        workflow_task_id: t.id,
+        name: t.name,
+        role_id: t.default_role_id,
+        position: t.position,
+        is_active: true
+      });
+    }
+  }
+  
+  if (packageTasksToInsert.length > 0) {
+    await supabaseAdmin.from('package_tasks').insert(packageTasksToInsert);
+  }
+}
 async function bundleRows(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('package_services').select('id, service_id, position')
@@ -89,7 +136,7 @@ async function bundleRows(orgId: string, packageId: string) {
  */
 async function replaceBundleLinks(
   orgId: string,
-  table: 'package_variable_values' | 'package_deliverables' | 'package_workflows',
+  table: 'package_variable_values' | 'package_deliverables',
   rows: { id: string }[],
   links: Record<string, unknown>[],
   failure: string
@@ -187,32 +234,6 @@ async function writePackageDeliverables(
   await replaceBundleLinks(orgId, 'package_deliverables', rows, links, 'Failed to save what this package promises');
 }
 
-/**
- * Write how a package is produced, per bundled service.
- *
- * `getProductionPlanForPackage` already claimed to be "the union of every
- * bundled Service's Process" — it could not be, because a workflow was attached
- * to the package and knew no service. Now it is.
- */
-async function writePackageWorkflows(
-  orgId: string,
-  rows: { id: string; service_id: string }[],
-  workflows?: { serviceId: string; blueprintId: string }[]
-) {
-  const rowIdOf = new Map(rows.map((r) => [r.service_id, r.id]));
-  const seen = new Set<string>();
-  const links: Record<string, unknown>[] = [];
-  for (const w of (workflows || [])) {
-    if (!w?.serviceId || !w?.blueprintId) continue;
-    const packageServiceId = rowIdOf.get(w.serviceId);
-    if (!packageServiceId) throw new Error('That workflow is on a service this package does not include.');
-    const key = `${packageServiceId}:${w.blueprintId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    links.push({ organization_id: orgId, package_service_id: packageServiceId, blueprint_id: w.blueprintId });
-  }
-  await replaceBundleLinks(orgId, 'package_workflows', rows, links, 'Failed to save how this package is produced');
-}
 
 /**
  * Write how a package narrows what it bundles.
@@ -291,7 +312,6 @@ export async function createPackage(input: {
    * package is for. Each promise names the bundled service that produces it.
    */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
-  containerIds?: string[];
   /** The production sequences to run, each on the bundled service it belongs to. */
   workflows?: { serviceId: string; blueprintId: string }[];
   /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
@@ -307,6 +327,7 @@ export async function createPackage(input: {
   narrowings?: { serviceId: string; valueId: string }[];
   formSchema?: any[];
   extraStages?: StageInput[];
+  tasks?: { id: string; isActive: boolean; roleId: string | null }[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -331,8 +352,6 @@ export async function createPackage(input: {
   await Promise.all([
     assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
     assertAllOurs(orgId, 'deliverables', (input.deliverables || []).map((d) => d.deliverableId), 'outputs'),
-    assertAllOurs(orgId, 'delivery_containers', input.containerIds, 'delivery containers'),
-    assertAllOurs(orgId, 'blueprints', (input.workflows || []).map((w) => w.blueprintId), 'workflows'),
     assertAllOurs(orgId, 'dimension_values', (input.narrowings || []).map((n) => n.valueId), 'classifications'),
     assertAllOurs(orgId, 'service_variables',
       (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
@@ -359,17 +378,13 @@ export async function createPackage(input: {
     const { error: bundleError } = await supabaseAdmin.from('package_services').insert(serviceIds.map((service_id, i) => ({ organization_id: orgId, package_id: pkg.id, service_id, position: i })));
     if (bundleError) { console.error('Failed to bundle services into package:', bundleError); throw new Error('Failed to add the services to the package'); }
 
-    if (input.containerIds && input.containerIds.length > 0) {
-      await supabaseAdmin.from('package_delivery_containers').insert(input.containerIds.map((container_id) => ({ organization_id: orgId, package_id: pkg.id, container_id })));
-    }
-
     // Everything below hangs off the bundle rows just written, so they are read
     // back rather than reconstructed from the input.
     const rows = await bundleRows(orgId, pkg.id);
     await writePackageDeliverables(orgId, rows, input.deliverables);
     await writePackageVariableValues(orgId, rows, input.variableValues);
-    await writePackageWorkflows(orgId, rows, input.workflows);
     await writePackageNarrowings(orgId, pkg.id, input.narrowings);
+    await copyWorkflowTasksToPackage(orgId, rows);
   }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: pkg.id, action: 'created', actorId: actorId ?? undefined, payload: { name, serviceIds } });
@@ -385,9 +400,6 @@ export async function updatePackage(input: {
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
-  containerIds?: string[];
-  /** The production sequences to run, each on the bundled service it belongs to. */
-  workflows?: { serviceId: string; blueprintId: string }[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
   variableValues?: { serviceVariableId: string; value: unknown }[];
   /**
@@ -400,6 +412,7 @@ export async function updatePackage(input: {
    */
   narrowings?: { serviceId: string; valueId: string }[];
   extraStages?: StageInput[];
+  tasks?: { id: string; isActive: boolean; roleId: string | null }[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin.from('packages').select('id, name').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
@@ -411,8 +424,6 @@ export async function updatePackage(input: {
   await Promise.all([
     assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
     assertAllOurs(orgId, 'deliverables', (input.deliverables || []).map((d) => d.deliverableId), 'outputs'),
-    assertAllOurs(orgId, 'delivery_containers', input.containerIds, 'delivery containers'),
-    assertAllOurs(orgId, 'blueprints', (input.workflows || []).map((w) => w.blueprintId), 'workflows'),
     assertAllOurs(orgId, 'dimension_values', (input.narrowings || []).map((n) => n.valueId), 'classifications'),
     assertAllOurs(orgId, 'service_variables',
       (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
@@ -448,13 +459,16 @@ export async function updatePackage(input: {
     const rowIdOf = new Map(existingRows.map((r) => [r.service_id, r.id]));
     const added = serviceIds.filter((id) => !rowIdOf.has(id));
     if (added.length > 0) {
-      const { error: bundleError } = await supabaseAdmin.from('package_services').insert(
+      const { data: newRows, error: bundleError } = await supabaseAdmin.from('package_services').insert(
         added.map((service_id) => ({
           organization_id: orgId, package_id: input.packageId, service_id,
           position: serviceIds.indexOf(service_id),
         }))
-      );
+      ).select('id, service_id');
       if (bundleError) { console.error('Failed to bundle services into package:', bundleError); throw new Error('Failed to add the services to the package'); }
+      if (newRows && newRows.length > 0) {
+        await copyWorkflowTasksToPackage(orgId, newRows);
+      }
     }
 
     // The set can stay the same while the order changes.
@@ -468,22 +482,16 @@ export async function updatePackage(input: {
     );
   }
 
-  if (input.containerIds !== undefined) {
-    const cIds = [...new Set(input.containerIds)];
-    await supabaseAdmin.from('package_delivery_containers').delete().eq('package_id', input.packageId).eq('organization_id', orgId);
-    if (cIds.length > 0) {
-      await supabaseAdmin.from('package_delivery_containers').insert(cIds.map((container_id) => ({ organization_id: orgId, package_id: input.packageId, container_id })));
-    }
-  }
+
 
   // Everything below hangs off the bundle, which the block above may have just
   // changed — so it is read once, here, rather than taken from the input. A
   // service dropped up there took its promises with it by cascade.
   const rows = await bundleRows(orgId, input.packageId);
   if (input.deliverables !== undefined) await writePackageDeliverables(orgId, rows, input.deliverables);
-  if (input.workflows !== undefined) await writePackageWorkflows(orgId, rows, input.workflows);
   if (input.narrowings !== undefined) await writePackageNarrowings(orgId, input.packageId, input.narrowings);
   if (input.variableValues !== undefined) await writePackageVariableValues(orgId, rows, input.variableValues);
+  if (input.tasks !== undefined) await writePackageTasks(orgId, input.tasks);
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: input.packageId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/packages');
@@ -506,8 +514,6 @@ export async function duplicatePackage(packageId: string) {
     .select('id').single();
   if (error || !copy) { console.error('Failed to duplicate package:', error); throw new Error('Failed to duplicate the package'); }
 
-  const { data: containers } = await supabaseAdmin.from('package_delivery_containers').select('container_id').eq('package_id', packageId).eq('organization_id', orgId);
-  if (containers && containers.length > 0) await supabaseAdmin.from('package_delivery_containers').insert(containers.map((d: any) => ({ organization_id: orgId, package_id: copy.id, container_id: d.container_id })));
 
   // Everything else hangs off a bundle row, so the copy's rows are matched back
   // to the originals by service and every link is rewritten through that map.
@@ -529,9 +535,8 @@ export async function duplicatePackage(packageId: string) {
   const originalIds = original.map((s) => s.id);
   const rekey = (packageServiceId: string) => copyRowOf.get(serviceOfOriginal.get(packageServiceId) as string);
 
-  const [outputs, workflows, narrowings, fixed] = await Promise.all([
+  const [outputs, narrowings, fixed] = await Promise.all([
     supabaseAdmin.from('package_deliverables').select('package_service_id, deliverable_id, quantity').eq('organization_id', orgId).in('package_service_id', originalIds),
-    supabaseAdmin.from('package_workflows').select('package_service_id, blueprint_id').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_service_dimension_values').select('package_service_id, dimension_value_id').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_variable_values').select('package_service_id, service_variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
   ]);
@@ -548,7 +553,6 @@ export async function duplicatePackage(packageId: string) {
 
   await Promise.all([
     carry('package_deliverables', outputs.data, (r, to) => ({ organization_id: orgId, package_service_id: to, deliverable_id: r.deliverable_id, quantity: r.quantity })),
-    carry('package_workflows', workflows.data, (r, to) => ({ organization_id: orgId, package_service_id: to, blueprint_id: r.blueprint_id })),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
     carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, service_variable_id: r.service_variable_id, value: r.value })),
   ]);
@@ -610,7 +614,6 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
  */
 const PACKAGE_SELECT = `
   id, name, description, status, duration_minutes, extra_stages,
-  package_delivery_containers(container:delivery_containers(id, name)),
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     service_deliverables(deliverable:deliverables(id, name)),
@@ -619,8 +622,8 @@ const PACKAGE_SELECT = `
   ),
   package_service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
   package_deliverables(quantity, spec_values, deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)),
-  package_workflows(blueprint:blueprints(id, name, stages)),
-  package_variable_values(value, variable:service_variables(id, service_id, key, label, unit, kind)))
+  package_variable_values(value, variable:service_variables(id, service_id, key, label, unit, kind)),
+  package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active))
 `;
 
 /**
@@ -648,7 +651,6 @@ function shapePackage(p: any) {
       deliverables: (ps.package_deliverables || [])
         .filter((pd: any) => pd.deliverable)
         .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity })),
-      workflows: (ps.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
       narrowedTo: shapeDimensionLinks(ps.package_service_dimension_values),
       variables: (ps.service?.service_variables || []).map((v: any) => ({
@@ -661,10 +663,15 @@ function shapePackage(p: any) {
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
         })),
+      tasks: (ps.package_tasks || [])
+        .sort((a: any, b: any) => a.position - b.position)
+        .map((pt: any) => ({
+          id: pt.id, workflowTaskId: pt.workflow_task_id, name: pt.name, 
+          roleName: pt.role?.name || null, roleId: pt.role?.id || null, 
+          isActive: pt.is_active, position: pt.position
+        })),
     })).filter((s: any) => s.id),
     deliverables: promised,
-    workflows: bundle.flatMap((ps) => (ps.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean)),
-    containers: (p.package_delivery_containers || []).map((pd: any) => pd.container).filter(Boolean),
     dimensions: packageDimensions(p.package_services),
     // What this package fixes — "2 outfits", "5 edited images". A variable the
     // package says nothing about stays open, so it is simply absent here.
@@ -926,44 +933,6 @@ export async function getPackageForBooking(packageId: string) {
   return data;
 }
 
-/**
- * A Package's full routing: the union of every bundled Service's Process,
- * in bundle order, plus this Package's own extra stages appended after. The
- * multi-role nature of a bundled offering falls out of which Services it
- * bundles — nobody hand-authors a combined blueprint per combination.
- */
-export async function getProductionPlanForPackage(
-  packageId: string
-): Promise<{ stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] }> {
-  const { orgId } = await getAuthOrgId();
-
-  const { data: pkg } = await supabaseAdmin
-    .from('packages')
-    .select('extra_stages, package_services(position, package_workflows(blueprint:blueprints(stages)))')
-    .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-
-  const stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] = [];
-
-  // In bundle order, which is now a real order: a workflow belongs to one
-  // bundled service, so "the union of every bundled Service's Process" is
-  // something this can actually read rather than only claim.
-  const workflows = (((pkg?.package_services as any[]) || [])
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)))
-    .flatMap((ps) => (ps.package_workflows || []).map((pw: any) => pw.blueprint).filter(Boolean));
-  for (const bp of workflows) {
-    const bpStages = (bp.stages || []).map((s: any, i: number) => ({ name: s.name, order: s.order ?? i, roleId: s.role_id ?? null, frontStage: s.front_stage ?? null }));
-    // Each blueprint retains its independent sequence. They do not wait for the previous blueprint to finish.
-    for (const s of bpStages) stages.push({ name: s.name, order: s.order, roleId: s.roleId, frontStage: s.frontStage });
-  }
-
-  // Extra stages on the package itself happen after the core work
-  const maxOrderSoFar = stages.reduce((max, s) => Math.max(max, s.order), -1);
-  for (const s of (pkg?.extra_stages as any[]) || []) {
-    stages.push({ name: s.name, order: (s.order ?? maxOrderSoFar + 1), roleId: s.role_id ?? null, frontStage: s.front_stage ?? null });
-  }
-  return { stages };
-}
-
 /** Payment policy for many packages at once — Bookings asks for this when drafting a contract. */
 export async function getPaymentPoliciesForPackages(packageIds: string[]): Promise<Record<string, { policy: PaymentPolicy; depositPercentage: number }>> {
   if (packageIds.length === 0) return {};
@@ -1033,4 +1002,16 @@ export async function updatePackageQuestions(input: { packageId: string; questio
 export async function getLockedQuestionIds(packageId: string): Promise<string[]> {
   const { getAnsweredQuestionIdsForPackage } = await import('@/modules/bookings/interface');
   return getAnsweredQuestionIdsForPackage(packageId);
+}
+
+async function writePackageTasks(orgId: string, tasks: { id: string; isActive: boolean; roleId: string | null }[]) {
+  if (tasks.length === 0) return;
+  await Promise.all(
+    tasks.map(t => 
+      supabaseAdmin.from('package_tasks')
+        .update({ is_active: t.isActive, role_id: t.roleId })
+        .eq('id', t.id)
+        .eq('organization_id', orgId)
+    )
+  );
 }

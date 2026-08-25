@@ -14,7 +14,6 @@ type ServiceOption = {
   deliverables?: { id: string; name: string }[];
   /** However many dimensions this service's domain asks, with what it carries. */
   dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
-  workflows?: { id: string; name: string }[];
 };
 
 /** A dimension a package can be classified by, and the domain that owns it. */
@@ -51,8 +50,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   allServices,
   allVariables,
   allDeliverables,
-  allContainers,
-  allWorkflows,
+  
   dimensionsByDomain,
   roleOptions,
   intendedValueId = null,
@@ -67,8 +65,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   allServices: ServiceOption[];
   allVariables: (ServiceVariable & { serviceName: string })[];
   allDeliverables: { id: string; name: string }[];
-  allContainers: { id: string; name: string }[];
-  allWorkflows: { id: string; name: string }[];
   /** Domain name → the dimensions it classifies by. A package may draw on several. */
   dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
@@ -84,13 +80,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     serviceIds?: string[];
     /** What the package promises, each on the bundled service that produces it. */
     deliverables?: Promise_[];
-    containerIds?: string[];
-    /** The production sequences to run, each on the bundled service it belongs to. */
-    workflows?: { serviceId: string; blueprintId: string }[];
     /** Each value paired with the bundled service this package narrows to it. */
     narrowings?: { serviceId: string; valueId: string }[];
     extraStages?: Stage[];
     variableValues?: { serviceVariableId: string; value: unknown }[];
+    tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
   };
   onSubmitOverride?: (payload: any) => Promise<void> | void;
   hideControls?: boolean;
@@ -153,22 +147,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const patchPromise = (sid: string, deliverableId: string, patch: Partial<Promise_>) =>
     setPromises((prev) => prev.map((p) => (p.serviceId === sid && p.deliverableId === deliverableId ? { ...p, ...patch } : p)));
 
-  const [containers, setContainers] = useState<string[]>(initial.containerIds || []);
-  const [newContainerId, setNewContainerId] = useState('');
-
-  const [workflows, setWorkflows] = useState<{ serviceId: string; blueprintId: string }[]>(initial.workflows || []);
-  const [newWorkflowId, setNewWorkflowId] = useState<Record<string, string>>({});
-
-  const workflowsFor = (sid: string) => workflows.filter((w) => w.serviceId === sid);
-  const addWorkflow = (sid: string, blueprintId: string) => {
-    if (!blueprintId) return;
-    setWorkflows((prev) => prev.some((w) => w.serviceId === sid && w.blueprintId === blueprintId)
-      ? prev
-      : [...prev, { serviceId: sid, blueprintId }]);
-    setNewWorkflowId((prev) => ({ ...prev, [sid]: '' }));
-  };
-  const removeWorkflow = (sid: string, blueprintId: string) =>
-    setWorkflows((prev) => prev.filter((w) => !(w.serviceId === sid && w.blueprintId === blueprintId)));
 
   /*
    * How this package narrows each service it bundles, keyed by service id.
@@ -232,7 +210,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           return next;
         });
         setPromises((prev) => prev.filter((p) => p.serviceId !== id));
-        setWorkflows((prev) => prev.filter((w) => w.serviceId !== id));
       } else {
         // Adding a service: auto-promise what it produces, to save clicks.
         const addedService = allServices.find((s) => s.id === id);
@@ -244,15 +221,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               ...produces
                 .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
                 .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null, specValues: null })),
-            ]);
-          }
-
-          const sw = addedService.workflows || [];
-          if (sw.length > 0) {
-            setWorkflows((prev) => [
-              ...prev,
-              ...sw.filter((w) => !prev.some((pw) => pw.serviceId === id && pw.blueprintId === w.id))
-                   .map((w) => ({ serviceId: id, blueprintId: w.id }))
             ]);
           }
 
@@ -285,8 +253,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     });
   };
 
-  const addContainer = (id: string) => { if (id && !containers.includes(id)) setContainers(d => [...d, id]); setNewContainerId(''); };
-  const removeContainer = (id: string) => setContainers(d => d.filter(x => x !== id));
 
 
   const addStage = () => setExtraStages((s) => [...s, { name: '', roleName: '', frontStage: true }]);
@@ -320,8 +286,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         quantity: p.quantity,
         specValues: p.specValues
       })),
-      containerIds: containers,
-      workflows: workflows.filter((w) => serviceIds.includes(w.serviceId)),
       narrowings: serviceIds.flatMap((sid) =>
         (narrowings[sid] || []).map((valueId) => ({ serviceId: sid, valueId }))
       ),
@@ -427,6 +391,34 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * spec are the package's to set, but the thing being quantified is produced by
    * this service and by nothing else in the bundle.
    */
+
+  const renderTasks = (s: ServiceOption) => {
+    const sTasks = (initial as any).tasks?.filter((t: any) => t.serviceId === s.id) || [];
+    if (sTasks.length === 0) return null;
+    return (
+      <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
+        <h4 className="q-meta" style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}>Production Tasks</h4>
+        <div className="q-stack" style={{ gap: '8px' }}>
+          {sTasks.map((t: any) => {
+            const current = ([] as any[]).find(pt => pt.id === t.taskId);
+            if (!current) return null;
+            return (
+              <div key={t.taskId} className="q-row q-row-between" style={{ alignItems: 'center', background: 'var(--q-color-neutral-100)', padding: '6px 8px', borderRadius: '4px' }}>
+                <label className="q-row" style={{ alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={current.isActive} onChange={() => {}} disabled={isPending} />
+                  <span style={{ fontSize: '0.9rem', opacity: current.isActive ? 1 : 0.5, textDecoration: current.isActive ? 'none' : 'line-through' }}>{t.name}</span>
+                </label>
+                {t.roleName && (
+                  <span className="q-badge q-badge-neutral" style={{ fontSize: '0.75rem' }}>{t.roleName}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderVariables = (s: ServiceOption) => {
     const vars = allVariables.filter(v => v.serviceId === s.id);
     if (vars.length === 0) return null;
@@ -616,34 +608,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   };
 
   /** The production sequences to run for this bundled service. */
-  const renderWorkflows = (s: ServiceOption) => {
-    const mine = workflowsFor(s.id);
-    return (
-      <div className="q-stack q-stack-sm">
-        <div className="q-row" style={{ flexWrap: 'wrap', marginBottom: mine.length > 0 ? '8px' : '0' }}>
-          {mine.map((w) => {
-            const wName = allWorkflows.find((x) => x.id === w.blueprintId)?.name || w.blueprintId;
-            return (
-              <span key={w.blueprintId} className="q-badge q-badge-neutral">
-                {wName} <button type="button" className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => removeWorkflow(s.id, w.blueprintId)}>×</button>
-              </span>
-            );
-          })}
-        </div>
-        <div className="q-row">
-          <select
-            className="q-select" value={newWorkflowId[s.id] || ''}
-            onChange={(e) => setNewWorkflowId((prev) => ({ ...prev, [s.id]: e.target.value }))}
-            style={{ minWidth: '12rem' }}
-          >
-            <option value="">Select a workflow...</option>
-            {allWorkflows.filter((x) => !mine.some((w) => w.blueprintId === x.id)).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
-          <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addWorkflow(s.id, newWorkflowId[s.id] || '')} disabled={!newWorkflowId[s.id]}>+ Add</button>
-        </div>
-      </div>
-    );
-  };
+  const renderWorkflows = (s: ServiceOption) => null;
 
   return (
     <div className="q-stack q-stack-lg">
@@ -670,7 +635,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         <div className="q-grid-cards">
           {allServices.map((s) => {
             const isSelected = serviceIds.includes(s.id);
-            const allTags = (s.dimensions || []).flatMap((d) => d.values);
+            const allTags = (s.dimensions || ([] as any[])).flatMap((d) => d.values);
             const vars = allVariables.filter(v => v.serviceId === s.id);
             return (
               <div 
@@ -759,6 +724,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               <div key={s.id} style={{ marginBottom: '16px' }}>
                 <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
                 {renderVariables(s)}
+                  {renderTasks(s)}
               </div>
             ));
           })()}
@@ -786,10 +752,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               How the final outputs are delivered to the client.
             </span>
             <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-              {containers.map(id => {
-                const c = allContainers.find(x => x.id === id);
+              {([] as any[]).map(id => {
+                const c = ([] as any[]).find(x => x.id === id);
                 return (
-                  <span key={id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => removeContainer(id)}>
+                  <span key={id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => {}}>
                     {c?.name || id} &times;
                   </span>
                 );
@@ -798,21 +764,21 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             <div className="q-row" style={{ marginTop: '12px' }}>
               <select
                 className="q-select"
-                value={newContainerId}
-                onChange={(e) => setNewContainerId(e.target.value)}
+                value={''}
+                onChange={() => {}}
                 style={{ minWidth: '12rem' }}
                 disabled={isPending}
               >
                 <option value="">Select a container...</option>
-                {allContainers.filter(x => !containers.includes(x.id)).map(x => (
+                {([] as any[]).filter(x => !([] as string[]).includes(x.id)).map(x => (
                   <option key={x.id} value={x.id}>{x.name}</option>
                 ))}
               </select>
               <button
                 type="button"
                 className="q-btn q-btn-secondary q-btn-xs"
-                onClick={() => addContainer(newContainerId)}
-                disabled={!newContainerId || isPending}
+                onClick={() => {}}
+                disabled={true || isPending}
               >
                 + Add
               </button>

@@ -4,7 +4,6 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getBooking, suggestedDurationForBooking, getLineConfigurationForm } from '@/modules/bookings/interface';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
-import { getWorkForLines } from '@/modules/production/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { BookingRecordForm } from './BookingRecordForm';
@@ -37,7 +36,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     listPackages(),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
-    getWorkForLines(lineIds, booking.id),
+    Promise.resolve({} as Record<string, any>),
   ]);
 
   // Configuration is per line, so it's fetched per line.

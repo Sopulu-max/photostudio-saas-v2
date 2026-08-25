@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createDeliverable, createDeliveryContainer } from './actions';
+import { createDeliverableAction } from './actions';
 
 type Kind = 'output' | 'container';
 
@@ -23,9 +23,9 @@ export function NewDeliverableForm({ domains }: { domains: { id: string; name: s
     setError(null);
     try {
       if (kind === 'output') {
-        await createDeliverable(domainId, name.trim());
+        await createDeliverableAction({ domainId, name: name.trim() });
       } else {
-        await createDeliveryContainer(name.trim());
+        await createDeliverableAction({ name: name.trim() });
       }
       router.push('/deliverables');
     } catch (err: any) {

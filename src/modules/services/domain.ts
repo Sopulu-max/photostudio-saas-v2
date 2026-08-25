@@ -365,80 +365,74 @@ async function buildStages(raw: StageInput[]): Promise<{ name: string; order: nu
   return stages;
 }
 
-export async function createBlueprint(input: { name: string; stages: StageInput[] }) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
-  const name = (input.name || '').trim();
-  if (!name) throw new Error('A blueprint needs a name.');
 
-  const stages = await buildStages(input.stages);
-  if (stages.length === 0) throw new Error('Add at least one stage.');
+export type WorkflowInput = {
+  name: string;
+  tasks: { name: string; roleName?: string | null; description?: string }[];
+};
 
-  const { data: blueprint, error } = await supabaseAdmin
-    .from('blueprints')
-    .insert({ organization_id: orgId, name, stages, status: 'active' })
+async function resolveWorkflow(orgId: string, domainId: string, input: WorkflowInput | null): Promise<string | null> {
+  if (!input) return null;
+  const name = input.name.trim();
+  if (!name) return null;
+
+  let workflowId: string;
+  const { data: existing } = await supabaseAdmin
+    .from('workflows')
     .select('id')
-    .single();
-  if (error || !blueprint) {
-    console.error('Failed to create blueprint:', error);
-    throw new Error('Failed to create blueprint');
-  }
-
-  await logEvent({ organizationId: orgId, entityType: 'blueprint', entityId: blueprint.id, action: 'created', actorId: actorId ?? undefined, payload: { name, stageCount: stages.length } });
-  revalidatePath('/services');
-  return { blueprintId: blueprint.id };
-}
-
-export async function listBlueprints() {
-  const { orgId } = await getAuthOrgId();
-  const { data, error } = await supabaseAdmin
-    .from('blueprints')
-    .select('id, name, stages, status')
     .eq('organization_id', orgId)
-    .eq('status', 'active')
-    .order('name');
-  if (error) { console.error('Failed to list blueprints:', error); throw new Error('Failed to load blueprints'); }
+    .eq('service_domain_id', domainId)
+    .ilike('name', name)
+    .maybeSingle();
 
-  const { listRoles } = await import('@/modules/team/interface');
-  const roles = await listRoles();
-  const roleName = (id: string | null | undefined) => (roles as any[]).find((r) => r.id === id)?.name || null;
-  return (data || []).map((b: any) => ({ ...b, stages: (b.stages || []).map((s: any) => ({ ...s, roleName: roleName(s.role_id) })) }));
-}
-
-export async function updateBlueprint(input: { blueprintId: string; name?: string; stages?: StageInput[] }) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
-  const patch: Record<string, unknown> = {};
-  if (input.name !== undefined) {
-    const name = input.name.trim();
-    if (!name) throw new Error('A blueprint needs a name.');
-    patch.name = name;
+  if (existing) {
+    workflowId = existing.id;
+  } else {
+    const { data: created, error } = await supabaseAdmin
+      .from('workflows')
+      .insert({ organization_id: orgId, service_domain_id: domainId, name })
+      .select('id')
+      .single();
+    if (error || !created) { console.error('Failed to create workflow:', error); throw new Error('Failed to create workflow'); }
+    workflowId = created.id;
   }
-  if (input.stages !== undefined) {
-    const stages = await buildStages(input.stages);
-    if (stages.length === 0) throw new Error('Keep at least one stage.');
-    patch.stages = stages;
+
+  const { findOrCreateRole } = await import('@/modules/team/interface');
+  const roleMap = new Map<string, string>();
+  for (const t of input.tasks) {
+    if (t.roleName) {
+      const roleNameClean = t.roleName.trim();
+      if (roleNameClean && !roleMap.has(roleNameClean)) {
+        const roleId = await findOrCreateRole(roleNameClean);
+        if (roleId) roleMap.set(roleNameClean, roleId);
+      }
+    }
   }
-  if (Object.keys(patch).length === 0) return { ok: true };
 
-  const { error } = await supabaseAdmin.from('blueprints').update(patch).eq('id', input.blueprintId).eq('organization_id', orgId);
-  if (error) throw new Error('Failed to save the blueprint');
+  const { data: existingTasks } = await supabaseAdmin.from('workflow_tasks').select('id, name').eq('workflow_id', workflowId);
+  
+  for (let i = 0; i < input.tasks.length; i++) {
+    const t = input.tasks[i];
+    const taskName = t.name.trim();
+    if (!taskName) continue;
+    const existingTask = existingTasks?.find((et: any) => et.name.toLowerCase() === taskName.toLowerCase());
+    const payload = {
+      organization_id: orgId,
+      workflow_id: workflowId,
+      name: taskName,
+      default_role_id: t.roleName && roleMap.has(t.roleName.trim()) ? roleMap.get(t.roleName.trim()) : null,
+      position: i,
+      description: t.description || null,
+    };
+    if (existingTask) {
+      await supabaseAdmin.from('workflow_tasks').update(payload).eq('id', existingTask.id);
+    } else {
+      await supabaseAdmin.from('workflow_tasks').insert(payload);
+    }
+  }
 
-  await logEvent({ organizationId: orgId, entityType: 'blueprint', entityId: input.blueprintId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
-  revalidatePath('/services');
-  return { ok: true };
+  return workflowId;
 }
-
-/** Remove a blueprint. Services pointing at it lose the reference — their work then starts from a single free-form stage. */
-export async function deleteBlueprint(blueprintId: string) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
-  await supabaseAdmin.from('services').update({ default_blueprint_id: null }).eq('organization_id', orgId).eq('default_blueprint_id', blueprintId);
-  const { error } = await supabaseAdmin.from('blueprints').delete().eq('id', blueprintId).eq('organization_id', orgId);
-  if (error) throw new Error('Failed to remove the blueprint');
-  await logEvent({ organizationId: orgId, entityType: 'blueprint', entityId: blueprintId, action: 'deleted', actorId: actorId ?? undefined });
-  revalidatePath('/services');
-  return { ok: true };
-}
-
-// ── Service: the specific transformation ─────────────────────────────────────
 
 export async function createService(input: {
   name: string;
@@ -450,6 +444,7 @@ export async function createService(input: {
   variables?: ServiceVariableInput[];
   /** Whatever this domain classifies by — not a fixed five. */
   dimensions?: DimensionWrite[];
+  workflow?: WorkflowInput | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const name = (input.name || '').trim();
@@ -472,6 +467,7 @@ export async function createService(input: {
       service_domain_id: domainId,
       primary_deliverable_id: primaryDeliverableId,
       status: 'active',
+      workflow_id: domainId && input.workflow ? await resolveWorkflow(orgId, domainId, input.workflow) : null,
     })
     .select('id')
     .single();
@@ -507,6 +503,7 @@ export async function updateService(input: {
   deliverables?: string[];
   /** Whatever this domain classifies by — not a fixed five. */
   dimensions?: DimensionWrite[];
+  workflow?: WorkflowInput | null;
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin
@@ -527,6 +524,9 @@ export async function updateService(input: {
     patch.primary_deliverable_id = input.primaryDeliverable && outputDomainId
       ? await findOrCreateOutputType(orgId, outputDomainId, input.primaryDeliverable)
       : null;
+  }
+  if (input.workflow !== undefined && outputDomainId) {
+    patch.workflow_id = await resolveWorkflow(orgId, outputDomainId, input.workflow);
   }
 
   if (Object.keys(patch).length > 0) {
@@ -640,7 +640,8 @@ export async function listServices() {
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
       service_variables(label, kind, unit, options),
-      ${SERVICE_DIMENSION_SELECT}
+      ${SERVICE_DIMENSION_SELECT},
+      workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false });
@@ -654,6 +655,16 @@ export async function listServices() {
     variables: (s.service_variables || []).map((v: any) => ({
       label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
     })),
+    workflow: s.workflow ? {
+      name: s.workflow.name,
+      tasks: ((s.workflow.workflow_tasks || []) as any[])
+        .sort((a, b) => a.position - b.position)
+        .map(t => ({
+          name: t.name,
+          roleName: t.default_role?.name || null,
+          description: t.description || null
+        }))
+    } : null,
   }));
 }
 
@@ -674,7 +685,8 @@ export async function getService(serviceId: string) {
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
       service_variables(label, kind, unit, options),
-      ${SERVICE_DIMENSION_SELECT}
+      ${SERVICE_DIMENSION_SELECT},
+      workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
     .eq('id', serviceId)
     .eq('organization_id', orgId)
@@ -687,6 +699,16 @@ export async function getService(serviceId: string) {
     variables: (((data as any).service_variables) || []).map((v: any) => ({
       label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
     })),
+    workflow: (data as any).workflow ? {
+      name: (data as any).workflow.name,
+      tasks: (((data as any).workflow.workflow_tasks || []) as any[])
+        .sort((a, b) => a.position - b.position)
+        .map(t => ({
+          name: t.name,
+          roleName: t.default_role?.name || null,
+          description: t.description || null
+        }))
+    } : null,
   };
 }
 
@@ -875,4 +897,52 @@ export async function getProductionPlanForService(
 ): Promise<{ blueprintId: string | null; stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] }> {
   // Production plans are now assembled at the Package level using package_workflows
   return { blueprintId: null, stages: [] };
+}
+
+
+export async function listWorkflowsByDomain() {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('workflows')
+    .select('id, name, service_domain_id, workflow_tasks(id, name, position, description, default_role_id, role:roles(name))')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Failed to list workflows:', error);
+    return {};
+  }
+
+  const byDomain: Record<string, any[]> = {};
+  for (const wf of data || []) {
+    if (!byDomain[wf.service_domain_id]) byDomain[wf.service_domain_id] = [];
+    byDomain[wf.service_domain_id].push({
+      id: wf.id,
+      name: wf.name,
+      tasks: (wf.workflow_tasks || [])
+        .sort((a: any, b: any) => a.position - b.position)
+        .map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          roleId: t.default_role_id,
+          roleName: t.role ? t.role.name : null,
+        })),
+    });
+  }
+  return byDomain;
+}
+
+export async function saveWorkflow(domainId: string, input: WorkflowInput) {
+  const { orgId } = await getAuthOrgId();
+  await resolveWorkflow(orgId, domainId, input);
+  revalidatePath('/services/settings');
+  return { ok: true };
+}
+
+export async function deleteWorkflow(workflowId: string) {
+  const { orgId } = await getAuthOrgId();
+  await supabaseAdmin.from('workflows').delete().eq('id', workflowId).eq('organization_id', orgId);
+  revalidatePath('/services/settings');
+  return { ok: true };
 }

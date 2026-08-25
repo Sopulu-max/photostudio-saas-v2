@@ -1,7 +1,7 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listDeliverables, listDeliveryContainers } from '@/modules/deliverables/interface';
+import { listDeliverables,  } from '@/modules/deliverables/interface';
 import { EditDeliverableForm } from './EditDeliverableForm';
 
 export const dynamic = 'force-dynamic';
@@ -27,11 +27,6 @@ export default async function EditDeliverablePage(props: { params: Promise<{ id:
     initialName = out.name;
     domainName = out.domainName || '';
     initialOutput = out;
-  } else if (type === 'container') {
-    const containers = await listDeliveryContainers();
-    const c = containers.find(c => c.id === id);
-    if (!c) redirect('/deliverables');
-    initialName = c.name;
   } else {
     redirect('/deliverables');
   }

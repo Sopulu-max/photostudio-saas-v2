@@ -2,18 +2,19 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
-import { CreateContractButton, StartWorkButton, ExtractPackageButton } from './BookingActions';
-import { RemoveCrewButton, FillRoleForm } from './CrewForms';
+import { CreateContractButton, ExtractPackageButton } from './BookingActions';
+
 import { listClients } from '@/modules/clients/interface';
-import { listCrewForBooking, listAssignableEmployees, getWorkForLines } from '@/modules/production/interface';
-import { getBooking, listStages, getIntakeAnswersForBooking, suggestedDurationForBooking, getStaffingNeedsForBooking } from '@/modules/bookings/interface';
+import { TaskProgression } from './ProductionUI';
+import { listEmployees, listRoles } from '@/modules/team/interface';
+
+import { getBooking, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
 import { formatVariableValue } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { TaskStatusControl } from '@/components/TaskStatusControl';
-import { TaskAssignControl } from '@/components/TaskAssignControl';
+
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl, CoverButton } from './DeliveryForms';
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
@@ -86,20 +87,18 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   // What each line is actually configured as — the package's scope plus
   // whatever the client answered. Keyed by line so it renders inline.
-  const { getLineConfigurationForm } = await import('@/modules/bookings/interface');
+  const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [crew, candidates, work, deliveries, stages, intake, suggestedMinutes, currencyCode, staffing, fulfilment] = await Promise.all([
-    listCrewForBooking(booking.id),
-    listAssignableEmployees(),
-    getWorkForLines(lineIds, booking.id),
+  const [deliveries, stages, intake, suggestedMinutes, currencyCode, fulfilment, employees, roles] = await Promise.all([
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
-    getStaffingNeedsForBooking(booking.id),
     getFulfilmentForBooking(booking.id),
+    listEmployees(),
+    listRoles(),
   ]);
 
   // The documents raised against this booking, distinct from the money that
@@ -112,11 +111,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const undelivered = fulfilment.filter((f) => !f.shared);
 
   // Anyone on this booking who isn't covering one of the roles the blueprints
-  // asked for. With no free-form roster, these arrive by being given a task —
-  // a stage whose role the blueprints don't name, or one assigned to someone
-  // outside the expected role.
-  const neededRoleIds = new Set(staffing.roles.map((r) => r.roleId));
-  const extraCrew = (crew as any[]).filter((m) => !m.roleId || !neededRoleIds.has(m.roleId));
 
   const lines: any[] = booking.lines;
   const contracts: any[] = booking.contracts;
@@ -228,90 +222,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
         </Section>
 
-        {/* Team — the roles come from what was booked, not from a blank roster */}
-        <Section title="Team">
-          {staffing.roles.length > 0 && (
-            <>
-              <p className="q-meta" style={{ marginBottom: '12px' }}>
-                What these packages need, from their services&rsquo; blueprints. Unfilled is fine — it just means no one&rsquo;s
-                named yet. Anyone given a task on this booking shows up here too, without being added twice.
-              </p>
-              <div className="q-stack q-stack-sm">
-                {staffing.roles.map((r) => (
-                  <div key={r.roleId} className="q-tile">
-                    <div className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                      <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{r.roleName}</strong>
-                        <span className="q-meta-sm">
-                          {r.stageCount} {r.stageCount === 1 ? 'stage' : 'stages'} · {r.fromPackages.join(', ')}
-                        </span>
-                      </div>
-                      {r.assigned.length === 0
-                        ? <span className="q-badge q-badge-warning">unfilled</span>
-                        : <span className="q-badge q-badge-success">{r.assigned.length === 1 ? 'filled' : `${r.assigned.length} people`}</span>}
-                    </div>
 
-                    {r.assigned.length > 0 && (
-                      <div className="q-row q-tile-sub" style={{ flexWrap: 'wrap' }}>
-                        {r.assigned.map((a) => {
-                          const member = (crew as any[]).find((m) => m.employeeId === a.employeeId && m.roleId === r.roleId);
-                          return (
-                            <span key={a.employeeId} className="q-row" style={{ gap: '6px' }}>
-                              <span className="q-meta-plain">{a.name}</span>
-                              {member?.onBookingDirectly && (
-                                <RemoveCrewButton bookingId={booking.id} assignmentId={member.assignmentId} />
-                              )}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="q-tile-sub">
-                      <FillRoleForm bookingId={booking.id} roleId={r.roleId} roleName={r.roleName} candidates={candidates} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {staffing.unroutedStages > 0 && (
-                <p className="q-meta-sm" style={{ marginTop: '10px' }}>
-                  {staffing.unroutedStages} {staffing.unroutedStages === 1 ? 'stage' : 'stages'} on these packages
-                  {staffing.unroutedStages === 1 ? " doesn't" : " don't"} name a role — route
-                  {' '}<Link href="/services" className="q-accent">their blueprints</Link> if you want them staffed too.
-                </p>
-              )}
-            </>
-          )}
-
-          {staffing.roles.length === 0 && crew.length === 0 && (
-            <p className="q-empty">
-              {lines.length === 0
-                ? 'No one on this booking yet — add a package and the roles its blueprints call for show up here.'
-                : "No roles required. The blueprints for these packages do not route any stages to a role."}
-            </p>
-          )}
-
-          {extraCrew.length > 0 && (
-            <div style={{ marginTop: staffing.roles.length > 0 ? '20px' : 0 }}>
-              {staffing.roles.length > 0 && (
-                <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Also working on this</h3>
-              )}
-              <div className="q-stack q-stack-sm">
-                {extraCrew.map((m: any) => (
-                  <div key={`${m.employeeId}-${m.roleId ?? ''}`} className="q-tile q-row q-row-between">
-                    <div className="q-row">
-                      <strong className="q-strong">{m.name}</strong>
-                      {m.role && <span className="q-badge q-badge-neutral">{m.role}</span>}
-                      {!m.onBookingDirectly && <span className="q-meta-sm">via {m.via}</span>}
-                    </div>
-                    {m.onBookingDirectly && <RemoveCrewButton bookingId={booking.id} assignmentId={m.assignmentId} />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-        </Section>
 
         {/* What they're booking — one line per Package */}
         <Section title="What they're booking">
@@ -329,7 +240,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
-                const w = work[l.id];
                 return (
                   <div key={l.id} className="q-tile">
                     <div className="q-row q-row-between">
@@ -344,7 +254,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         })()}
                         <div className="q-meta q-num">
                           {linePrice(l.price, l.quantity)}
-                          {w && <> · {w.completed}/{w.total} done</>}
                         </div>
                         {/* What this client is getting, stated rather than editable —
                             changing it is an amendment, and lives on the edit page. */}
@@ -360,34 +269,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                           );
                         })()}
                       </div>
-                      {/* Starting work is doing the job, so it stays. */}
-                      {!w && <StartWorkButton bookingId={booking.id} lineId={l.id} />}
+                      
+                      <TaskProgression
+                        bookingId={booking.id}
+                        lineId={l.id}
+                        currentTaskId={l.current_task_id}
+                        tasks={l.booking_line_tasks || []}
+                        employees={employees || []}
+                      />
                     </div>
-
-                    {w && (
-                      <div className="q-stack q-stack-md q-tile-sub">
-                        {w.tasks.map((t: any) => (
-                          <div key={t.id}>
-                            <div className="q-row q-row-between">
-                              <span>
-                                {t.stageName}
-                                {t.isFrontStage === false && <span className="q-meta-sm"> · back-stage</span>}
-                              </span>
-                              <TaskStatusControl taskId={t.id} status={t.status} />
-                            </div>
-                            <TaskAssignControl
-                              taskId={t.id}
-                              bookingId={booking.id}
-                              assignees={t.assignees}
-                              candidates={candidates}
-                              dueDate={t.dueDate}
-                              suggestedRoleId={t.suggestedRoleId}
-                              suggestedRoleName={t.suggestedRoleName}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}

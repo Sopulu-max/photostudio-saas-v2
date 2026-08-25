@@ -21,10 +21,10 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     redirect('/login');
   }
 
-  const { listBlueprints, listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
-  const { listDeliverables, listDeliveryContainers } = await import('@/modules/deliverables/interface');
-  const [allServices, roles, currencyCode, allDeliverables, allContainers, allWorkflows, dimensionsByDomain] = await Promise.all([
-    listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables(), listDeliveryContainers(), listBlueprints(),
+  const { listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listDeliverables } = await import('@/modules/deliverables/interface');
+  const [allServices, roles, currencyCode, allDeliverables, dimensionsByDomain] = await Promise.all([
+    listActiveServices(), listRoles(), getStudioCurrency(), listDeliverables(), 
     listDimensionsByDomain(),
   ]);
 
@@ -44,8 +44,6 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         allServices={allServices as any}
         allVariables={allVariables as any}
         allDeliverables={allDeliverables as any}
-        allContainers={allContainers as any}
-        allWorkflows={allWorkflows as any}
         dimensionsByDomain={dimensionsByDomain}
         roleOptions={(roles as any[]).map((r) => r.name)}
         // Arrived from the classifications lens — "build a package for Weddings".
@@ -57,3 +55,4 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     </div>
   );
 }
+

@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listOutputTypesByDomain, listDeliveryContainers } from '@/modules/deliverables/interface';
+import { listOutputTypesByDomain,  } from '@/modules/deliverables/interface';
 import { Box, PackageOpen } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -14,10 +14,11 @@ export default async function DeliverablesPage() {
     redirect('/login');
   }
 
-  const [outputsByDomain, containers] = await Promise.all([
-    listOutputTypesByDomain(),
-    listDeliveryContainers(),
+  const [outputsByDomain] = await Promise.all([
+    listOutputTypesByDomain()
   ]);
+
+  const containers: any[] = [];
 
   return (
     <div className="q-page">
@@ -71,7 +72,7 @@ export default async function DeliverablesPage() {
             <p className="q-meta" style={{ marginTop: '16px' }}>No delivery containers defined.</p>
           ) : (
             <div className="q-grid-cards">
-              {containers.map((c) => (
+              {([] as any[]).map((c) => (
                 <Link
                   key={c.id}
                   href={`/deliverables/${c.id}?type=container`}

@@ -105,13 +105,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Portrait Photography',
     summary: 'A studio portrait session — individual, couple, or family.',
     deliverables: ['Edited photographs'],
-    blueprint: {
-      name: 'Portrait Photography',
-      stages: [
-        { name: 'Shoot', roleName: 'Photographer', frontStage: true },
-        { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'people', label: 'Number of people', kind: 'number', unit: 'person', min: 1 },
       { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit', min: 1 },
@@ -137,14 +130,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Event Photography',
     summary: 'Coverage for a celebration or gathering — birthdays, weddings, anniversaries, parties. One process; the occasion is what varies.',
     deliverables: ['RAW images', 'Edited photographs'],
-    blueprint: {
-      name: 'Event Photography',
-      stages: [
-        { name: 'Shoot', roleName: 'Photographer', frontStage: true },
-        { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'coverage_hours', label: 'Hours of coverage', kind: 'number', unit: 'hour', min: 1 },
       { key: 'photographers', label: 'Photographers', kind: 'number', unit: 'photographer', min: 1, defaultValue: 1 },
@@ -165,13 +150,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Headshot Photography',
     summary: 'Professional headshots — the same process whether the sitter is solo or one of a whole team.',
     deliverables: ['Edited photographs'],
-    blueprint: {
-      name: 'Headshot Photography',
-      stages: [
-        { name: 'Shoot', roleName: 'Photographer', frontStage: true },
-        { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'people', label: 'Number of people', kind: 'number', unit: 'person', min: 1 },
       { key: 'looks', label: 'Looks per person', kind: 'number', unit: 'look', min: 1, defaultValue: 1 },
@@ -189,13 +167,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Product Photography',
     summary: 'Commercial product photography for web or print — lighting rigs and still-life technique, no live subject.',
     deliverables: ['Edited photographs'],
-    blueprint: {
-      name: 'Product Photography',
-      stages: [
-        { name: 'Shoot', roleName: 'Photographer', frontStage: false },
-        { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'products', label: 'Number of products', kind: 'number', unit: 'product', min: 1 },
       { key: 'angles', label: 'Angles per product', kind: 'number', unit: 'angle', min: 1 },
@@ -213,10 +184,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Passport Photography',
     summary: 'Exact framing, plain background, no expression — genuinely different technical constraints from a portrait session.',
     deliverables: ['Printed photographs'],
-    blueprint: {
-      name: 'Passport Photography',
-      stages: [{ name: 'Shoot & Print', roleName: 'Photographer', frontStage: true }],
-    },
     variables: [
       { key: 'prints', label: 'Printed copies', kind: 'number', unit: 'copy', min: 1 },
     ],
@@ -232,13 +199,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Pet Photography',
     summary: 'A pet portrait session — no posing cooperation, different pacing, its own technique.',
     deliverables: ['Edited photographs'],
-    blueprint: {
-      name: 'Pet Photography',
-      stages: [
-        { name: 'Shoot', roleName: 'Photographer', frontStage: true },
-        { name: 'Photo Edit', roleName: 'Photo Editor', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'pets', label: 'Number of pets', kind: 'number', unit: 'pet', min: 1 },
       { key: 'edited_images', label: 'Edited images', kind: 'number', unit: 'image', min: 1 },
@@ -268,14 +228,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Photo Retouching',
     summary: 'Refining photographs that already exist — the client supplies the images. Distinct from the editing pass inside a shoot, because here there was no shoot.',
     deliverables: ['Edited photographs'],
-    blueprint: {
-      name: 'Photo Retouching',
-      stages: [
-        { name: 'Review & Quote', frontStage: true },
-        { name: 'Retouch', roleName: 'Photo Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'images', label: 'Number of images', kind: 'number', unit: 'image', min: 1 },
       { key: 'depth', label: 'Depth of work', kind: 'choice', options: ['Basic clean-up', 'Full retouch', 'Composite / heavy edit'] },
@@ -291,14 +243,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Photo Restoration',
     summary: 'Repairing damaged, faded or torn photographs. The input is usually a physical print, so this often depends on digitisation first.',
     deliverables: ['Restored photographs'],
-    blueprint: {
-      name: 'Photo Restoration',
-      stages: [
-        { name: 'Assess Damage', frontStage: true },
-        { name: 'Restore', roleName: 'Photo Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'photographs', label: 'Number of photographs', kind: 'number', unit: 'photograph', min: 1 },
     ],
@@ -315,10 +259,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Photo Digitisation',
     summary: 'Scanning physical photographs, negatives or slides into digital files. Produces nothing new — it moves an existing image into another medium.',
     deliverables: ['Digital scans'],
-    blueprint: {
-      name: 'Photo Digitisation',
-      stages: [{ name: 'Scan', roleName: 'Print Technician', frontStage: false }],
-    },
     variables: [
       { key: 'items', label: 'Number of items', kind: 'number', unit: 'item', min: 1 },
       { key: 'resolution', label: 'Scan resolution', kind: 'choice', options: ['Standard', 'High', 'Archival'] },
@@ -335,10 +275,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Film Developing',
     summary: 'Processing exposed film into developed negatives. This is the step that makes film the reverse of digital: here the physical original comes first, and the digital file is derived from it.',
     deliverables: ['Developed film'],
-    blueprint: {
-      name: 'Film Developing',
-      stages: [{ name: 'Develop', roleName: 'Darkroom Technician', frontStage: false }],
-    },
     variables: [
       { key: 'rolls', label: 'Number of rolls', kind: 'number', unit: 'roll', min: 1 },
       { key: 'scan_included', label: 'Scanning included', kind: 'boolean', defaultValue: false },
@@ -356,14 +292,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Event Videography',
     summary: 'Video coverage for a gathering, wedding, or conference — recorded and edited, not live. One process; the occasion is what varies.',
     deliverables: ['RAW footage', 'Edited video'],
-    blueprint: {
-      name: 'Event Videography',
-      stages: [
-        { name: 'Shoot', roleName: 'Videographer', frontStage: true },
-        { name: 'Video Edit', roleName: 'Video Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'coverage_hours', label: 'Hours of coverage', kind: 'number', unit: 'hour', min: 1 },
       { key: 'cameras', label: 'Cameras', kind: 'number', unit: 'camera', min: 1, defaultValue: 1 },
@@ -380,10 +308,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Live Streaming',
     summary: 'Real-time broadcast — the value is delivered the moment it happens, not edited afterward. A genuinely different process from recorded video.',
     deliverables: ['Live broadcast'],
-    blueprint: {
-      name: 'Live Streaming',
-      stages: [{ name: 'Broadcast', roleName: 'Videographer', frontStage: true }],
-    },
     variables: [
       { key: 'broadcast_hours', label: 'Hours of broadcast', kind: 'number', unit: 'hour', min: 1 },
       { key: 'cameras', label: 'Cameras', kind: 'number', unit: 'camera', min: 1, defaultValue: 1 },
@@ -399,13 +323,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Commercial Videography',
     summary: 'A brand or promotional video — recorded and edited, purpose is the client\'s, not the process\'s.',
     deliverables: ['Edited video'],
-    blueprint: {
-      name: 'Commercial Videography',
-      stages: [
-        { name: 'Shoot', roleName: 'Videographer', frontStage: false },
-        { name: 'Video Edit', roleName: 'Video Editor', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'length', label: 'Finished length', kind: 'choice', options: ['Under 1 minute', '1–3 minutes', '3+ minutes'] },
       { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
@@ -426,14 +343,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'Cutting footage the client already has into a finished piece. Distinct from the edit inside a shoot, because here the studio never filmed anything.',
     mode: 'transformative',
     deliverables: ['Edited video'],
-    blueprint: {
-      name: 'Video Editing',
-      stages: [
-        { name: 'Review Footage', frontStage: true },
-        { name: 'Edit', roleName: 'Video Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'length', label: 'Finished length', kind: 'choice', options: ['Under 1 minute', '1–3 minutes', '3–10 minutes', 'Longer'] },
       { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
@@ -450,14 +359,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'Repairing degraded footage — noise, colour loss, damaged tape. The video equivalent of photo restoration.',
     mode: 'transformative',
     deliverables: ['Restored video'],
-    blueprint: {
-      name: 'Video Restoration',
-      stages: [
-        { name: 'Assess Footage', frontStage: true },
-        { name: 'Restore', roleName: 'Video Editor', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'footage_minutes', label: 'Minutes of footage', kind: 'number', unit: 'minute', min: 1 },
     ],
@@ -473,10 +374,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     summary: 'Moving VHS, MiniDV, 8mm and other tape formats to digital files. Produces nothing new — it carries existing footage into another medium.',
     mode: 'transformative',
     deliverables: ['Digital video files'],
-    blueprint: {
-      name: 'Tape Transfer',
-      stages: [{ name: 'Transfer', roleName: 'Video Editor', frontStage: false }],
-    },
     variables: [
       { key: 'tapes', label: 'Number of tapes', kind: 'number', unit: 'tape', min: 1 },
     ],
@@ -494,7 +391,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Fine Art Printing',
     summary: 'A physical print, made from a digital image — its own transformation, which is why it is a separate Service, not a property of the photography that produced the original.',
     deliverables: ['Printed photographs'],
-    blueprint: { name: 'Fine Art Printing', stages: [{ name: 'Print', roleName: 'Print Technician', frontStage: false }] },
     variables: [
       { key: 'prints', label: 'Number of prints', kind: 'number', unit: 'print', min: 1 },
       { key: 'size', label: 'Print size', kind: 'choice', options: ['8x10', '11x14', '16x20'] },
@@ -510,7 +406,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Framing',
     summary: 'A framed, display-ready print — depends on a print already existing, its own process of materials and assembly.',
     deliverables: ['Framed print'],
-    blueprint: { name: 'Framing', stages: [{ name: 'Frame', roleName: 'Print Technician', frontStage: false }] },
     variables: [
       { key: 'frames', label: 'Number of frames', kind: 'number', unit: 'frame', min: 1 },
       { key: 'finish', label: 'Frame finish', kind: 'choice', options: ['Black', 'White', 'Natural wood'] },
@@ -524,7 +419,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Album Design',
     summary: 'A designed photobook — depends on edited photographs already existing, a layout and print process of its own.',
     deliverables: ['Photobook'],
-    blueprint: { name: 'Album Design', stages: [{ name: 'Design', roleName: 'Graphic Designer', frontStage: false }] },
     variables: [
       { key: 'pages', label: 'Number of pages', kind: 'number', unit: 'page', min: 1 },
       { key: 'cover', label: 'Cover material', kind: 'choice', options: ['Linen', 'Leather', 'Acrylic'] },
@@ -545,15 +439,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Logo Design',
     summary: 'A mark for a business, made from a brief. Iterative by nature — concepts, a chosen direction, then final files.',
     deliverables: ['Logo files'],
-    blueprint: {
-      name: 'Logo Design',
-      stages: [
-        { name: 'Brief', frontStage: true },
-        { name: 'Concepts', roleName: 'Graphic Designer', frontStage: false },
-        { name: 'Revisions', roleName: 'Graphic Designer', frontStage: true },
-        { name: 'Final Files', roleName: 'Graphic Designer', frontStage: false },
-      ],
-    },
     variables: [
       { key: 'concepts', label: 'Initial concepts', kind: 'number', unit: 'concept', min: 1 },
       { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },
@@ -571,37 +456,6 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     name: 'Brand Identity',
     summary: 'The full system around a mark — colour, type, usage rules. Broader than a logo, and usually delivered as a guideline document.',
     deliverables: ['Brand guidelines', 'Logo files'],
-    blueprint: {
-      name: 'Brand Identity',
-      stages: [
-        { name: 'Discovery', frontStage: true },
-        { name: 'Direction', roleName: 'Graphic Designer', frontStage: true },
-        { name: 'Build System', roleName: 'Graphic Designer', frontStage: false },
-        { name: 'Handover', frontStage: true },
-      ],
-    },
-    questions: [
-      { type: 'text', label: 'Business or brand name', required: true },
-      { type: 'boolean', label: 'Existing logo to work from?' },
-      { type: 'multichoice', label: 'What the system should cover', options: ['Logo', 'Colour palette', 'Typography', 'Usage rules', 'Stationery', 'Social templates'] },
-    ],
-    clientTypes: ['Business'],
-    purposes: ['Branding'],
-  },
-  {
-    id: 'flyer-design',
-    domain: 'Graphic Design',
-    name: 'Flyer Design',
-    summary: 'A single piece of promotional artwork — flyer, poster, or social graphic. Short turnaround, one deliverable.',
-    deliverables: ['Print-ready artwork'],
-    blueprint: {
-      name: 'Flyer Design',
-      stages: [
-        { name: 'Brief', frontStage: true },
-        { name: 'Design', roleName: 'Graphic Designer', frontStage: false },
-        { name: 'Delivery', frontStage: true },
-      ],
-    },
     variables: [
       { key: 'concepts', label: 'Initial concepts', kind: 'number', unit: 'concept', min: 1, defaultValue: 1 },
       { key: 'revisions', label: 'Rounds of revision', kind: 'number', unit: 'round', min: 0 },

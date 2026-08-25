@@ -22,8 +22,7 @@ export {
   // because a domain is the boundary everything below it belongs to.
   listDimensionsByDomain, findOrCreateDimensionValue,
   // Blueprints — a Service's Process
-  createBlueprint, updateBlueprint, deleteBlueprint, listBlueprints,
-  getProductionPlanForService, getDeliverableIdsForServices,
+    getDeliverableIdsForServices,
   // Service Variables — the quantities that scope a service (outfits, hours)
   listServiceVariables, listVariablesForServices, setServiceVariables,
   // What a bundled service may be narrowed to — asked by Packages before it
@@ -33,6 +32,8 @@ export {
   createService, updateService, duplicateService, setServiceStatus,
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
 } from './domain';
+export type { WorkflowInput } from './domain';
+export { listWorkflowsByDomain, saveWorkflow, deleteWorkflow } from './domain';
 
 export { TEMPLATE_DIMENSION_NAMES, dimensionKey } from './dimensions';
 export type { StudioDimensionShape, ServiceDimensionTag, DimensionWrite, PublicIntakeDimension, TemplateDimensionKey } from './dimensions';

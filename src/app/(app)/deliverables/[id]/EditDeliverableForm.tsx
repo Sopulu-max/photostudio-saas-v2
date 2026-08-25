@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateDeliverable, deleteDeliverableEntity, updateDeliverableConfig } from './actions';
+import { updateDeliverable, deleteOutputOrContainer, updateDeliverableConfig } from './actions';
 
 export function EditDeliverableForm({ id, type, initialName, initialOutput }: { 
   id: string; 
@@ -26,7 +26,7 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
     setSaving(true);
     setError(null);
     try {
-      await updateDeliverable(id, type, name.trim());
+      await updateDeliverable(id, 'output', name.trim());
       
       if (type === 'output') {
         let parsedSchema = null;
@@ -58,7 +58,7 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
     if (!confirm('Are you sure you want to delete this?')) return;
     setSaving(true);
     try {
-      await deleteDeliverableEntity(id, type);
+      await deleteOutputOrContainer(id, type);
       router.push('/deliverables');
     } catch (err: any) {
       setError(err.message || 'Failed to delete');

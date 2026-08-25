@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listBookingsInRange } from '@/modules/bookings/interface';
-import { listTaskDeadlinesInRange } from '@/modules/production/interface';
 import { listDueInRange } from '@/modules/finances/interface';
 import { CalendarClient } from './CalendarClient';
 
@@ -29,9 +28,9 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59)).toISOString();
 
   // Each layer comes from the module that owns it, through its interface.
-  const [bookings, deadlines, due] = await Promise.all([
+  const [bookings, due] = await Promise.all([
     listBookingsInRange(from, to),
-    listTaskDeadlinesInRange(from, to),
+    
     listDueInRange(from, to),
   ]);
 
@@ -42,7 +41,7 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
   return (
     <CalendarClient
-      items={[...bookings, ...deadlines, ...due] as any}
+      items={[...bookings, ...due] as any}
       year={year}
       month={month}
       monthLabel={new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })}

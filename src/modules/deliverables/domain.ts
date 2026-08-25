@@ -1,9 +1,11 @@
+'use server';
+
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
 
 type Facet = { id: string; name: string; position: number };
-type NamedTable = 'delivery_containers' | 'deliverables';
+type NamedTable = 'deliverables';
 
 async function listNamed(table: NamedTable): Promise<Facet[]> {
   const { orgId } = await getAuthOrgId();
@@ -159,16 +161,5 @@ export async function updateDeliverableConfig(id: string, input: {
   return { ok: true };
 }
 
-export async function listDeliveryContainers() { return listNamed('delivery_containers'); }
 
-export async function createDeliveryContainer(name: string) {
-  const { orgId } = await getAuthOrgId();
-  const id = await findOrCreateNamed('delivery_containers', orgId, name);
-  if (!id) throw new Error('Give the delivery container a name.');
-  revalidatePath('/services');
-  revalidatePath('/deliverables');
-  return { deliveryContainerId: id };
-}
 
-export async function renameDeliveryContainer(id: string, name: string) { return renameNamed('delivery_containers', id, name, 'delivery container'); }
-export async function deleteDeliveryContainer(id: string) { return deleteNamed('delivery_containers', id, 'delivery container'); }

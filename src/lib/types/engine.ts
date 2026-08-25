@@ -12,7 +12,6 @@
 export type OrganizationStatus = 'active' | 'suspended' | 'archived';
 export type ContractStatus = 'proposed' | 'active' | 'modified' | 'completed' | 'cancelled';
 export type StageKind = 'enquiry' | 'booked' | 'completed' | 'cancelled';
-export type TaskStatus = 'created' | 'assigned' | 'in_progress' | 'blocked' | 'completed';
 export type TransactionDirection = 'inbound' | 'outbound';
 export type TransactionStatus = 'created' | 'pending' | 'settled' | 'voided';
 
@@ -62,29 +61,18 @@ export interface Booking {
 
 export interface BookingLine {
   id: string;
-  organization_id: string;
   booking_id: string;
-  package_id: string | null;
+  service_template_id: string | null;
+  package_service_id: string | null;
   title: string;
-  price: Record<string, unknown>;
+  price: Record<string, any>;
   status: string;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, any>;
+  current_task_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface Task {
-  id: string;
-  organization_id: string;
-  booking_line_id: string;
-  stage_name: string;
-  stage_order: number;
-  status: TaskStatus;
-  due_date: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface FinancialTransaction {
   id: string;
@@ -118,20 +106,22 @@ export interface Event {
 // LEVEL 3: CONFIGURATION
 // ============================================================
 
-export interface WorkflowStageDefinition {
-  name: string;
-  order: number;
-  description?: string;
-  duration_hours?: number;
-  requires_approval?: boolean;
-  resource_requirements?: Array<{ type: string; quantity: number }>;
-  role_requirements?: Array<{ role: string; count: number }>;
-}
 
 export interface MediaItem {
   url: string;
   alt?: string;
   kind: 'image' | 'video';
+}
+
+export interface ServiceDomainLabel {
+  id: string;
+  organization_id: string;
+  service_domain_id: string;
+  name: string;
+  position: number;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================
@@ -176,14 +166,6 @@ export interface Deliverable {
   created_at: string;
 }
 
-export interface Blueprint {
-  id: string;
-  organization_id: string;
-  name: string;
-  stages: WorkflowStageDefinition[];
-  created_at: string;
-  updated_at: string;
-}
 
 // ============================================================
 // PRODUCTION PLANE (Physical Assets)
@@ -194,7 +176,7 @@ export interface Asset {
   organization_id: string;
   booking_id: string;
   deliverable_id: string | null;
-  produced_by_task_id: string | null;
+  produced_by_line_id: string | null;
   derived_from_asset_id: string | null;
   storage_path: string | null;
   file_name: string | null;

@@ -6,9 +6,8 @@ import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHou
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf } from '@/kernel/money';
-import { getPackageForBooking, getProductionPlanForPackage, getPackageVariables } from '@/modules/packages/interface';
+import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking } from '@/modules/contracts/interface';
-import { startWorkForBookingLine } from '@/modules/production/interface';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -575,6 +574,37 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
  * Add a package line to a booking. Optionally seeded from a Package (which
  * carries its price snapshot); or a free-form custom line.
  */
+
+async function copyPackageTasksToBookingLine(orgId: string, packageId: string, bookingLineId: string) {
+  const { data: packageTasks } = await supabaseAdmin
+    .from('package_services')
+    .select('id, package_tasks(id, name, role_id, position, is_active)')
+    .eq('organization_id', orgId)
+    .eq('package_id', packageId);
+
+  if (!packageTasks || packageTasks.length === 0) return;
+
+  const tasksToInsert: any[] = [];
+  for (const p of packageTasks) {
+    for (const t of (p.package_tasks || [])) {
+      if (t.is_active) {
+        tasksToInsert.push({
+          organization_id: orgId,
+          booking_line_id: bookingLineId,
+          name: t.name,
+          role_id: t.role_id,
+          position: t.position,
+          status: 'pending'
+        });
+      }
+    }
+  }
+
+  if (tasksToInsert.length > 0) {
+    await supabaseAdmin.from('booking_line_tasks').insert(tasksToInsert);
+  }
+}
+
 export async function addBookingLine(input: {
   bookingId: string;
   packageId?: string | null;
@@ -634,6 +664,7 @@ export async function addBookingLine(input: {
       source: 'studio', 
       organizationId: orgId 
     });
+    await copyPackageTasksToBookingLine(orgId, input.packageId, line.id);
   }
 
   await logEvent({
@@ -719,40 +750,6 @@ export async function createContractForBooking(bookingId: string) {
   return { contractId };
 }
 
-/**
- * Start work on a line, when the studio chooses — no contract required (the
- * kernel is unlocked). The line IS the production unit: its tasks come from
- * the package's aggregated routing — the union of every Service it bundles —
- * asked of Packages and handed to Production.
- */
-export async function startWorkForLine(input: { bookingId: string; lineId: string }) {
-  const { orgId } = await getAuthOrgId();
-
-  const { data: line } = await supabaseAdmin
-    .from('booking_lines')
-    .select('id, package_id')
-    .eq('id', input.lineId)
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!line) throw new Error('Line not found');
-
-  // Ask the Packages module for this line's production plan — never read its
-  // tables from here (seam discipline).
-  const plan = line.package_id
-    ? await getProductionPlanForPackage(line.package_id)
-    : { stages: [] };
-
-  // Production owns the work — Bookings asks, it doesn't write tasks itself.
-  const { taskCount } = await startWorkForBookingLine({
-    bookingId: input.bookingId,
-    lineId: input.lineId,
-    stages: plan.stages,
-  });
-
-  revalidatePath(`/bookings/${input.bookingId}`);
-  return { taskCount };
-}
-
 /** Set (or clear) when this booking happens. */
 export async function setBookingSchedule(input: {
   bookingId: string;
@@ -812,7 +809,25 @@ export async function getBooking(bookingId: string) {
       id, title, scheduled_for, duration_minutes, created_at, stage_id,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
-      booking_lines(id, title, price, quantity, package_id, status, created_at),
+      booking_lines(
+        id, title, price, quantity, package_id, status, created_at, current_task_id,
+        current_task:booking_line_tasks!current_task_id(id, name),
+        booking_line_tasks(id, name, position),
+        package:packages(
+          id,
+          package_services(service:services(service_domain_id))
+        ),
+        assignments(
+          id, employee_id, role_id,
+          employee:employees(id, contact:contacts(display_name)),
+          role:roles(id, name)
+        ),
+        tasks:booking_line_tasks(
+          id, name, status, position,
+          role:roles(id, name),
+          assignee:contacts(id, display_name)
+        )
+      ),
       contracts(id, version, status, terms, created_at),
       financial_transactions(id, type, amount, currency, status, direction)
     `)
@@ -821,7 +836,7 @@ export async function getBooking(bookingId: string) {
     .maybeSingle();
 
   if (error) {
-    console.error('Failed to load booking:', error);
+    console.error('Failed to load booking:', JSON.stringify(error, null, 2), error);
     throw new Error('Failed to load the booking');
   }
   if (!data) return null;
@@ -1769,61 +1784,7 @@ export async function extractPackageFromEnquiry(bookingId: string) {
 export async function getStaffingNeedsForBooking(bookingId: string): Promise<{
   roles: { roleId: string; roleName: string; stageCount: number; fromPackages: string[]; assigned: { employeeId: string; name: string }[] }[];
   unroutedStages: number;
-}> {
-  const { orgId } = await getAuthOrgId();
-
-  const { data: lines } = await supabaseAdmin
-    .from('booking_lines')
-    .select('package_id, title')
-    .eq('organization_id', orgId)
-    .eq('booking_id', bookingId);
-
-  const withPackage = ((lines || []) as any[]).filter((l) => l.package_id);
-  if (withPackage.length === 0) return { roles: [], unroutedStages: 0 };
-
-  // Asked of Packages — its plan is already the union of every bundled
-  // Service's Process, so this never needs to know Services exist.
-  const { getProductionPlanForPackage } = await import('@/modules/packages/interface');
-
-  const byRole = new Map<string, { stageCount: number; fromPackages: Set<string> }>();
-  let unroutedStages = 0;
-
-  // A package booked twice genuinely needs its roles twice over, so this walks
-  // lines rather than distinct packages.
-  for (const line of withPackage) {
-    const plan = await getProductionPlanForPackage(line.package_id);
-    for (const stage of plan.stages) {
-      if (!stage.roleId) { unroutedStages += 1; continue; }
-      const entry = byRole.get(stage.roleId) ?? { stageCount: 0, fromPackages: new Set<string>() };
-      entry.stageCount += 1;
-      entry.fromPackages.add(line.title);
-      byRole.set(stage.roleId, entry);
-    }
-  }
-  if (byRole.size === 0) return { roles: [], unroutedStages };
-
-  // Names from Team, crew from Production — both through their interfaces.
-  const [{ listRoles }, { listCrewForBooking }] = await Promise.all([
-    import('@/modules/team/interface'),
-    import('@/modules/production/interface'),
-  ]);
-  const [allRoles, crew] = await Promise.all([listRoles(), listCrewForBooking(bookingId)]);
-  const roleName = new Map((allRoles as any[]).map((r) => [r.id, r.name as string]));
-
-  const roles = Array.from(byRole.entries())
-    .map(([roleId, v]) => ({
-      roleId,
-      roleName: roleName.get(roleId) || 'Unnamed role',
-      stageCount: v.stageCount,
-      fromPackages: Array.from(v.fromPackages),
-      assigned: (crew as any[])
-        .filter((m) => m.roleId === roleId)
-        .map((m) => ({ employeeId: m.employeeId as string, name: m.name as string })),
-    }))
-    .sort((a, b) => b.stageCount - a.stageCount || a.roleName.localeCompare(b.roleName));
-
-  return { roles, unroutedStages };
-}
+}> { return { roles: [], unroutedStages: 0 }; }
 
 /**
  * What this booking's lines suggest it should run for — the longest of their

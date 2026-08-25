@@ -1,7 +1,6 @@
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listBookings } from '@/modules/bookings/interface';
 import { listTransactions } from '@/modules/finances/interface';
-import { listTasks } from '@/modules/production/interface';
 import { listRecentActivity } from '@/kernel/events';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
@@ -14,7 +13,7 @@ export default async function AnalyticsPage() {
   const [allBookings, transactions, tasks, recentEvents, currencyCode] = await Promise.all([
     listBookings(),
     listTransactions(),
-    listTasks(),
+    [],
     listRecentActivity(20),
     getStudioCurrency(),
   ]);
@@ -27,8 +26,8 @@ export default async function AnalyticsPage() {
     .filter((t: any) => t.status === 'pending' && t.direction === 'inbound')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
-  const activeTasks   = tasks.filter((t) => t.status === 'in_progress').length;
-  const completedTasks = tasks.filter((t) => t.status === 'completed').length;
+  const activeTasks = 0;
+  const completedTasks = 0;
 
   const activeBookings = allBookings.filter((b: any) => b.stage?.kind === 'booked').length;
   const conversionRate = allBookings.length
