@@ -31,6 +31,7 @@ import { WEEKDAYS } from './weekdays';
 export type AttendanceToday = {
   employeeId: string;
   name: string;
+  avatarUrl: string | null;
   roles: { id: string; name: string }[];
   workingDays: number[];
   /** Is today one of their days? False only when they have said, and today isn't. */
@@ -137,7 +138,7 @@ export async function getAttendanceToday(): Promise<{
 
   const { data: employees } = await supabaseAdmin
     .from('employees')
-    .select('id, status, working_days, contact:contacts(display_name), employee_roles(role:roles(id, name))')
+    .select('id, status, working_days, contact:contacts(display_name, avatar_url), employee_roles(role:roles(id, name))')
     .eq('organization_id', orgId)
     .eq('status', 'active');
 
@@ -165,6 +166,7 @@ export async function getAttendanceToday(): Promise<{
       return {
         employeeId: e.id as string,
         name: (e.contact?.display_name ?? 'Unnamed') as string,
+        avatarUrl: (e.contact?.avatar_url ?? null) as string | null,
         roles: (e.employee_roles || []).map((er: any) => er.role).filter((r: any) => r?.id),
         workingDays,
         expectedToday,

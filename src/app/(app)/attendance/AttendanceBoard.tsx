@@ -264,7 +264,7 @@ export function AttendanceBoard({
       <div className="q-tile q-stack q-stack-sm">
         <div className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <div className="q-row" style={{ gap: '12px', alignItems: 'center', minWidth: 0 }}>
-            <ContactAvatar name={person.name} size="md" />
+            <ContactAvatar name={person.name} url={person.avatarUrl} size="md" />
             <div style={{ minWidth: 0 }}>
               {/*
                 * Roles sit beside the name in every state.
