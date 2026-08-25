@@ -247,6 +247,7 @@ export async function updateStudio(input: {
     .from('organizations')
     .update(patch)
     .eq('id', orgId);
+
   if (error) {
     console.error('Failed to update studio:', error);
     throw new Error('Failed to save (is that handle already taken?)');
@@ -257,4 +258,18 @@ export async function updateStudio(input: {
   // Every invoice reprints the studio's own block, so it changes with this.
   revalidatePath('/finances', 'layout');
   return { ok: true };
+}
+
+import { randomUUID } from 'crypto';
+
+export async function getStudioLogoUploadTarget(fileName: string) {
+  const { orgId } = await getAuthOrgId();
+  const safeName = fileName.replace(/[^\w.\-]/g, '_');
+  // We reuse the 'avatars' public bucket for studio assets as well.
+  return { bucket: 'avatars', path: `studio/${orgId}/${randomUUID()}-${safeName}` };
+}
+
+export async function getPublicUrlForLogo(path: string) {
+  const { data: pub } = supabaseAdmin.storage.from('avatars').getPublicUrl(path);
+  return pub.publicUrl;
 }

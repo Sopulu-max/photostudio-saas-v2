@@ -61,7 +61,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-export function Sidebar({ studioName }: { studioName?: string; orgSlug?: string }) {
+export function Sidebar({ studioName, studioLogo }: { studioName?: string; orgSlug?: string; studioLogo?: string }) {
   const pathname = usePathname();
 
   return (
@@ -83,12 +83,21 @@ export function Sidebar({ studioName }: { studioName?: string; orgSlug?: string 
         padding: '20px 16px 16px',
         borderBottom: '1px solid var(--q-color-ink-100)',
       }}>
-        <Link href="/home" style={{ textDecoration: 'none' }}>
-          <div style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
-            {studioName || 'Studio OS'}
-          </div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--q-color-ink-400)', marginTop: '2px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-            Studio Operating System
+        <Link href="/home" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {studioLogo && (
+            <img 
+              src={studioLogo} 
+              alt={studioName || 'Studio'} 
+              style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} 
+            />
+          )}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
+              {studioName || 'Studio OS'}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--q-color-ink-400)', marginTop: '2px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Studio Operating System
+            </div>
           </div>
         </Link>
       </div>

@@ -12,6 +12,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let orgSlug: string | undefined;
   let notifications: Notification[] = [];
 
+  let studioLogo: string | undefined;
+
   // Optional auth here on purpose: the chrome renders either way, so a signed
   // -out visitor gets the shell rather than an exception.
   const authOrg = await getOptionalAuthOrgId();
@@ -19,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const org = await getStudio();
     if (org?.name) studioName = org.name;
     if (org?.slug) orgSlug = org.slug;
+    if ((org?.metadata as any)?.logo_url) studioLogo = (org?.metadata as any).logo_url;
     // The chrome is force-dynamic, so this is as fresh as the page around it.
     // That is the honest ceiling of a pull model: it updates when you move,
     // not while you sit still.
@@ -29,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row' }}>
-      <Sidebar studioName={studioName} orgSlug={orgSlug} />
+      <Sidebar studioName={studioName} orgSlug={orgSlug} studioLogo={studioLogo} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <TopBar
           studioName={studioName}

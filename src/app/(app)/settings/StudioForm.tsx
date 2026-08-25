@@ -4,6 +4,8 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateStudio } from '@/kernel/organizations';
 
+import { LogoUpload } from '@/components/LogoUpload';
+
 export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: initialLogo, coverUrl: initialCover }: { name: string; slug: string; logoUrl?: string; coverUrl?: string }) {
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
@@ -32,9 +34,9 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
       </div>
       
       <div className="q-field">
-        <label className="q-label">Logo Image URL</label>
-        <input className="q-input" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" />
-        <span className="q-meta-sm">URL of your studio logo (shown on your storefront and invoices).</span>
+        <label className="q-label">Studio Logo</label>
+        <LogoUpload currentUrl={logoUrl} onUploadComplete={setLogoUrl} />
+        <span className="q-meta-sm" style={{ marginTop: '8px', display: 'block' }}>Shown on your storefront, dashboard, and invoices.</span>
       </div>
 
       <div className="q-field">
