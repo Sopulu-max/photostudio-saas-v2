@@ -266,7 +266,8 @@ export async function getStudioLogoUploadTarget(fileName: string) {
   const { orgId } = await getAuthOrgId();
   const safeName = fileName.replace(/[^\w.\-]/g, '_');
   // We reuse the 'avatars' public bucket for studio assets as well.
-  return { bucket: 'avatars', path: `studio/${orgId}/${randomUUID()}-${safeName}` };
+  // The storage RLS policy expects the first path segment to be a valid orgId UUID.
+  return { bucket: 'avatars', path: `${orgId}/studio/${randomUUID()}-${safeName}` };
 }
 
 export async function getPublicUrlForLogo(path: string) {
