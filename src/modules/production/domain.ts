@@ -164,24 +164,32 @@ export async function advanceBookingLineTask(input: {
 
   if (input.taskId) {
     await assertOurs(orgId, [{ table: 'booking_line_tasks', id: input.taskId, label: 'task' }]);
-  }
+    
+    // Fetch the task to see if it's completed
+    const { data: task, error: tasksErr } = await supabaseAdmin
+      .from('booking_line_tasks')
+      .select('id, completed_at')
+      .eq('id', input.taskId)
+      .eq('organization_id', orgId)
+      .single();
+      
+    if (tasksErr) throw new Error('Failed to load task');
+    
+    // Toggle completion
+    const completed_at = task.completed_at ? null : new Date().toISOString();
 
-  const { error } = await supabaseAdmin
-    .from('booking_lines')
-    .update({ current_task_id: input.taskId, updated_at: new Date().toISOString() })
-    .eq('id', input.lineId)
-    .eq('organization_id', orgId);
-
-  if (error) {
-    console.error('Failed to advance task:', error);
-    throw new Error('Failed to advance task');
+    await supabaseAdmin
+      .from('booking_line_tasks')
+      .update({ completed_at, updated_at: new Date().toISOString() })
+      .eq('id', input.taskId)
+      .eq('organization_id', orgId);
   }
 
   await logEvent({
     organizationId: orgId,
     entityType: 'booking_line',
     entityId: input.lineId,
-    action: 'task_advanced',
+    action: 'task_toggled',
     actorId: actorId ?? undefined,
     payload: { bookingId: input.bookingId, taskId: input.taskId },
   });

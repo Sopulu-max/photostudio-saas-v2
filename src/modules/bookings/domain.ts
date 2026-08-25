@@ -578,7 +578,7 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
 async function copyPackageTasksToBookingLine(orgId: string, packageId: string, bookingLineId: string) {
   const { data: packageTasks } = await supabaseAdmin
     .from('package_services')
-    .select('id, package_tasks(id, name, role_id, position, is_active)')
+    .select('id, package_tasks(id, name, role_id, position, is_active, workflow_task_id)')
     .eq('organization_id', orgId)
     .eq('package_id', packageId);
 
@@ -591,10 +591,11 @@ async function copyPackageTasksToBookingLine(orgId: string, packageId: string, b
         tasksToInsert.push({
           organization_id: orgId,
           booking_line_id: bookingLineId,
+          package_service_id: p.id,
+          workflow_task_id: t.workflow_task_id,
           name: t.name,
           role_id: t.role_id,
-          position: t.position,
-          status: 'pending'
+          position: t.position
         });
       }
     }
@@ -630,7 +631,7 @@ export async function addBookingLine(input: {
       if (!input.price) {
         // Snapshot the unit alongside the price: what it was sold as, at the
         // time it was sold.
-        price = { ...((pkg.pricing as Record<string, unknown>) || {}), unit: (pkg as any).price_unit ?? null };
+        price = { ...((pkg.price as Record<string, unknown>) || {}) };
       }
     }
   }
@@ -810,12 +811,10 @@ export async function getBooking(bookingId: string) {
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(
-        id, title, price, quantity, package_id, status, created_at, current_task_id,
-        current_task:booking_line_tasks!current_task_id(id, name),
-        booking_line_tasks(id, name, position),
+        id, title, price, quantity, package_id, created_at,
         package:packages(
           id,
-          package_services(service:services(service_domain_id))
+          package_services(id, service:services(id, name, service_domain_id))
         ),
         assignments(
           id, employee_id, role_id,
@@ -823,9 +822,9 @@ export async function getBooking(bookingId: string) {
           role:roles(id, name)
         ),
         tasks:booking_line_tasks(
-          id, name, status, position,
-          role:roles(id, name),
-          assignee:contacts(id, display_name)
+          id, name, completed_at, package_service_id, position, workflow_task_id,
+          assignee:contacts(id, display_name),
+          role:roles(id, name)
         )
       ),
       contracts(id, version, status, terms, created_at),

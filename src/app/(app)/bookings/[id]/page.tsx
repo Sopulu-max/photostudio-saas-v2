@@ -9,7 +9,7 @@ import { TaskProgression } from './ProductionUI';
 import { listEmployees, listRoles } from '@/modules/team/interface';
 
 import { getBooking, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
-import { listPackages } from '@/modules/packages/interface';
+import { listPackages, formatDeliverable } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
 import { formatVariableValue } from '@/modules/services/interface';
@@ -240,44 +240,84 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
+                const pkg = (packageRows as any[]).find((p) => p.id === l.package_id);
+                const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
+                
+                // Classifications logic matching Packages
+                const byDimension = new Map<string, { id: string; name: string; values: { id: string; name: string }[] }>();
+                const absorb = (dims: any[]) => {
+                  for (const d of (dims || [])) {
+                    if (!byDimension.has(d.id)) byDimension.set(d.id, { id: d.id, name: d.name, values: [] });
+                    const target = byDimension.get(d.id)!;
+                    for (const v of d.values) if (!target.values.some((x: any) => x.id === v.id)) target.values.push(v);
+                  }
+                };
+                if (pkg) {
+                  absorb(pkg.dimensions);
+                  (pkg.services || []).forEach((s: any) => absorb(s.dimensions));
+                }
+                const tags = [...byDimension.values()];
+                
+                const heldVars = (configByLine[l.id] || []).filter((f: any) => f.value != null);
+
                 return (
-                  <div key={l.id} className="q-tile">
-                    <div className="q-row q-row-between">
+                  <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
+                    <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                       <div>
-                        <strong className="q-strong">{l.title}</strong>
-                        {(() => {
-                          const pkg = (packageRows as any[]).find((p) => p.id === l.package_id);
-                          const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
-                          return svcNames.length > 0
-                            ? <div className="q-meta-sm">{svcNames.join(' · ')}</div>
-                            : null;
-                        })()}
-                        <div className="q-meta q-num">
+                        <strong className="q-strong" style={{ fontSize: '1.1rem' }}>{l.title}</strong>
+                        <div className="q-meta q-num" style={{ marginTop: '4px' }}>
                           {linePrice(l.price, l.quantity)}
                         </div>
-                        {/* What this client is getting, stated rather than editable —
-                            changing it is an amendment, and lives on the edit page. */}
-                        {(() => {
-                          const held = (configByLine[l.id] || []).filter((f: any) => f.value != null);
-                          if (held.length === 0) return null;
-                          return (
-                            <div className="q-meta" style={{ marginTop: '6px' }}>
-                              {held
-                                .map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit })}`)
-                                .join(' · ')}
-                            </div>
-                          );
-                        })()}
                       </div>
-                      
-                      <TaskProgression
-                        bookingId={booking.id}
-                        lineId={l.id}
-                        currentTaskId={l.current_task_id}
-                        tasks={l.booking_line_tasks || []}
-                        employees={employees || []}
-                      />
                     </div>
+
+                    <div className="q-meta" style={{ marginTop: '12px' }}>
+                      <strong className="q-strong" style={{ marginRight: '6px' }}>Services:</strong>
+                      {svcNames.join(' + ') || 'None'}
+                    </div>
+
+                    {tags.length > 0 && (
+                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                        {tags.map((d) => (
+                          <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
+                            <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
+                            <span className="q-row" style={{ gap: '4px' }}>
+                              {d.values.map((v, i) => (
+                                <span key={v.id}>
+                                  <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
+                                    {v.name}
+                                  </Link>
+                                  {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
+                                </span>
+                              ))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {heldVars.length > 0 && (
+                      <div className="q-meta" style={{ marginTop: '16px' }}>
+                        <strong className="q-strong" style={{ marginRight: '4px' }}>Variables:</strong>
+                        {heldVars.map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit })}`).join(', ')}
+                      </div>
+                    )}
+
+                    {pkg?.deliverables && pkg.deliverables.length > 0 && (
+                      <div className="q-meta" style={{ marginTop: '8px' }}>
+                        <strong className="q-strong" style={{ marginRight: '4px' }}>Deliverables:</strong>
+                        {/* @ts-ignore */}
+                        {pkg.deliverables.map((d: any) => formatDeliverable(d)).join(', ')}
+                      </div>
+                    )}
+
+                    <TaskProgression
+                      bookingId={booking.id}
+                      lineId={l.id}
+                      tasks={l.tasks || []}
+                      employees={employees || []}
+                      pkg={l.package}
+                    />
                   </div>
                 );
               })}
@@ -293,35 +333,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
         </Section>
 
-        {/* Contract */}
-        <Section title="Contract">
-          {contracts.length > 0 && (
-            <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
-              {contracts.map((c) => (
-                <div key={c.id} className="q-tile q-row q-row-between">
-                  <div className="q-row">
-                    <strong className="q-strong">Contract v{c.version}</strong>
-                    <span className={`q-badge ${c.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{c.status}</span>
-                  </div>
-                  <Link href={`/contracts/${c.id}`} className="q-btn q-btn-secondary q-btn-sm">Open</Link>
-                </div>
-              ))}
-            </div>
-          )}
-          {!hasOpenContract && (
-            <div>
-              <div className="q-muted">
-                {contracts.length === 0
-                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
-                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
-              </div>
-              <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />
-            </div>
-          )}
-        </Section>
-
-        {/* Delivery */}
-        <Section title="Delivery">
+        {/* Deliverables */}
+        <Section title="Deliverables">
           {/* What the packages promised, and whether it's been handed over. */}
           {fulfilment.length > 0 && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
@@ -515,6 +528,33 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
 
+        </Section>
+
+        {/* Contract */}
+        <Section title="Contract">
+          {contracts.length > 0 && (
+            <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
+              {contracts.map((c) => (
+                <div key={c.id} className="q-tile q-row q-row-between">
+                  <div className="q-row">
+                    <strong className="q-strong">Contract v{c.version}</strong>
+                    <span className={`q-badge ${c.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{c.status}</span>
+                  </div>
+                  <Link href={`/contracts/${c.id}`} className="q-btn q-btn-secondary q-btn-sm">Open</Link>
+                </div>
+              ))}
+            </div>
+          )}
+          {!hasOpenContract && (
+            <div>
+              <div className="q-muted">
+                {contracts.length === 0
+                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
+                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
+              </div>
+              <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />
+            </div>
+          )}
         </Section>
 
       </div>

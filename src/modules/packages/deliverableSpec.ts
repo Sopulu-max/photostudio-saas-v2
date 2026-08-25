@@ -25,7 +25,7 @@ export function formatDeliverable(d: DeliverableSpec): string {
       // "30 second video" reads better than "video x 30 second".
       parts[0] = `${n} ${d.unit}${n === 1 ? '' : 's'} ${d.name.toLowerCase()}`;
     } else {
-      parts[0] = `${d.name} × ${n}`;
+      parts[0] = `${n} ${d.name}`;
     }
   }
 

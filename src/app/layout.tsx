@@ -1,6 +1,5 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import Script from 'next/script';
 
 export const metadata: Metadata = {
   title: 'Weave',
@@ -40,9 +39,9 @@ export default function RootLayout({
           * We use next/script with strategy="beforeInteractive" which is the
           * modern Next.js way to handle early-running scripts without warnings.
           */}
-        <Script 
-          id="theme-script" 
-          strategy="beforeInteractive"
+        <script
+          id="theme-script"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`
           }}

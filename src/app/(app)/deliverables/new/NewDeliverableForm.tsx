@@ -62,7 +62,7 @@ export function NewDeliverableForm({ domains }: { domains: { id: string; name: s
               checked={kind === 'container'}
               onChange={(e) => setKind(e.target.value as Kind)}
             />
-            Delivery Container
+            Deliverable Container
             <span className="q-meta-sm" style={{ display: 'block', marginLeft: '24px' }}>
               The packaging or vessel (e.g., USB Drive, Online Gallery).
             </span>

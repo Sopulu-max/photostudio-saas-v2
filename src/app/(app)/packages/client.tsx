@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
+import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 
 
 type DimensionTagShape = { id: string; name: string; values: { id: string; name: string }[] };
@@ -44,15 +45,34 @@ export function PackagesClient({
 
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
+    const openVars = (pkg.services || []).flatMap((s: any) => {
+      const fixedIds = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
+      return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
+    });
+    const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
+
     return (
       <div className="q-card q-stack">
-        <div className="q-row q-row-between">
+        <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
           <div>
             <h3 className="q-section-title">{pkg.name}</h3>
+            {pkg.description && <p className="q-meta" style={{ marginTop: '4px' }}>{pkg.description}</p>}
           </div>
-          <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
+          <div className="q-stack q-stack-xs" style={{ alignItems: 'flex-end' }}>
+            <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
+            <div className="q-strong q-num" style={{ fontSize: '1.1rem' }}>
+              {pkg.price?.amount != null 
+                ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
+                : ''}
+            </div>
+          </div>
         </div>
-        <div className="q-meta">{(pkg.services || []).map((s: any) => s.name).join(' + ') || 'No services bundled'}</div>
+        
+        <div className="q-meta" style={{ marginTop: '12px' }}>
+          <strong className="q-strong" style={{ marginRight: '6px' }}>Services:</strong>
+          {(pkg.services || []).map((s: any) => s.name).join(' + ') || 'None'}
+        </div>
+
         {tags.length > 0 && (
           <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
             {tags.map((d) => (
@@ -72,31 +92,34 @@ export function PackagesClient({
             ))}
           </div>
         )}
-        
-        {((pkg.deliverables || []).length > 0 || (pkg.services || []).some((s: any) => (s.variables || []).length > (s.variableValues || []).length)) && (
-          <div className="q-stack q-stack-sm" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--q-color-ink-100)' }}>
+
+        {((pkg.deliverables || []).length > 0 || openVars.length > 0 || taskCount > 0) && (
+          <div className="q-stack q-stack-sm" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
             {(pkg.deliverables || []).length > 0 && (
               <div className="q-meta-sm">
-                <strong className="q-strong">Promises: </strong>
-                {(pkg.deliverables || []).map((d: any) => d.name).join(', ')}
+                <strong className="q-strong" style={{ marginRight: '4px' }}>Deliverables:</strong>
+                {/* @ts-ignore */}
+                {(pkg.deliverables || []).map((d: any) => formatDeliverable(d)).join(', ')}
               </div>
             )}
-            {(() => {
-              const openVars = (pkg.services || []).flatMap((s: any) => {
-                const fixedIds = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
-                return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
-              });
-              if (openVars.length === 0) return null;
-              return (
-                <div className="q-meta-sm">
-                  <strong className="q-strong">Questions for client: </strong>
-                  {openVars.map((v: any) => v.label).join(', ')}
-                </div>
-              );
-            })()}
+
+            {openVars.length > 0 && (
+              <div className="q-meta-sm">
+                <strong className="q-strong" style={{ marginRight: '4px' }}>Variables:</strong>
+                {openVars.map((v: any) => v.label).join(', ')}
+              </div>
+            )}
+
+            {taskCount > 0 && (
+              <div className="q-meta-sm">
+                <strong className="q-strong" style={{ marginRight: '4px' }}>Tasks:</strong>
+                {taskCount} internal {taskCount === 1 ? 'task' : 'tasks'} required
+              </div>
+            )}
           </div>
         )}
-        <div className="q-tile-sub">
+        
+        <div className="q-tile-sub" style={{ marginTop: '16px' }}>
           <Link href={`/packages/${pkg.id}`} className="q-btn q-btn-secondary q-fill q-center-text">View package</Link>
         </div>
       </div>

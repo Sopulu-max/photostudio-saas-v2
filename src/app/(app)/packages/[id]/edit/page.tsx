@@ -83,6 +83,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
                 isActive: t.isActive as boolean,
               }))
             ),
+            services: (pkg as any).services,
           }}
         />
 

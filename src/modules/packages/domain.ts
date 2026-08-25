@@ -304,6 +304,7 @@ export async function createPackage(input: {
   name?: string;
   description?: string | null;
   durationMinutes?: number | null;
+  price?: Record<string, unknown> | null;
   serviceIds?: string[];
   /**
    * What the package actually includes, quantified — "Edited photographs × 6",
@@ -364,6 +365,7 @@ export async function createPackage(input: {
       name,
       description: input.description || null,
       duration_minutes: input.durationMinutes ?? null,
+      price: input.price || {},
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
       status: 'active',
@@ -397,6 +399,7 @@ export async function updatePackage(input: {
   name?: string;
   description?: string | null;
   durationMinutes?: number | null;
+  price?: Record<string, unknown> | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
@@ -433,6 +436,7 @@ export async function updatePackage(input: {
   if (input.name !== undefined) patch.name = input.name.trim() || existing.name;
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
+  if (input.price !== undefined) patch.price = input.price || {};
   if (input.extraStages !== undefined) patch.extra_stages = await buildExtraStages(input.extraStages);
 
   if (Object.keys(patch).length > 0) {
@@ -578,7 +582,7 @@ export async function listPackagesForService(serviceId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('package_services')
-    .select('package:packages(id, name, status, pricing)')
+    .select('package:packages(id, name, status, price)')
     .eq('organization_id', orgId)
     .eq('service_id', serviceId);
   if (error) { console.error('Failed to list packages for service:', error); return []; }
@@ -613,9 +617,10 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, status, duration_minutes, extra_stages,
+  id, name, description, status, duration_minutes, extra_stages, price,
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
+    workflow:workflows(id, name),
     service_deliverables(deliverable:deliverables(id, name)),
     service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
     service_variables(id, service_id, key, label, unit, kind, options)
@@ -929,7 +934,7 @@ export async function getDeliverablesForPackages(packageIds: string[]): Promise<
 /** What Bookings needs to build a line — id and its aggregated routing inputs. */
 export async function getPackageForBooking(packageId: string) {
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select('id, name, duration_minutes, payment_policy').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
+  const { data } = await supabaseAdmin.from('packages').select('id, name, duration_minutes, price').eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   return data;
 }
 
@@ -937,11 +942,13 @@ export async function getPackageForBooking(packageId: string) {
 export async function getPaymentPoliciesForPackages(packageIds: string[]): Promise<Record<string, { policy: PaymentPolicy; depositPercentage: number }>> {
   if (packageIds.length === 0) return {};
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select('id, payment_policy').in('id', packageIds).eq('organization_id', orgId);
+  const { data } = await supabaseAdmin.from('packages').select('id, price').in('id', packageIds).eq('organization_id', orgId);
   const map: Record<string, { policy: PaymentPolicy; depositPercentage: number }> = {};
   for (const row of (data || []) as any[]) {
-    const policy: PaymentPolicy = row.payment_policy === 'full' ? 'full' : 'deposit';
-    map[row.id] = { policy, depositPercentage: policy === 'full' ? 100 : Number((row.pricing as any)?.deposit_percentage || 0) };
+    const price = row.price as any || {};
+    const depositPercentage = Number(price.deposit_percentage || 0);
+    const policy: PaymentPolicy = depositPercentage > 0 && depositPercentage < 100 ? 'deposit' : 'full';
+    map[row.id] = { policy, depositPercentage: policy === 'full' ? 100 : depositPercentage };
   }
   return map;
 }

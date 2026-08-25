@@ -65,10 +65,9 @@ export interface BookingLine {
   service_template_id: string | null;
   package_service_id: string | null;
   title: string;
-  price: Record<string, any>;
-  status: string;
-  metadata: Record<string, any>;
-  current_task_id: string | null;
+  package_id: string | null;
+  status: 'draft' | 'confirmed' | 'completed' | 'cancelled';
+  current_label_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,12 +144,9 @@ export interface Package {
   organization_id: string;
   name: string;
   description: string | null;
-  pricing: Record<string, unknown>;
+  price: Record<string, unknown>;
   status: string;
   duration_minutes: number | null;
-  price_unit: string | null;
-  payment_policy: string | null;
-  pricing_variant: string | null;
   extra_stages: any[];
   created_at: string;
   updated_at: string;

@@ -4,7 +4,7 @@ import React, { useState, useTransition, forwardRef, useImperativeHandle } from 
 import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
 import { formatDeliverable } from '@/modules/packages/interface';
-import { DURATION_CHOICES } from '@/kernel/currency';
+import { DURATION_CHOICES, CURRENCIES } from '@/kernel/currency';
 
 type ServiceOption = { 
   id: string; 
@@ -14,6 +14,7 @@ type ServiceOption = {
   deliverables?: { id: string; name: string }[];
   /** However many dimensions this service's domain asks, with what it carries. */
   dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
+  workflow?: { name: string; tasks: any[] };
 };
 
 /** A dimension a package can be classified by, and the domain that owns it. */
@@ -85,6 +86,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     extraStages?: Stage[];
     variableValues?: { serviceVariableId: string; value: unknown }[];
     tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
+    services?: any[];
   };
   onSubmitOverride?: (payload: any) => Promise<void> | void;
   hideControls?: boolean;
@@ -97,6 +99,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [description, setDescription] = useState(initial.description ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>(initial.serviceIds || []);
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
+  
+  const [priceAmount, setPriceAmount] = useState<string>(
+    (initial as any).price?.amount != null ? String((initial as any).price.amount) : ''
+  );
+  const [priceCurrency, setPriceCurrency] = useState<string>(
+    (initial as any).price?.currency || currencyCode || 'USD'
+  );
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -277,6 +286,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       name: effectiveName,
       description: description.trim() || null,
       durationMinutes: duration > 0 ? duration : null,
+      price: priceAmount ? { amount: Number(priceAmount), currency: priceCurrency } : null,
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -393,23 +403,30 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
 
   const renderTasks = (s: ServiceOption) => {
-    const sTasks = (initial as any).tasks?.filter((t: any) => t.serviceId === s.id) || [];
+    // If we're editing an existing package, use the saved package tasks.
+    // If it's a new package (or a newly added service), show the default workflow tasks.
+    const savedService = initial.services?.find((is: any) => is.id === s.id);
+    const sTasks = savedService?.tasks || s.workflow?.tasks || [];
+    
     if (sTasks.length === 0) return null;
+    
     return (
       <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
-        <h4 className="q-meta" style={{ letterSpacing: '0.05em', textTransform: 'uppercase' }}>Production Tasks</h4>
-        <div className="q-stack" style={{ gap: '8px' }}>
+        {s.workflow?.name && (
+          <div className="q-meta-sm" style={{ marginTop: '-4px', marginBottom: '4px' }}>From workflow: {s.workflow.name}</div>
+        )}
+        <div className="q-stack" style={{ gap: '4px' }}>
           {sTasks.map((t: any) => {
-            const current = ([] as any[]).find(pt => pt.id === t.taskId);
-            if (!current) return null;
+            const isActive = t.isActive ?? true;
+            const roleName = t.roleName ?? t.default_role?.name;
             return (
-              <div key={t.taskId} className="q-row q-row-between" style={{ alignItems: 'center', background: 'var(--q-color-neutral-100)', padding: '6px 8px', borderRadius: '4px' }}>
+              <div key={t.id} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
                 <label className="q-row" style={{ alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={current.isActive} onChange={() => {}} disabled={isPending} />
-                  <span style={{ fontSize: '0.9rem', opacity: current.isActive ? 1 : 0.5, textDecoration: current.isActive ? 'none' : 'line-through' }}>{t.name}</span>
+                  <input type="checkbox" checked={isActive} readOnly disabled />
+                  <span style={{ fontSize: '0.9rem', opacity: isActive ? 1 : 0.5, textDecoration: isActive ? 'none' : 'line-through' }}>{t.name}</span>
                 </label>
-                {t.roleName && (
-                  <span className="q-badge q-badge-neutral" style={{ fontSize: '0.75rem' }}>{t.roleName}</span>
+                {roleName && (
+                  <span className="q-badge q-badge-neutral" style={{ fontSize: '0.75rem' }}>{roleName}</span>
                 )}
               </div>
             );
@@ -608,7 +625,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   };
 
   /** The production sequences to run for this bundled service. */
-  const renderWorkflows = (s: ServiceOption) => null;
+
 
   return (
     <div className="q-stack q-stack-lg">
@@ -625,6 +642,17 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           <div className="q-field">
             <label className="q-label">Description</label>
             <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
+          </div>
+          <div className="q-field">
+            <label className="q-label">Base Price</label>
+            <div className="q-row" style={{ gap: '8px' }}>
+              <select className="q-select" value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)} style={{ width: '90px' }}>
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
+              <input type="number" className="q-input q-num" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} placeholder="0.00" step="0.01" style={{ width: '120px' }} />
+            </div>
           </div>
         </div>
       </div>
@@ -724,7 +752,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               <div key={s.id} style={{ marginBottom: '16px' }}>
                 <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
                 {renderVariables(s)}
-                  {renderTasks(s)}
               </div>
             ));
           })()}
@@ -732,7 +759,30 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">5. Delivery</h2>
+        <h2 className="q-section-title">5. Tasks</h2>
+        
+        <div className="q-stack q-stack-md">
+          {(() => {
+            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
+            if (bundledServices.length === 0) return <p className="q-empty">Select services above to see their production tasks.</p>;
+            const withTasks = bundledServices.filter((s) => {
+              const savedService = initial.services?.find((is: any) => is.id === s.id);
+              const sTasks = savedService?.tasks || s.workflow?.tasks || [];
+              return sTasks.length > 0;
+            });
+            if (withTasks.length === 0) return <p className="q-meta-sm">None of the bundled services have production tasks.</p>;
+            return withTasks.map((s) => (
+              <div key={s.id} style={{ marginBottom: '16px' }}>
+                <h3 className="q-strong" style={{ marginBottom: '2px' }}>For {s.name}</h3>
+                {renderTasks(s)}
+              </div>
+            ));
+          })()}
+        </div>
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">6. Deliverables</h2>
         
         <div className="q-stack q-stack-md">
           {(() => {
@@ -745,65 +795,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               </div>
             ));
           })()}
-
-          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--q-color-border)' }}>
-            <h3 className="q-strong" style={{ marginBottom: '8px' }}>Delivery Vessels</h3>
-            <span className="q-meta-sm" style={{ display: 'block', marginBottom: '16px', opacity: 0.7 }}>
-              How the final outputs are delivered to the client.
-            </span>
-            <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-              {([] as any[]).map(id => {
-                const c = ([] as any[]).find(x => x.id === id);
-                return (
-                  <span key={id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }} onClick={() => {}}>
-                    {c?.name || id} &times;
-                  </span>
-                );
-              })}
-            </div>
-            <div className="q-row" style={{ marginTop: '12px' }}>
-              <select
-                className="q-select"
-                value={''}
-                onChange={() => {}}
-                style={{ minWidth: '12rem' }}
-                disabled={isPending}
-              >
-                <option value="">Select a container...</option>
-                {([] as any[]).filter(x => !([] as string[]).includes(x.id)).map(x => (
-                  <option key={x.id} value={x.id}>{x.name}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="q-btn q-btn-secondary q-btn-xs"
-                onClick={() => {}}
-                disabled={true || isPending}
-              >
-                + Add
-              </button>
-            </div>
-          </div>
         </div>
       </div>
-      <div className="q-card q-section">
-        <h2 className="q-section-title">6. Workflows</h2>
-        
-        <div className="q-stack q-stack-md">
-          {(() => {
-            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
-            if (bundledServices.length === 0) return <p className="q-empty">Select services above to configure how they are produced.</p>;
-            return bundledServices.map((s) => (
-              <div key={s.id} style={{ marginBottom: '16px' }}>
-                <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
-                {renderWorkflows(s)}
-              </div>
-            ));
-          })()}
-
-        </div>
-      </div>
-
       {!hideControls && (
         <>
           <div className="q-row">

@@ -62,14 +62,14 @@ export default async function DeliverablesPage() {
           ))
         )}
 
-        {/* Delivery Containers */}
+        {/* Deliverable Containers */}
         <section>
           <h2 className="q-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <PackageOpen size={18} className="q-icon-dim" />
-            Delivery Containers
+            Deliverable Containers
           </h2>
           {containers.length === 0 ? (
-            <p className="q-meta" style={{ marginTop: '16px' }}>No delivery containers defined.</p>
+            <p className="q-meta" style={{ marginTop: '16px' }}>No deliverable containers defined.</p>
           ) : (
             <div className="q-grid-cards">
               {([] as any[]).map((c) => (
