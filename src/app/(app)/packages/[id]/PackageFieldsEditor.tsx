@@ -4,7 +4,7 @@ import React, { useState, useTransition, forwardRef, useImperativeHandle } from 
 import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
 import { formatDeliverable } from '@/modules/packages/interface';
-import { DURATION_CHOICES, CURRENCIES } from '@/kernel/currency';
+import { DURATION_CHOICES } from '@/kernel/currency';
 
 type ServiceOption = { 
   id: string; 
@@ -102,9 +102,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   
   const [priceAmount, setPriceAmount] = useState<string>(
     (initial as any).price?.amount != null ? String((initial as any).price.amount) : ''
-  );
-  const [priceCurrency, setPriceCurrency] = useState<string>(
-    (initial as any).price?.currency || currencyCode || 'USD'
   );
   
   /*
@@ -286,7 +283,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       name: effectiveName,
       description: description.trim() || null,
       durationMinutes: duration > 0 ? duration : null,
-      price: priceAmount ? { amount: Number(priceAmount), currency: priceCurrency } : null,
+      price: priceAmount ? { amount: Number(priceAmount), currency: currencyCode } : null,
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -645,12 +642,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           </div>
           <div className="q-field">
             <label className="q-label">Base Price</label>
-            <div className="q-row" style={{ gap: '8px' }}>
-              <select className="q-select" value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)} style={{ width: '90px' }}>
-                {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.code}</option>
-                ))}
-              </select>
+            <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+              <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
               <input type="number" className="q-input q-num" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} placeholder="0.00" step="0.01" style={{ width: '120px' }} />
             </div>
           </div>
