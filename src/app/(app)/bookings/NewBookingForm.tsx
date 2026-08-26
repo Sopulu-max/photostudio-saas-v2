@@ -324,6 +324,9 @@ export function NewBookingForm({
           const updated = [...prev];
           updated[index].selectedPackageDeep = deep;
           updated[index].isLoadingDeep = false;
+          if (deep.price?.amount != null && !updated[index].linePrice) {
+            updated[index].linePrice = String(deep.price.amount);
+          }
           return updated;
         });
       }).catch(err => {
