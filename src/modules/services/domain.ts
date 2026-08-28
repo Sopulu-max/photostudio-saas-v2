@@ -5,6 +5,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
+import { findByName } from '@/kernel/naming';
 import type {
   DimensionWrite, PublicIntakeDimension, ServiceDimensionTag, StudioDimensionShape,
 } from './dimensions';
@@ -47,13 +48,16 @@ type NamedTable = 'service_domains' | 'delivery_containers' | 'deliverables';
 async function findOrCreateNamed(table: NamedTable, orgId: string, name: string): Promise<string | null> {
   const clean = (name || '').trim();
   if (!clean) return null;
-  const { data: existing } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).ilike('name', clean).maybeSingle();
+  // Case-insensitive EQUALITY, not a pattern match — see kernel/naming.
+  const { data: candidates } = await supabaseAdmin.from(table).select('id, name').eq('organization_id', orgId);
+  const existing = findByName(candidates, clean);
   if (existing) return existing.id;
   const { data: last } = await supabaseAdmin.from(table).select('position').eq('organization_id', orgId).order('position', { ascending: false }).limit(1).maybeSingle();
   const { data: created, error } = await supabaseAdmin.from(table).insert({ organization_id: orgId, name: clean, position: (last?.position ?? -1) + 1 }).select('id').maybeSingle();
   if (error) {
     if (error.code === '23505') {
-      const { data: retry } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).ilike('name', clean).maybeSingle();
+      const { data: retryRows } = await supabaseAdmin.from(table).select('id, name').eq('organization_id', orgId);
+      const retry = findByName(retryRows, clean);
       if (retry) return retry.id;
     }
     console.error(`Failed to create ${table} value:`, error);
@@ -84,12 +88,11 @@ async function resolveDimensionValueId(
   const value = (valueName || '').trim();
   if (!dimName || !value) return null;
 
-  const { data: existingDim } = await supabaseAdmin
-    .from('dimensions').select('id')
-    .eq('organization_id', orgId).eq('service_domain_id', domainId)
-    .ilike('name', dimName).maybeSingle();
+  const { data: dimRows } = await supabaseAdmin
+    .from('dimensions').select('id, name')
+    .eq('organization_id', orgId).eq('service_domain_id', domainId);
 
-  let dimensionId = existingDim?.id as string | undefined;
+  let dimensionId = findByName(dimRows, dimName)?.id as string | undefined;
   if (!dimensionId) {
     const { data: last } = await supabaseAdmin
       .from('dimensions').select('position')
@@ -101,8 +104,8 @@ async function resolveDimensionValueId(
       .select('id').maybeSingle();
     if (error) {
       if (error.code === '23505') {
-        const { data: retry } = await supabaseAdmin.from('dimensions').select('id').eq('organization_id', orgId).eq('service_domain_id', domainId).ilike('name', dimName).maybeSingle();
-        dimensionId = retry?.id;
+        const { data: retryDims } = await supabaseAdmin.from('dimensions').select('id, name').eq('organization_id', orgId).eq('service_domain_id', domainId);
+        dimensionId = findByName(retryDims, dimName)?.id;
       }
       if (!dimensionId) { console.error('Failed to create dimension:', error); return null; }
     } else {
@@ -111,9 +114,10 @@ async function resolveDimensionValueId(
   }
   if (!dimensionId) return null;
 
-  const { data: existingValue } = await supabaseAdmin
-    .from('dimension_values').select('id')
-    .eq('dimension_id', dimensionId).ilike('name', value).maybeSingle();
+  const { data: valueRows } = await supabaseAdmin
+    .from('dimension_values').select('id, name')
+    .eq('dimension_id', dimensionId);
+  const existingValue = findByName(valueRows, value);
   if (existingValue) return existingValue.id as string;
 
   const { data: lastValue } = await supabaseAdmin
@@ -126,7 +130,8 @@ async function resolveDimensionValueId(
     .select('id').maybeSingle();
   if (valueError) {
     if (valueError.code === '23505') {
-      const { data: retryValue } = await supabaseAdmin.from('dimension_values').select('id').eq('dimension_id', dimensionId).ilike('name', value).maybeSingle();
+      const { data: retryValues } = await supabaseAdmin.from('dimension_values').select('id, name').eq('dimension_id', dimensionId);
+      const retryValue = findByName(retryValues, value);
       if (retryValue) return retryValue.id as string;
     }
     console.error('Failed to create dimension value:', valueError); return null;
@@ -377,13 +382,17 @@ async function resolveWorkflow(orgId: string, domainId: string, input: WorkflowI
   if (!name) return null;
 
   let workflowId: string;
-  const { data: existing } = await supabaseAdmin
+  /*
+    * The bug that started this sweep: a workflow named "Post_production" would
+    * find and silently reuse "Post-production", because ILIKE read the typed
+    * name as a pattern.
+    */
+  const { data: workflowRows } = await supabaseAdmin
     .from('workflows')
-    .select('id')
+    .select('id, name')
     .eq('organization_id', orgId)
-    .eq('service_domain_id', domainId)
-    .ilike('name', name)
-    .maybeSingle();
+    .eq('service_domain_id', domainId);
+  const existing = findByName(workflowRows, name);
 
   if (existing) {
     workflowId = existing.id;
@@ -935,8 +944,33 @@ export async function listWorkflowsByDomain() {
 
 export async function saveWorkflow(domainId: string, input: WorkflowInput) {
   const { orgId } = await getAuthOrgId();
-  await resolveWorkflow(orgId, domainId, input);
+  const workflowId = await resolveWorkflow(orgId, domainId, input);
+
+  /*
+   * Reach the packages already built from this.
+   *
+   * A workflow's tasks used to land in a package only at the moment a service
+   * was bundled into it. Define the workflow afterwards — which is what a studio
+   * that built its catalog first actually does — and nothing revisited those
+   * packages, so no booking ever got a task and nobody could be put on one.
+   *
+   * Asked of Packages rather than written here: package_tasks is theirs, and the
+   * decision about what is additive and what would trample a package's own edits
+   * belongs with the module that owns the table.
+   */
+  if (workflowId) {
+    const { syncPackageTasksForWorkflow } = await import('@/modules/packages/interface');
+    try {
+      await syncPackageTasksForWorkflow(workflowId);
+    } catch (e) {
+      // The workflow is saved either way; a failed sync is recoverable by
+      // saving it again, and losing the workflow would not be.
+      console.error('Workflow saved, but packages could not be brought up to date:', e);
+    }
+  }
+
   revalidatePath('/services/settings');
+  revalidatePath('/packages');
   return { ok: true };
 }
 

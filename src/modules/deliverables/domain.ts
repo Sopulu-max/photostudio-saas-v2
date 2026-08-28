@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
+import { findByName } from '@/kernel/naming';
 
 type Facet = { id: string; name: string; position: number };
 type NamedTable = 'deliverables';
@@ -18,9 +19,11 @@ async function findOrCreateNamed(table: NamedTable, orgId: string, name: string)
   const clean = (name || '').trim();
   if (!clean) return null;
 
-  const { data: existing } = await supabaseAdmin
-    .from(table).select('id')
-    .eq('organization_id', orgId).ilike('name', clean).maybeSingle();
+  // Case-insensitive EQUALITY, not a pattern match — see kernel/naming.
+  const { data: candidates } = await supabaseAdmin
+    .from(table).select('id, name')
+    .eq('organization_id', orgId);
+  const existing = findByName(candidates, clean);
   if (existing) return existing.id as string;
 
   const { data: last } = await supabaseAdmin
@@ -34,7 +37,8 @@ async function findOrCreateNamed(table: NamedTable, orgId: string, name: string)
     .select('id').maybeSingle();
   if (error) {
     if (error.code === '23505') {
-      const { data: retry } = await supabaseAdmin.from(table).select('id').eq('organization_id', orgId).ilike('name', clean).maybeSingle();
+      const { data: retryRows } = await supabaseAdmin.from(table).select('id, name').eq('organization_id', orgId);
+      const retry = findByName(retryRows, clean);
       if (retry) return retry.id as string;
     }
     console.error(`Failed to create ${table}:`, error); return null;
@@ -68,10 +72,10 @@ export async function findOrCreateOutputType(orgId: string, domainId: string, na
   const clean = (name || '').trim();
   if (!clean || !domainId) return null;
 
-  const { data: existing } = await supabaseAdmin
-    .from('deliverables').select('id')
-    .eq('organization_id', orgId).eq('service_domain_id', domainId)
-    .ilike('name', clean).maybeSingle();
+  const { data: candidates } = await supabaseAdmin
+    .from('deliverables').select('id, name')
+    .eq('organization_id', orgId).eq('service_domain_id', domainId);
+  const existing = findByName(candidates, clean);
   if (existing) return existing.id as string;
 
   const { data: last } = await supabaseAdmin
@@ -85,7 +89,8 @@ export async function findOrCreateOutputType(orgId: string, domainId: string, na
     .select('id').maybeSingle();
   if (error) {
     if (error.code === '23505') {
-      const { data: retry } = await supabaseAdmin.from('deliverables').select('id').eq('organization_id', orgId).eq('service_domain_id', domainId).ilike('name', clean).maybeSingle();
+      const { data: retryRows2 } = await supabaseAdmin.from('deliverables').select('id, name').eq('organization_id', orgId).eq('service_domain_id', domainId);
+      const retry = findByName(retryRows2, clean);
       if (retry) return retry.id as string;
     }
     console.error('Failed to create output type:', error); return null;
