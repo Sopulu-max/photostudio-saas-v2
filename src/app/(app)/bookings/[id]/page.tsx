@@ -7,6 +7,9 @@ import { CreateContractButton, ExtractPackageButton } from './BookingActions';
 import { listClients } from '@/modules/clients/interface';
 import { TaskProgression } from './ProductionUI';
 import { listEmployees, listRoles } from '@/modules/team/interface';
+import { getBookingTeam, getBookingTasks } from '@/modules/production/interface';
+import { BookingTasks } from './BookingTasks';
+import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
 import { getBooking, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
 import { listPackages, formatDeliverable } from '@/modules/packages/interface';
@@ -19,8 +22,9 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
+import { amountOf, firstPriced } from '@/kernel/money';
 import { GenerateInvoiceButton } from './InvoiceForms';
-import { listInvoicesForBooking } from '@/modules/finances/interface';
+import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,8 +40,20 @@ function linePrice(price: any, quantity: number) {
   return `${formatMoney(base, currency)}${unit ? ' × ' : ' '}${unitLabel} = ${formatMoney(base * qty, currency)}`;
 }
 
+/*
+ * What a line is worth, asked of the booking's own instance of the package.
+ *
+ * The line still carries a denormalised copy of the price, and this used to read
+ * only that — so a price corrected on the booking showed here as whatever it had
+ * been when the line was made. The instance is what the invoice and the contract
+ * both bill from, so it is what this has to agree with.
+ */
+function priceOfLine(l: any) {
+  return firstPriced(l.package?.price, l.price);
+}
+
 function lineTotal(l: any) {
-  return Number(l.price?.base_price || 0) * Number(l.quantity ?? 1);
+  return amountOf(priceOfLine(l)) * Number(l.quantity ?? 1);
 }
 
 
@@ -90,13 +106,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [deliveries, stages, intake, suggestedMinutes, currencyCode, fulfilment, employees, roles] = await Promise.all([
+  const [deliveries, stages, intake, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles] = await Promise.all([
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     getFulfilmentForBooking(booking.id),
+    getBookingTeam(booking.id),
+    getBookingTasks(booking.id),
     listEmployees(),
     listRoles(),
   ]);
@@ -104,13 +122,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   // The documents raised against this booking, distinct from the money that
   // moved: an invoice is what was asked for, a transaction is what arrived.
   const invoices = await listInvoicesForBooking(booking.id);
+  // Booked, invoiced and paid — three different questions, asked of Finances
+  // rather than worked out again here from its tables.
+  const billing = await getBookingBilling(booking.id);
 
   // What the packages promised, and what's still owed. Shared is the bar, not
   // uploaded: a bundle the client can't open isn't delivered.
   const promised = fulfilment.map((f) => ({ id: f.id, name: f.name }));
   const undelivered = fulfilment.filter((f) => !f.shared);
-
-  // Anyone on this booking who isn't covering one of the roles the blueprints
 
   const lines: any[] = booking.lines;
   const contracts: any[] = booking.contracts;
@@ -136,7 +155,35 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .filter((t) => t.status === 'settled')
     .reduce((sum, t) => sum + (t.direction === 'outbound' ? -Number(t.amount || 0) : Number(t.amount || 0)), 0);
   const pendingTotal = txns.filter((t) => t.status === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  const outstanding = contractBasePrice > 0 ? Math.max(contractBasePrice - paidTotal, 0) : 0;
+  /*
+   * What this booking is worth, contract or no contract.
+   *
+   * The figures used to come only from the contract's snapshotted terms, so a
+   * studio that had not sent one — or does not send them at all — saw no totals
+   * beside its invoices, however much had been billed and paid. A booking is
+   * worth what its packages come to; a signed contract fixes that number, it
+   * does not create it.
+   */
+  const bookedTotal = lines.reduce((sum: number, l: any) => sum + lineTotal(l), 0);
+  const bookingValue = contractBasePrice > 0 ? contractBasePrice : bookedTotal;
+  // Same reasoning for the currency: the contract's if there is one, otherwise
+  // whatever the packages are priced in, and the studio's own as a last resort.
+  const moneyCurrency = contractTerms.currency
+    || (lines.map((l: any) => priceOfLine(l) as any).find((p: any) => p?.currency)?.currency)
+    || currencyCode;
+  /*
+   * Two different remainders, which used to be one.
+   *
+   * "Outstanding" was booked minus paid, which answers neither question well: it
+   * counts work nobody has been billed for as though the client owed it, and it
+   * ignores an invoice sitting unpaid on their desk. A contract, where one
+   * exists, fixes what is owed overall; what has been billed and paid comes from
+   * the invoices themselves.
+   */
+  const leftToInvoice = contractBasePrice > 0
+    ? Math.max(contractBasePrice - billing.invoiced, 0)
+    : billing.leftToInvoice;
+  const leftToPay = billing.leftToPay;
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="q-card q-section">
@@ -181,7 +228,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* What the client told us — answers to the service's intake questions */}
         {intake.length > 0 && (
-          <Section title="What the client told us">
+          <Section title="Client submission">
             <div className="q-stack q-stack-sm">
               {intake.map((row: any, i: number) => (
                 <div key={i} className="q-tile q-row q-row-between">
@@ -197,7 +244,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         )}
 
         {/* When */}
-        <Section title="When">
+        <Section title="Schedule">
           {booking.scheduled_for ? (
             <div>
               <strong className="q-strong">
@@ -225,7 +272,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
 
         {/* What they're booking — one line per Package */}
-        <Section title="What they're booking">
+        <Section title="Packages">
           {lines.length === 0 ? (
             <div>
               <p className="q-empty">
@@ -331,6 +378,101 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               </strong>
             </div>
           )}
+        </Section>
+
+        {/*
+          * Who is on this booking — read off the tasks, not recorded separately.
+          * Grouped by role because that is the question actually asked before a
+          * shoot ("have I got a second shooter for Saturday"), and because a
+          * role nobody is covering has to be visible, which a list of names
+          * cannot show.
+          */}
+        {/*
+          * Who is on this booking. Always shown, even when empty — a booking
+          * with nobody on it is a thing the studio needs to see, and hiding the
+          * section hid the only way to put anyone on one.
+          */}
+        <Section title="Team">
+          {team.roles.length === 0 ? (
+            <p className="q-meta" style={{ marginBottom: '16px' }}>
+              No team members assigned.
+            </p>
+          ) : (
+            <>
+              {team.unfilled > 0 && (
+                <p className="q-meta" style={{ marginBottom: '16px' }}>
+                  {team.unfilled} {team.unfilled === 1 ? 'task is' : 'tasks are'} unassigned.
+                </p>
+              )}
+              <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+                {team.roles.map((r: any) => (
+                  <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="q-strong">{r.roleName}</span>
+                      {r.tasks.length > 0 && (
+                        <span className="q-meta-sm">
+                          {r.tasks.length} {r.tasks.length === 1 ? 'task' : 'tasks'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {r.covering.map((p: any) => {
+                        const member = r.members.find((m: any) => m.person.id === p.id);
+                        return (
+                          <span key={p.id} className="q-badge q-badge-neutral q-row" style={{ gap: '4px', alignItems: 'center' }}>
+                            {p.name}
+                            {/* Only someone put on directly can be taken off here;
+                                a person who is only on a task comes off by
+                                unassigning that task. */}
+                            {member && (
+                              <RemoveFromTeam
+                                bookingId={booking.id}
+                                assignmentId={member.assignmentId}
+                                name={p.name}
+                              />
+                            )}
+                          </span>
+                        );
+                      })}
+                      {r.covering.length === 0 && <span className="q-meta-sm">Unassigned</span>}
+                      {r.unassigned > 0 && r.covering.length > 0 && (
+                        <span className="q-meta-sm">{r.unassigned} task{r.unassigned === 1 ? '' : 's'} unassigned</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <AddToTeam
+            bookingId={booking.id}
+            employees={employees as any}
+            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+          />
+
+          {team.hasTasks && (
+            <p className="q-meta-sm" style={{ marginTop: '16px' }}>
+              Individual tasks can be assigned under Tasks below.
+            </p>
+          )}
+        </Section>
+
+        {/*
+          * The work, collated across every package on this booking.
+          *
+          * It used to live under each package, so a booking with three packages
+          * had three separate lists and no view of the job as one thing. The
+          * package a task came from is still shown against it; it just no
+          * longer decides how the list is organised.
+          */}
+        <Section title="Tasks">
+          <BookingTasks
+            bookingId={booking.id}
+            tasks={bookingTasks as any}
+            employees={employees as any}
+            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+          />
         </Section>
 
         {/* Deliverables */}
@@ -451,8 +593,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
               {invoices.length === 0
-                ? 'Nothing billed yet.'
-                : `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised.`}
+                ? billing.booked > 0
+                  ? `Nothing billed yet. ${formatMoney(billing.booked, moneyCurrency)} to invoice.`
+                  : 'Nothing billed yet.'
+                : leftToInvoice > 0
+                  ? `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · ${formatMoney(leftToInvoice, moneyCurrency)} still to invoice.`
+                  : `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · fully invoiced.`}
             </span>
             <GenerateInvoiceButton bookingId={booking.id} hasLines={lines.length > 0} />
           </div>
@@ -486,20 +632,36 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
 
-          {contractBasePrice > 0 && (
-            <div className="q-grid-3" style={{ marginBottom: '16px' }}>
+          {bookingValue > 0 && (
+            <div className="q-grid-3" style={{ marginBottom: '16px', flexWrap: 'wrap' }}>
+              <div className="q-panel">
+                <div className="q-stat-label">{contractBasePrice > 0 ? 'Agreed' : 'Booked'}</div>
+                <div className="q-stat-value">{formatMoney(bookingValue, moneyCurrency)}</div>
+              </div>
+              <div className="q-panel">
+                <div className="q-stat-label">Invoiced</div>
+                <div className="q-stat-value">{formatMoney(billing.invoiced, moneyCurrency)}</div>
+              </div>
               <div className="q-panel">
                 <div className="q-stat-label">Paid</div>
-                <div className="q-stat-value">{formatMoney(paidTotal, contractTerms.currency || currencyCode)}</div>
+                <div className="q-stat-value">{formatMoney(billing.paid, moneyCurrency)}</div>
               </div>
-              <div className="q-panel">
-                <div className="q-stat-label">Outstanding</div>
-                <div className="q-stat-value">{formatMoney(outstanding, contractTerms.currency || currencyCode)}</div>
-              </div>
+              {leftToInvoice > 0 && (
+                <div className="q-panel">
+                  <div className="q-stat-label">Left to invoice</div>
+                  <div className="q-stat-value">{formatMoney(leftToInvoice, moneyCurrency)}</div>
+                </div>
+              )}
+              {leftToPay > 0 && (
+                <div className="q-panel">
+                  <div className="q-stat-label">Left to pay</div>
+                  <div className="q-stat-value">{formatMoney(leftToPay, moneyCurrency)}</div>
+                </div>
+              )}
               {pendingTotal > 0 && (
                 <div className="q-panel">
                   <div className="q-stat-label">Pending</div>
-                  <div className="q-stat-value q-warm">{formatMoney(pendingTotal, contractTerms.currency || currencyCode)}</div>
+                  <div className="q-stat-value q-warm">{formatMoney(pendingTotal, moneyCurrency)}</div>
                 </div>
               )}
             </div>

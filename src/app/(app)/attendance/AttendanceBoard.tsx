@@ -424,7 +424,7 @@ export function AttendanceBoard({
         <p className="q-note" role="status" style={{ margin: 0 }}>
           {openingLabel && <strong>{openingLabel}</strong>}{openingLabel ? ' — ' : ''}
           {closed
-            ? 'the studio is closed today. Nobody is expected, and nobody is late. Anyone who comes in can still be checked in.'
+            ? 'The studio is closed today. No attendance is expected and no one is marked late. Staff who come in can still be checked in.'
             : `the studio is open ${opensAt}${closesAt ? ` – ${closesAt}` : ''} today rather than its usual hours.`}
         </p>
       )}

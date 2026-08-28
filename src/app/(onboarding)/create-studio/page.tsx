@@ -46,7 +46,7 @@ export default async function CreateStudioPage(props: { searchParams: Promise<{ 
       <div className="q-card" style={{ maxWidth: '440px', width: '100%', padding: '48px' }}>
         <header style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h1 className="q-page-title" style={{ fontSize: '1.75rem', marginBottom: '8px' }}>Welcome to Weave</h1>
-          <p className="q-page-subtitle">Let's set up your first studio.</p>
+          <p className="q-page-subtitle">Set up your studio to begin.</p>
         </header>
 
         {searchParams.error && (

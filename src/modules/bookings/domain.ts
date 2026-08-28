@@ -5,9 +5,9 @@ import { assertOurs } from '@/kernel/tenancy';
 import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { amountOf } from '@/kernel/money';
+import { amountOf, firstPriced } from '@/kernel/money';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
-import { draftContractForBooking } from '@/modules/contracts/interface';
+import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/interface';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -195,8 +195,21 @@ export async function createBookingFromIntake(input: {
   organizationId: string;
   contactId: string;
   clientName: string;
+  /**
+   * The package this booking is for — already instantiated by Packages, never
+   * a catalog id. Bookings does not clone it and does not write to it; asking
+   * Packages for an instance is the caller's job, done before this is called.
+   */
   packageId?: string | null;
   packageName: string;
+  /**
+   * What the instance costs, as Packages reported it when it made the instance.
+   *
+   * Copied onto the line rather than read back off the package: the line's own
+   * columns are still what older bookings are made of, and every read here
+   * falls back to them. It is a copy, never a source — Bookings does not write
+   * to packages.
+   */
   linePrice?: Record<string, unknown>;
   answers?: Record<string, unknown>;
   /** What the client chose for whatever the package left open. */
@@ -575,7 +588,7 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
  * carries its price snapshot); or a free-form custom line.
  */
 
-async function copyPackageTasksToBookingLine(orgId: string, packageId: string, bookingLineId: string) {
+async function copyPackageTasksToBookingLine(orgId: string, packageId: string, bookingLineId: string, bookingId: string) {
   const { data: packageTasks } = await supabaseAdmin
     .from('package_services')
     .select('id, package_tasks(id, name, role_id, position, is_active, workflow_task_id)')
@@ -590,6 +603,9 @@ async function copyPackageTasksToBookingLine(orgId: string, packageId: string, b
       if (t.is_active) {
         tasksToInsert.push({
           organization_id: orgId,
+          // The booking owns the work; the line records which package it came
+          // from. A booking with three packages has one task list, not three.
+          booking_id: bookingId,
           booking_line_id: bookingLineId,
           package_service_id: p.id,
           workflow_task_id: t.workflow_task_id,
@@ -602,7 +618,7 @@ async function copyPackageTasksToBookingLine(orgId: string, packageId: string, b
   }
 
   if (tasksToInsert.length > 0) {
-    await supabaseAdmin.from('booking_line_tasks').insert(tasksToInsert);
+    await supabaseAdmin.from('booking_tasks').insert(tasksToInsert);
   }
 }
 
@@ -665,7 +681,7 @@ export async function addBookingLine(input: {
       source: 'studio', 
       organizationId: orgId 
     });
-    await copyPackageTasksToBookingLine(orgId, input.packageId, line.id);
+    await copyPackageTasksToBookingLine(orgId, input.packageId, line.id, input.bookingId);
   }
 
   await logEvent({
@@ -687,7 +703,13 @@ export async function addBookingLine(input: {
  * kernel is unlocked). Terms are summed from the booking's lines. A contract
  * needs a party, so the booking must have a client.
  */
-export async function createContractForBooking(bookingId: string) {
+export async function createContractForBooking(
+  bookingId: string,
+  options?: {
+    /** What to ask for up front on THIS contract, when it differs from the studio's default. */
+    depositPercentage?: number | null;
+  },
+) {
   const { orgId, personId } = await getAuthOrgId();
 
   const { data: booking } = await supabaseAdmin
@@ -701,16 +723,22 @@ export async function createContractForBooking(bookingId: string) {
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('title, price, quantity, package_id')
+    .select('title, price, quantity, package_id, package:packages(name, price)')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
+
+  // What this line is for and what was agreed for it. The booking's own
+  // instance of the package holds both; a line made before instancing holds
+  // them itself, and a contract must state a price either way.
+  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
 
   // price × quantity — a line for "3 hours" is not billed as one hour.
   let total = 0;
   let currency = 'USD';
   for (const l of lines || []) {
-    const p: any = l.price || {};
-    total += amountOf(l.price) * Number((l as any).quantity ?? 1);
+    const p: any = priceOfLine(l);
+    total += amountOf(p) * Number((l as any).quantity ?? 1);
     if (p.currency) currency = p.currency;
   }
 
@@ -720,21 +748,27 @@ export async function createContractForBooking(bookingId: string) {
   // booking's lines change later, this contract's terms don't silently
   // drift with them.
   const lineItems = (lines || []).map((l: any) => {
-    const p: any = l.price || {};
+    const p: any = priceOfLine(l);
     const quantity = Number(l.quantity ?? 1);
-    const unitPrice = amountOf(l.price);
-    return { title: l.title, quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity };
+    const unitPrice = amountOf(p);
+    return { title: nameOf(l), quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity };
   });
 
-  // What's due to book — resolved from what's actually being sold, not
-  // hardcoded. A package requiring full payment overrides everything else on
-  // the booking (you can't half-confirm a full-payment line); otherwise the
-  // largest deposit among the packages involved applies. Lines with no
-  // package at all (custom lines only, nothing catalogued yet) get the most
-  // conservative reading — nothing assumed due to book, the full amount
-  // invoiced later — rather than a studio-configurable default that no
-  // longer exists.
-  const depositPercentage = 0;
+  // What's due to book, asked of Contracts. It used to be resolved from the
+  // packages — each carrying its own payment policy, strictest winning — until
+  // payment terms moved off the package, and the number was left hardcoded to
+  // zero here in the meantime. A deposit is a term of the agreement, so the
+  // studio's default belongs to the module that owns agreements, and this
+  // contract can still be amended away from it afterwards.
+  /*
+   * What is due to book. The studio's standing answer unless this contract says
+   * otherwise — a deposit is a term of the agreement, so a single agreement is
+   * allowed to depart from the default without changing it for everyone.
+   */
+  const override = options?.depositPercentage;
+  const depositPercentage = override == null || !Number.isFinite(Number(override))
+    ? await getDepositDefault()
+    : Math.min(100, Math.max(0, Number(override)));
 
   const terms = { base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems };
 
@@ -813,15 +847,10 @@ export async function getBooking(bookingId: string) {
       booking_lines(
         id, title, price, quantity, package_id, created_at,
         package:packages(
-          id,
+          id, name, price,
           package_services(id, service:services(id, name, service_domain_id))
         ),
-        assignments(
-          id, employee_id, role_id,
-          employee:employees(id, contact:contacts(display_name)),
-          role:roles(id, name)
-        ),
-        tasks:booking_line_tasks(
+        tasks:booking_tasks(
           id, name, completed_at, package_service_id, position, workflow_task_id,
           assignee:contacts(id, display_name),
           role:roles(id, name)
@@ -900,7 +929,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, duration_minutes, stage:booking_stages(name, kind, color), contact:contacts(display_name), booking_lines(title)')
+    .select('id, title, scheduled_for, duration_minutes, stage:booking_stages(name, kind, color), contact:contacts(display_name), booking_lines(title, package:packages(name))')
     .eq('organization_id', orgId)
     .not('scheduled_for', 'is', null)
     .gte('scheduled_for', fromISO)
@@ -922,7 +951,10 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     stageKind: b.stage?.kind || null,
     stageColor: b.stage?.color || null,
     client: b.contact?.display_name || null,
-    lines: (b.booking_lines || []).map((l: any) => l.title),
+    // Falling back to the line's own title: bookings made before a line pointed
+    // at a package still carry their name there, and seven of them are named
+    // nothing else at all.
+    lines: (b.booking_lines || []).map((l: any) => l.package?.name || l.title).filter(Boolean),
   }));
 }
 
@@ -954,7 +986,7 @@ export async function listBookingsForContact(contactId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, created_at, stage:booking_stages(name, kind, color), booking_lines(price, quantity)')
+    .select('id, title, scheduled_for, created_at, stage:booking_stages(name, kind, color), booking_lines(quantity, price, package:packages(price))')
     .eq('organization_id', orgId)
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false });
@@ -967,8 +999,11 @@ export async function listBookingsForContact(contactId: string) {
     let total = 0;
     let currency = 'USD';
     for (const l of b.booking_lines || []) {
-      const p: any = l.price || {};
-      total += amountOf(l.price) * Number(l.quantity ?? 1);
+      // The instance's price is the agreed one; the line's own is what older
+      // bookings have instead of an instance.
+      const priced = firstPriced(l.package?.price, l.price);
+      const p: any = priced || {};
+      total += amountOf(priced) * Number(l.quantity ?? 1);
       if (p.currency) currency = p.currency;
     }
     return {
@@ -1295,38 +1330,62 @@ export async function updateBookingLine(input: {
 
   const { data: line } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, title, price')
+    .select('id, quantity, title, price, package_id, package:packages(name, price)')
     .eq('id', input.lineId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!line) throw new Error('Line not found');
 
-  const patch: Record<string, unknown> = {};
-  if (input.title !== undefined) {
-    const t = input.title.trim();
-    if (!t) throw new Error('A line needs a name.');
-    patch.title = t;
-  }
+  const pkg = line.package as any;
+
+  const linePatch: Record<string, unknown> = {};
   if (input.quantity !== undefined) {
     const q = Number(input.quantity);
     if (!Number.isFinite(q) || q <= 0) throw new Error('Quantity must be more than zero.');
-    patch.quantity = q;
+    linePatch.quantity = q;
+  }
+
+  /*
+   * Name and price describe the package this line is for, and that package is
+   * this booking's own instance — so renaming or repricing here is a change to
+   * the instance, asked of Packages rather than written into its table. A line
+   * old enough to have no instance keeps its own columns instead; those
+   * bookings predate instancing and there is nothing to ask Packages about.
+   */
+  let name: string | undefined;
+  let price: Record<string, unknown> | undefined;
+  if (input.title !== undefined) {
+    const t = input.title.trim();
+    if (!t) throw new Error('A line needs a name.');
+    name = t;
   }
   if (input.basePrice !== undefined || input.currency !== undefined) {
-    const price: any = { ...(line.price as any) };
-    if (input.basePrice !== undefined) price.base_price = input.basePrice;
-    if (input.currency !== undefined) price.currency = input.currency;
-    patch.price = price;
+    const next: any = { ...((pkg?.price ?? line.price) as any) };
+    if (input.basePrice !== undefined) next.base_price = input.basePrice;
+    if (input.currency !== undefined) next.currency = input.currency;
+    price = next;
   }
 
-  const { error } = await supabaseAdmin
-    .from('booking_lines')
-    .update(patch)
-    .eq('id', input.lineId)
-    .eq('organization_id', orgId);
-  if (error) throw new Error('Failed to update the line');
+  if (!line.package_id) {
+    if (name !== undefined) linePatch.title = name;
+    if (price !== undefined) linePatch.price = price;
+  }
 
-  await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
+  if (Object.keys(linePatch).length > 0) {
+    const { error: lineError } = await supabaseAdmin
+      .from('booking_lines')
+      .update(linePatch)
+      .eq('id', input.lineId)
+      .eq('organization_id', orgId);
+    if (lineError) throw new Error('Failed to update the line');
+  }
+
+  if (line.package_id && (name !== undefined || price !== undefined)) {
+    const { updatePackage } = await import('@/modules/packages/interface');
+    await updatePackage({ packageId: line.package_id, name, price });
+  }
+
+  await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'updated', actorId: actorId ?? undefined, payload: { ...linePatch, name, price } });
   await refreshBookingTitle(input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
@@ -1392,7 +1451,7 @@ export async function refreshBookingTitle(bookingId: string) {
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, title_custom, scheduled_for, contact:contacts(display_name), booking_lines(title, created_at)')
+    .select('id, title, title_custom, scheduled_for, contact:contacts(display_name), booking_lines(created_at, title, package:packages(name))')
     .eq('id', bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -1404,7 +1463,7 @@ export async function refreshBookingTitle(bookingId: string) {
 
   const title = composeTitle({
     clientName: (booking as any).contact?.display_name,
-    lineTitles: lines.map((l: any) => l.title),
+    lineTitles: lines.map((l: any) => l.package?.name || l.title).filter(Boolean),
     scheduledFor: booking.scheduled_for,
   });
 

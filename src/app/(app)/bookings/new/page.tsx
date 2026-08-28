@@ -8,6 +8,7 @@ import { listActiveServices, listDimensionsByDomain, listVariablesForServices } 
 import { listDeliverables } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
+import { getDepositDefault } from '@/modules/contracts/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,10 @@ export default async function NewBookingPage() {
     listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
     listRoles(), getStudioCurrency(), listDeliverables()
   ]);
+
+  // What the studio asks for up front, so the contract field opens on it rather
+  // than on nothing.
+  const depositDefault = await getDepositDefault();
 
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
     .map((v: any) => {
@@ -78,7 +83,9 @@ export default async function NewBookingPage() {
         allVariables={allVariables as any}
         allDeliverables={allDeliverables as any}
         roleOptions={(roles as any[]).map((r) => r.name)}
+        roleChoices={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
         currencyCode={currencyCode}
+        depositDefault={depositDefault}
       />
     </div>
   );

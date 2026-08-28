@@ -2,8 +2,11 @@
 
 import React, { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBooking, addBookingLine, setLineConfiguration } from '@/modules/bookings/interface';
-import { createClient } from '@/modules/clients/interface';
+import { createBooking, addBookingLine, setLineConfiguration, createContractForBooking } from '@/modules/bookings/interface';
+import { createInvoiceForBooking } from '@/modules/finances/interface';
+import { addBookingTask } from '@/modules/production/interface';
+import { createClient, updateClient } from '@/modules/clients/interface';
+import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
 import { getPackage, createPackage } from '@/modules/packages/interface';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 
@@ -24,94 +27,6 @@ export type ServiceOption = {
   name: string;
   domainName: string;
 };
-
-function ClientCombobox({
-  clients, 
-  value, 
-  onChange,
-  onNewClientName
-}: { 
-  clients: Option[]; 
-  value: string; 
-  onChange: (id: string) => void;
-  onNewClientName: (name: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-
-  React.useEffect(() => {
-    if (!isOpen) {
-      const selectedClient = clients.find(c => c.id === value);
-      setQuery(selectedClient ? selectedClient.name : '');
-    }
-  }, [value, isOpen, clients]);
-
-  const filtered = query === '' 
-    ? clients 
-    : clients.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <div className="q-field q-combo">
-      <label className="q-label">Who&rsquo;s it for?</label>
-      <input
-        className="q-input"
-        placeholder="Not sure yet (type to search or create)"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIsOpen(true);
-          onChange('');
-          onNewClientName('');
-        }}
-        onFocus={(e) => { setIsOpen(true); e.target.select(); }}
-        onBlur={() => { setTimeout(() => setIsOpen(false), 200); }}
-      />
-
-      {isOpen && (
-        <div className="q-combo-menu">
-          {filtered.map(c => (
-            <button
-              type="button"
-              key={c.id}
-              className="q-combo-option"
-              onMouseDown={() => {
-                onChange(c.id);
-                setQuery(c.name);
-                setIsOpen(false);
-                onNewClientName('');
-              }}
-            >
-              <div className="q-combo-title">{c.name}</div>
-              {(c.phone || c.email) && (
-                <div className="q-combo-sub">
-                  {[c.phone, c.email].filter(Boolean).join(' · ')}
-                </div>
-              )}
-            </button>
-          ))}
-          {query.trim() !== '' && (
-            <>
-              {filtered.length > 0 && <div className="q-combo-sep" />}
-              <button
-                type="button"
-                className="q-combo-option q-combo-create"
-                onMouseDown={() => {
-                  onNewClientName(query.trim());
-                  setIsOpen(false);
-                }}
-              >
-                + Create new client: &ldquo;{query.trim()}&rdquo;
-              </button>
-            </>
-          )}
-          {filtered.length === 0 && query.trim() === '' && (
-            <div className="q-combo-empty">No clients yet. Type a name to create one.</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function PackageCombobox({
   packages, 
@@ -213,7 +128,11 @@ export function NewBookingForm({
   
   
   roleOptions,
-  currencyCode
+  // Defaulted: this is mapped over during render, so a missing prop would take
+  // the whole page down rather than degrade.
+  roleChoices = [],
+  currencyCode,
+  depositDefault,
 }: { 
   clients: Option[]; 
   packages: PackageOption[];
@@ -223,14 +142,57 @@ export function NewBookingForm({
   allVariables: any[];
   allDeliverables: any[];
   roleOptions: string[];
+  /** Roles with their ids, for setting one on a task the studio adds here. */
+  roleChoices: { id: string; name: string }[];
   currencyCode: string;
+  /** What the studio asks for up front, from Contracts settings. */
+  depositDefault: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [contactId, setContactId] = useState('');
-  const [newClientName, setNewClientName] = useState('');
+  /** The studio's currency, for figures shown while the form is being filled in. */
+  const formatAmount = (n: number) =>
+    new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD', maximumFractionDigits: 0 }).format(n);
+
+  const [client, setClient] = useState<ClientSelection | null>(null);
   const [when, setWhen] = useState('');
+  /*
+   * What else to draw up while booking.
+   *
+   * Off by default, and ticked deliberately: raising paper is an operator's
+   * decision, not something a booking does to itself. Both can equally be done
+   * later from the booking, and either can be edited or withdrawn there — this
+   * only saves the trip for the common case where the studio already knows it
+   * is sending a contract and an invoice.
+   */
+  /*
+   * The invoice and the contract, as fields of the booking rather than as things
+   * asked about beside it. Both are raised with it; both can be changed or
+   * withdrawn on the booking afterwards, which is where "or not" is answered —
+   * not by a checkbox on the way in.
+   */
+  /*
+   * Work this booking involves beyond what its packages already cover.
+   *
+   * Held here and written once the booking exists, because a task belongs to
+   * a booking and there is no booking to belong to yet.
+   */
+  const [extraTasks, setExtraTasks] = useState<{ name: string; roleId: string }[]>([]);
+  const [newTaskName, setNewTaskName] = useState('');
+  const [newTaskRoleId, setNewTaskRoleId] = useState('');
+
+  /*
+   * How much of the booking this first invoice is for.
+   *
+   * The only thing that genuinely varies per invoice. Everything else about
+   * it — what the lines are, what they cost — is already settled by the
+   * packages above, so asking again would be asking twice.
+   */
+  const [invoicePortion, setInvoicePortion] = useState<'full' | 'deposit'>('full');
+  const [invoiceDue, setInvoiceDue] = useState('');
+  const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [deposit, setDeposit] = useState(String(depositDefault));
   
   type LineState = {
     id: string;
@@ -241,6 +203,8 @@ export function NewBookingForm({
     isLoadingDeep: boolean;
     linePrice: string;
     selectedDimensionValues: Record<string, string>;
+    /** What was typed while looking for a package — becomes its name if none exists. */
+    search: string;
   };
 
   const freshLine = (): LineState => ({
@@ -252,6 +216,7 @@ export function NewBookingForm({
     isLoadingDeep: false,
     linePrice: '',
     selectedDimensionValues: {},
+    search: '',
   });
 
   const [lines, setLines] = useState<LineState[]>([freshLine()]);
@@ -312,6 +277,58 @@ export function NewBookingForm({
 
   const editorRefs = useRef<any[]>([]);
 
+  /**
+   * What a chosen package puts on screen.
+   *
+   * The editor takes catalogs — every service, every deliverable, every variable,
+   * every classification the studio has — and ticks the ones the package uses.
+   * That is right when you are building a package from nothing. It is wrong the
+   * moment a package has been chosen: the operator picked "Golden Hour Portrait"
+   * and was shown the studio's entire catalog with a few boxes ticked, which
+   * reads as a form to fill in rather than as the thing they just selected.
+   *
+   * So when a package is chosen, the catalogs are narrowed to what that package
+   * actually declares — the services it bundles, the outputs it promises, the
+   * variables those services define, and only the classifications it narrowed
+   * itself to. A custom line still gets everything, because there is nothing yet
+   * to narrow to.
+   */
+  const scopedFor = (deep: any) => {
+    if (!deep) return { services: allServices, variables: allVariables, deliverables: allDeliverables, dimensions: dimensionsByDomain };
+
+    const bundled = (deep.services || []) as any[];
+    const serviceIds = new Set(bundled.map((s) => s.id));
+
+    // Only the outputs this package actually promises, across its bundle.
+    const promisedIds = new Set(
+      bundled.flatMap((s) => ((s.deliverables || []) as any[]).map((d) => d.id)),
+    );
+
+    // Only the classifications this package narrowed itself to. Kept per domain
+    // so the editor's own grouping still works, and a dimension with none of its
+    // values chosen drops out entirely rather than showing empty.
+    const narrowedValueIds = new Set(
+      bundled.flatMap((s) => ((s.narrowedTo || []) as { values: { id: string }[] }[])
+        .flatMap((d) => d.values.map((v: { id: string }) => v.id))),
+    );
+    const dimensions: typeof dimensionsByDomain = {};
+    for (const [domain, dims] of Object.entries(dimensionsByDomain)) {
+      const kept = (dims as { id: string; name: string; values: { id: string; name: string }[] }[])
+        .map((d) => ({ ...d, values: d.values.filter((v: { id: string }) => narrowedValueIds.has(v.id)) }))
+        .filter((d) => d.values.length > 0);
+      if (kept.length > 0) dimensions[domain] = kept;
+    }
+
+    return {
+      services: allServices.filter((s) => serviceIds.has(s.id)),
+      variables: allVariables.filter((v: any) => serviceIds.has(v.serviceId)),
+      deliverables: promisedIds.size > 0
+        ? allDeliverables.filter((d: any) => promisedIds.has(d.id))
+        : allDeliverables,
+      dimensions,
+    };
+  };
+
   const handlePackageSelect = (index: number, id: string, customName?: string) => {
     const newLines = [...lines];
     newLines[index].packageId = id;
@@ -343,57 +360,29 @@ export function NewBookingForm({
     }
   };
 
-  const isStructurallyDifferent = (initial: any, payload: any) => {
-    if (!initial) return true;
-    if (initial.name !== payload.name) return true;
-    if (initial.description !== payload.description) return true;
-    if (initial.duration_minutes !== payload.durationMinutes) return true;
-    
-    const sIds1 = (initial.services || []).map((s: any) => s.id).sort();
-    const sIds2 = [...payload.serviceIds].sort();
-    if (JSON.stringify(sIds1) !== JSON.stringify(sIds2)) return true;
 
-    const deliv1 = ((initial.services || []) as any[]).flatMap((s) => ((s.deliverables || []) as any[]).map((d) => ({ serviceId: s.id as string, deliverableId: d.id as string, quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null })));
-    const deliv2 = payload.deliverables || [];
-    if (JSON.stringify(deliv1) !== JSON.stringify(deliv2)) return true;
-
-    const cont1 = (initial.containers || []).map((d: any) => d.id).sort();
-    const cont2 = [...payload.containerIds].sort();
-    if (JSON.stringify(cont1) !== JSON.stringify(cont2)) return true;
-
-    const wf1 = ((initial.services || []) as any[]).flatMap((s) => ((s.workflows || []) as any[]).map((w) => ({ serviceId: s.id as string, blueprintId: w.id as string })));
-    const wf2 = payload.workflows || [];
-    if (JSON.stringify(wf1) !== JSON.stringify(wf2)) return true;
-
-    const nar1 = ((initial.services || []) as any[]).flatMap((s) => ((s.narrowedTo || []) as { values: { id: string }[] }[]).flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id }))));
-    const nar2 = payload.narrowings || [];
-    if (JSON.stringify(nar1) !== JSON.stringify(nar2)) return true;
-
-    const st1 = (initial.extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true }));
-    const st2 = payload.extraStages || [];
-    if (JSON.stringify(st1) !== JSON.stringify(st2)) return true;
-
-    // Variable values — the quantities that scope what this package includes.
-    // Changing outfits from 2 to 4 is a structural difference, even if everything
-    // else is identical, because it changes what the client receives.
-    const var1 = (initial.variableValues || [])
-      .map((v: any) => ({ id: v.serviceVariableId, value: v.value }))
-      .sort((a: any, b: any) => a.id.localeCompare(b.id));
-    const var2 = (payload.variableValues || [])
-      .map((v: any) => ({ id: v.serviceVariableId, value: v.value }))
-      .sort((a: any, b: any) => a.id.localeCompare(b.id));
-    if (JSON.stringify(var1) !== JSON.stringify(var2)) return true;
-
-    return false;
-  };
 
   const submitBooking = () => {
     startTransition(async () => {
       try {
-        let finalContactId = contactId;
-        if (!finalContactId && newClientName) {
-           const { clientId } = await createClient({ name: newClientName });
-           finalContactId = clientId;
+        let finalContactId = client?.id || '';
+        if (client && !finalContactId) {
+          const name = client.name.trim();
+          if (!name) throw new Error('Give the new client a name, or pick an existing one.');
+          // Phone and email go on at creation, so a booking never exists with a
+          // client nobody can contact.
+          const { clientId } = await createClient({
+            name,
+            email: client.email.trim() || undefined,
+            phone: client.phone.trim() || undefined,
+          });
+          finalContactId = clientId;
+        } else {
+          // The picker shows an existing client's details and lets them be
+          // corrected in place. A wrong number is noticed while booking, and
+          // sending the operator elsewhere to fix it is how it stays wrong.
+          const edits = clientEdits(client, clients);
+          if (edits) await updateClient(edits);
         }
 
         const submitLines = [];
@@ -411,15 +400,21 @@ export function NewBookingForm({
             throw new Error(`Please configure what the client is getting in package #${i + 1}.`);
           }
 
-          let finalPackageId = line.packageId;
-          if (line.packageId === 'custom' || isStructurallyDifferent(line.selectedPackageDeep, payload)) {
-            const { packageId: newPackageId } = await createPackage(payload);
-            finalPackageId = newPackageId;
-          }
+          // A booking gets its own package, so later catalog edits cannot rewrite
+          // what was agreed. What that instance is called and what status it
+          // carries are Packages' decisions — this only says which catalog
+          // package it came from, or that it was built from nothing.
+          payload.instanceOf = line.packageId === 'custom' ? true : line.packageId;
+          // The price the operator settled on goes onto the instance, because
+          // the instance is what every later read — the invoice above all —
+          // asks for the price.
+          const agreedPrice = { base_price: Number(line.linePrice) || 0, currency: currencyCode };
+          payload.price = agreedPrice;
+          const { packageId: instanceId } = await createPackage(payload);
 
           submitLines.push({
-            packageId: finalPackageId,
-            linePrice: { base_price: Number(line.linePrice) || 0, currency: currencyCode },
+            packageId: instanceId,
+            linePrice: agreedPrice,
             variableAnswers: payload.variableValues || [],
           });
         }
@@ -428,13 +423,67 @@ export function NewBookingForm({
           throw new Error('You must add at least one package to the booking.');
         }
         
-        await createBooking({
+        const { bookingId } = await createBooking({
           contactId: finalContactId || null,
           lines: submitLines,
           scheduledFor: when || null,
         });
 
-        router.push('/bookings');
+        /*
+         * Whatever the operator asked for on the way through.
+         *
+         * Only now, because both are built FROM the booking: the contract sums
+         * its lines and the invoice bills them, so neither can exist a moment
+         * earlier. An invoice does not wait on the contract though — it is
+         * raised from the booking's own lines, and a studio that never sends
+         * contracts still bills.
+         *
+         * Failures here do not lose the booking. It is already saved, and both
+         * of these can be raised by hand on its page; throwing now would leave
+         * an operator thinking nothing happened when a booking exists.
+         */
+        /*
+         * Both raised now, invoice first, in the order they were filled in.
+         *
+         * Neither could exist any earlier — an invoice bills the booking's lines
+         * and a contract sums them — and a failure in either must not lose the
+         * booking, which is already saved. Whatever fails here can be raised by
+         * hand on the booking; throwing would leave an operator thinking nothing
+         * happened when a booking exists.
+         */
+        const failed: string[] = [];
+
+        // The studio's own tasks, now that there is a booking to attach them to.
+        for (const t of extraTasks) {
+          try {
+            await addBookingTask({ bookingId, name: t.name, roleId: t.roleId || null });
+          } catch (e: any) {
+            failed.push(`task “${t.name}” (${e?.message || 'failed'})`);
+          }
+        }
+
+        try {
+          const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;
+          await createInvoiceForBooking({
+            bookingId,
+            dueAt: invoiceDue ? new Date(invoiceDue).toISOString() : null,
+            notes: invoiceNotes.trim() || null,
+            percentage: pct,
+            label: pct ? `${pct}% deposit` : null,
+          });
+        } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
+
+        try {
+          await createContractForBooking(bookingId, {
+            depositPercentage: deposit.trim() === '' ? null : Number(deposit),
+          });
+        } catch (e: any) { failed.push(`contract (${e?.message || 'failed'})`); }
+
+        if (failed.length > 0) {
+          alert(`The booking was created, but the ${failed.join(' and ')} could not be. You can raise ${failed.length === 1 ? 'it' : 'them'} on the booking.`);
+        }
+
+        router.push(`/bookings/${bookingId}`);
       } catch (err: any) {
         alert(err.message || 'Failed to book');
       }
@@ -444,23 +493,24 @@ export function NewBookingForm({
   return (
     <div className="q-stack q-stack-lg">
       <div className="q-card q-section">
-        <h2 className="q-section-title">1. Who & When</h2>
+        <h2 className="q-section-title">1. Date and client</h2>
         <div className="q-stack q-stack-md">
-          <ClientCombobox 
-            clients={clients} 
-            value={contactId} 
-            onChange={setContactId} 
-            onNewClientName={setNewClientName}
-          />
+          {/*
+            * The date comes first because it is the first thing asked on the
+            * phone. A studio takes a booking by finding out whether the day is
+            * free, and only then whose it is — putting the client above it made
+            * the form ask its questions in an order nobody works in.
+            */}
           <div className="q-field">
-            <label className="q-label">Date & Time (optional)</label>
+            <label className="q-label">Date and time (optional)</label>
             <input className="q-input" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} />
           </div>
+          <ClientPicker clients={clients} value={client} onChange={setClient} />
         </div>
       </div>
 
       <div className="q-section">
-        <h2 className="q-section-title">2. What do they want?</h2>
+        <h2 className="q-section-title">2. Packages</h2>
         
         <div className="q-stack q-stack-lg">
           {lines.map((line, index) => (
@@ -487,7 +537,7 @@ export function NewBookingForm({
               {/* ── Step A: Choose a Domain ─────────────────── */}
               {!line.selectedDomain ? (
                 <div className="q-stack q-stack-sm">
-                  <label className="q-label">What kind of work is this?</label>
+                  <label className="q-label">Service domain</label>
                   {allDomains.length > 0 ? (
                     <div className="q-chip-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
                       {allDomains.map(domain => (
@@ -539,11 +589,25 @@ export function NewBookingForm({
                     </button>
                   </div>
                   
-                  {/* Dimension Requirements Grid */}
-                  {(dimensionsByDomain[line.selectedDomain] || []).length > 0 && (
-                    <div className="q-stack q-stack-md" style={{ marginBottom: '24px' }}>
-                      <h4 className="q-strong" style={{ marginBottom: '4px' }}>Requirements</h4>
-                      <div className="q-grid-2">
+                  {/*
+                    * Narrowing, offered rather than demanded.
+                    *
+                    * This was a grid headed "Requirements", every classification
+                    * the domain has, shown before the operator had seen a single
+                    * package. It read as a form to complete on the way to
+                    * booking — but none of it is required, and with a handful of
+                    * packages none of it is needed. It is a filter, so it is
+                    * folded away with a count of what is active, and the packages
+                    * themselves lead.
+                    */}
+                  {(dimensionsByDomain[line.selectedDomain] || []).length > 0 && (() => {
+                    const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
+                    return (
+                    <details className="q-stack q-stack-md" style={{ marginBottom: '24px' }} open={active > 0}>
+                      <summary className="q-strong" style={{ marginBottom: '4px', cursor: 'pointer' }}>
+                        Filter by classification{active > 0 ? ` · ${active} applied` : ''}
+                      </summary>
+                      <div className="q-grid-2" style={{ marginTop: '12px' }}>
                         {(dimensionsByDomain[line.selectedDomain] || []).map((d: any) => (
                           <div key={d.id} className="q-field">
                             <label className="q-label">{d.name}</label>
@@ -567,15 +631,35 @@ export function NewBookingForm({
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    </details>
+                    );
+                  })()}
 
                   {/* Matching Packages Stack */}
                   <div className="q-stack q-stack-md">
-                    <h4 className="q-strong" style={{ marginBottom: '8px' }}>Select a Package</h4>
-                    
+                    <h4 className="q-strong" style={{ marginBottom: '8px' }}>Package</h4>
+
+                    {/*
+                      * Typing narrows the same way the dimensions above do.
+                      * A studio with thirty packages cannot pick one out of a
+                      * list, and scrolling one is not searching it.
+                      */}
+                    <input
+                      className="q-input"
+                      placeholder="Search packages by name or description"
+                      value={line.search}
+                      onChange={(e) => {
+                        const newLines = [...lines];
+                        newLines[index].search = e.target.value;
+                        setLines(newLines);
+                      }}
+                    />
+
                     {(() => {
-                      const pkgs = filteredPackagesForLine(line);
+                      const needle = line.search.trim().toLowerCase();
+                      const pkgs = filteredPackagesForLine(line).filter((p) =>
+                        needle === '' ||
+                        [p.name, p.description].some((f) => (f || '').toLowerCase().includes(needle)));
                       return (
                         <div className="q-stack q-stack-sm">
                           {pkgs.map(p => (
@@ -608,17 +692,30 @@ export function NewBookingForm({
                           ))}
                           
                           {pkgs.length === 0 && (
-                            <p className="q-meta" style={{ padding: '12px 0' }}>No standard packages match these exact requirements.</p>
+                            <p className="q-meta" style={{ padding: '12px 0' }}>
+                              No packages match these criteria. Create one below; the domain and
+                              classifications selected above carry over.
+                            </p>
                           )}
 
+                          {/*
+                            * Creating is always offered, not just when the list
+                            * comes back empty: the operator often knows before
+                            * they look that this one is bespoke. The name they
+                            * typed and the classifications they narrowed by both
+                            * carry into the new package, so a search that found
+                            * nothing does not become a blank form.
+                            */}
                           <div style={{ marginTop: '8px' }}>
                             <button
                               type="button"
                               className="q-btn q-btn-secondary"
-                              onClick={() => handlePackageSelect(index, 'custom', '')}
+                              onClick={() => handlePackageSelect(index, 'custom', line.search.trim())}
                               style={{ width: '100%', justifyContent: 'center' }}
                             >
-                              + Build a custom package from scratch
+                              {line.search.trim()
+                                ? `Create package: “${line.search.trim()}”`
+                                : 'Create a new package'}
                             </button>
                           </div>
                         </div>
@@ -661,12 +758,24 @@ export function NewBookingForm({
                         }}
                         mode="create"
                         currencyCode={currencyCode}
-                        allServices={allServices}
-                        allVariables={allVariables}
-                        allDeliverables={allDeliverables}
-                        
-                        dimensionsByDomain={dimensionsByDomain}
+                        // Narrowed to what the chosen package declares, so the line
+                        // shows the package rather than the whole catalog. A custom
+                        // line has nothing to narrow to and gets everything.
+                        {...(() => {
+                          const s = scopedFor(line.packageId === 'custom' ? null : line.selectedPackageDeep);
+                          return {
+                            allServices: s.services,
+                            allVariables: s.variables,
+                            allDeliverables: s.deliverables,
+                            dimensionsByDomain: s.dimensions,
+                          };
+                        })()}
                         roleOptions={roleOptions}
+                        // The classifications the operator narrowed by on the way
+                        // here. A search that found nothing should not become a
+                        // blank form: the package being built starts classified
+                        // the way it was looked for.
+                        intendedValueIds={Object.values(line.selectedDimensionValues).filter(Boolean)}
                         hideControls={true}
                         initial={line.packageId === 'custom' 
                           ? { variableValues: [], name: line.customName || '' } 
@@ -708,16 +817,257 @@ export function NewBookingForm({
             className="q-btn q-btn-secondary"
             onClick={() => setLines([...lines, freshLine()])}
           >
-            + Add another package
+            Add another package
           </button>
+        </div>
+      </div>
+
+      {/*
+        * The work this booking involves, collated across its packages.
+        *
+        * Read-only for the package-derived tasks, because those are what each
+        * package says it involves and changing one is a decision about that
+        * package. Everything here becomes editable on the booking itself, where
+        * roles can be overridden per task and people assigned to them.
+        *
+        * What CAN be added here is work belonging to the booking and to no
+        * package — a venue visit, an album collection — which previously had
+        * nowhere to live at all.
+        */}
+      <div className="q-card q-section">
+        <h2 className="q-section-title">3. Tasks</h2>
+
+        {(() => {
+          const fromPackages = lines.flatMap((line, i) => {
+            const deep = line.selectedPackageDeep;
+            if (!deep) return [] as { key: string; name: string; role: string | null; pkg: string }[];
+            const pkgName = (deep.name as string) || line.customName || `Package ${i + 1}`;
+            return ((deep.services || []) as any[]).flatMap((svc: any) =>
+              ((svc.tasks || []) as any[])
+                .filter((t) => t.is_active !== false)
+                .map((t) => ({
+                  key: `${line.id}:${svc.id}:${t.id}`,
+                  name: t.name as string,
+                  role: (t.role?.name ?? null) as string | null,
+                  pkg: pkgName,
+                })));
+          });
+
+          return (
+            <div className="q-stack q-stack-md">
+              {fromPackages.length === 0 ? (
+                <p className="q-meta">
+                  The packages selected above define no tasks. Tasks come from a service&rsquo;s
+                  workflow, which is set in Services settings.
+                </p>
+              ) : (
+                <>
+                  <p className="q-meta">
+                    {fromPackages.length} {fromPackages.length === 1 ? 'task' : 'tasks'} will be
+                    created from the packages above. Roles and assignments can be changed on the
+                    booking.
+                  </p>
+                  <div className="q-stack" style={{ gap: '4px' }}>
+                    {fromPackages.map((t) => (
+                      <div
+                        key={t.key}
+                        className="q-row q-row-between"
+                        style={{ alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: 'var(--q-color-ink-50)' }}
+                      >
+                        <span>
+                          <span className="q-strong">{t.name}</span>
+                          <span className="q-meta-sm" style={{ display: 'block' }}>{t.pkg}</span>
+                        </span>
+                        <span className="q-meta-sm">{t.role || 'No role'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {extraTasks.length > 0 && (
+                <div className="q-stack" style={{ gap: '4px' }}>
+                  {extraTasks.map((t, i) => (
+                    <div
+                      key={`${t.name}-${i}`}
+                      className="q-row q-row-between"
+                      style={{ alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: 'var(--q-color-ink-50)' }}
+                    >
+                      <span>
+                        <span className="q-strong">{t.name}</span>
+                        <span className="q-meta-sm" style={{ display: 'block' }}>Added to this booking</span>
+                      </span>
+                      <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                        <span className="q-meta-sm">
+                          {roleChoices.find((r) => r.id === t.roleId)?.name || 'No role'}
+                        </span>
+                        <button
+                          type="button"
+                          className="q-btn-ghost q-btn-xs"
+                          onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== i))}
+                          title={`Remove ${t.name}`}
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="q-row" style={{ gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <div className="q-field" style={{ flex: 1, minWidth: '200px' }}>
+                  <label className="q-label">Add a task for this booking</label>
+                  <input
+                    className="q-input"
+                    value={newTaskName}
+                    onChange={(e) => setNewTaskName(e.target.value)}
+                    placeholder="e.g. Collect album from printer"
+                  />
+                </div>
+                <div className="q-field" style={{ minWidth: '150px' }}>
+                  <label className="q-label">Role</label>
+                  <select className="q-select" value={newTaskRoleId} onChange={(e) => setNewTaskRoleId(e.target.value)}>
+                    <option value="">No role</option>
+                    {roleChoices.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="q-btn q-btn-secondary q-btn-sm"
+                  disabled={!newTaskName.trim()}
+                  onClick={() => {
+                    setExtraTasks([...extraTasks, { name: newTaskName.trim(), roleId: newTaskRoleId }]);
+                    setNewTaskName('');
+                    setNewTaskRoleId('');
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/*
+        * Invoice before contract, in the order the money is actually settled:
+        * a studio bills from what was booked, and a contract formalises the same
+        * figures when one is sent. Neither can be built before the booking
+        * exists, because both are built FROM its packages — so both are raised
+        * the moment it is saved, and both are editable on it afterwards.
+        */}
+      <div className="q-card q-section">
+        <h2 className="q-section-title">4. Invoice</h2>
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          Created as a draft with one line per package. Issue it when ready.
+        </p>
+        <div className="q-stack q-stack-md">
+          <div className="q-field" style={{ maxWidth: '420px' }}>
+            <label className="q-label">Amount to invoice</label>
+            <select
+              className="q-select"
+              value={invoicePortion}
+              onChange={(e) => setInvoicePortion(e.target.value as 'full' | 'deposit')}
+            >
+              <option value="full">The full amount</option>
+              <option value="deposit">
+                {depositDefault > 0 ? `The deposit only (${depositDefault}%)` : 'The deposit only'}
+              </option>
+            </select>
+            {(() => {
+              // What the packages come to, so the figure is not arithmetic the
+              // operator has to do in their head while filling in a form.
+              const total = lines.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
+              if (total <= 0) {
+                return (
+                  <span className="q-meta-sm">
+                    The packages above are not priced, so this invoice will have nothing on it.
+                  </span>
+                );
+              }
+              const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : 100;
+              const amount = Math.round(total * (pct / 100) * 100) / 100;
+              return (
+                <span className="q-meta-sm">
+                  {invoicePortion === 'deposit' && pct > 0
+                    ? `${formatAmount(amount)} of ${formatAmount(total)}. The balance can be invoiced later from the booking.`
+                    : `${formatAmount(amount)}, the whole booking.`}
+                </span>
+              );
+            })()}
+          </div>
+          <div className="q-field" style={{ maxWidth: '260px' }}>
+            <label className="q-label">Due date (optional)</label>
+            <input
+              className="q-input"
+              type="date"
+              value={invoiceDue}
+              onChange={(e) => setInvoiceDue(e.target.value)}
+            />
+          </div>
+          <div className="q-field">
+            <label className="q-label">Invoice notes (optional)</label>
+            <textarea
+              className="q-textarea"
+              rows={3}
+              value={invoiceNotes}
+              onChange={(e) => setInvoiceNotes(e.target.value)}
+              placeholder="Bank details, payment reference, or other information for the client."
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">5. Contract</h2>
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          Uses your standard terms and the total for these packages. The wording can be edited on
+          the contract before it is sent.
+        </p>
+        <div className="q-field" style={{ maxWidth: '320px' }}>
+          <label className="q-label">Deposit</label>
+          <div className="q-row" style={{ alignItems: 'center', gap: '8px' }}>
+            <input
+              className="q-input"
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              style={{ maxWidth: '100px' }}
+              value={deposit}
+              onChange={(e) => setDeposit(e.target.value)}
+            />
+            <span className="q-meta">% due on confirmation</span>
+          </div>
+          <span className="q-meta-sm">
+            {Number(deposit) === 0
+              ? 'No deposit. The full amount is due on signing.'
+              : `Studio default is ${depositDefault}%. A change here applies to this contract only.`}
+          </span>
         </div>
       </div>
 
       <div className="q-row">
         <button className="q-btn q-btn-primary" disabled={isPending || !lines.some(l => l.packageId)} onClick={submitBooking}>
-          {isPending ? 'Booking...' : 'Book it'}
+          {isPending ? 'Creating…' : 'Create booking'}
         </button>
       </div>
+
+      {/*
+        * Says where the rest of the job is.
+        *
+        * Crew, contract and invoice are not on this form and cannot be: the
+        * tasks people get put on are cut from each package's workflow when the
+        * line is created, the contract sums those lines, and the invoice needs
+        * the contract. All of it exists a moment after this button, not before —
+        * so the form says so rather than leaving an operator hunting for steps
+        * that were never here.
+        */}
+      <p className="q-meta-sm">
+        The booking opens once created, where the team can be assigned and anything raised here
+        can be amended.
+      </p>
     </div>
   );
 }

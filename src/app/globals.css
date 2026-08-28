@@ -777,7 +777,22 @@ body {
 .q-combo-title  { font-weight: 550; }
 .q-combo-sub    { font-size: 0.8rem; color: var(--q-color-ink-500); margin-top: 2px; }
 .q-combo-facts  { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: var(--q-color-ink-500); margin-top: 4px; }
-.q-combo-create { color: var(--q-color-accent); font-weight: 500; }
+/*
+ * Creating stays reachable however long the list is.
+ *
+ * The menu scrolls at 20rem, so with more than about five results this sat
+ * below the fold — an operator looking for a client who is not there scrolled
+ * a list of people who are not them and concluded there was no way to add one.
+ * Pinned to the bottom edge, it is visible whatever the list is doing.
+ */
+.q-combo-create {
+  color: var(--q-color-accent);
+  font-weight: 500;
+  position: sticky;
+  bottom: -4px;
+  background: var(--q-color-paper-elevated);
+  border-top: 1px solid var(--q-color-ink-100);
+}
 .q-combo-empty  { padding: 10px 12px; color: var(--q-color-ink-500); font-size: 0.875rem; }
 .q-combo-sep    { border-top: 1px solid var(--q-color-ink-100); margin: 4px 0; }
 

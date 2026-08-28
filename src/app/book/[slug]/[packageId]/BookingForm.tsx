@@ -350,7 +350,7 @@ export function BookingForm({
                         )}
                         <div className="q-field">
                           <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                            {hasDimensions ? 'Anything else to add?' : 'What are you looking for?'}
+                            {hasDimensions ? 'Additional details' : 'What are you looking for?'}
                             {!hasDimensions && <span className="q-danger" style={{ marginLeft: '4px' }}>*</span>}
                             {hasDimensions && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>}
                           </label>

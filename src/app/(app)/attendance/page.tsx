@@ -45,7 +45,7 @@ export default async function AttendancePage() {
               same fact twice in two shapes. */}
           {roster.length > 0 && here === 0 && stillDue === 0 && (
             <p className="q-page-subtitle" style={{ marginTop: '8px' }}>
-              Nobody is scheduled today.
+              No staff are scheduled today.
             </p>
           )}
         </div>
