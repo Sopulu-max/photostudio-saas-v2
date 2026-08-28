@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { assignToBookingLine, removeAssignment } from '@/modules/production/interface';
 
 
 export function TaskProgression({
