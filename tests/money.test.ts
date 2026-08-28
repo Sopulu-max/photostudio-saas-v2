@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { priceOf, amountOf, toStored } from '@/kernel/money';
+import { priceOf, amountOf, toStored, firstPriced, hasPrice } from '@/kernel/money';
 
 /**
  * Money, and the difference between nothing and unreadable.
@@ -63,5 +63,49 @@ describe('Money', () => {
   it('round-trips through the stored shape', () => {
     const money = { amount: 20000, currency: 'NGN' };
     expect(priceOf(toStored(money))).toEqual(money);
+  });
+
+  it('reads the shape the package editor used to write', () => {
+    /*
+     * The only screen for pricing a package wrote { amount } and read { amount }
+     * back, so it agreed with itself: an operator typed 10,000, saw 10,000, and
+     * had no way to know that every invoice, contract and booking total read
+     * base_price, found nothing, and priced the package at zero.
+     *
+     * The editor now writes base_price. This reads both so no existing row is
+     * stranded, and this test is what stops the two drifting apart again.
+     */
+    expect(priceOf({ amount: 10000, currency: 'NGN' })).toEqual({ amount: 10000, currency: 'NGN' });
+    // Canonical wins when a row somehow carries both.
+    expect(priceOf({ base_price: 20000, amount: 999, currency: 'NGN' })?.amount).toBe(20000);
+  });
+});
+
+describe('Choosing between two places a price might live', () => {
+  it('does not let an empty price beat a real one', () => {
+    /*
+     * The bug this exists for: packages.price is NOT NULL DEFAULT '{}', and {}
+     * is truthy, so `packagePrice || linePrice` picked the empty object and
+     * threw away the number beside it. It silently zeroed a real 120,000 line
+     * and a 34,000 one.
+     */
+    const emptyPackagePrice = {};
+    const realLinePrice = { base_price: 120000, currency: 'NGN' };
+    expect(amountOf(firstPriced(emptyPackagePrice, realLinePrice))).toBe(120000);
+  });
+
+  it('prefers the first that is actually priced', () => {
+    expect(amountOf(firstPriced({ base_price: 5000 }, { base_price: 9000 }))).toBe(5000);
+    expect(amountOf(firstPriced(null, undefined, {}, { base_price: 700 }))).toBe(700);
+  });
+
+  it('answers unpriced when nothing carries a price', () => {
+    expect(hasPrice(firstPriced({}, null))).toBe(false);
+    expect(amountOf(firstPriced({}, null))).toBe(0);
+  });
+
+  it('treats a free line as priced, not as absent', () => {
+    // Zero is a decision; {} is the absence of one. They must not collapse.
+    expect(amountOf(firstPriced({ base_price: 0 }, { base_price: 9000 }))).toBe(0);
   });
 });

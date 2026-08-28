@@ -59,7 +59,21 @@ export function priceOf(raw: unknown, fallbackCurrency?: string | null): Money |
     return null;
   }
 
-  const { base_price: base } = raw;
+  /*
+   * Two keys, because two writers disagreed.
+   *
+   * `base_price` is the canonical form and what toStored writes. But the package
+   * editor — the ONLY screen in the app for pricing a package — wrote
+   * `{ amount, currency }` instead, and read the same key back, so it agreed
+   * with itself perfectly: an operator typed ₦10,000, saw ₦10,000, saved, and
+   * saw ₦10,000 again. Everything downstream read `base_price`, found nothing,
+   * and priced the booking at zero. Nothing anywhere said so.
+   *
+   * Reading both is the fix that needs no migration and cannot strand a row.
+   * The writers are being brought onto `base_price` separately; until every row
+   * is converted, this accepts either and prefers the canonical one.
+   */
+  const base = raw.base_price ?? raw.amount;
   // An empty object is the ordinary "not priced yet", and says nothing wrong.
   if (base === undefined || base === null || base === '') return null;
 
@@ -90,4 +104,27 @@ export function amountOf(raw: unknown): number {
 /** The stored form, from a Money. The only place that shape is written. */
 export function toStored(price: Money): StoredPrice {
   return { base_price: price.amount, currency: price.currency };
+}
+
+/**
+ * Is there a price here at all?
+ *
+ * For choosing between two places a price might live. An empty `{}` is a real
+ * value in the database — the column is NOT NULL DEFAULT '{}' — and `{}` is
+ * truthy in JavaScript, so `packagePrice || linePrice` picks the empty object
+ * and throws away the real number beside it. That is not hypothetical: it
+ * silently zeroed a ₦120,000 line and a ₦34,000 one.
+ */
+export function hasPrice(raw: unknown): boolean {
+  return priceOf(raw) !== null;
+}
+
+/**
+ * The first of these that actually carries a price, or `{}` if none do.
+ *
+ * Written as a function rather than a chain of `||` because the empty object is
+ * exactly the case a `||` chain gets wrong.
+ */
+export function firstPriced(...candidates: unknown[]): unknown {
+  return candidates.find(hasPrice) ?? {};
 }
