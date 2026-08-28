@@ -49,7 +49,7 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         // Arrived from the classifications lens — "build a package for Weddings".
         // It cannot become a narrowing until a service is chosen to narrow, so it
         // is carried as intent and applied to the first service that speaks it.
-        intendedValueId={sp.value || null}
+        intendedValueIds={sp.value ? [String(sp.value)] : []}
         initial={{ variableValues: [] }}
       />
     </div>

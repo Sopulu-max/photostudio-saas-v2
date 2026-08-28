@@ -54,7 +54,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   
   dimensionsByDomain,
   roleOptions,
-  intendedValueId = null,
+  intendedValueIds = [],
   initial,
   onSubmitOverride,
   hideControls,
@@ -70,10 +70,16 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
   /**
-   * A classification the operator started from, before there was any service to
-   * attach it to. Applied to the first bundled service whose domain owns it.
+   * Classifications the operator started from, before there was any service to
+   * attach them to. Each is applied to a bundled service whose domain owns it.
+   *
+   * Plural because of where they now come from: a booking narrows by several
+   * dimensions at once to find a package, and when none matches, the package
+   * being created should start life classified the way it was searched for.
+   * Making the operator re-pick what they just picked is how a narrowing search
+   * turns into a blank form.
    */
-  intendedValueId?: string | null;
+  intendedValueIds?: string[];
   initial: {
     name?: string;
     description?: string | null;
@@ -94,15 +100,32 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  /*
+   * Numbered only when this editor IS the form.
+   *
+   * hideControls means it is embedded — today, inside the new-booking form,
+   * which has its own "1. When & Who ... 4. Contract". Two numbered sequences on
+   * one page produced a section 1 nested inside section 2 and a section 3
+   * following a section 6, so Tasks read as buried rather than as a step. The
+   * headings stay; only the numbers, which belong to a sequence that is not
+   * running here, come off.
+   */
+  const embedded = Boolean(hideControls);
+  const heading = (n: number, title: string) => (embedded ? title : `${n}. ${title}`);
+
   const [nameTouched, setNameTouched] = useState(!!initial.name);
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>(initial.serviceIds || []);
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
   
-  const [priceAmount, setPriceAmount] = useState<string>(
-    (initial as any).price?.amount != null ? String((initial as any).price.amount) : ''
-  );
+  // Reads either key, so a package priced before the shape was corrected still
+  // opens showing its price rather than an empty box.
+  const [priceAmount, setPriceAmount] = useState<string>(() => {
+    const stored = (initial as any).price ?? {};
+    const value = stored.base_price ?? stored.amount;
+    return value != null ? String(value) : '';
+  });
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -247,12 +270,16 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         // The value the operator came in with finally has a service to narrow,
         // but only if this one's domain is the one that owns it.
         const domainName = addedService?.domain?.name;
-        const speaksIt = Boolean(intendedValueId) && Boolean(domainName)
-          && (dimensionsByDomain[domainName!] || []).some((d) => d.values.some((v) => v.id === intendedValueId));
-        if (speaksIt) {
-          setNarrowings((prev) => prev[id]?.includes(intendedValueId!)
-            ? prev
-            : { ...prev, [id]: [...(prev[id] || []), intendedValueId!] });
+        const owned = domainName
+          ? intendedValueIds.filter((valueId) =>
+              (dimensionsByDomain[domainName] || []).some((d) => d.values.some((v) => v.id === valueId)))
+          : [];
+        if (owned.length > 0) {
+          setNarrowings((prev) => {
+            const already = prev[id] || [];
+            const missing = owned.filter((v) => !already.includes(v));
+            return missing.length === 0 ? prev : { ...prev, [id]: [...already, ...missing] };
+          });
         }
       }
       return newServiceIds;
@@ -283,7 +310,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       name: effectiveName,
       description: description.trim() || null,
       durationMinutes: duration > 0 ? duration : null,
-      price: priceAmount ? { amount: Number(priceAmount), currency: currencyCode } : null,
+      // base_price, not amount. This wrote { amount } and read { amount } back,
+      // so it agreed with itself and looked right on screen — while every
+      // invoice, contract and booking total read base_price, found nothing, and
+      // priced the package at zero.
+      price: priceAmount ? { base_price: Number(priceAmount), currency: currencyCode } : null,
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -627,7 +658,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   return (
     <div className="q-stack q-stack-lg">
       <div className="q-card q-section">
-        <h2 className="q-section-title">1. Package Identity</h2>
+        <h2 className="q-section-title">{heading(1, "Package Identity")}</h2>
         <div className="q-stack q-stack-md">
           <div className="q-field">
             <label className="q-label">Name</label>
@@ -651,7 +682,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">2. What it bundles</h2>
+        <h2 className="q-section-title">{heading(2, "What it bundles")}</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>Pick the real Services this offering is built from. Once selected, configure their specifics below.</p>
         <div className="q-grid-cards">
           {allServices.map((s) => {
@@ -710,7 +741,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">3. Classifications</h2>
+        <h2 className="q-section-title">{heading(3, "Classifications")}</h2>
         <div className="q-stack q-stack-md">
           {(() => {
             const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
@@ -733,7 +764,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">4. Variables</h2>
+        <h2 className="q-section-title">{heading(4, "Variables")}</h2>
         
         <div className="q-stack q-stack-md">
           {(() => {
@@ -752,7 +783,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">5. Tasks</h2>
+        <h2 className="q-section-title">{heading(5, "Tasks")}</h2>
         
         <div className="q-stack q-stack-md">
           {(() => {
@@ -763,7 +794,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               const sTasks = savedService?.tasks || s.workflow?.tasks || [];
               return sTasks.length > 0;
             });
-            if (withTasks.length === 0) return <p className="q-meta-sm">None of the bundled services have production tasks.</p>;
+            if (withTasks.length === 0) return (
+              <p className="q-meta-sm">
+                No workflow is defined for these services. Define one in Services settings and its
+                tasks will appear here, and on every booking that includes them.
+              </p>
+            );
             return withTasks.map((s) => (
               <div key={s.id} style={{ marginBottom: '16px' }}>
                 <h3 className="q-strong" style={{ marginBottom: '2px' }}>For {s.name}</h3>
@@ -775,7 +811,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">6. Deliverables</h2>
+        <h2 className="q-section-title">{heading(6, "Deliverables")}</h2>
         
         <div className="q-stack q-stack-md">
           {(() => {

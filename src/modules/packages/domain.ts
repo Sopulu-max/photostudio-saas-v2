@@ -1,7 +1,8 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { assertAllOurs } from '@/kernel/tenancy';
+import { assertAllOurs, assertOurs } from '@/kernel/tenancy';
+import { priceOf } from '@/kernel/money';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
@@ -20,7 +21,21 @@ import { formatDeliverable } from './deliverableSpec';
  * knows how to do, plus whatever this specific offering adds on its own.
  */
 
-export type PaymentPolicy = 'deposit' | 'full';
+/**
+ * What a package is, lifecycle-wise.
+ *
+ * `active` and `retired` are the two an operator chooses between. `custom` is
+ * not offered to anyone — it marks an instance a booking made for itself (see
+ * instantiatePackageForBooking) and exists so the catalog can leave those out.
+ * Packages owns this vocabulary, which is the point: the value arrived through
+ * a caller once, and listPackages went on showing every instance in the catalog
+ * because the owner had never been told the word existed.
+ */
+export type PackageStatus = 'active' | 'retired' | 'custom';
+
+/** The two an operator can actually put a package into. */
+export type OperatorPackageStatus = Exclude<PackageStatus, 'custom'>;
+
 type StageInput = { name: string; roleName?: string | null; frontStage?: boolean | null };
 
 // ── Facet-style, studio-editable vocabulary (Category only — how work gets
@@ -74,6 +89,14 @@ async function buildExtraStages(raw: StageInput[]): Promise<{ name: string; orde
  * reconciled, never before.
  */
 
+/** What a catalog package costs right now, to be frozen onto an instance of it. */
+async function listPriceOf(orgId: string, packageId: string) {
+  const { data } = await supabaseAdmin
+    .from('packages').select('price')
+    .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
+  return (data as any)?.price ?? null;
+}
+
 async function copyWorkflowTasksToPackage(orgId: string, rows: { id: string; service_id: string }[]) {
   if (rows.length === 0) return;
   // Get workflows for these services
@@ -120,6 +143,82 @@ async function copyWorkflowTasksToPackage(orgId: string, rows: { id: string; ser
     await supabaseAdmin.from('package_tasks').insert(packageTasksToInsert);
   }
 }
+/**
+ * Bring packages up to date with a workflow that has changed.
+ *
+ * WHY THIS IS NEEDED. A workflow's tasks are copied into a package at the
+ * moment a service is bundled into it — and only then. So a studio that defines
+ * its workflows after building its catalog gets nothing: the packages were
+ * bundled while the workflow was empty, and nothing ever revisits them. That is
+ * not a hypothetical here. There are 17 bundled services and no workflows at
+ * all, so the first workflow anyone writes would reach none of them, no tasks
+ * would land on any booking, and there would be nothing to put a photographer
+ * on.
+ *
+ * ADDITIVE, NEVER DESTRUCTIVE. Only tasks the package does not already have are
+ * added. A package may rename a task, give it a different role, reorder it or
+ * switch it off entirely — those are its own decisions about this offering, and
+ * re-syncing must not undo them. Removing a task from the workflow likewise
+ * leaves packages alone: they are already selling it.
+ */
+export async function syncPackageTasksForWorkflow(workflowId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: tasks } = await supabaseAdmin
+    .from('workflow_tasks')
+    .select('id, name, default_role_id, position')
+    .eq('workflow_id', workflowId)
+    .eq('organization_id', orgId);
+  if (!tasks || tasks.length === 0) return { added: 0 };
+
+  // Every bundle row whose service runs this workflow.
+  const { data: services } = await supabaseAdmin
+    .from('services').select('id').eq('workflow_id', workflowId).eq('organization_id', orgId);
+  const serviceIds = (services || []).map((x: { id: string }) => x.id);
+  if (serviceIds.length === 0) return { added: 0 };
+
+  const { data: bundleRows } = await supabaseAdmin
+    .from('package_services').select('id, service_id')
+    .in('service_id', serviceIds).eq('organization_id', orgId);
+  if (!bundleRows || bundleRows.length === 0) return { added: 0 };
+
+  // What each bundle row already holds, so nothing is duplicated and no
+  // package-level edit is overwritten.
+  const { data: existing } = await supabaseAdmin
+    .from('package_tasks').select('package_service_id, workflow_task_id')
+    .in('package_service_id', bundleRows.map((r: { id: string }) => r.id))
+    .eq('organization_id', orgId);
+
+  const held = new Set(((existing || []) as any[]).map((e) => `${e.package_service_id}:${e.workflow_task_id}`));
+
+  const toInsert: any[] = [];
+  for (const row of bundleRows as any[]) {
+    for (const t of tasks as any[]) {
+      if (held.has(`${row.id}:${t.id}`)) continue;
+      toInsert.push({
+        organization_id: orgId,
+        package_service_id: row.id,
+        workflow_task_id: t.id,
+        name: t.name,
+        role_id: t.default_role_id,
+        position: t.position,
+        is_active: true,
+      });
+    }
+  }
+
+  if (toInsert.length === 0) return { added: 0 };
+
+  const { error } = await supabaseAdmin.from('package_tasks').insert(toInsert);
+  if (error) {
+    console.error('Failed to sync package tasks:', error);
+    throw new Error('Failed to bring packages up to date with that workflow');
+  }
+
+  revalidatePath('/packages');
+  return { added: toInsert.length };
+}
+
 async function bundleRows(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('package_services').select('id, service_id, position')
@@ -307,6 +406,15 @@ export async function createPackage(input: {
   price?: Record<string, unknown> | null;
   serviceIds?: string[];
   /**
+   * This package is a booking's own instance, not catalog.
+   *
+   * Pass the catalog package it was built from, or `true` when the booking
+   * built it from nothing. Either way Packages decides what an instance is
+   * called and what status it carries — a caller that decided those for itself
+   * is how the two booking screens ended up naming the same thing differently.
+   */
+  instanceOf?: string | true;
+  /**
    * What the package actually includes, quantified — "Edited photographs × 6",
    * "Highlight video, 30 second", "Framed print, 20x30". A service says what
    * kind of thing it produces; this is where it gets specific, which is what a
@@ -345,6 +453,12 @@ export async function createPackage(input: {
   // Services this Package bundles.
   const name = (input.name || '').trim() || bundledServiceNames.join(' + ') || 'Untitled package';
 
+  // An instance names the catalog package it came from, so that package has to
+  // belong to this studio like everything else the form points at.
+  if (typeof input.instanceOf === 'string') {
+    await assertOurs(orgId, [{ table: 'packages', id: input.instanceOf, label: 'package' }]);
+  }
+
   const currency = await getStudioCurrency();
   
   // Everything a package points at comes from the form, so each set is checked
@@ -368,7 +482,12 @@ export async function createPackage(input: {
       price: input.price || {},
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
-      status: 'active',
+      status: (input.instanceOf ? 'custom' : 'active') satisfies PackageStatus,
+      // Where it came from, when it came from somewhere. A package built from
+      // nothing during a booking is an instance of no catalog package, so it
+      // carries no list price and cannot be discounted against one.
+      instance_of: typeof input.instanceOf === 'string' ? input.instanceOf : null,
+      list_price: typeof input.instanceOf === 'string' ? await listPriceOf(orgId, input.instanceOf) : null,
     })
     .select('id')
     .single();
@@ -503,36 +622,53 @@ export async function updatePackage(input: {
   return { ok: true };
 }
 
-/** Fork an existing Package — same bundle, same terms, a new id and name to edit from. */
-export async function duplicatePackage(packageId: string) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
+/**
+ * Copy a package row and everything hanging off it, under a new name and status.
+ *
+ * The mechanism only — who is allowed to ask for a copy, what it gets called
+ * and whether it belongs in the catalog are decisions the two callers below
+ * make. Extracted because there are now two of them and a second hand-rolled
+ * deep copy is how the two drift apart.
+ */
+async function copyPackage(
+  orgId: string,
+  packageId: string,
+  as: { name: (original: string) => string; status: PackageStatus },
+) {
   const { data: existing } = await supabaseAdmin
     .from('packages')
-    .select('name, description, duration_minutes, extra_stages, form_schema')
+    // price was missing here, so every copy silently became unpriced. A booking's
+    // own instance carrying no price is the whole quote lost, not a cosmetic gap.
+    .select('name, description, duration_minutes, extra_stages, form_schema, price')
     .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Package not found');
 
   const { data: copy, error } = await supabaseAdmin
     .from('packages')
-    .insert({ organization_id: orgId, name: `${existing.name} (Copy)`, description: existing.description, duration_minutes: existing.duration_minutes, extra_stages: existing.extra_stages, form_schema: existing.form_schema, status: 'active' })
-    .select('id').single();
-  if (error || !copy) { console.error('Failed to duplicate package:', error); throw new Error('Failed to duplicate the package'); }
-
+    .insert({
+      organization_id: orgId,
+      name: as.name(existing.name),
+      description: existing.description,
+      duration_minutes: existing.duration_minutes,
+      extra_stages: existing.extra_stages,
+      form_schema: existing.form_schema,
+      price: existing.price || {},
+      status: as.status,
+    })
+    .select('id, name, price').single();
+  if (error || !copy) { console.error('Failed to copy package:', error); throw new Error('Failed to copy the package'); }
+  const made = { id: copy.id as string, name: copy.name as string, price: (copy.price || {}) as Record<string, unknown> };
 
   // Everything else hangs off a bundle row, so the copy's rows are matched back
   // to the originals by service and every link is rewritten through that map.
   // Nothing here can be copied by carrying an id across.
   const original = await bundleRows(orgId, packageId);
-  if (original.length === 0) {
-    await logEvent({ organizationId: orgId, entityType: 'package', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromPackageId: packageId } });
-    revalidatePath('/packages');
-    return { packageId: copy.id };
-  }
+  if (original.length === 0) return made;
 
   const { data: inserted, error: bundleError } = await supabaseAdmin.from('package_services')
     .insert(original.map((s) => ({ organization_id: orgId, package_id: copy.id, service_id: s.service_id, position: s.position })))
     .select('id, service_id');
-  if (bundleError) { console.error('Failed to copy the bundle:', bundleError); throw new Error('Failed to duplicate the package'); }
+  if (bundleError) { console.error('Failed to copy the bundle:', bundleError); throw new Error('Failed to copy the package'); }
 
   const copyRowOf = new Map(((inserted || []) as any[]).map((s) => [s.service_id as string, s.id as string]));
   const serviceOfOriginal = new Map(original.map((s) => [s.id, s.service_id]));
@@ -552,7 +688,7 @@ export async function duplicatePackage(packageId: string) {
       .map(({ r, to }) => shape(r, to));
     if (links.length === 0) return;
     const { error } = await supabaseAdmin.from(table).insert(links);
-    if (error) { console.error(`Failed to copy ${table}:`, error); throw new Error('Failed to duplicate the package'); }
+    if (error) { console.error(`Failed to copy ${table}:`, error); throw new Error('Failed to copy the package'); }
   };
 
   await Promise.all([
@@ -561,9 +697,103 @@ export async function duplicatePackage(packageId: string) {
     carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, service_variable_id: r.service_variable_id, value: r.value })),
   ]);
 
+  return made;
+}
+
+/** Fork an existing Package — same bundle, same terms, a new id and name to edit from. */
+export async function duplicatePackage(packageId: string) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const copy = await copyPackage(orgId, packageId, {
+    name: (original) => `${original} (Copy)`,
+    status: 'active',
+  });
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: copy.id, action: 'duplicated', actorId: actorId ?? undefined, payload: { fromPackageId: packageId } });
   revalidatePath('/packages');
   return { packageId: copy.id };
+}
+
+/**
+ * The package a booking gets to keep.
+ *
+ * A booking must not point at the catalog row. The studio goes on editing its
+ * catalog — a price rises, a deliverable changes — and a booking that merely
+ * referenced it would have its history rewritten underneath it. So a booking
+ * takes an instance: a private copy, `custom` so it never appears in the
+ * catalog, insulated from every later edit to the package it came from.
+ *
+ * THIS IS THE RULE, AND THIS IS WHERE IT LIVES. It used to live in
+ * NewBookingForm.tsx — a browser component — which is why only bookings made
+ * on that screen obeyed it. Public bookings went through a different screen,
+ * got no instance, and shared the catalog row with the catalog. A statement
+ * about what a booking *is* belongs under both screens, not inside one.
+ *
+ * @param organizationId  The public booking page has no session, so it passes
+ *   the org resolved from its slug. Self-consistency is still checked: the
+ *   package must belong to the studio whose page was filled in.
+ */
+export async function instantiatePackageForBooking(input: {
+  packageId: string;
+  organizationId?: string;
+}) {
+  let orgId = input.organizationId;
+  let actorId: string | null = null;
+  if (orgId) {
+    await assertOurs(orgId, [{ table: 'packages', id: input.packageId, label: 'package' }]);
+  } else {
+    const session = await getAuthOrgId();
+    orgId = session.orgId;
+    actorId = session.personId ?? null;
+  }
+
+  /*
+   * An instance keeps the name it was sold under.
+   *
+   * A suffix here would read as internal bookkeeping in a client's hands: the
+   * invoice line's description is this package's name, so "Golden Hour Portrait
+   * (Instance)" is what would print on the invoice and appear in the booking's
+   * own title. What makes this row an instance is its status and the fact a
+   * booking owns it — neither of which needs saying in the name.
+   */
+  const instance = await copyPackage(orgId, input.packageId, {
+    name: (original) => original,
+    status: 'custom',
+  });
+
+  /*
+   * What it came from, and what it was worth at that moment.
+   *
+   * The discount on a booking is the difference between what the package listed
+   * at and what was agreed — derived, never stored as its own number. But the
+   * catalog price moves, so comparing against it live would silently
+   * re-baseline: a shoot discounted by 20,000 in March would read as discounted
+   * by 45,000 after a price rise in June. Freezing the list price here is what
+   * makes the derivation stable.
+   */
+  const { data: source } = await supabaseAdmin
+    .from('packages').select('price')
+    .eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
+
+  await supabaseAdmin
+    .from('packages')
+    .update({ instance_of: input.packageId, list_price: (source as any)?.price ?? null })
+    .eq('id', instance.id)
+    .eq('organization_id', orgId);
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'package',
+    entityId: instance.id,
+    action: 'instantiated',
+    actorId: actorId ?? undefined,
+    payload: { fromPackageId: input.packageId },
+  });
+  // Deliberately no revalidatePath('/packages') — an instance is not catalog,
+  // and nothing on that page changed.
+  //
+  // The name and price come back so a caller does not have to read them off the
+  // packages table afterwards. Bookings needs both for its own line, and that
+  // read is exactly the shortcut that turned into a write.
+  return { packageId: instance.id, name: instance.name, price: instance.price };
 }
 
 /**
@@ -598,7 +828,7 @@ export async function listPackagesForService(serviceId: string) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function setPackageStatus(input: { packageId: string; status: 'active' | 'retired' }) {
+export async function setPackageStatus(input: { packageId: string; status: OperatorPackageStatus }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { error } = await supabaseAdmin.from('packages').update({ status: input.status }).eq('id', input.packageId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to change the package');
@@ -617,7 +847,7 @@ export async function setPackageStatus(input: { packageId: string; status: 'acti
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, status, duration_minutes, extra_stages, price,
+  id, name, description, status, duration_minutes, extra_stages, price, instance_of, list_price,
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
@@ -648,6 +878,30 @@ function shapePackage(p: any) {
   );
   return {
     ...p,
+    /*
+     * One shape for the price, decided here rather than by each screen.
+     *
+     * The raw column was being spread through untouched, so every consumer
+     * parsed the JSON itself — and they did not agree. The package editor wrote
+     * and read `amount`; the money path read `base_price`; the storefront read a
+     * third column that its own query did not even select. Normalising once, at
+     * the module's edge, is what makes "the price of this package" a single fact
+     * instead of three opinions. Null means unpriced, which is a normal state.
+     */
+    price: priceOf(p.price),
+    /*
+     * What it listed at when taken, and the difference. Both derived here so no
+     * screen works it out for itself — the failure that gave the price three
+     * different readings in the first place.
+     */
+    listPrice: priceOf(p.list_price),
+    discount: (() => {
+      const agreed = priceOf(p.price);
+      const list = priceOf(p.list_price);
+      if (!agreed || !list) return null;
+      const off = Math.round((list.amount - agreed.amount) * 100) / 100;
+      return off > 0 ? { amount: off, currency: list.currency } : null;
+    })(),
     services: bundle.map((ps) => ({
       ...ps.service,
       packageServiceId: ps.id,
@@ -715,6 +969,10 @@ export async function listPackages() {
     .from('packages')
     .select(PACKAGE_SELECT)
     .eq('organization_id', orgId)
+    // The catalog is what the studio sells. Instances a booking made for itself
+    // are packages by every other measure, and would otherwise pile up here one
+    // per booking line forever.
+    .neq('status', 'custom')
     .order('created_at', { ascending: false });
   if (error) { console.error('Failed to list packages:', error); throw new Error('Failed to load packages'); }
   return (data || []).map(shapePackage);
@@ -778,12 +1036,29 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     .from('packages')
     .select(`
       id, name, description, pricing_variant, duration_minutes, form_schema,
-      package_services(service:services(name), package_deliverables(quantity, unit, spec, deliverable:deliverables(name)))
+      package_services(
+        service:services(name),
+        package_deliverables(
+          quantity, spec_values,
+          deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)
+        )
+      )
     `)
     .eq('id', packageId)
     .eq('organization_id', orgId)
     .eq('status', 'active')
     .maybeSingle();
+  /*
+   * A bad select here reads exactly like a retired package.
+   *
+   * This asked for package_deliverables.unit and .spec, which the deliverable
+   * rework replaced with spec_values on the link and default_unit/spec_schema on
+   * the deliverable itself. PostgREST answered with an error, the error was
+   * logged and swallowed, and every caller saw `null` — so the public booking
+   * page told every visitor "This package is no longer available" for every
+   * package the studio sells. Throwing would have been loud; returning null was
+   * indistinguishable from the ordinary not-found it is here to express.
+   */
   if (error) { console.error('Failed to get public package:', error); return null; }
   if (!data) return null;
   const p: any = data;
@@ -939,19 +1214,16 @@ export async function getPackageForBooking(packageId: string) {
 }
 
 /** Payment policy for many packages at once — Bookings asks for this when drafting a contract. */
-export async function getPaymentPoliciesForPackages(packageIds: string[]): Promise<Record<string, { policy: PaymentPolicy; depositPercentage: number }>> {
-  if (packageIds.length === 0) return {};
-  const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('packages').select('id, price').in('id', packageIds).eq('organization_id', orgId);
-  const map: Record<string, { policy: PaymentPolicy; depositPercentage: number }> = {};
-  for (const row of (data || []) as any[]) {
-    const price = row.price as any || {};
-    const depositPercentage = Number(price.deposit_percentage || 0);
-    const policy: PaymentPolicy = depositPercentage > 0 && depositPercentage < 100 ? 'deposit' : 'full';
-    map[row.id] = { policy, depositPercentage: policy === 'full' ? 100 : depositPercentage };
-  }
-  return map;
-}
+/*
+ * getPaymentPoliciesForPackages stood here.
+ *
+ * It read a deposit percentage off each package's price and resolved a payment
+ * policy from it — the model that was removed on the ruling that a package does
+ * not hold payment terms when there is a contract module. The removal took its
+ * callers and the column it read, leaving a function nothing called, reading a
+ * field nothing wrote. The studio's deposit now belongs to Contracts, as
+ * getDepositDefault().
+ */
 
 // ── Intake questions: what a client is asked when booking this Package ──────
 

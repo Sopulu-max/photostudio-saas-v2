@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getIntakeQuestionsPublic, getPackagePublic } from '@/modules/packages/interface';
+import { getIntakeQuestionsPublic, getPackagePublic, instantiatePackageForBooking } from '@/modules/packages/interface';
 import { createBookingFromIntake } from '@/modules/bookings/interface';
 import { findOrCreateClientPublic } from '@/modules/clients/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
@@ -44,14 +44,14 @@ export async function submitBookingForm(
 
   // 3. Handle the package or custom enquiry
   let pkgName = 'Custom Enquiry';
-  let linePrice = {};
+  let linePrice: Record<string, unknown> = {};
   let storedAnswers: any = {};
   let resolvedPackageId: string | undefined = undefined;
 
   if (packageId === 'custom') {
     // Client described what they want in their own words. The studio reviews
     // this, creates the right package internally if needed, and responds.
-    storedAnswers = { 
+    storedAnswers = {
       message: formData.customFields?.message || '',
       dimensions: formData.customFields?.dimensions || {}
     };
@@ -60,10 +60,7 @@ export async function submitBookingForm(
     const pkg = await getPackagePublic(orgId, packageId);
     if (!pkg) throw new Error('This package is no longer available.');
 
-    resolvedPackageId = pkg.id;
     pkgName = pkg.name;
-
-
 
     // Validate the answers against the package's own questions
     const questions = await getIntakeQuestionsPublic(pkg.id);
@@ -71,6 +68,24 @@ export async function submitBookingForm(
     const firstError = Object.values(errors)[0];
     if (firstError) throw new Error(firstError);
     storedAnswers = storeAnswers(questions, formData.customFields || {});
+
+    /*
+     * The booking gets its own instance of the package, exactly as an
+     * internally-made booking does. Asked of Packages rather than done here:
+     * a booking on the public page used to point straight at the catalog row,
+     * so the studio editing its own catalog silently rewrote what a client had
+     * already been quoted — and the intake step wrote back over that row too.
+     *
+     * The org is passed because this visitor has no session; Packages still
+     * checks the package belongs to the studio whose page this is.
+     */
+    const instance = await instantiatePackageForBooking({
+      packageId: pkg.id,
+      organizationId: orgId,
+    });
+    resolvedPackageId = instance.packageId;
+    pkgName = instance.name;
+    linePrice = instance.price;
   }
 
   // 4. The booking itself — asked of the Bookings module, not inserted here.

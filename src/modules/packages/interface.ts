@@ -14,9 +14,16 @@
 export { listDimensionsByDomain } from '@/modules/services/interface';
 export type { StudioDimensionShape } from '@/modules/services/interface';
 
+export type { PackageStatus, OperatorPackageStatus } from './domain';
+
 export {
   // Package
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
+  // Packages owns package_tasks, so Services asks rather than writing them.
+  syncPackageTasksForWorkflow,
+  // The package a booking keeps for itself, insulated from later catalog edits.
+  // Both booking paths go through this — it is the rule, not a helper.
+  instantiatePackageForBooking,
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   // Backwards: where is this service sold? The edge lives here, so the read does.
   listPackagesForService,
