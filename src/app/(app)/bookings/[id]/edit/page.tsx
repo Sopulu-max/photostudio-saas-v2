@@ -44,10 +44,17 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
 
   // Archived clients aren't offered for a new assignment — same rule as retired packages.
+  // Phone and email come along, because they are how an operator tells two
+  // clients of the same name apart — and the picker fills them in on select.
   const clientOptions = clientRows
     .filter((c: any) => c.status !== 'archived')
-    .map((c: any) => ({ contactId: c.contact?.id as string, name: c.contact?.display_name as string }))
-    .filter((c: { contactId: string }) => !!c.contactId);
+    .map((c: any) => ({
+      id: c.contact?.id as string,
+      name: c.contact?.display_name as string,
+      email: (c.contact?.email ?? null) as string | null,
+      phone: (c.contact?.phone ?? null) as string | null,
+    }))
+    .filter((c: { id: string }) => !!c.id);
 
   const packageOptions = (packageRows as any[])
     .filter((p) => p.status !== 'retired')

@@ -3,6 +3,8 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateBookingRecord } from '@/modules/bookings/interface';
+import { updateClient } from '@/modules/clients/interface';
+import { ClientPicker, clientEdits, type ClientOption, type ClientSelection } from '@/components/ClientPicker';
 import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
 
 const toLocalInput = (iso: string | null) => {
@@ -39,7 +41,7 @@ export function BookingRecordForm({
   scheduledFor: string | null;
   durationMinutes: number | null;
   suggestedMinutes: number | null;
-  clients: { contactId: string; name: string }[];
+  clients: ClientOption[];
 }) {
   const initial = {
     title,
@@ -49,19 +51,34 @@ export function BookingRecordForm({
   };
 
   const [t, setT] = useState(initial.title);
-  const [cid, setCid] = useState(initial.contactId);
+  // Starts filled in with whoever the booking is already for, rather than as a
+  // name in a dropdown that says nothing about which of two same-named people
+  // this is.
+  const [client, setClient] = useState<ClientSelection | null>(() => {
+    const found = clients.find((c) => c.id === initial.contactId);
+    return found
+      ? { id: found.id, name: found.name || '', email: found.email || '', phone: found.phone || '' }
+      : null;
+  });
+  const cid = client?.id || '';
   const [when, setWhen] = useState(initial.when);
   const [dur, setDur] = useState(initial.dur);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const dirty =
-    t !== initial.title || cid !== initial.contactId || when !== initial.when || dur !== initial.dur;
+    t !== initial.title || cid !== initial.contactId || when !== initial.when || dur !== initial.dur ||
+    Boolean(clientEdits(client, clients));
 
   const save = () => {
     if (!t.trim()) { alert('A booking needs a title.'); return; }
     startTransition(async () => {
       try {
+        // Corrections to the client's own details are saved to the client, not
+        // onto the booking — the booking only records who it is for.
+        const edits = clientEdits(client, clients);
+        if (edits) await updateClient(edits);
+
         await updateBookingRecord({
           bookingId,
           title: t,
@@ -97,13 +114,13 @@ export function BookingRecordForm({
       </div>
 
       <div className="q-stack q-stack-sm">
-        <label className="q-label" htmlFor="booking-client">Client</label>
-        <select id="booking-client" className="q-input" value={cid} onChange={(e) => setCid(e.target.value)}>
-          <option value="">No client yet</option>
-          {clients.map((c) => (
-            <option key={c.contactId} value={c.contactId}>{c.name}</option>
-          ))}
-        </select>
+        <ClientPicker
+          clients={clients}
+          value={client}
+          onChange={setClient}
+          label="Client"
+          allowNone
+        />
         <span className="q-meta-sm">
           A booking runs fine without one — attach whoever this turns out to be for.
         </span>
