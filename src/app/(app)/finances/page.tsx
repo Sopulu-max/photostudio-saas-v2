@@ -24,7 +24,10 @@ export default async function FinancesPage() {
           <h1 className="q-page-title">Finances</h1>
           <p className="q-page-subtitle">What came in, what went out, and what&rsquo;s still owed.</p>
         </div>
-        <CreateTransactionForm currencyCode={currencyCode} />
+        <div className="q-row">
+          <Link href="/finances/settings" className="q-btn q-btn-secondary">Settings</Link>
+          <CreateTransactionForm currencyCode={currencyCode} />
+        </div>
       </header>
 
       {/*

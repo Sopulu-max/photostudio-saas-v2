@@ -6,7 +6,7 @@ import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
-import { amountOf } from '@/kernel/money';
+import { amountOf, firstPriced } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { settlementOf } from './money';
 
@@ -26,6 +26,7 @@ import { settlementOf } from './money';
 
 const INVOICE_SELECT = `
   id, number, status, currency, notes, issued_at, due_at, voided_at, share_token, created_at,
+  tax_rate, tax_amount,
   booking:bookings(id, title, scheduled_for),
   contact:contacts(id, display_name, email),
   contract:contracts(id, version),
@@ -37,13 +38,148 @@ function shape(row: any) {
   const lines = (row.lines || []).slice().sort((a: any, b: any) => a.position - b.position);
   const subtotal = lines.reduce((s: number, l: any) => s + Number(l.amount || 0), 0);
   const payments = row.payments || [];
+  // Tax as it was frozen on this document, not as the studio charges today.
+  const taxRate = Number(row.tax_rate || 0);
+  const tax = Number(row.tax_amount || 0);
+  const total = Math.round((subtotal + tax) * 100) / 100;
   return {
     ...row,
     lines,
     payments,
     subtotal,
-    total: subtotal,
-    ...settlementOf(subtotal, payments),
+    taxRate,
+    tax,
+    total,
+    // Settlement is against the total the client was asked for, tax included.
+    ...settlementOf(total, payments),
+  };
+}
+
+/**
+ * The tax a studio charges, as a percentage.
+ *
+ * WHY IT LIVES ON THE STUDIO. invoices.tax_rate and tax_amount existed from the
+ * start and were never once written, so every invoice this app has produced was
+ * silently tax-free. The rate is a fact about the studio's jurisdiction — one
+ * VAT position, not a decision to be retaken per document — and re-declaring it
+ * on each invoice is how two invoices in the same month come to disagree.
+ *
+ * It is SNAPSHOTTED onto each invoice as it is raised. Changing the rate must
+ * never rewrite a document a client is already holding, and a rate read live at
+ * display time would do exactly that.
+ *
+ * Zero is a real answer. Plenty of studios charge no tax, and that is a
+ * position rather than an omission.
+ */
+export async function getTaxRate(): Promise<number> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  return readTaxRate(data?.metadata);
+}
+
+function readTaxRate(metadata: unknown): number {
+  const raw = (metadata as any)?.finances?.tax_rate;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 0;
+}
+
+export async function setTaxRate(percentage: number) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const n = Number(percentage);
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    throw new Error('A tax rate is a percentage between 0 and 100.');
+  }
+
+  const { data: org } = await supabaseAdmin
+    .from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  const metadata = { ...((org?.metadata as any) || {}) };
+  metadata.finances = { ...(metadata.finances || {}), tax_rate: n };
+
+  const { error } = await supabaseAdmin.from('organizations').update({ metadata }).eq('id', orgId);
+  if (error) throw new Error('Failed to save the tax rate');
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'organization',
+    entityId: orgId,
+    action: 'tax_rate_set',
+    actorId: actorId ?? undefined,
+    payload: { taxRate: n },
+  });
+
+  revalidatePath('/finances/settings');
+  return { ok: true };
+}
+
+/**
+ * What a booking is worth, what has been asked for, and what has arrived.
+ *
+ * THREE FIGURES, NOT TWO. The page showed booked and paid, and called the gap
+ * between them "outstanding". That conflates two different questions:
+ *
+ *   left to invoice = booked  − invoiced   what the studio still has to bill
+ *   left to pay     = invoiced − paid      what the client still owes
+ *
+ * A booking with a 50% deposit raised and settled is fully paid on everything
+ * asked for, and still half unbilled. Reading one number as the other is how a
+ * studio either chases a client who owes nothing or forgets to send the balance.
+ *
+ * ALL THREE DERIVED. None is stored, for the same reason settlementOf is not:
+ * a total kept beside the lines it came from is a second opinion, and the two
+ * disagree the moment an invoice is voided.
+ *
+ * Void invoices are excluded from `invoiced` — a withdrawn document asked for
+ * nothing. It is deliberately still in the list, because withdrawing one is a
+ * thing that happened and the audit should show it.
+ */
+export async function getBookingBilling(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const [{ data: bookingLines }, { data: invoices }] = await Promise.all([
+    supabaseAdmin
+      .from('booking_lines')
+      .select('id, quantity, title, price, package:packages(name, price)')
+      .eq('organization_id', orgId)
+      .eq('booking_id', bookingId),
+    supabaseAdmin
+      .from('invoices')
+      .select('id, status, currency, lines:invoice_lines(amount), payments:financial_transactions(kind, amount, status)')
+      .eq('organization_id', orgId)
+      .eq('booking_id', bookingId),
+  ]);
+
+  // What the booking is worth: its own instance of each package, priced.
+  let booked = 0;
+  let currency: string | null = null;
+  for (const l of ((bookingLines || []) as any[])) {
+    const price: any = firstPriced(l.package?.price, l.price);
+    booked += amountOf(price) * Number(l.quantity ?? 1);
+    if (!currency && price?.currency) currency = price.currency;
+  }
+
+  let invoiced = 0;
+  let paid = 0;
+  for (const inv of ((invoices || []) as any[])) {
+    if (inv.status === 'void') continue;
+    const total = ((inv.lines || []) as any[]).reduce((n, l) => n + Number(l.amount || 0), 0);
+    invoiced += total;
+    paid += settlementOf(total, inv.payments || []).paid;
+    if (!currency && inv.currency) currency = inv.currency;
+  }
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    booked: round(booked),
+    invoiced: round(invoiced),
+    paid: round(paid),
+    /** Still to bill. Negative would mean over-billed, which the guard prevents. */
+    leftToInvoice: round(Math.max(booked - invoiced, 0)),
+    /** Still owed on what has been billed. */
+    leftToPay: round(Math.max(invoiced - paid, 0)),
+    /** True when more has been billed than the booking is worth. */
+    overInvoiced: round(invoiced) > round(booked),
+    currency: currency || (await getStudioCurrency()),
   };
 }
 
@@ -60,8 +196,48 @@ export async function createInvoiceForBooking(input: {
   lineIds?: string[];
   dueAt?: string | null;
   notes?: string | null;
+  /**
+   * How much of the booking this invoice is for.
+   *
+   * A deposit is not a different kind of document — it is an invoice for part
+   * of the same work. There used to be two functions producing two shapes, and
+   * they drifted: one learned to name the packages it was billing and the other
+   * went on writing a single opaque line. One function, one behaviour.
+   *
+   * Omitted means all of it. A percentage bills that share of every line, so
+   * the client can still see what they are paying a deposit ON.
+   */
+  percentage?: number | null;
+  /** What the client sees against each line, e.g. "50% deposit". */
+  label?: string | null;
+  /**
+   * Bill it even though the booking is already fully invoiced. For the genuine
+   * case — re-billing after withdrawing a document, or work agreed by hand —
+   * rather than a way around the guard.
+   */
+  allowOverInvoicing?: boolean;
+  /**
+   * The studio, for the path that has no session.
+   *
+   * A client signing a contract on a share link is not logged in, so the
+   * organization comes from the link rather than from a session. Passing it is
+   * self-consistency, not authorisation — assertOurs below checks the booking
+   * really is that studio's, exactly as the public booking path does.
+   */
+  organizationId?: string;
+  contactId?: string | null;
+  contractId?: string | null;
 }) {
-  const { orgId, personId: actorId } = await getAuthOrgId();
+  const session = input.organizationId ? null : await getAuthOrgId();
+  const orgId = input.organizationId ?? session!.orgId;
+  const actorId = input.contactId ?? session?.personId ?? null;
+  if (input.organizationId) {
+    await assertOurs(orgId, [
+      { table: 'bookings', id: input.bookingId, label: 'booking' },
+      { table: 'contacts', id: input.contactId, label: 'client' },
+      { table: 'contracts', id: input.contractId, label: 'contract' },
+    ]);
+  }
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
@@ -73,7 +249,7 @@ export async function createInvoiceForBooking(input: {
 
   const { data: bookingLines } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, title, price, quantity')
+    .select('id, quantity, title, price, package:packages(name, price)')
     .eq('organization_id', orgId)
     .eq('booking_id', input.bookingId)
     .order('created_at');
@@ -84,20 +260,59 @@ export async function createInvoiceForBooking(input: {
     throw new Error('There is nothing on this booking to invoice yet.');
   }
 
+  /*
+   * Do not bill the same work twice by accident.
+   *
+   * Nothing checked what had already been asked for, so raising a deposit and
+   * then generating an invoice billed the whole booking a second time, silently.
+   * The studio would have found out from the client.
+   *
+   * Refused rather than clamped: quietly reducing the amount would produce a
+   * document the operator did not ask for, and they may genuinely mean to bill
+   * again after withdrawing one.
+   */
+  const share = input.percentage == null ? 1 : Math.max(0, Math.min(100, Number(input.percentage))) / 100;
+  if (!input.allowOverInvoicing) {
+    const billing = await getBookingBilling(input.bookingId);
+    if (billing.leftToInvoice <= 0 && billing.booked > 0) {
+      throw new Error(
+        `This booking is already invoiced in full (${billing.invoiced} of ${billing.booked}). ` +
+        'Withdraw an existing invoice first, or add what else is being billed to the booking.',
+      );
+    }
+  }
+
   // What each line is configured as, so the description says what was sold.
   const { getLineConfiguration } = await import('@/modules/bookings/interface');
   const { formatVariableValue } = await import('@/modules/services/interface');
 
-  const currency = (lines[0]?.price as any)?.currency || (await getStudioCurrency());
+  // What a line is for, and what was agreed for it. The booking's own instance
+  // of the package holds both; lines made before instancing hold them
+  // themselves, and an invoice raised against one of those must still name and
+  // price it rather than billing "Booking Line" for nothing.
+  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
+
+  const currency = (priceOfLine(lines[0]) as any)?.currency || (await getStudioCurrency());
+
+  // Read from the studio directly rather than via getTaxRate(), which needs a
+  // session this path may not have.
+  const { data: taxOrg } = await supabaseAdmin
+    .from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  const taxRate = readTaxRate(taxOrg?.metadata);
 
   const { data: invoice, error } = await supabaseAdmin
     .from('invoices')
     .insert({
       organization_id: orgId,
       booking_id: booking.id,
-      contact_id: booking.contact_id,
+      contact_id: input.contactId ?? booking.contact_id,
+      contract_id: input.contractId ?? null,
       currency,
       status: 'draft',
+      // Frozen at the rate that stood when this was raised, so a later change
+      // cannot rewrite a document already in a client's hands.
+      tax_rate: taxRate,
       notes: input.notes ?? null,
       due_at: input.dueAt ?? null,
     })
@@ -111,21 +326,29 @@ export async function createInvoiceForBooking(input: {
   const rows: any[] = [];
   let position = 0;
   for (const l of lines) {
+    const title = nameOf(l);
+    const price = priceOfLine(l);
+
     const config = await getLineConfiguration(l.id);
     const detail = config
       .filter((c: any) => c.value != null)
       .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit }))
       .join(' · ');
-    const unitPrice = amountOf(l.price);
     const quantity = Number(l.quantity ?? 1);
+    // The share applies to the line total, not the unit price, so a part
+    // invoice for "3 hours" still reads as three hours rather than as a
+    // fractional hour nobody agreed to.
+    const full = amountOf(price) * quantity;
+    const amount = Math.round(full * share * 100) / 100;
+    const described = detail ? `${title} · ${detail}` : title;
     rows.push({
       organization_id: orgId,
       invoice_id: invoice.id,
       booking_line_id: l.id,
-      description: detail ? `${l.title} · ${detail}` : l.title,
+      description: input.label ? `${described} — ${input.label}` : described,
       quantity,
-      unit_price: unitPrice,
-      amount: unitPrice * quantity,
+      unit_price: share === 1 ? amountOf(price) : amount,
+      amount,
       position: position++,
     });
   }
@@ -134,6 +357,24 @@ export async function createInvoiceForBooking(input: {
   if (lineError) {
     console.error('Failed to write invoice lines:', lineError);
     throw new Error('Failed to write what this invoice is for');
+  }
+
+  /*
+   * Tax, frozen with the rate that produced it.
+   *
+   * Stored rather than derived — the exception to the rule elsewhere in this
+   * module, and deliberately so. Everything else derived (paid, outstanding)
+   * recomputes from facts that are themselves immutable. A tax amount depends
+   * on a RATE that changes, so recomputing it later would quietly restate a
+   * document. The amount and the rate are frozen together or neither is safe.
+   */
+  if (taxRate > 0) {
+    const net = rows.reduce((n, r) => n + Number(r.amount || 0), 0);
+    await supabaseAdmin
+      .from('invoices')
+      .update({ tax_amount: Math.round(net * (taxRate / 100) * 100) / 100 })
+      .eq('id', invoice.id)
+      .eq('organization_id', orgId);
   }
 
   await logEvent({
@@ -230,6 +471,20 @@ export async function issueInvoice(input: { invoiceId: string; dueAt?: string | 
  * Issued immediately: there is nobody to review a draft at the moment of
  * signing, and a client who has just signed should land on something real.
  */
+/**
+ * The invoice a client signing a contract is sent straight to.
+ *
+ * NOT A DIFFERENT KIND OF DOCUMENT. This used to build its own invoice, its own
+ * way: a single line reading "50% deposit" with no link to any package, while
+ * the operator's path built one line per package. Two implementations of one
+ * idea, and they drifted exactly as far apart as you would expect — the client
+ * receiving the more important of the two got the less informative one.
+ *
+ * So it delegates. The only things it still does itself are the two that make
+ * it different: it runs with no session, and it ISSUES immediately, because a
+ * client who has just signed is being handed the document now rather than
+ * having it drafted for someone to send later.
+ */
 export async function issueDepositInvoice(input: {
   organizationId: string;
   bookingId: string;
@@ -243,44 +498,105 @@ export async function issueDepositInvoice(input: {
   if (!amount || amount <= 0) throw new Error('A deposit needs an amount.');
 
   const orgId = input.organizationId;
-  // No session on this path — the studio came from the share link. So this asks
-  // whether the booking really is that studio's, not whether the caller may.
-  await assertOurs(orgId, [
-    { table: 'bookings', id: input.bookingId, label: 'booking' },
-    { table: 'contacts', id: input.contactId, label: 'client' },
-    { table: 'contracts', id: input.contractId, label: 'contract' },
-  ]);
 
-  const { data: invoice, error } = await supabaseAdmin
-    .from('invoices')
-    .insert({
-      organization_id: orgId,
-      booking_id: input.bookingId,
-      contact_id: input.contactId ?? null,
-      contract_id: input.contractId ?? null,
-      currency: input.currency || 'USD',
-      status: 'draft',
-    })
-    .select('id')
-    .single();
-  if (error || !invoice) {
-    console.error('Failed to create deposit invoice:', error);
-    throw new Error('Failed to raise the deposit');
+  /*
+   * The amount is given as money, because that is what the contract's terms
+   * work out to. Turned into a share of the booking so the lines can each carry
+   * their own portion and still say what they are for.
+   */
+  const billing = await getBookingBilling(input.bookingId);
+
+  /*
+   * Do not bill a deposit that has already been billed.
+   *
+   * A studio can raise the invoice while taking the booking AND send a contract
+   * whose deposit is raised on signing. Both are reasonable; together they
+   * charged the client twice for the same money, because signing raised its
+   * invoice without ever asking what the booking had already been billed.
+   *
+   * So the shortfall is what gets raised. When there is none, the client is
+   * handed the invoice that already exists rather than a duplicate — they came
+   * here to pay, and an invoice is waiting for them.
+   */
+  const shortfall = Math.round((amount - billing.invoiced) * 100) / 100;
+  if (shortfall <= 0) {
+    const { data: existing } = await supabaseAdmin
+      .from('invoices')
+      .select('id, number, share_token, status')
+      .eq('organization_id', orgId)
+      .eq('booking_id', input.bookingId)
+      .neq('status', 'void')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      // Already sent: hand them the document they were going to be sent anyway.
+      if (existing.share_token) {
+        return {
+          invoiceId: existing.id as string,
+          number: (existing.number as string) || '',
+          token: existing.share_token as string,
+          /** Nothing new was raised; this document already covered it. */
+          alreadyInvoiced: true,
+        };
+      }
+
+      /*
+       * Still a draft — raised while taking the booking and never sent. The
+       * client has just signed and needs something to pay, so this is issued
+       * rather than duplicated. Raising a second document for the same money
+       * would double what the booking reads as invoiced whether or not the
+       * first was ever sent.
+       */
+      const { data: draftSeq, error: draftSeqError } = await supabaseAdmin
+        .rpc('next_document_number', { org: orgId, kind: 'invoice' });
+      if (!draftSeqError) {
+        const draftNumber = `INV-${String(draftSeq).padStart(4, '0')}`;
+        const draftToken = randomUUID().replace(/-/g, '');
+        await supabaseAdmin
+          .from('invoices')
+          .update({ number: draftNumber, status: 'issued', issued_at: new Date().toISOString(), share_token: draftToken })
+          .eq('id', existing.id)
+          .eq('organization_id', orgId);
+
+        await logEvent({
+          organizationId: orgId,
+          entityType: 'invoice',
+          entityId: existing.id as string,
+          action: 'issued',
+          actorId: input.contactId ?? undefined,
+          payload: { number: draftNumber, amount, viaSigning: true, issuedExistingDraft: true },
+        });
+
+        revalidatePath(`/bookings/${input.bookingId}`);
+        revalidatePath('/finances');
+        return {
+          invoiceId: existing.id as string,
+          number: draftNumber,
+          token: draftToken,
+          alreadyInvoiced: true,
+        };
+      }
+    }
   }
 
-  const { error: lineError } = await supabaseAdmin.from('invoice_lines').insert({
-    organization_id: orgId,
-    invoice_id: invoice.id,
-    description: input.label || 'Deposit',
-    quantity: 1,
-    unit_price: amount,
-    amount,
-    position: 0,
+  const toBill = shortfall > 0 ? shortfall : amount;
+  const percentage = billing.booked > 0
+    ? Math.min(100, (toBill / billing.booked) * 100)
+    : 100;
+
+  const { invoiceId } = await createInvoiceForBooking({
+    organizationId: orgId,
+    bookingId: input.bookingId,
+    contactId: input.contactId ?? null,
+    contractId: input.contractId ?? null,
+    percentage,
+    label: input.label || 'Deposit',
+    // Signing must never fail because of a billing guard. The studio agreed
+    // this amount in the contract the client has just signed.
+    allowOverInvoicing: true,
   });
-  if (lineError) {
-    console.error('Failed to write the deposit line:', lineError);
-    throw new Error('Failed to raise the deposit');
-  }
 
   const { data: seq, error: seqError } = await supabaseAdmin
     .rpc('next_document_number', { org: orgId, kind: 'invoice' });
@@ -294,23 +610,24 @@ export async function issueDepositInvoice(input: {
   await supabaseAdmin
     .from('invoices')
     .update({ number, status: 'issued', issued_at: new Date().toISOString(), share_token: token })
-    .eq('id', invoice.id)
+    .eq('id', invoiceId)
     .eq('organization_id', orgId);
 
   await logEvent({
     organizationId: orgId,
     entityType: 'invoice',
-    entityId: invoice.id,
+    entityId: invoiceId,
     action: 'issued',
     // The client signing is the actor: their signature is what raised this.
     actorId: input.contactId ?? undefined,
-    payload: { number, amount, viaSigning: true },
+    payload: { number, amount: toBill, requested: amount, viaSigning: true },
   });
 
   revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/finances');
-  return { invoiceId: invoice.id, number, token };
+  return { invoiceId, number, token, alreadyInvoiced: false };
 }
+
 
 /**
  * Withdraw it. Voiding keeps the row and its number: a document that was sent

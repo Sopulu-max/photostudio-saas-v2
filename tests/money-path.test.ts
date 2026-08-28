@@ -34,10 +34,13 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 import { createClient } from '@/modules/clients/domain';
 import { createService } from '@/modules/services/domain';
-import { createPackage } from '@/modules/packages/domain';
+import { createPackage, instantiatePackageForBooking, getPackage, updatePackage } from '@/modules/packages/domain';
 import { createBooking, addBookingLine, createContractForBooking } from '@/modules/bookings/domain';
-import { signContract, getContract } from '@/modules/contracts/domain';
-import { issueDepositInvoice, getInvoiceByToken, getInvoice } from '@/modules/finances/invoices';
+import { signContract, getContract, setDepositDefault } from '@/modules/contracts/domain';
+import {
+  issueDepositInvoice, getInvoiceByToken, getInvoice,
+  createInvoiceForBooking, getBookingBilling, setTaxRate, getTaxRate,
+} from '@/modules/finances/invoices';
 import { createTransaction, settleTransaction, getReceiptForTransaction, getReceiptByToken } from '@/modules/finances/domain';
 import { PURGE_ORDER } from './purge';
 
@@ -77,10 +80,20 @@ describe('A booking, all the way to paid', () => {
     const { packageId } = await createPackage({
       name: 'Golden Hour Portrait',
       serviceIds: [serviceId],
-      
-      
-      
+      price: { base_price: 200000, currency: 'NGN' },
     });
+
+    /*
+     * What the studio asks for up front, set where it now lives.
+     *
+     * This used to be two arguments on the package — paymentPolicy and
+     * depositPercentage. Both were removed when payment terms moved off the
+     * package, and for a while nothing replaced them: the draft path hardcoded
+     * zero, so this test asked a contract for a deposit that no code path could
+     * produce. It is a Contracts setting now, and asking for it there is the
+     * assertion that the move actually completed.
+     */
+    await setDepositDefault(50);
 
     // ── The booking ───────────────────────────────────────────────────────
     const { bookingId } = await createBooking({ title: 'Adaeze — Portrait', contactId: clientContactId });
@@ -152,6 +165,23 @@ describe('A booking, all the way to paid', () => {
     expect(afterPayment.payments?.some((p: { id: string }) => p.id === tx.id),
       'the payment is not attached to the invoice').toBe(true);
 
+    // ── The deposit invoice knows what it is a deposit ON ─────────────────
+    /*
+     * The whole point of the rework: this invoice used to be a single line
+     * reading "50% deposit" with no booking_line_id, so nothing downstream
+     * could tell what was being paid for. A client cannot check a lump sum, and
+     * a studio cannot reconcile one.
+     */
+    const depositLines = (seen.lines ?? seen.invoice_lines ?? []) as any[];
+    expect(depositLines.length, 'the deposit invoice has no lines').toBeGreaterThan(0);
+    expect(depositLines[0].booking_line_id, 'the deposit line is not tied to a package').toBeTruthy();
+    expect(String(depositLines[0].description), 'the deposit line does not name the package')
+      .toContain('Golden Hour Portrait');
+    // And the lines add up to what was actually asked for, to the naira.
+    const lineSum = depositLines.reduce((n, l) => n + Number(l.amount || 0), 0);
+    expect(Math.round(lineSum * 100) / 100, 'the deposit lines do not sum to the deposit')
+      .toBe(depositAmount);
+
     // ── The client's proof ────────────────────────────────────────────────
     const receipt: any = await getReceiptForTransaction(tx.id);
     expect(receipt, 'a settled payment produced no receipt').toBeTruthy();
@@ -164,4 +194,156 @@ describe('A booking, all the way to paid', () => {
     expect(seenReceipt, 'the receipt link resolves to nothing').toBeTruthy();
     expect(Number(seenReceipt.amount)).toBe(depositAmount);
   }, 120000);
+
+  /*
+   * Booked, invoiced and paid are three different questions.
+   *
+   * The page used to show two and call the gap "outstanding", which conflated
+   * "what the studio still has to bill" with "what the client still owes". A
+   * booking with a settled 50% deposit is fully paid on everything asked for and
+   * still half unbilled; reading one as the other is how a studio chases a
+   * client who owes nothing, or forgets to send the balance.
+   *
+   * And nothing stopped the same work being billed twice — raise a deposit, hit
+   * Generate Invoice, and the whole booking went out again, silently.
+   */
+  it('tells booked, invoiced and paid apart, and refuses to bill twice', async () => {
+    const client = await createClient({ name: 'Ngozi Bill', email: `ngozi+${randomUUID().slice(0, 8)}@example.com` });
+    const clientContactId = (client as any).contactId ?? (client as any).id;
+
+    const { serviceId } = await createService({
+      name: 'Event Coverage', serviceDomain: 'Photography', primaryDeliverable: 'Edited image',
+    });
+    const { packageId } = await createPackage({
+      name: 'Event Day', serviceIds: [serviceId], price: { base_price: 100000, currency: 'NGN' },
+    });
+    const { bookingId } = await createBooking({ title: 'Ngozi — Event', contactId: clientContactId });
+    await addBookingLine({ bookingId, packageId, title: 'Event Day' });
+
+    const start = await getBookingBilling(bookingId);
+    expect(start.booked, 'the booking is not worth what its package costs').toBe(100000);
+    expect(start.invoiced).toBe(0);
+    expect(start.leftToInvoice).toBe(100000);
+
+    // Half of it, as a deposit would be.
+    await createInvoiceForBooking({ bookingId, percentage: 50, label: '50% deposit' });
+
+    const half = await getBookingBilling(bookingId);
+    expect(half.invoiced, 'a half invoice did not bill half').toBe(50000);
+    expect(half.leftToInvoice, 'the balance still to bill is wrong').toBe(50000);
+    // Nothing has been paid, so what the CLIENT owes is what was billed —
+    // a different number from what the studio still has to bill.
+    expect(half.leftToPay).toBe(50000);
+    expect(half.paid).toBe(0);
+
+    // The balance.
+    await createInvoiceForBooking({ bookingId, percentage: 50, label: 'Balance' });
+    const full = await getBookingBilling(bookingId);
+    expect(full.invoiced).toBe(100000);
+    expect(full.leftToInvoice).toBe(0);
+
+    // And now a third would be billing work that was already billed.
+    await expect(createInvoiceForBooking({ bookingId }))
+      .rejects.toThrow(/already invoiced in full/i);
+
+    // Unless the operator means it — after withdrawing one, say.
+    const forced = await createInvoiceForBooking({ bookingId, allowOverInvoicing: true });
+    expect(forced.invoiceId, 'the deliberate case was blocked too').toBeTruthy();
+  }, 120000);
+
+  it('names the package on every line of a part invoice', async () => {
+    const { data: invoices } = await supabaseAdmin
+      .from('invoices').select('id, lines:invoice_lines(description, amount, booking_line_id)')
+      .eq('organization_id', TEST_ORG_ID);
+    const partial = ((invoices || []) as any[])
+      .flatMap((i) => i.lines || [])
+      .filter((l: any) => String(l.description).includes('50% deposit'));
+
+    expect(partial.length, 'no part-invoice line was written').toBeGreaterThan(0);
+
+    /*
+     * The point of collapsing the two functions: EVERY part-invoice line says
+     * what it is a deposit ON and points back at the work. Asserted across all
+     * of them rather than the first, because both bookings in this file raise
+     * one and the claim is about the shape, not about a particular row.
+     */
+    for (const line of partial) {
+      const described = String(line.description);
+      expect(described, 'a deposit line named nothing but the deposit')
+        .toMatch(/^(Golden Hour Portrait|Event Day).* — 50% deposit$/);
+      expect(line.booking_line_id, `"${described}" lost its link to the work`).toBeTruthy();
+    }
+  }, 60000);
+
+  /*
+   * The interaction that raising an invoice at booking time creates.
+   *
+   * A studio can invoice while taking the booking AND send a contract whose
+   * deposit is raised on signing. Both are reasonable; together they charged the
+   * client twice for the same money, because signing raised its invoice without
+   * ever asking what the booking had already been billed.
+   */
+  it('does not raise a second deposit for money already invoiced', async () => {
+    const client = await createClient({ name: 'Tunde Twice', email: `tunde+${randomUUID().slice(0, 8)}@example.com` });
+    const clientContactId = (client as any).contactId ?? (client as any).id;
+
+    const { serviceId } = await createService({
+      name: 'Studio Sitting', serviceDomain: 'Photography', primaryDeliverable: 'Edited image',
+    });
+    const { packageId } = await createPackage({
+      name: 'Sitting', serviceIds: [serviceId], price: { base_price: 80000, currency: 'NGN' },
+    });
+    const { bookingId } = await createBooking({ title: 'Tunde — Sitting', contactId: clientContactId });
+    await addBookingLine({ bookingId, packageId, title: 'Sitting' });
+
+    // The studio invoices the 50% deposit while taking the booking.
+    await createInvoiceForBooking({ bookingId, percentage: 50, label: '50% deposit' });
+    const afterForm = await getBookingBilling(bookingId);
+    expect(afterForm.invoiced).toBe(40000);
+
+    // Then the client signs a contract whose terms name the same deposit.
+    const result = await issueDepositInvoice({
+      organizationId: TEST_ORG_ID,
+      bookingId,
+      contactId: clientContactId,
+      label: '50% deposit',
+      amount: 40000,
+      currency: 'NGN',
+    });
+
+    // Nothing new was raised, and they were handed the invoice that exists.
+    expect(result.alreadyInvoiced, 'signing billed the deposit a second time').toBe(true);
+    expect(result.token, 'the client was left without an invoice to pay').toBeTruthy();
+
+    const afterSigning = await getBookingBilling(bookingId);
+    expect(afterSigning.invoiced, 'the booking was billed twice for one deposit').toBe(40000);
+    expect(afterSigning.leftToInvoice).toBe(40000);
+  }, 120000);
+
+  it('raises only the shortfall when part of the deposit is already billed', async () => {
+    const client = await createClient({ name: 'Sade Part', email: `sade+${randomUUID().slice(0, 8)}@example.com` });
+    const clientContactId = (client as any).contactId ?? (client as any).id;
+
+    const { serviceId } = await createService({
+      name: 'Half Sitting', serviceDomain: 'Photography', primaryDeliverable: 'Edited image',
+    });
+    const { packageId } = await createPackage({
+      name: 'Half', serviceIds: [serviceId], price: { base_price: 100000, currency: 'NGN' },
+    });
+    const { bookingId } = await createBooking({ title: 'Sade — Half', contactId: clientContactId });
+    await addBookingLine({ bookingId, packageId, title: 'Half' });
+
+    // 20% billed at booking; the contract then asks for a 50% deposit.
+    await createInvoiceForBooking({ bookingId, percentage: 20, label: 'Booking fee' });
+    await issueDepositInvoice({
+      organizationId: TEST_ORG_ID, bookingId, contactId: clientContactId,
+      label: '50% deposit', amount: 50000, currency: 'NGN',
+    });
+
+    // 20,000 was already asked for, so only the remaining 30,000 is raised.
+    const billing = await getBookingBilling(bookingId);
+    expect(billing.invoiced, 'the shortfall was not what got billed').toBe(50000);
+    expect(billing.leftToInvoice).toBe(50000);
+  }, 120000);
+
 });

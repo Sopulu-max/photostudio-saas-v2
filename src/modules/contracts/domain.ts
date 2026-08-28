@@ -65,6 +65,61 @@ export async function setContractTermsTemplate(text: string) {
 }
 
 /**
+ * What a studio asks for up front, as a percentage of the total.
+ *
+ * WHY THIS LIVES HERE. It used to live on the package — every package carrying
+ * its own payment policy and deposit percentage, with the booking resolving one
+ * number out of however many packages it involved (strictest wins). That was
+ * removed on the ruling that a package should not hold payment terms when there
+ * is a contract module, and nothing replaced it: the draft path was left with
+ * `const depositPercentage = 0` under a comment still describing the resolution
+ * that no longer happened. Every contract drafted since has said nothing is due
+ * to book.
+ *
+ * A deposit is a term of the agreement, so it is the agreement's module that
+ * holds the studio's default and the contract itself that can depart from it —
+ * amendContract already takes a percentage per contract.
+ *
+ * Zero is a real answer, not an absent one: a studio that takes nothing up
+ * front is saying so, and the invoice raised at signing is then the full amount.
+ */
+export async function getDepositDefault(): Promise<number> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  return readDepositDefault(data?.metadata);
+}
+
+/*
+ * Not exported, and it cannot be: every export of a 'use server' file is a
+ * Server Action, so Next requires them all to be async — and each one is an
+ * HTTP endpoint whether or not anything calls it. A pure helper like this
+ * belongs inside the module, not on the wire.
+ */
+function readDepositDefault(metadata: unknown): number {
+  const raw = (metadata as any)?.contracts?.deposit_percentage;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 0;
+}
+
+export async function setDepositDefault(percentage: number) {
+  const { orgId } = await getAuthOrgId();
+  const n = Number(percentage);
+  if (!Number.isFinite(n) || n < 0 || n > 100) {
+    throw new Error('A deposit is a percentage between 0 and 100.');
+  }
+
+  const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', orgId).maybeSingle();
+  const metadata = { ...((org?.metadata as any) || {}) };
+  metadata.contracts = { ...(metadata.contracts || {}), deposit_percentage: n };
+
+  const { error } = await supabaseAdmin.from('organizations').update({ metadata }).eq('id', orgId);
+  if (error) throw new Error('Failed to save the deposit');
+
+  revalidatePath('/contracts/settings');
+  return { ok: true };
+}
+
+/**
  * Draft a contract for a booking — the composition path. The party is a kernel
  * contact; financial terms are whatever the booking's lines add up to.
  * Agreement text comes from the studio's own template, snapshotted at draft

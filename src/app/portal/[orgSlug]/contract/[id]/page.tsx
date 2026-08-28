@@ -51,9 +51,23 @@ export default async function ClientContractPortalPage(props: {
     // Signing raises the deposit, as a real invoice with a number the client
     // can quote back. It used to raise a bare transaction and send them to a
     // page that rendered it as if it were a document.
-    const depositPercentage = terms.deposit_percentage || 0;
-    const basePrice = terms.base_price || 0;
-    const depositAmount = basePrice * (depositPercentage / 100);
+    /*
+     * Signing always produces something to pay.
+     *
+     * A deposit of nothing used to mean no invoice at all: the client signed,
+     * was sent back to the storefront, and heard nothing further. And "nothing"
+     * is the state every studio is in until somebody sets a deposit — one of
+     * them has a terms template reading "A 50% deposit is required to confirm
+     * this booking" while the system asks for zero, because the sentence is
+     * prose and the percentage is a setting nobody filled in.
+     *
+     * No deposit configured does not mean nothing is owed. It means the whole
+     * amount is, so that is what gets raised.
+     */
+    const depositPercentage = Number(terms.deposit_percentage) || 0;
+    const basePrice = Number(terms.base_price) || 0;
+    const takingDeposit = depositPercentage > 0 && depositPercentage < 100;
+    const depositAmount = takingDeposit ? basePrice * (depositPercentage / 100) : basePrice;
 
     let token: string | null = null;
     if (depositAmount > 0) {
@@ -64,7 +78,7 @@ export default async function ClientContractPortalPage(props: {
           bookingId: contract.booking_id,
           contactId: contract.contact_id,
           contractId: contract.id,
-          label: depositPercentage >= 100 ? 'Full payment' : `${depositPercentage}% deposit`,
+          label: takingDeposit ? `${depositPercentage}% deposit` : 'Full payment',
           amount: depositAmount,
           currency: terms.currency || 'USD',
         });

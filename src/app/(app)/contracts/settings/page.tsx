@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getContractTermsTemplate } from '@/modules/contracts/interface';
+import { getContractTermsTemplate, getDepositDefault } from '@/modules/contracts/interface';
 import { TermsTemplateForm } from './TermsTemplateForm';
+import { DepositDefaultForm } from './DepositDefaultForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,10 @@ export default async function ContractSettingsPage() {
     redirect('/login');
   }
 
-  const template = await getContractTermsTemplate();
+  const [template, depositPercentage] = await Promise.all([
+    getContractTermsTemplate(),
+    getDepositDefault(),
+  ]);
 
   return (
     <div className="q-page-narrow">
@@ -26,6 +30,15 @@ export default async function ContractSettingsPage() {
       </header>
 
       <div className="q-stack q-stack-lg">
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Deposit</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            The proportion of the total due on confirmation. Applied to new contracts and can be
+            overridden on any individual contract.
+          </p>
+          <DepositDefaultForm initialPercentage={depositPercentage} />
+        </div>
+
         <div className="q-card q-section">
           <h2 className="q-section-title">Terms &amp; conditions</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>

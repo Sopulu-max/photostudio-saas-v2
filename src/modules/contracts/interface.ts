@@ -15,4 +15,8 @@ export {
   cancelContract,
   getContractTermsTemplate,
   setContractTermsTemplate,
+  // What a studio asks for up front. A deposit is a term of the agreement, so
+  // Bookings asks for it here rather than resolving one from the packages.
+  getDepositDefault,
+  setDepositDefault,
 } from './domain';

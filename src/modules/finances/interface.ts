@@ -18,6 +18,10 @@ export { processPayment } from './payments';
 // cover it, derived rather than stored.
 export {
   createInvoiceForBooking, issueDepositInvoice, issueInvoice, voidInvoice, updateDraftInvoice,
+  // Booked, invoiced and paid — three different questions, all derived.
+  getBookingBilling,
+  // The studio's tax position, snapshotted onto each invoice as it is raised.
+  getTaxRate, setTaxRate,
   getInvoice, listInvoices, listInvoicesForBooking, getInvoiceByToken,
 } from './invoices';
 
