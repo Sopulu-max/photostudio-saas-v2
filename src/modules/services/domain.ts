@@ -513,6 +513,19 @@ export async function updateService(input: {
   /** Whatever this domain classifies by — not a fixed five. */
   dimensions?: DimensionWrite[];
   workflow?: WorkflowInput | null;
+  /**
+   * What varies about this service.
+   *
+   * updateService accepted every other part of a service and not this one, so
+   * variables could only be changed by a second editor with its own Save
+   * sitting below the form. Folding them into the one form without this would
+   * have made editing them silently do nothing — the same shape as the workflow
+   * bug, one field along.
+   *
+   * Undefined means "no opinion" and leaves them alone. An empty array is a
+   * real instruction: this service varies in no way, remove what it had.
+   */
+  variables?: ServiceVariableInput[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: existing } = await supabaseAdmin
@@ -553,6 +566,13 @@ export async function updateService(input: {
     if (deliverableIds.length > 0) {
       await supabaseAdmin.from('service_deliverables').insert(deliverableIds.map((deliverable_id) => ({ organization_id: orgId, service_id: input.serviceId, deliverable_id })));
     }
+  }
+
+  if (input.variables !== undefined) {
+    // setServiceVariables reconciles: what is listed stays, what is not goes.
+    // So an empty array removes them all, which is the only way a studio can
+    // say a service stopped varying.
+    await setServiceVariables({ serviceId: input.serviceId, variables: input.variables });
   }
 
   // Resolved inside the service's own domain, including when the domain itself

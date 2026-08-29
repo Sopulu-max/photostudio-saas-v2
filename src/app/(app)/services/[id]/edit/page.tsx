@@ -12,7 +12,6 @@ import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
-import { ServiceVariablesEditor } from '../ServiceVariablesEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,18 +82,12 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
            * the editor wants; nothing was passing it across.
            */
           workflow: (service as any).workflow ?? null,
+          // Now edited inside the one form rather than by a second editor
+          // below its Save button.
+          variables,
         }}
       />
 
-      <div style={{ maxWidth: '800px', margin: '16px auto 0', width: '100%' }}>
-        <ServiceVariablesEditor
-          serviceId={service.id}
-          initial={variables}
-          suggestions={variableSuggestions}
-          domainName={(service as any).domain?.name || ''}
-          serviceName={service.name}
-        />
-      </div>
     </div>
   );
 }

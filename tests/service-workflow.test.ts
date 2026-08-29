@@ -35,6 +35,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createService, updateService, getService } from '@/modules/services/domain';
+import { listServiceVariables } from '@/modules/services/domain';
 import { PURGE_ORDER } from './purge';
 
 let serviceId = '';
@@ -134,4 +135,55 @@ describe('A service keeps its workflow', () => {
     const restored: any = await getService(serviceId);
     expect(restored?.workflow?.name).toBe('Portrait production');
   }, 90000);
+
+  /*
+   * Variables go through the same door as everything else.
+   *
+   * updateService accepted every part of a service except this one, so they
+   * could only be changed by a second editor with its own Save sitting below
+   * the form — which is what an operator found confusing, and rightly: editing
+   * a variable and pressing the obvious Save did nothing to it.
+   *
+   * The same three cases as the workflow, because it is the same bug shape:
+   * absent leaves alone, present replaces, empty removes.
+   */
+  describe('variables', () => {
+    it('are left alone by an edit that says nothing about them', async () => {
+      await updateService({
+        serviceId,
+        variables: [{ key: 'outfits', label: 'Outfits', kind: 'number', min: 1, max: 6 }],
+      } as any);
+      expect((await listServiceVariables(serviceId)).map((v: any) => v.label)).toEqual(['Outfits']);
+
+      await updateService({ serviceId, name: 'Portrait Session' } as any);
+      expect(
+        (await listServiceVariables(serviceId)).map((v: any) => v.label),
+        'renaming the service dropped its variables',
+      ).toEqual(['Outfits']);
+    }, 90000);
+
+    it('are replaced by an edit that carries them', async () => {
+      await updateService({
+        serviceId,
+        variables: [
+          { key: 'outfits', label: 'Outfits', kind: 'number', min: 1, max: 6 },
+          { key: 'hours', label: 'Hours of coverage', kind: 'number', unit: 'hour' },
+        ],
+      } as any);
+      const after = await listServiceVariables(serviceId);
+      expect(after.map((v: any) => v.label).sort()).toEqual(['Hours of coverage', 'Outfits']);
+      // The declaration survives the round trip, not just the name.
+      const outfits: any = after.find((v: any) => v.key === 'outfits');
+      expect(outfits.max, 'a bound entered by the studio was lost').toBe(6);
+    }, 90000);
+
+    it('can be emptied deliberately', async () => {
+      // The only way to say a service stopped varying. Distinct from absent.
+      await updateService({ serviceId, variables: [] } as any);
+      expect(
+        await listServiceVariables(serviceId),
+        'a service could not be cleared of its variables',
+      ).toHaveLength(0);
+    }, 90000);
+  });
 });
