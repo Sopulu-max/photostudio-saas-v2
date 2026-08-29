@@ -693,7 +693,7 @@ export async function getService(serviceId: string) {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
-      service_variables(label, kind, unit, options),
+      service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
       ${SERVICE_DIMENSION_SELECT},
       workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
@@ -705,9 +705,29 @@ export async function getService(serviceId: string) {
     ...data,
     deliverables: ((data as any).service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
     dimensions: shapeServiceDimensions(data),
-    variables: (((data as any).service_variables) || []).map((v: any) => ({
-      label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
-    })),
+    /*
+     * The whole declaration, not a summary of it.
+     *
+     * This used to return label, kind, unit and options only, so the service's
+     * own page could not show what a variable defaults to or what bounds it
+     * has — facts the studio entered and then could not read back anywhere
+     * except the edit form.
+     */
+    variables: (((data as any).service_variables) || [])
+      .slice()
+      .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+      .map((v: any) => ({
+        id: v.id,
+        key: v.key,
+        label: v.label,
+        kind: v.kind,
+        unit: v.unit,
+        options: v.options || [],
+        defaultValue: v.default_value ?? null,
+        min: v.min_value ?? null,
+        max: v.max_value ?? null,
+        position: v.position ?? 0,
+      })),
     workflow: (data as any).workflow ? {
       name: (data as any).workflow.name,
       tasks: (((data as any).workflow.workflow_tasks || []) as any[])
