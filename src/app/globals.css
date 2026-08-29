@@ -159,6 +159,10 @@ body {
 
 /* ---- Utilities ---- */
 .q-text-body { color: var(--q-color-ink-900); }
+/* Something switched off but still worth reading: a package task that has been
+   stood down, a line kept for the record. Struck and faded together, because
+   either alone reads as a rendering accident. */
+.q-text-struck { color: var(--q-color-ink-500); text-decoration: line-through; }
 .q-bg-surface-base { background: var(--q-color-paper-base); }
 
 .q-page-header {

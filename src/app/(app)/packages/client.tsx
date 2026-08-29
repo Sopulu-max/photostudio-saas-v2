@@ -6,6 +6,9 @@ import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+// Reached at its source rather than through the module door: the interface is
+// a server-actions file, and this is a pure formatter a client card can hold.
+import { formatVariableValue } from '@/modules/services/variableTypes';
 
 
 type DimensionTagShape = { id: string; name: string; values: { id: string; name: string }[] };
@@ -43,8 +46,34 @@ export function PackagesClient({
     return [...byDimension.values()];
   };
 
+  /**
+   * One package, as a card.
+   *
+   * THE SAME THREE FAULTS THE SERVICE CARDS HAD, one module along.
+   *
+   * It ended in a full-width "View package" button — a second thing to aim at,
+   * on a card that was already the subject. The whole card is the link now, and
+   * nothing inside it links any more: the classification values were anchors
+   * nested inside that button's card, which is why they had to be built out of
+   * spans with hand-written commas and colours forced back to inherit.
+   *
+   * The status badge went. Retired packages sit under their own heading below,
+   * so a badge reading "active" on every card in the active list is noise
+   * standing exactly where information should be.
+   *
+   * AND IT LED WITH THE WRONG THING. A package IS its price and what that price
+   * buys; the card gave the price a blank string when unset, listed services
+   * behind a bolded "Services:" label, and put "3 internal tasks required" on
+   * the same footing as what the client receives. Now the name and the price
+   * share the top line, the services it is built from sit under the name the
+   * way a service's domain does, and the rest reads as three answers to three
+   * questions rather than a paragraph of labels.
+   */
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
+    const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
+    const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
+    const fixed = (pkg.services || []).flatMap((s: any) => s.variableValues || []);
     const openVars = (pkg.services || []).flatMap((s: any) => {
       const fixedIds = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
       return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
@@ -52,77 +81,61 @@ export function PackagesClient({
     const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
 
     return (
-      <div className="q-card q-stack">
-        <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+      <Link href={`/packages/${pkg.id}`} className="q-card q-stack q-plain-link q-card-interactive">
+        <div className="q-row q-row-between">
           <div>
-            <h3 className="q-section-title">{pkg.name}</h3>
-            {pkg.description && <p className="q-meta" style={{ marginTop: '4px' }}>{pkg.description}</p>}
+            <h3 className="q-card-title">{pkg.name}</h3>
+            <span className="q-eyebrow">{bundle || 'No services bundled'}</span>
           </div>
-          <div className="q-stack q-stack-xs" style={{ alignItems: 'flex-end' }}>
-            <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{pkg.status}</span>
-            <div className="q-strong q-num" style={{ fontSize: '1.1rem' }}>
-              {pkg.price?.amount != null 
-                ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
-                : ''}
-            </div>
-          </div>
+          {/* Unpriced is a real state — a package can be built before it is
+              priced — and it has to say so. A blank space where the price goes
+              is indistinguishable from a price of nothing, which is the shape
+              of the bug that emptied these in the first place. */}
+          <span className="q-strong q-num">
+            {pkg.price?.amount != null
+              ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
+              : <span className="q-meta">No price set</span>}
+          </span>
         </div>
-        
-        <div className="q-meta" style={{ marginTop: '12px' }}>
-          <strong className="q-strong" style={{ marginRight: '6px' }}>Services:</strong>
-          {(pkg.services || []).map((s: any) => s.name).join(' + ') || 'None'}
+
+        {pkg.description && <p className="q-meta">{pkg.description}</p>}
+
+        <div className="q-stack q-stack-sm">
+          <div className="q-row q-row-sm">
+            <span className="q-eyebrow">Deliverables</span>
+            <span className="q-meta">{promises.length > 0 ? promises.join(', ') : 'Nothing promised'}</span>
+          </div>
+          <div className="q-row q-row-sm">
+            <span className="q-eyebrow">Variables</span>
+            {/* What this package fixes is most of what makes it a different
+                offer from the next package of the same service, so it is the
+                value that belongs here — not the names of the ones it leaves
+                open, which are a question the client answers rather than
+                anything this package says. */}
+            <span className="q-meta">
+              {fixed.length > 0
+                ? fixed.map((v: any) => `${v.label} ${formatVariableValue(v)}`).join(', ')
+                : openVars.length > 0
+                  ? `None fixed — ${openVars.length === 1 ? 'one is' : `${openVars.length} are`} asked at booking`
+                  : 'None'}
+            </span>
+          </div>
+          <div className="q-row q-row-sm">
+            <span className="q-eyebrow">Tasks</span>
+            <span className="q-meta">
+              {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'None, so a booking of it produces no work'}
+            </span>
+          </div>
         </div>
 
         {tags.length > 0 && (
-          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-            {tags.map((d) => (
-              <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
-                <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
-                <span className="q-row" style={{ gap: '4px' }}>
-                  {d.values.map((v, i) => (
-                    <span key={v.id}>
-                      <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
-                        {v.name}
-                      </Link>
-                      {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
-                    </span>
-                  ))}
-                </span>
-              </div>
-            ))}
+          <div className="q-row q-row-sm">
+            {tags.flatMap((d) => d.values.map((v) => (
+              <span key={v.id} className="q-value q-value-sm" title={d.name}>{v.name}</span>
+            )))}
           </div>
         )}
-
-        {((pkg.deliverables || []).length > 0 || openVars.length > 0 || taskCount > 0) && (
-          <div className="q-stack q-stack-sm" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
-            {(pkg.deliverables || []).length > 0 && (
-              <div className="q-meta-sm">
-                <strong className="q-strong" style={{ marginRight: '4px' }}>Deliverables:</strong>
-                {/* @ts-ignore */}
-                {(pkg.deliverables || []).map((d: any) => formatDeliverable(d)).join(', ')}
-              </div>
-            )}
-
-            {openVars.length > 0 && (
-              <div className="q-meta-sm">
-                <strong className="q-strong" style={{ marginRight: '4px' }}>Variables:</strong>
-                {openVars.map((v: any) => v.label).join(', ')}
-              </div>
-            )}
-
-            {taskCount > 0 && (
-              <div className="q-meta-sm">
-                <strong className="q-strong" style={{ marginRight: '4px' }}>Tasks:</strong>
-                {taskCount} internal {taskCount === 1 ? 'task' : 'tasks'} required
-              </div>
-            )}
-          </div>
-        )}
-        
-        <div className="q-tile-sub" style={{ marginTop: '16px' }}>
-          <Link href={`/packages/${pkg.id}`} className="q-btn q-btn-secondary q-fill q-center-text">View package</Link>
-        </div>
-      </div>
+      </Link>
     );
   };
 
@@ -134,7 +147,13 @@ export function PackagesClient({
           <p className="q-page-subtitle">What your studio sells — built from the services it actually runs.</p>
         </div>
         <div className="q-row">
-          <Link href="/packages/settings" className="q-btn q-btn-secondary">Settings</Link>
+          {/* Straight to where the vocabulary actually lives. The button used
+              to say "Settings" and lead to a page whose only content was a
+              sentence saying these are managed in Services — a hop that told
+              nobody anything, under a heading naming five fixed dimensions that
+              stopped existing when domains took ownership of their own. */}
+          <Link href="/services/classifications" className="q-btn q-btn-secondary">By classification</Link>
+          <Link href="/services/settings" className="q-btn q-btn-secondary">Domains, deliverables &amp; workflows</Link>
           <Link href="/packages/new" className="q-btn q-btn-primary">Build package</Link>
         </div>
       </header>

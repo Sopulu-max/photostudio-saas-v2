@@ -6,6 +6,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue } from '@/modules/services/interface';
 import { Package } from 'lucide-react';
+import { Classifications } from './Classifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   return (
     <div className="q-page-narrow">
       <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
-      
+
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
           <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
@@ -55,13 +56,13 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
-          <h2 className="q-section-title">1. Commercial Terms</h2>
+          <h2 className="q-section-title">Commercial terms</h2>
           <div className="q-grid-halves" style={{ marginTop: '16px' }}>
             <div>
               <span className="q-meta-sm" style={{ display: 'block', marginBottom: '4px' }}>Base Price</span>
               <div className="q-stat-value">
-                {pkg.price?.amount != null 
-                  ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode)) 
+                {pkg.price?.amount != null
+                  ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
                   : 'Unpriced'}
               </div>
             </div>
@@ -73,9 +74,9 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             )}
           </div>
         </div>
-        
+
         <div className="q-card q-section">
-          <h2 className="q-section-title">2. Deliverables</h2>
+          <h2 className="q-section-title">Deliverables</h2>
           {(() => {
             /*
              * Deliverables hang off each bundled service, not off the package,
@@ -124,7 +125,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">3. Bundled Services</h2>
+          <h2 className="q-section-title">Services</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>The raw services this package is built from.</p>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
@@ -146,106 +147,113 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           )}
         </div>
 
+        <Classifications services={services} />
+
         <div className="q-card q-section">
-          <h2 className="q-section-title">4. Classifications</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
-            <div className="q-stack q-stack-md">
-              {services.filter((s: any) => s.narrowedTo && s.narrowedTo.length > 0).length === 0 ? (
-                <p className="q-text-meta">None of the bundled services have classifications.</p>
-              ) : (
-                services.filter((s: any) => s.narrowedTo && s.narrowedTo.length > 0).map((s: any) => (
-                  <div key={s.id} style={{ marginBottom: '16px' }}>
-                    <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
-                    <div className="q-grid-3">
-                      {s.narrowedTo.map((d: any) => (
-                        <div key={d.id} className="q-panel">
-                          <div className="q-stat-label">{d.name}</div>
-                          <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                            {d.values.map((v: any) => <span key={v.id} className="q-badge q-badge-neutral">{v.name}</span>)}
+          <h2 className="q-section-title">Variables</h2>
+          {(() => {
+            /*
+             * What this package fixes, and what it leaves open.
+             *
+             * BOTH HALVES, because a variable left open is not an absence — it
+             * is a question the client answers at booking, and a studio reading
+             * this page needs to know which of the two a variable is. Only what
+             * was fixed appeared here, so a service whose variables were all
+             * open read as having none at all.
+             *
+             * Attribution only where there is more than one service to
+             * attribute to, and every bundled service listed including one that
+             * fixes nothing — the same rule the deliverables above follow.
+             */
+            if (services.length === 0) return <p className="q-text-meta">No services bundled.</p>;
+
+            const openFor = (s: any) => {
+              const fixed = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
+              return (s.variables || []).filter((v: any) => !fixed.has(v.id));
+            };
+            const anything = services.some((s: any) => (s.variableValues || []).length > 0 || openFor(s).length > 0);
+            if (!anything) return <p className="q-text-meta">Nothing varies about the bundled services.</p>;
+
+            return (
+              <div className="q-stack q-stack-lg">
+                {services.map((s: any) => {
+                  const fixedValues = s.variableValues || [];
+                  const open = openFor(s);
+                  return (
+                    <div key={s.id} className="q-stack q-stack-sm">
+                      {services.length > 1 && <h3 className="q-strong">{s.name}</h3>}
+                      {fixedValues.length === 0 && open.length === 0 && (
+                        <p className="q-text-meta">Nothing varies about this service.</p>
+                      )}
+                      {fixedValues.map((v: any) => (
+                        <div key={v.serviceVariableId} className="q-row q-row-between q-tile">
+                          <span className="q-meta-plain">{v.label}</span>
+                          <span className="q-strong">{formatVariableValue(v)}</span>
+                        </div>
+                      ))}
+                      {open.map((v: any) => (
+                        <div key={v.id} className="q-row q-row-between q-tile">
+                          <span className="q-meta-plain">{v.label}</span>
+                          <span className="q-meta">Asked at booking</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Tasks</h2>
+          {(() => {
+            /*
+             * Every bundled service, including one that involves no work yet.
+             *
+             * A service with no workflow was dropped from this list entirely,
+             * and that is the one case a studio most needs to see: a booking of
+             * this package produces no tasks for that service, so nobody can be
+             * put on the job and nothing reaches the work board.
+             */
+            if (services.length === 0) return <p className="q-text-meta">No services bundled.</p>;
+            const anyWork = services.some((s: any) => (s.tasks || []).length > 0);
+
+            return (
+              <div className="q-stack q-stack-lg">
+                {!anyWork && (
+                  <p className="q-text-meta">
+                    No tasks, so a booking of this package produces no work and nobody can be assigned to it.
+                  </p>
+                )}
+                {services.map((s: any) => {
+                  const tasks = s.tasks || [];
+                  return (
+                    <div key={s.id} className="q-stack q-stack-sm">
+                      {services.length > 1 && <h3 className="q-strong">{s.name}</h3>}
+                      {s.workflow?.name && <span className="q-eyebrow">{s.workflow.name}</span>}
+                      {tasks.length === 0 ? (
+                        <p className="q-text-meta">
+                          No workflow defines how {s.name} is produced, and this package adds no step of its own.
+                        </p>
+                      ) : tasks.map((t: any) => (
+                        <div key={t.id} className="q-row q-row-between q-tile">
+                          <span className={t.isActive ? 'q-text-body' : 'q-text-struck'}>{t.name}</span>
+                          <div className="q-row q-row-sm">
+                            {/* A step this package added rather than inherited.
+                                It will not be rewritten when the service
+                                workflow changes, which is worth seeing. */}
+                            {!t.workflowTaskId && <span className="q-meta-sm">This package only</span>}
+                            {t.roleName && <span className="q-badge q-badge-neutral">{t.roleName}</span>}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="q-card q-section">
-          <h2 className="q-section-title">5. Variables</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
-            <div className="q-stack q-stack-md">
-              {services.filter((s: any) => s.variableValues && s.variableValues.length > 0).length === 0 ? (
-                <p className="q-text-meta">None of the bundled services have variables.</p>
-              ) : (
-                services.filter((s: any) => s.variableValues && s.variableValues.length > 0).map((s: any) => (
-                  <div key={s.id} style={{ marginBottom: '16px' }}>
-                    <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
-                    <div className="q-grid-cards">
-                      
-                      <div className="q-stack q-stack-sm">
-                        <div className="q-stack" style={{ gap: '4px' }}>
-                          {s.variableValues.map((v: any) => (
-                            <div key={v.serviceVariableId} className="q-row q-row-between q-tile" style={{ padding: '8px 12px' }}>
-                              <span className="q-meta-plain">{v.label}</span>
-                              <span className="q-strong">{formatVariableValue(v)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="q-card q-section">
-          <h2 className="q-section-title">6. Tasks</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
-            <div className="q-stack q-stack-md">
-              {services.filter((s: any) => s.tasks && s.tasks.length > 0).length === 0 ? (
-                <p className="q-text-meta">None of the bundled services have production tasks.</p>
-              ) : (
-                services.filter((s: any) => s.tasks && s.tasks.length > 0).map((s: any) => (
-                  <div key={s.id} style={{ marginBottom: '16px' }}>
-                    <h3 className="q-strong" style={{ marginBottom: '2px' }}>For {s.name}</h3>
-                    {s.workflow?.name && (
-                      <div className="q-meta-sm" style={{ marginBottom: '8px' }}>From workflow: {s.workflow.name}</div>
-                    )}
-                    <div className="q-grid-cards">
-                      
-                      <div className="q-stack q-stack-sm">
-                        <div className="q-stack" style={{ gap: '4px' }}>
-                          {s.tasks.map((t: any) => (
-                            <div key={t.id} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.9rem', opacity: t.isActive ? 1 : 0.5, textDecoration: t.isActive ? 'none' : 'line-through' }}>
-                                {t.name}
-                              </span>
-                              {t.roleName && (
-                                <span className="q-badge q-badge-neutral" style={{ fontSize: '0.75rem' }}>{t.roleName}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
 
