@@ -62,6 +62,10 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           initial={{
             name: pkg.name,
             description: (pkg as any).description,
+            // Already normalised to { amount, currency } by the module, which is
+            // the only shape any screen should see. Omitting it here is what
+            // opened every package with an empty price box.
+            price: (pkg as any).price,
             durationMinutes: (pkg as any).duration_minutes,
             serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
             // Read back off each bundled service, which is where they are held.

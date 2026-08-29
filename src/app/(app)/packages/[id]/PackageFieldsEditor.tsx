@@ -87,6 +87,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     name?: string;
     description?: string | null;
     durationMinutes?: number | null;
+    /**
+     * What it sells for, in the module's normalised shape.
+     *
+     * Declared here rather than reached through a cast, which is why nothing
+     * caught the edit page passing no price at all: `(initial as any).price`
+     * reads undefined off any object and reports no error, so the field opened
+     * blank and Save wrote that blank back over the real figure.
+     */
+    price?: { amount?: number; base_price?: number; currency?: string } | null;
     serviceIds?: string[];
     /** What the package promises, each on the bundled service that produces it. */
     deliverables?: Promise_[];
@@ -194,10 +203,24 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   // Reads either key, so a package priced before the shape was corrected still
   // opens showing its price rather than an empty box.
   const [priceAmount, setPriceAmount] = useState<string>(() => {
-    const stored = (initial as any).price ?? {};
+    const stored: any = initial.price ?? {};
     const value = stored.base_price ?? stored.amount;
     return value != null ? String(value) : '';
   });
+  /*
+   * Whether this form was handed a price at all.
+   *
+   * An empty box has two meanings and they are opposite. If the form was given
+   * a price, empty means the operator cleared it — send null and erase it. If
+   * it was never given one, empty means this form knows nothing about the
+   * price, and sending null erases a price it was never shown.
+   *
+   * That second case is not hypothetical: the edit page passed no price for
+   * months, so opening any package and pressing Save wiped what it sold for
+   * while showing the operator nothing at all. Same rule as the workflow, the
+   * variables and the intake questions — undefined is "not mine to speak for".
+   */
+  const wasGivenPrice = initial.price != null;
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -386,7 +409,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       // so it agreed with itself and looked right on screen — while every
       // invoice, contract and booking total read base_price, found nothing, and
       // priced the package at zero.
-      price: priceAmount ? { base_price: Number(priceAmount), currency: currencyCode } : null,
+      price: priceAmount
+        ? { base_price: Number(priceAmount), currency: currencyCode }
+        : (wasGivenPrice ? null : undefined),
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.

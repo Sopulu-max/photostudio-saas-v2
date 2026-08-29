@@ -84,7 +84,7 @@ let userId = '';
 let orgId = '';
 let cookieHeader = '';
 let packageId = '';
-let blueprintId = '';
+let workflowId = '';
 
 describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
   beforeAll(async () => {
@@ -166,35 +166,49 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     };
 
     const domainId = await seed('service_domains', { organization_id: orgId, name: 'Smoke Domain' });
+    /*
+     * A workflow belongs to the service that is produced that way — there is no
+     * join from the package to it any more, and no `blueprints` table for it to
+     * live in. This suite went on seeding both, so every run died in beforeAll
+     * and every page below reported itself skipped. Twenty-one green skips read
+     * exactly like twenty-one passes in a summary line.
+     */
+    workflowId = await seed('workflows', {
+      organization_id: orgId, name: 'Smoke Workflow', service_domain_id: domainId,
+    });
     const [serviceId, deliverableId] = await Promise.all([
-      seed('services', { organization_id: orgId, name: 'Smoke Service', service_domain_id: domainId, status: 'active' }),
+      seed('services', {
+        organization_id: orgId, name: 'Smoke Service', service_domain_id: domainId,
+        status: 'active', workflow_id: workflowId,
+      }),
       seed('deliverables', { organization_id: orgId, name: 'Smoke Output', service_domain_id: domainId }),
     ]);
-    blueprintId = await seed('blueprints', { organization_id: orgId, name: 'Smoke Blueprint', stages: [] });
-    packageId = await seed('packages', { organization_id: orgId, name: 'Smoke Package', status: 'active' });
+    // Priced, because an unpriced fixture cannot tell a page that lost the
+    // price from a page that never had one to show.
+    packageId = await seed('packages', {
+      organization_id: orgId, name: 'Smoke Package', status: 'active',
+      price: { base_price: 42000, currency: 'NGN' },
+    });
 
     const bundledId = await seed('package_services', {
       organization_id: orgId, package_id: packageId, service_id: serviceId,
     });
-    // These two are keyed on the bundle row, not on an id of their own.
-    const [promised, produced] = await Promise.all([
-      supabaseAdmin.from('package_deliverables').insert({
-        organization_id: orgId, package_service_id: bundledId, deliverable_id: deliverableId, quantity: 20,
-      }),
-      supabaseAdmin.from('package_workflows').insert({
-        organization_id: orgId, package_service_id: bundledId, blueprint_id: blueprintId,
-      }),
-    ]);
+    // Keyed on the bundle row, not on an id of its own: what a package promises
+    // is said of the service within it that produces the thing.
+    const promised = await supabaseAdmin.from('package_deliverables').insert({
+      organization_id: orgId, package_service_id: bundledId, deliverable_id: deliverableId, quantity: 20,
+    });
     if (promised.error) throw new Error(`Could not seed what the package promises: ${promised.error.message}`);
-    if (produced.error) throw new Error(`Could not seed how the package is produced: ${produced.error.message}`);
   });
 
   afterAll(async () => {
     // Order matters: contacts refuse to cascade from organizations.
     if (orgId) {
-      // Packages and blueprints do not cascade from the studio, so they go first.
+      // These do not cascade from the studio, so they go first. Services before
+      // workflows, because a service points at the workflow that produces it.
       await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
-      await supabaseAdmin.from('blueprints').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('services').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('workflows').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('events').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('contacts').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('booking_stages').delete().eq('organization_id', orgId);
@@ -212,7 +226,22 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
 
   it.each(PAGES)('$path renders', async ({ path, expect: marker }) => {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
-    expect(res.status, `${path} returned ${res.status} → ${res.headers.get('location') ?? ''}`).toBe(200);
+    /*
+     * A 500 here used to report only "expected 500 to be 200", which says a page
+     * is broken without saying how — and the session this suite builds is the
+     * only way to reach these pages at all, so there was nowhere else to go and
+     * look. Next puts the message and stack in the body; carry them into the
+     * failure so the run that finds the break also explains it.
+     */
+    const detail = res.status >= 500
+      ? '\n' + (await res.clone().text())
+          .replace(/<script[\s\S]*?<\/script>/g, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&quot;/g, '"').replace(/&#x27;/g, "'")
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+          .replace(/\s+/g, ' ').trim().slice(0, 900)
+      : ` → ${res.headers.get('location') ?? ''}`;
+    expect(res.status, `${path} returned ${res.status}${detail}`).toBe(200);
 
     const html = await res.text();
     expect(html, `${path} rendered Next's error page`).not.toMatch(CRASHED);
@@ -222,7 +251,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
   });
 
   it.each([
-    { where: 'detail', path: () => `/packages/${packageId}`, marker: /Outputs promised/i },
+    { where: 'detail', path: () => `/packages/${packageId}`, marker: /Deliverables/i },
     { where: 'editor', path: () => `/packages/${packageId}/edit`, marker: /Smoke Package/i },
   ])('reads a bundled package on its $where page', async ({ path, marker }) => {
     const res = await fetch(`${BASE}${path()}`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
@@ -234,6 +263,28 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     // empty shell that would pass any check for its own furniture.
     expect(html, `${path()} did not show what the package bundles`).toMatch(/Smoke Service/i);
     expect(html, `${path()} did not show what it promises`).toMatch(marker);
+  });
+
+  /*
+   * THE EDIT PAGE MUST OPEN SHOWING THE PRICE.
+   *
+   * It passed no price into the form for months. The box opened empty, and
+   * because an empty box was read as "no price", pressing Save wrote that
+   * emptiness back over the real figure — silently, with nothing on screen to
+   * suggest anything had been lost. A studio lost what a package sold for by
+   * opening it and saving an unrelated edit.
+   *
+   * Nothing caught it because the field was reached through a cast, so the
+   * missing property was not a type error, and this suite — the one place a
+   * page is actually rendered and read — had been dying in beforeAll.
+   */
+  it('opens the package editor with the price already in the box', async () => {
+    const res = await fetch(`${BASE}/packages/${packageId}/edit`, {
+      headers: { cookie: cookieHeader }, redirect: 'manual',
+    });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html, 'the price box rendered without the price in it').toMatch(/value="42000"/);
   });
 
   it('serves the public storefront without a session at all', async () => {
