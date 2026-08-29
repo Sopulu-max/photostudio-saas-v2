@@ -72,6 +72,17 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),
           dimensions: (((service as any).dimensions || []) as ServiceDimensionTag[])
             .map((d) => ({ name: d.name, values: d.values.map((v) => v.name) })),
+          /*
+           * The workflow, which this form was never given.
+           *
+           * Without it the editor opened on null, and since it sends whatever
+           * it holds, saving wrote workflow_id = null. So editing a service for
+           * any reason — renaming it, adding a deliverable — silently deleted
+           * its workflow, and with it every task that would have flowed onto a
+           * booking. getService has always returned this in exactly the shape
+           * the editor wants; nothing was passing it across.
+           */
+          workflow: (service as any).workflow ?? null,
         }}
       />
 

@@ -64,6 +64,22 @@ export function ServiceFieldsEditor({
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
   const [variables, setVariables] = useState<any[]>(initial.variables || []);
   const [workflow, setWorkflow] = useState<WorkflowInput | null>(initial.workflow || null);
+  /*
+   * Whether the workflow is this form's to speak for.
+   *
+   * A form that reports on something it was never given will delete it. That is
+   * not hypothetical: this page was not passed initial.workflow, so it held
+   * null, sent null, and every edit — a rename, an added deliverable — silently
+   * wiped the service's workflow and every task that would have flowed from it
+   * onto a booking.
+   *
+   * Passing it in fixes today's bug. This makes the class of bug impossible:
+   * the field is only included when the form was given one or the operator
+   * touched it. Absent means "no opinion", which is what an untouched field
+   * actually is, and updateService already leaves those alone.
+   */
+  const [workflowTouched, setWorkflowTouched] = useState(false);
+  const speaksForWorkflow = Boolean(initial.workflow) || workflowTouched;
 
   /*
    * Chosen values, keyed by dimension name rather than by dimension id.
@@ -179,7 +195,8 @@ export function ServiceFieldsEditor({
           deliverables,
           dimensions,
           variables,
-          workflow,
+          // Omitted when this form has nothing to say about it. See above.
+          ...(speaksForWorkflow ? { workflow } : {}),
         };
         if (mode === 'create') {
           // createService answers { serviceId }, not the id. Interpolating the
@@ -385,7 +402,7 @@ export function ServiceFieldsEditor({
             workflow={workflow}
             availableWorkflows={workflowsByDomain && domainId ? workflowsByDomain[domainId] : []}
             roleOptions={roleOptions}
-            onChange={setWorkflow}
+            onChange={(w) => { setWorkflowTouched(true); setWorkflow(w); }}
           />
         </div>
       </div>
