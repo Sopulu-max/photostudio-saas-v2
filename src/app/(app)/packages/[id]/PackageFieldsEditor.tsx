@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
 import { formatDeliverable } from '@/modules/packages/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
+import { QuestionEditor } from './QuestionEditor';
 
 type ServiceOption = { 
   id: string; 
@@ -55,6 +56,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   dimensionsByDomain,
   roleOptions,
   intendedValueIds = [],
+  questions: initialQuestions,
+  lockedQuestionIds = [],
   initial,
   onSubmitOverride,
   hideControls,
@@ -94,6 +97,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
     services?: any[];
   };
+  /** What this package asks a client at booking, and which of those are answered already. */
+  questions?: any[];
+  lockedQuestionIds?: string[];
   onSubmitOverride?: (payload: any) => Promise<void> | void;
   hideControls?: boolean;
 }, ref) {
@@ -130,6 +136,19 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * it becomes available to every package of that service and to the booking
    * form. What this package contributes is the value it then fixes.
    */
+  /*
+   * The questions this package asks, held here so one Save covers them.
+   *
+   * They lived in a second editor below this form's Save button, with a Save of
+   * its own — so editing a question and pressing the obvious button did nothing
+   * to it. The same shape as the service variables, one module along.
+   *
+   * Undefined means this form was not given them and must not speak for them:
+   * saving would otherwise send an empty list and delete every question the
+   * package asks.
+   */
+  const [questions, setQuestions] = useState<any[] | undefined>(initialQuestions);
+
   const [declaringFor, setDeclaringFor] = useState<string | null>(null);
   const [newVar, setNewVar] = useState<{ label: string; kind: string; unit: string; options: string }>(
     { label: '', kind: 'number', unit: '', options: '' },
@@ -393,7 +412,18 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     if (packageId) startTransition(async () => {
       try { 
         if (onSubmitOverride) { await onSubmitOverride({ packageId, ...buildPayload() }); return; }
-        await updatePackage({ packageId, ...buildPayload() }); 
+        await updatePackage({ packageId, ...buildPayload() });
+        /*
+         * Through updatePackageQuestions rather than folded into updatePackage,
+         * because that command owns a rule this form cannot: a question a client
+         * has already answered cannot change type. One button, two commands —
+         * the same way taking a booking raises its invoice.
+         */
+        if (questions !== undefined) {
+          const { updatePackageQuestions } = await import('@/modules/packages/interface');
+          await updatePackageQuestions({ packageId: packageId!, questions });
+        }
+        
         router.refresh(); 
         router.push(`/packages/${packageId}`);
       }
@@ -403,7 +433,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const submitCreate = () => startTransition(async () => {
     try { 
       if (onSubmitOverride) { await onSubmitOverride(buildPayload()); return; }
-      const { packageId: newId } = await createPackage(buildPayload()); 
+      const { packageId: newId } = await createPackage({ ...buildPayload(), formSchema: questions ?? [] }); 
       router.push(`/packages/${newId}`); 
     }
     catch (e: any) { alert(e?.message || 'Failed to create the package.'); }
@@ -992,6 +1022,29 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           })()}
         </div>
       </div>
+      {/*
+        * Intake questions, inside the form that saves them.
+        *
+        * Only when this form was given them — a caller that does not pass
+        * questions is not editing them, and a form that reports on what it was
+        * never given deletes it.
+        */}
+      {questions !== undefined && (
+        <div className="q-card q-section">
+          <h2 className="q-section-title">{heading(7, 'Intake questions')}</h2>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            What a client is asked when booking this package, beyond what its services already vary by.
+          </p>
+          <QuestionEditor
+            packageId={packageId || ''}
+            questions={questions as any}
+            lockedIds={lockedQuestionIds}
+            services={allServices.filter((s) => serviceIds.includes(s.id)).map((s) => ({ id: s.id, name: s.name }))}
+            onChange={setQuestions}
+          />
+        </div>
+      )}
+
       {!hideControls && (
         <>
           <div className="q-row">

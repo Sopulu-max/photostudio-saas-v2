@@ -18,15 +18,29 @@ export function QuestionEditor({
   questions: initial,
   lockedIds,
   services = [],
+  onChange,
 }: {
   packageId: string;
   questions: IntakeQuestion[];
   lockedIds: string[];
   services?: { id: string; name: string }[];
+  /**
+   * Given by a form that owns the save.
+   *
+   * With it, this reports every change upward and shows no button of its own —
+   * because it is then part of a larger form rather than a form itself. Without
+   * it, it saves on its own, which is how it is used anywhere it stands alone.
+   */
+  onChange?: (questions: IntakeQuestion[]) => void;
 }) {
   const [questions, setQuestions] = useState<IntakeQuestion[]>(initial);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  // Every mutation below goes through this, so a parent that owns the save
+  // always holds what is on screen.
+  const controlled = typeof onChange === 'function';
+  React.useEffect(() => { if (controlled) onChange!(questions); }, [questions, controlled]);
 
   const locked = new Set(lockedIds);
   const dirty = JSON.stringify(questions) !== JSON.stringify(initial);
@@ -97,11 +111,15 @@ export function QuestionEditor({
       })}
 
       <div className="q-row">
-        <button className="q-btn q-btn-secondary" onClick={add}>+ Add question</button>
+        <button type="button" className="q-btn q-btn-secondary" onClick={add}>+ Add question</button>
         <span className="q-spacer" />
         {dirty && (
           <>
-            <button className="q-btn q-btn-primary" onClick={save} disabled={isPending}>{isPending ? 'Saving…' : 'Save questions'}</button>
+            {!controlled && (
+          <button type="button" className="q-btn q-btn-primary" onClick={save} disabled={isPending}>
+            {isPending ? 'Saving…' : 'Save questions'}
+          </button>
+        )}
             <button className="q-btn q-btn-secondary" onClick={() => setQuestions(initial)} disabled={isPending}>Cancel</button>
           </>
         )}

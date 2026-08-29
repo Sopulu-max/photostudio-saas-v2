@@ -75,7 +75,33 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </div>
         
         <div className="q-card q-section">
-          <h2 className="q-section-title">2. Bundled Services</h2>
+          <h2 className="q-section-title">2. Deliverables</h2>
+          {services.length === 0 ? (
+            <p className="q-text-meta">No services bundled.</p>
+          ) : (
+            <div className="q-stack q-stack-md">
+              {services.filter((s: any) => s.deliverables && s.deliverables.length > 0).length === 0 ? (
+                <p className="q-text-meta">None of the bundled services promise deliverables.</p>
+              ) : (
+                services.filter((s: any) => s.deliverables && s.deliverables.length > 0).map((s: any) => (
+                  <div key={s.id} style={{ marginBottom: '16px' }}>
+                    <h3 className="q-strong" style={{ marginBottom: '8px' }}>From {s.name}</h3>
+                    <div className="q-grid-cards">
+                      {s.deliverables.map((d: any) => (
+                        <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
+                          <div className="q-strong">{formatDeliverable(d)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="q-card q-section">
+          <h2 className="q-section-title">3. Bundled Services</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>The raw services this package is built from.</p>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
@@ -98,7 +124,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">3. Classifications</h2>
+          <h2 className="q-section-title">4. Classifications</h2>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
           ) : (
@@ -127,7 +153,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">4. Variables</h2>
+          <h2 className="q-section-title">5. Variables</h2>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
           ) : (
@@ -160,7 +186,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">5. Tasks</h2>
+          <h2 className="q-section-title">6. Tasks</h2>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>
           ) : (
@@ -199,31 +225,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           )}
         </div>
 
-        <div className="q-card q-section">
-          <h2 className="q-section-title">6. Deliverables</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
-            <div className="q-stack q-stack-md">
-              {services.filter((s: any) => s.deliverables && s.deliverables.length > 0).length === 0 ? (
-                <p className="q-text-meta">None of the bundled services promise deliverables.</p>
-              ) : (
-                services.filter((s: any) => s.deliverables && s.deliverables.length > 0).map((s: any) => (
-                  <div key={s.id} style={{ marginBottom: '16px' }}>
-                    <h3 className="q-strong" style={{ marginBottom: '8px' }}>From {s.name}</h3>
-                    <div className="q-grid-cards">
-                      {s.deliverables.map((d: any) => (
-                        <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
-                          <div className="q-strong">{formatDeliverable(d)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
 
       </div>
     </div>

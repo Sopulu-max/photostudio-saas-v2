@@ -7,7 +7,6 @@ import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { PackageFieldsEditor } from '../PackageFieldsEditor';
 import { PackageVariablesEditor } from '../PackageVariablesEditor';
-import { QuestionEditor } from '../QuestionEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +55,10 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           allDeliverables={allDeliverables as any}
           dimensionsByDomain={dimensionsByDomain}
           roleOptions={(roles as any[]).map((r) => r.name)}
+          // Edited inside the one form now, rather than by a second editor below
+          // its Save button that saved them separately.
+          questions={questions}
+          lockedQuestionIds={lockedIds}
           initial={{
             name: pkg.name,
             description: (pkg as any).description,
@@ -86,12 +89,6 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             services: (pkg as any).services,
           }}
         />
-
-        <div className="q-card q-section">
-          <h2 className="q-section-title">Intake questions</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>What a client is asked when they book this online.</p>
-          <QuestionEditor packageId={pkg.id} questions={questions} lockedIds={lockedIds} services={pkg.services as any} />
-        </div>
       </div>
     </div>
   );
