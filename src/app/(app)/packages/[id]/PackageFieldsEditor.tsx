@@ -10,7 +10,7 @@ import { QuestionEditor } from './QuestionEditor';
 type ServiceOption = { 
   id: string; 
   name: string; 
-  domain?: { name: string } | null;
+  domain?: { id?: string; name: string } | null;
   description?: string | null;
   deliverables?: { id: string; name: string }[];
   /** However many dimensions this service's domain asks, with what it carries. */
@@ -23,6 +23,13 @@ type DimensionOption = {
   id: string;
   name: string;
   domainName: string;
+  /**
+   * The domain that owns the dimension — needed to create a value on it, since
+   * a dimension's vocabulary is the domain's rather than any one service's.
+   * Absent where the caller reads dimensions off a service's saved tags, and a
+   * dimension with no domain simply offers no way to add to it.
+   */
+  domainId?: string;
   values: { id: string; name: string }[];
 };
 type Stage = { name: string; roleName: string; frontStage: boolean };
@@ -294,6 +301,101 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   });
   const [pendingValue, setPendingValue] = useState<Record<string, string>>({});
   /*
+   * Classifications and outputs a package invented while it was being built.
+   *
+   * A SERVICE LEAVES ITS LISTS OPEN, and a package is what opens them. Context:
+   * Studio, Outdoor is what the service happened to say first, not the whole of
+   * what it can be — so a studio assembling a Beach package should create Beach
+   * there and then, because that is the moment the studio discovers it sells
+   * one. Making them leave, edit the service and come back is what keeps a
+   * catalogue as small as whatever was typed on the first day.
+   *
+   * WHERE EACH ONE LANDS DIFFERS, and the difference is not arbitrary:
+   *
+   *   A VALUE goes onto the DIMENSION, which belongs to the domain — so every
+   *   service and every package classified that way can reach it from then on.
+   *   It is NOT added to the service. A service's own values are the default a
+   *   package inherits when it says nothing, so putting Beach there would
+   *   silently reclassify every existing package that had never mentioned it.
+   *
+   *   AN OUTPUT goes onto the SERVICE, because a service's outputs are a menu
+   *   rather than a default — nothing is promised until a package states a
+   *   quantity. Widening it changes no existing package and makes the new
+   *   output available to every future one, which is the same thing declaring a
+   *   variable does.
+   *
+   * Both are held here as well as saved, so the thing just created appears
+   * immediately instead of after a reload.
+   */
+  const [createdValues, setCreatedValues] = useState<Record<string, { id: string; name: string }[]>>({});
+  const [newValue, setNewValue] = useState<Record<string, string>>({});
+  const [declaredOutputs, setDeclaredOutputs] = useState<{ id: string; name: string; serviceId: string }[]>([]);
+  /*
+   * The tasks list, which was open in the database and shut in the form.
+   *
+   * package_tasks.workflow_task_id has always been nullable — a package holding
+   * work of its own was provided for from the start. But this form rendered the
+   * workflow's tasks as disabled checkboxes and never sent them at all, so
+   * updatePackage's task handling, written and working, was reachable by
+   * nothing. A Deluxe that includes an album had no way to say so.
+   *
+   * `taskEdits` holds changes to the copied ones, keyed by their package_task
+   * id. `addedTasks` holds the package's own, which carry no id until saved.
+   */
+  const [taskEdits, setTaskEdits] = useState<Record<string, { isActive?: boolean; roleName?: string | null }>>({});
+  const [addedTasks, setAddedTasks] = useState<{ serviceId: string; name: string; roleName: string | null }[]>([]);
+  const [newTask, setNewTask] = useState<Record<string, string>>({});
+
+  const addTask = (serviceId: string) => {
+    const named = (newTask[serviceId] || '').trim();
+    if (!named) return;
+    setAddedTasks((prev) => [...prev, { serviceId, name: named, roleName: null }]);
+    setNewTask((prev) => ({ ...prev, [serviceId]: '' }));
+  };
+  const [newOutput, setNewOutput] = useState<Record<string, string>>({});
+
+  const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
+    const asked = (newValue[pendingKey] || '').trim();
+    if (!asked || !dim.domainId) return;
+    startTransition(async () => {
+      try {
+        const { findOrCreateDimensionValue } = await import('@/modules/services/interface');
+        const id = await findOrCreateDimensionValue({
+          serviceDomainId: dim.domainId, dimensionName: dim.name, value: asked,
+        });
+        if (!id) throw new Error(`Could not add "${asked}".`);
+        setCreatedValues((prev) => {
+          const mine = prev[dim.id] || [];
+          return mine.some((v) => v.id === id) ? prev : { ...prev, [dim.id]: [...mine, { id, name: asked }] };
+        });
+        onCreated(id);
+        setNewValue((prev) => ({ ...prev, [pendingKey]: '' }));
+      } catch (e: any) {
+        alert(e?.message || 'Could not add that value.');
+      }
+    });
+  };
+
+  const declareOutput = (serviceId: string) => {
+    const asked = (newOutput[serviceId] || '').trim();
+    if (!asked) return;
+    startTransition(async () => {
+      try {
+        const { declareServiceDeliverable } = await import('@/modules/services/interface');
+        const created = await declareServiceDeliverable({ serviceId, name: asked });
+        if (!created) throw new Error(`Could not add "${asked}".`);
+        setDeclaredOutputs((prev) =>
+          prev.some((d) => d.id === created.id && d.serviceId === serviceId)
+            ? prev
+            : [...prev, { ...created, serviceId }]);
+        addPromise(serviceId, created.id);
+        setNewOutput((prev) => ({ ...prev, [serviceId]: '' }));
+      } catch (e: any) {
+        alert(e?.message || 'Could not add that output.');
+      }
+    });
+  };
+  /*
    * What this package includes (fixed variables).
    * Like dimensions, variables are tied to the selected services.
    */
@@ -421,6 +523,23 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         quantity: p.quantity,
         specValues: p.specValues
       })),
+      /*
+       * The tasks, which this form rendered and then threw away.
+       *
+       * updatePackage has accepted them all along; nothing ever sent any, so
+       * the checkboxes were disabled and the whole path was dead. Only touched
+       * ones are sent — an untouched task is not an opinion, and re-stating
+       * every copied task on every save would fight syncPackageTasksForWorkflow
+       * for ownership of rows this form never edited.
+       */
+      tasks: [
+        ...Object.entries(taskEdits).map(([id, edit]) => ({
+          id, isActive: edit.isActive ?? true, roleName: edit.roleName ?? null,
+        })),
+        ...addedTasks.filter((t) => serviceIds.includes(t.serviceId)).map((t) => ({
+          serviceId: t.serviceId, name: t.name, roleName: t.roleName, isActive: true,
+        })),
+      ],
       narrowings: serviceIds.flatMap((sid) =>
         (narrowings[sid] || []).map((valueId) => ({ serviceId: sid, valueId }))
       ),
@@ -488,7 +607,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     const explicit = narrowings[serviceId];
     const inherited = explicit === undefined;
     const forService = explicit ?? offeredBy(serviceId);
-    const chosen = forService.filter((id) => dim.values.some((v) => v.id === id));
+    // Whatever the domain already knows, plus anything invented here since the
+    // page loaded — so a value created a moment ago is selectable at once.
+    const values = [
+      ...dim.values,
+      ...(createdValues[dim.id] || []).filter((v: any) => !dim.values.some((e: any) => e.id === v.id)),
+    ];
+    const chosen = forService.filter((id) => values.some((v: any) => v.id === id));
     // Scoped to the card it is drawn in, so the same dimension on two bundled
     // services keeps two independent answers.
     const pendingKey = `${serviceId}:${dim.id}`;
@@ -506,7 +631,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         </span>
         <div className="q-row" style={{ flexWrap: 'wrap', margin: chosen.length > 0 ? '8px 0' : '0' }}>
           {chosen.map((id) => {
-            const name = dim.values.find((v) => v.id === id)?.name || id;
+            const name = values.find((v: any) => v.id === id)?.name || id;
             return (
               <span key={id} className="q-badge q-badge-neutral">
                 {name} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setFor(forService.filter((x) => x !== id))}>×</button>
@@ -522,10 +647,37 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             style={{ minWidth: '12rem' }}
           >
             <option value="">Select...</option>
-            {dim.values.filter((v) => !forService.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {values.filter((v: any) => !forService.includes(v.id)).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[pendingKey] || '')} disabled={!pendingValue[pendingKey]}>+ Add</button>
         </div>
+        {/*
+          * A list a service left open, opened.
+          *
+          * The value is created on the dimension, so it belongs to the domain
+          * from then on and any service or package classified that way can use
+          * it — which is what lets a studio's vocabulary grow by being used
+          * rather than by being fully imagined up front.
+          */}
+        {dim.domainId && (
+          <div className="q-row" style={{ marginTop: '6px' }}>
+            <input
+              className="q-input q-input-sm"
+              placeholder={`New ${String(dim.name).toLowerCase()}`}
+              value={newValue[pendingKey] || ''}
+              onChange={(e) => setNewValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createValue(dim, serviceId, pendingKey, (id) => add(id)); } }}
+              style={{ minWidth: '12rem' }}
+            />
+            <button
+              type="button" className="q-btn q-btn-ghost q-btn-xs"
+              disabled={isPending || !(newValue[pendingKey] || '').trim()}
+              onClick={() => createValue(dim, serviceId, pendingKey, (id) => add(id))}
+            >
+              Create
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -539,12 +691,19 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
 
   const renderTasks = (s: ServiceOption) => {
-    // If we're editing an existing package, use the saved package tasks.
-    // If it's a new package (or a newly added service), show the default workflow tasks.
+    // A saved package holds its own copies; a new one is still reading the
+    // workflow it will copy from.
     const savedService = initial.services?.find((is: any) => is.id === s.id);
     const sTasks = savedService?.tasks || s.workflow?.tasks || [];
-    
-    if (sTasks.length === 0) return null;
+    const mineAdded = addedTasks.filter((t) => t.serviceId === s.id);
+    /*
+     * A task copied from a workflow can be switched off or reassigned, but only
+     * where this form owns the save. Inside a booking the editor is showing what
+     * the package involves, and changing it there would be a decision about the
+     * package rather than about the booking — which is why the booking has a
+     * task section of its own.
+     */
+    const editable = !embedded;
     
     return (
       <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
@@ -553,21 +712,102 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         )}
         <div className="q-stack" style={{ gap: '4px' }}>
           {sTasks.map((t: any) => {
-            const isActive = t.isActive ?? true;
-            const roleName = t.roleName ?? t.default_role?.name;
+            const edit = taskEdits[t.id] || {};
+            const isActive = edit.isActive ?? t.isActive ?? true;
+            const roleName = edit.roleName ?? t.roleName ?? t.default_role?.name ?? '';
+            /*
+             * Stores the whole state of the task, not just the half that
+             * changed. A partial entry meant reassigning the role of a switched
+             * off task resent it as active, because the save had no memory of
+             * anything the operator had not touched this time.
+             */
+            const patch = (next: { isActive?: boolean; roleName?: string | null }) =>
+              setTaskEdits((prev) => ({
+                ...prev,
+                [t.id]: { isActive, roleName: roleName || null, ...next },
+              }));
             return (
               <div key={t.id} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
-                <label className="q-row" style={{ alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={isActive} readOnly disabled />
+                <label className="q-row" style={{ alignItems: 'center', gap: '8px', cursor: editable ? 'pointer' : 'default' }}>
+                  <input
+                    type="checkbox" checked={isActive} disabled={!editable}
+                    onChange={(e) => patch({ isActive: e.target.checked })}
+                  />
                   <span style={{ fontSize: '0.9rem', opacity: isActive ? 1 : 0.5, textDecoration: isActive ? 'none' : 'line-through' }}>{t.name}</span>
                 </label>
-                {roleName && (
+                {editable ? (
+                  <select
+                    className="q-select q-input-sm" value={roleName}
+                    onChange={(e) => patch({ roleName: e.target.value || null })}
+                    style={{ maxWidth: '11rem' }}
+                  >
+                    <option value="">No role</option>
+                    {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                    {/* The role this task already carries, even if it is not one
+                        of the studio's current options — so opening the form
+                        cannot quietly drop it. */}
+                    {roleName && !roleOptions.includes(roleName) && <option value={roleName}>{roleName}</option>}
+                  </select>
+                ) : roleName ? (
                   <span className="q-badge q-badge-neutral" style={{ fontSize: '0.75rem' }}>{roleName}</span>
-                )}
+                ) : null}
               </div>
             );
           })}
+
+          {mineAdded.map((t, i) => (
+            <div key={`added-${i}`} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
+              <label className="q-row" style={{ alignItems: 'center', gap: '8px' }}>
+                <input type="checkbox" checked readOnly />
+                <span style={{ fontSize: '0.9rem' }}>{t.name}</span>
+                {/* Named so it is obvious this one is not answerable to the
+                    workflow and will not be rewritten when the workflow changes. */}
+                <span className="q-meta-sm">this package only</span>
+              </label>
+              <div className="q-row" style={{ alignItems: 'center', gap: '6px' }}>
+                <select
+                  className="q-select q-input-sm" value={t.roleName || ''}
+                  onChange={(e) => setAddedTasks((prev) => prev.map((x) =>
+                    x === t ? { ...x, roleName: e.target.value || null } : x))}
+                  style={{ maxWidth: '11rem' }}
+                >
+                  <option value="">No role</option>
+                  {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <button
+                  type="button" className="q-btn-ghost" style={{ padding: '0 4px' }}
+                  onClick={() => setAddedTasks((prev) => prev.filter((x) => x !== t))}
+                >×</button>
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/*
+          * A workflow says how the service is produced generally. This package
+          * may involve a step that no other package of it does, and that step
+          * belongs here rather than in the workflow — putting it there would
+          * give it to every package of the service at once.
+          */}
+        {editable && (
+          <div className="q-row" style={{ alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+            <input
+              className="q-input q-input-sm"
+              placeholder="A step this package alone involves"
+              value={newTask[s.id] || ''}
+              onChange={(e) => setNewTask((prev) => ({ ...prev, [s.id]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(s.id); } }}
+              style={{ minWidth: '16rem' }}
+            />
+            <button
+              type="button" className="q-btn q-btn-ghost q-btn-xs"
+              disabled={!(newTask[s.id] || '').trim()}
+              onClick={() => addTask(s.id)}
+            >
+              Add task
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -770,13 +1010,22 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
   const renderPromises = (s: ServiceOption) => {
     const mine = promisesFor(s.id);
-    const produces = s.deliverables || [];
-    const suggested = produces.filter((d) => !mine.some((p) => p.deliverableId === d.id));
+    // What the service said it produces, plus anything declared onto it here.
+    const produces = [
+      ...(s.deliverables || []),
+      ...declaredOutputs.filter((d) => d.serviceId === s.id && !(s.deliverables || []).some((e: any) => e.id === d.id)),
+    ];
+    const nameOf = (id: string) =>
+      allDeliverables.find((d) => d.id === id)?.name
+      ?? declaredOutputs.find((d) => d.id === id)?.name
+      ?? produces.find((d: any) => d.id === id)?.name
+      ?? id;
+    const suggested = produces.filter((d: any) => !mine.some((p) => p.deliverableId === d.id));
     return (
       <div className="q-stack q-stack-sm">
         {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
         {mine.map((p) => {
-          const dName = allDeliverables.find((d) => d.id === p.deliverableId)?.name || p.deliverableId;
+          const dName = nameOf(p.deliverableId);
           return (
             <div key={p.deliverableId} className="q-tile q-stack q-stack-sm">
               <div className="q-row q-row-between">
@@ -858,7 +1107,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         {suggested.length > 0 && (
           <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
             <span className="q-meta-sm">Also produces:</span>
-            {suggested.map((d) => (
+            {suggested.map((d: any) => (
               <button key={d.id} type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addPromise(s.id, d.id)}>
                 + {d.name}
               </button>
@@ -866,9 +1115,33 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           </div>
         )}
 
-        {suggested.length === 0 && mine.length > 0 && (
-          <span className="q-meta-sm" style={{ opacity: 0.7 }}>All outputs produced by this service have been promised.</span>
-        )}
+        {/*
+          * Promising something the service had not listed.
+          *
+          * "All outputs produced by this service have been promised" was a dead
+          * end: it stated a limit and offered no way past it, when the package
+          * being built is exactly what discovers that the service also produces
+          * an album. The output is declared onto the SERVICE, so it joins the
+          * menu for every package of it — the same act as declaring a variable,
+          * and safe for the same reason: a menu promises nothing on its own.
+          */}
+        <div className="q-row" style={{ alignItems: 'center', gap: '6px' }}>
+          <input
+            className="q-input q-input-sm"
+            placeholder="Something else it produces"
+            value={newOutput[s.id] || ''}
+            onChange={(e) => setNewOutput((prev) => ({ ...prev, [s.id]: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); declareOutput(s.id); } }}
+            style={{ minWidth: '14rem' }}
+          />
+          <button
+            type="button" className="q-btn q-btn-ghost q-btn-xs"
+            disabled={isPending || !(newOutput[s.id] || '').trim()}
+            onClick={() => declareOutput(s.id)}
+          >
+            Add to this service
+          </button>
+        </div>
       </div>
     );
   };
@@ -975,7 +1248,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 <div key={s.id} style={{ marginBottom: '16px' }}>
                   <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
                   <div className="q-grid-cards">
-                    {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '' }, s.id))}
+                    {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, s.id))}
                   </div>
                 </div>
               );
@@ -1010,20 +1283,25 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {(() => {
             const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
             if (bundledServices.length === 0) return <p className="q-empty">Select services above to see their production tasks.</p>;
-            const withTasks = bundledServices.filter((s) => {
-              const savedService = initial.services?.find((is: any) => is.id === s.id);
-              const sTasks = savedService?.tasks || s.workflow?.tasks || [];
-              return sTasks.length > 0;
-            });
-            if (withTasks.length === 0) return (
-              <p className="q-meta-sm">
-                No workflow is defined for these services. Define one in Services settings and its
-                tasks will appear here, and on every booking that includes them.
-              </p>
-            );
-            return withTasks.map((s) => (
+            /*
+              * Every bundled service, including one with no workflow at all.
+              *
+              * This used to drop those, and then told the operator to go and
+              * define a workflow in Services — which is right for work the
+              * service always involves and wrong for work only this package
+              * does. A service with no workflow was the one case where a
+              * package most needed a task of its own, and it was the one case
+              * with nowhere to put it.
+              */
+            return bundledServices.map((s) => (
               <div key={s.id} style={{ marginBottom: '16px' }}>
                 <h3 className="q-strong" style={{ marginBottom: '2px' }}>For {s.name}</h3>
+                {!s.workflow?.name && (
+                  <p className="q-meta-sm" style={{ marginBottom: '4px' }}>
+                    No workflow defines how {s.name} is produced. Define one in Services to give every
+                    package of it the same steps, or add a step below that this package alone involves.
+                  </p>
+                )}
                 {renderTasks(s)}
               </div>
             ));

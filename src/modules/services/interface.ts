@@ -28,6 +28,8 @@ export {
   // Additive: adds one without reconciling the rest away, which is what a
   // caller holding only its own new variable needs.
   declareServiceVariable,
+  // The same act for what a service produces: widens the menu, promises nothing.
+  declareServiceDeliverable,
   // What a bundled service may be narrowed to — asked by Packages before it
   // records a narrowing, so the check lives with the domain that owns it.
   listDimensionValueIdsForServices,

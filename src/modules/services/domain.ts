@@ -963,6 +963,89 @@ export async function declareServiceVariable(input: {
   };
 }
 
+/**
+ * Add one output to what a service produces, without disturbing the rest.
+ *
+ * THE SAME ACT AS declareServiceVariable, one list along. A service names what
+ * it produces; a package could previously only promise from that list, so a
+ * package needing "Retouched Album" meant leaving, editing the service, and
+ * coming back — when noticing the studio produces albums is precisely something
+ * that happens while you are assembling the package that sells one.
+ *
+ * IT WIDENS THE SERVICE, DELIBERATELY. The output lands on the service, not on
+ * the package, so every other package of that service can promise it too and
+ * the studio's catalogue grows by being used. That is safe HERE because a
+ * service's outputs are a menu: nothing is promised until a package says a
+ * quantity, so widening the menu changes no existing package.
+ *
+ * It is NOT safe for classifications, which is why those work differently. A
+ * service's dimension values are the default a package inherits when it says
+ * nothing of its own, so adding one there would silently reclassify every
+ * package that had never mentioned it.
+ *
+ * Idempotent: the deliverable is found-or-created in the service's domain, and
+ * linking one already linked is a no-op rather than a duplicate row.
+ */
+export async function declareServiceDeliverable(input: {
+  serviceId: string;
+  name: string;
+}): Promise<{ id: string; name: string } | null> {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const asked = (input.name || '').trim();
+  if (!asked) throw new Error('Give the output a name.');
+
+  // Scoped read, so this doubles as the ownership check declareServiceVariable
+  // makes: a service that is not this studio's comes back empty.
+  const { data: service } = await supabaseAdmin
+    .from('services').select('service_domain_id')
+    .eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
+  // deliverables.service_domain_id is NOT NULL — an output belongs to a domain
+  // the way a dimension does, and there is nowhere to put one without it.
+  if (!service?.service_domain_id) throw new Error('That service has no domain to hold the output.');
+
+  const deliverableId = await findOrCreateOutputType(orgId, service.service_domain_id, asked);
+  if (!deliverableId) throw new Error(`Failed to add "${asked}"`);
+
+  const { data: already } = await supabaseAdmin
+    .from('service_deliverables').select('id')
+    .eq('organization_id', orgId)
+    .eq('service_id', input.serviceId)
+    .eq('deliverable_id', deliverableId)
+    .maybeSingle();
+
+  if (!already) {
+    const { error } = await supabaseAdmin.from('service_deliverables')
+      .insert({ organization_id: orgId, service_id: input.serviceId, deliverable_id: deliverableId });
+    if (error) {
+      console.error('Failed to attach an output to a service:', error);
+      throw new Error(`Failed to add "${asked}"`);
+    }
+  }
+
+  // The stored name, not the typed one: find-or-create matches an existing
+  // output however it was capitalised, and the caller must show what the studio
+  // actually calls it rather than what was just typed.
+  const { data: stored } = await supabaseAdmin
+    .from('deliverables').select('id, name').eq('id', deliverableId).maybeSingle();
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'deliverables_updated',
+    actorId: actorId ?? undefined,
+    payload: { declared: stored?.name ?? asked },
+  });
+
+  revalidatePath('/services');
+  revalidatePath(`/services/${input.serviceId}`);
+  revalidatePath('/packages');
+  revalidatePath('/deliverables');
+
+  return { id: deliverableId, name: (stored?.name as string) ?? asked };
+}
+
 export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
