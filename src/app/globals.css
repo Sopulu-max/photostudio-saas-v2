@@ -159,6 +159,32 @@ body {
 
 /* ---- Utilities ---- */
 .q-text-body { color: var(--q-color-ink-900); }
+/*
+ * One row in a list you are choosing from.
+ *
+ * A picker option is not a card. It carries only what is needed to tell this
+ * one apart from the others, so a studio with fifty of something scans a list
+ * rather than scrolling a wall — and the button reset lives here rather than in
+ * five inline styles that each got it slightly different.
+ */
+.q-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s var(--q-ease), background 0.15s var(--q-ease);
+}
+.q-option:hover,
+.q-option:focus-visible {
+  border-color: var(--q-color-primary);
+  background: var(--q-color-paper-base);
+}
 /* Something switched off but still worth reading: a package task that has been
    stood down, a line kept for the record. Struck and faded together, because
    either alone reads as a rendering accident. */

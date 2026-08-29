@@ -353,6 +353,21 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     setNewTask((prev) => ({ ...prev, [serviceId]: '' }));
   };
   const [newOutput, setNewOutput] = useState<Record<string, string>>({});
+  /*
+   * Finding a service to bundle, rather than scrolling past all of them.
+   *
+   * The section drew every service in the studio as a full card — description,
+   * every classification as a badge, its outputs, its variables — with the
+   * selected ones scattered among them in creation order. At five services that
+   * is untidy. At fifty it is a wall four thousand pixels tall in which the one
+   * or two this package actually bundles are hidden, and the section is named
+   * after those two.
+   *
+   * The same answer the booking form already reached for the same problem: a
+   * search box, and a filter on the vocabulary the studio classifies by.
+   */
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [serviceDomain, setServiceDomain] = useState('');
 
   const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
     const asked = (newValue[pendingKey] || '').trim();
@@ -1176,62 +1191,139 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       <div className="q-card q-section">
-        <h2 className="q-section-title">{heading(2, "What it bundles")}</h2>
-        <p className="q-meta" style={{ marginBottom: '16px' }}>Pick the real Services this offering is built from. Once selected, configure their specifics below.</p>
-        <div className="q-grid-cards">
-          {allServices.map((s) => {
-            const isSelected = serviceIds.includes(s.id);
-            const allTags = (s.dimensions || ([] as any[])).flatMap((d) => d.values);
-            const vars = allVariables.filter(v => v.serviceId === s.id);
-            return (
-              <div 
-                key={s.id} 
-                className={`q-card q-stack`} 
-                style={{ 
-                  borderColor: isSelected ? 'var(--q-color-primary)' : 'var(--q-color-ink-100)',
-                  backgroundColor: isSelected ? 'var(--q-color-primary-light)' : undefined,
-                  transition: 'all var(--q-ease) 0.2s',
-                  padding: '16px',
-                  cursor: 'pointer'
-                }}
-                onClick={() => toggleService(s.id)}
-              >
-                <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
-                  <div>
-                    <h3 className="q-section-title">{s.name}</h3>
-                    <div className="q-meta-sm">{s.domain?.name || 'No domain'}</div>
+        <h2 className="q-section-title">{heading(2, "Services")}</h2>
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          The services this package is built from. What each one promises, is classified as, and
+          involves is set in the sections below.
+        </p>
+
+        {(() => {
+          /*
+           * CHOSEN FIRST, SEPARATELY FROM THE CHOOSING.
+           *
+           * This section is named after what the package bundles, and the
+           * bundle was the one thing it did not show: two selected services sat
+           * among forty-eight unselected ones, distinguished by a border
+           * colour. The answer now sits at the top, and the list you pick from
+           * holds only what is not yet in it.
+           *
+           * THE OPTIONS ARE ROWS, NOT CARDS. A picker option needs to tell this
+           * service apart from the others — its name, its domain, and its
+           * classifications when two services are named alike. It was carrying
+           * the service's description, outputs and variables as well, which is
+           * both a detail page's worth of content per row AND a duplicate: the
+           * sections below already show exactly that, for the services actually
+           * bundled, which is the only place it can be acted on.
+           */
+          const chosen = allServices.filter((s) => serviceIds.includes(s.id));
+          const domains = [...new Set(allServices.map((s) => s.domain?.name).filter(Boolean))] as string[];
+
+          const needle = serviceSearch.trim().toLowerCase();
+          const matches = allServices.filter((s) => {
+            if (serviceIds.includes(s.id)) return false;
+            if (serviceDomain && s.domain?.name !== serviceDomain) return false;
+            if (!needle) return true;
+            const tags = (s.dimensions || []).flatMap((d: any) => d.values.map((v: any) => v.name));
+            return [s.name, s.description, s.domain?.name, ...tags]
+              .some((f) => (f || '').toLowerCase().includes(needle));
+          });
+
+          // Bounded, and it says so. A list that silently stops at fifteen reads
+          // as a studio that owns fifteen services.
+          const LIMIT = 15;
+          const shown = matches.slice(0, LIMIT);
+          const hidden = matches.length - shown.length;
+
+          const tagsOf = (s: any) => (s.dimensions || []).flatMap((d: any) => d.values);
+
+          return (
+            <div className="q-stack q-stack-lg">
+              <div className="q-stack q-stack-sm">
+                {chosen.length === 0 ? (
+                  <p className="q-empty" style={{ margin: 0 }}>
+                    Nothing bundled yet. A package is one or more services sold together, so pick at
+                    least one below.
+                  </p>
+                ) : chosen.map((s) => (
+                  <div key={s.id} className="q-row q-row-between q-tile">
+                    <div>
+                      <div className="q-strong">{s.name}</div>
+                      <span className="q-eyebrow">{s.domain?.name || 'No domain'}</span>
+                    </div>
+                    <button
+                      type="button" className="q-btn-ghost q-btn-xs"
+                      onClick={() => toggleService(s.id)}
+                      title={`Remove ${s.name} from this package`}
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <input type="checkbox" checked={isSelected} readOnly style={{ pointerEvents: 'none', marginTop: '4px' }} />
-                </div>
-                
-                {s.description && <p className="q-meta-sm" style={{ marginTop: '4px' }}>{s.description}</p>}
-                
-                <div className="q-stack q-stack-sm" style={{ marginTop: '12px', opacity: isSelected ? 1 : 0.6, transition: 'opacity 0.2s' }}>
-                  {allTags.length > 0 && (
-                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px' }}>
-                      {allTags.map(t => (
-                        <span key={t.id} className="q-badge q-badge-neutral" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>{t.name}</span>
-                      ))}
-                    </div>
-                  )}
-                  {(s.deliverables || []).length > 0 && (
-                    <div className="q-meta-sm">
-                      <strong className="q-strong">Outputs: </strong>
-                      {(s.deliverables || []).map(d => d.name).join(', ')}
-                    </div>
-                  )}
-                  {vars.length > 0 && (
-                    <div className="q-meta-sm">
-                      <strong className="q-strong">Variables: </strong>
-                      {vars.map(v => v.label).join(', ')}
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
-            );
-          })}
-          {allServices.length === 0 && <p className="q-empty">No services yet — create one first.</p>}
-        </div>
+
+              {/*
+                * Only where there is something left to find. Inside a booking
+                * the catalogue is already narrowed to the chosen package own
+                * services and every one of them is bundled, so a search box
+                * there searches an empty set.
+                */}
+              {allServices.length > chosen.length && (
+              <div className="q-stack q-stack-sm">
+                <div className="q-row q-row-sm">
+                  <input
+                    className="q-input"
+                    placeholder="Search services by name, domain or classification"
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                    style={{ flex: '1 1 16rem' }}
+                  />
+                  {domains.length > 1 && (
+                    <select className="q-select" value={serviceDomain} onChange={(e) => setServiceDomain(e.target.value)}>
+                      <option value="">Every domain</option>
+                      {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  )}
+                </div>
+
+                {shown.map((s) => {
+                  const tags = tagsOf(s);
+                  return (
+                    <button key={s.id} type="button" className="q-option" onClick={() => toggleService(s.id)}>
+                      <div className="q-row q-row-between">
+                        <div>
+                          <span className="q-strong">{s.name}</span>{' '}
+                          <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
+                        </div>
+                        {tags.length > 0 && (
+                          <div className="q-row q-row-sm">
+                            {tags.slice(0, 3).map((t: any) => (
+                              <span key={t.id} className="q-value q-value-sm">{t.name}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {hidden > 0 && (
+                  <p className="q-meta-sm">
+                    {shown.length} of {matches.length} shown. Search or pick a domain to narrow.
+                  </p>
+                )}
+
+                {matches.length === 0 && (
+                  <p className="q-meta-sm">No service matches. Clear the search or pick another domain.</p>
+                )}
+              </div>
+              )}
+
+              {allServices.length === 0 && (
+                <p className="q-meta-sm">No services yet. A package is built from services, so create one first.</p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <div className="q-card q-section">
