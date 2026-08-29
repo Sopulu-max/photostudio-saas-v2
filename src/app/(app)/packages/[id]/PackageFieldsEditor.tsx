@@ -368,6 +368,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const [serviceSearch, setServiceSearch] = useState('');
   const [serviceDomain, setServiceDomain] = useState('');
+  const [showAllServices, setShowAllServices] = useState(false);
 
   const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
     const asked = (newValue[pendingKey] || '').trim();
@@ -1228,10 +1229,18 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               .some((f) => (f || '').toLowerCase().includes(needle));
           });
 
-          // Bounded, and it says so. A list that silently stops at fifteen reads
-          // as a studio that owns fifteen services.
+          /*
+           * Bounded, and openable.
+           *
+           * Bounding it is right — this is a form, and you are choosing rather
+           * than browsing, so fifty rows between two fields buries the fields.
+           * But the first cut told you to search and left no other way through:
+           * a service you could not name and could not narrow to was simply
+           * unreachable. Saying how many are held back and offering to show
+           * them is the difference between a bound and a wall.
+           */
           const LIMIT = 15;
-          const shown = matches.slice(0, LIMIT);
+          const shown = showAllServices ? matches : matches.slice(0, LIMIT);
           const hidden = matches.length - shown.length;
 
           const tagsOf = (s: any) => (s.dimensions || []).flatMap((d: any) => d.values);
@@ -1307,9 +1316,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 })}
 
                 {hidden > 0 && (
-                  <p className="q-meta-sm">
-                    {shown.length} of {matches.length} shown. Search or pick a domain to narrow.
-                  </p>
+                  <div className="q-row q-row-sm">
+                    <span className="q-meta-sm">{shown.length} of {matches.length} shown.</span>
+                    <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => setShowAllServices(true)}>
+                      Show the other {hidden}
+                    </button>
+                  </div>
                 )}
 
                 {matches.length === 0 && (

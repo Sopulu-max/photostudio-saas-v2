@@ -1,0 +1,155 @@
+'use client';
+
+import React, { useState } from 'react';
+
+export type CatalogFacets = {
+  name: string;
+  description?: string | null;
+  domainName?: string | null;
+  /** Flattened, because narrowing does not care which entity carried the value. */
+  tags: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
+};
+
+/**
+ * Narrowing a catalogue with the studio's own vocabulary.
+ *
+ * WHY A SEARCH BOX IS ONLY HALF OF IT. A list you can search is a list you can
+ * get through if you already know the name of the thing you want. A studio
+ * looking at its own catalogue usually does not: it is looking for the studio
+ * maternity packages, or everything it does outdoors — which is exactly what
+ * its dimensions say, and exactly how a client narrows the storefront. So the
+ * same vocabulary that classifies the work is what browses it. Nothing new is
+ * invented here to make a long list navigable; the studio already defined it.
+ *
+ * WITHIN A DIMENSION, OR. ACROSS DIMENSIONS, AND. Picking Studio and Outdoor
+ * under Context means either, because they are two answers to one question.
+ * Picking Studio under Context and Maternity under Occasion means both, because
+ * they are answers to different ones. That is what narrowing means, and getting
+ * it the other way round would make every extra click return more rather than
+ * less.
+ *
+ * IT APPEARS WHEN IT IS NEEDED. Below the threshold the whole catalogue is on
+ * one screen and a filter bar above three cards is furniture, so the children
+ * render alone. The count line is always shown once narrowing is on, because a
+ * filtered list that does not say it is filtered is indistinguishable from a
+ * studio that owns nine packages.
+ *
+ * The list itself is never capped. A catalogue is a thing you browse, and
+ * hiding inventory behind a "show more" is a different failure from the one
+ * this solves — the picker inside a form caps, because there you are choosing
+ * rather than looking.
+ */
+export function CatalogFilter<T>({
+  items,
+  read,
+  noun,
+  threshold = 8,
+  children,
+}: {
+  items: T[];
+  read: (item: T) => CatalogFacets;
+  /** Singular; pluralised with an s for the count line. */
+  noun: string;
+  threshold?: number;
+  children: (shown: T[]) => React.ReactNode;
+}) {
+  const [search, setSearch] = useState('');
+  const [domain, setDomain] = useState('');
+  const [values, setValues] = useState<string[]>([]);
+
+  if (items.length < threshold) return <>{children(items)}</>;
+
+  const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
+  const domains = [...new Set([...facets.values()].map((f) => f.domainName).filter(Boolean))] as string[];
+
+  // Only dimensions this list actually carries, so the control describes the
+  // catalogue in front of you rather than the studio's whole vocabulary.
+  const dimensions = new Map<string, { name: string; values: Map<string, string> }>();
+  for (const f of facets.values()) {
+    for (const t of f.tags) {
+      if (!dimensions.has(t.dimensionId)) dimensions.set(t.dimensionId, { name: t.dimensionName, values: new Map() });
+      dimensions.get(t.dimensionId)!.values.set(t.valueId, t.valueName);
+    }
+  }
+
+  const chosenByDimension = new Map<string, string[]>();
+  for (const [dimId, d] of dimensions) {
+    const mine = values.filter((v) => d.values.has(v));
+    if (mine.length > 0) chosenByDimension.set(dimId, mine);
+  }
+
+  const needle = search.trim().toLowerCase();
+  const shown = items.filter((item) => {
+    const f = facets.get(item)!;
+    if (domain && f.domainName !== domain) return false;
+    for (const [, chosen] of chosenByDimension) {
+      if (!f.tags.some((t) => chosen.includes(t.valueId))) return false;
+    }
+    if (!needle) return true;
+    return [f.name, f.description, f.domainName, ...f.tags.map((t) => t.valueName)]
+      .some((field) => (field || '').toLowerCase().includes(needle));
+  });
+
+  const narrowed = Boolean(needle) || Boolean(domain) || values.length > 0;
+  const toggle = (valueId: string) =>
+    setValues((prev) => prev.includes(valueId) ? prev.filter((v) => v !== valueId) : [...prev, valueId]);
+
+  return (
+    <div className="q-stack q-stack-lg">
+      <div className="q-stack q-stack-sm">
+        <div className="q-row q-row-sm">
+          <input
+            className="q-input"
+            placeholder={`Search ${noun}s by name, description or classification`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: '1 1 18rem' }}
+          />
+          {domains.length > 1 && (
+            <select className="q-select" value={domain} onChange={(e) => setDomain(e.target.value)}>
+              <option value="">Every domain</option>
+              {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
+        </div>
+
+        {[...dimensions.entries()].map(([dimId, d]) => (
+          <div key={dimId} className="q-row q-row-sm">
+            <span className="q-eyebrow">{d.name}</span>
+            {[...d.values.entries()].map(([valId, valName]) => (
+              <button
+                key={valId}
+                type="button"
+                className={values.includes(valId) ? 'q-value q-value-sm q-value-on' : 'q-value q-value-sm'}
+                onClick={() => toggle(valId)}
+                aria-pressed={values.includes(valId)}
+              >
+                {valName}
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {narrowed && (
+          <div className="q-row q-row-sm">
+            <span className="q-meta-sm">
+              {shown.length} of {items.length} {items.length === 1 ? noun : `${noun}s`}
+            </span>
+            <button
+              type="button" className="q-btn q-btn-secondary q-btn-xs"
+              onClick={() => { setSearch(''); setDomain(''); setValues([]); }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="q-empty">
+          No {noun} matches. Clear the filters, or the catalogue does not hold one like this yet.
+        </p>
+      ) : children(shown)}
+    </div>
+  );
+}

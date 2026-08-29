@@ -1051,6 +1051,20 @@ body {
 
 .q-value:active { transform: translateY(0); }
 
+/*
+ * The same value, currently narrowing a list.
+ *
+ * A value used as a filter is the one place a value is a state rather than a
+ * door, and the state has to be legible at a glance across a row of a dozen —
+ * so it takes the accent it already lifts toward on hover, held down.
+ */
+.q-value-on {
+  background: var(--q-color-accent-soft);
+  border-color: var(--q-color-accent);
+  color: var(--q-color-ink-900);
+  font-weight: 600;
+}
+
 /* The same value, in a dense context: a card, a list row. */
 .q-value-sm {
   padding: 4px 10px;

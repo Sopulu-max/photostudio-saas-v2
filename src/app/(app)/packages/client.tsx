@@ -6,6 +6,7 @@ import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+import { CatalogFilter } from '@/components/CatalogFilter';
 // Reached at its source rather than through the module door: the interface is
 // a server-actions file, and this is a pure formatter a client card can hold.
 import { formatVariableValue } from '@/modules/services/variableTypes';
@@ -193,9 +194,36 @@ export function PackagesClient({
           )}
         </div>
       ) : (
-        <div className="q-grid-cards">
-          {active.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
-        </div>
+        /*
+         * Narrowed by the same vocabulary a client narrows the storefront with.
+         *
+         * The catalogue was an unbounded grid: fifty packages were fifty cards
+         * and the only way through was the scroll bar. It is not searched by
+         * name in practice either — a studio looking at its own catalogue is
+         * looking for the studio maternity ones, which is precisely what its
+         * dimensions already say. So the classification is the navigation, and
+         * nothing had to be invented to make the list long-proof.
+         */
+        <CatalogFilter
+          items={active}
+          noun="package"
+          read={(pkg: any) => ({
+            name: pkg.name,
+            description: pkg.description,
+            // A package spanning two domains reads under both, which stays true
+            // without anything having to decide which one it really belongs to.
+            domainName: (pkg.services || [])[0]?.domain?.name ?? null,
+            tags: dimensionTags(pkg).flatMap((d) => d.values.map((v) => ({
+              dimensionId: d.id, dimensionName: d.name, valueId: v.id, valueName: v.name,
+            }))),
+          })}
+        >
+          {(shown) => (
+            <div className="q-grid-cards">
+              {shown.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
+            </div>
+          )}
+        </CatalogFilter>
       )}
 
       {retired.length > 0 && (

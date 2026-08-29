@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 
 import type { ServiceDimensionTag } from '@/modules/services/interface';
+import { CatalogFilter } from '@/components/CatalogFilter';
 
 /**
  * The ontology layer: what this studio actually knows how to do. Not what
@@ -127,9 +128,31 @@ export function ServicesClient({
           )}
         </div>
       ) : (
-        <div className="q-grid-cards">
-          {active.map((svc: any) => <Card key={svc.id} svc={svc} />)}
-        </div>
+        /*
+         * The same narrowing the packages catalogue uses, for the same reason.
+         * A studio with fifty services does not scroll to find the one it
+         * means; it is looking for what it does outdoors, or for maternity —
+         * which is what its own dimensions say.
+         */
+        <CatalogFilter
+          items={active}
+          noun="service"
+          read={(svc: any) => ({
+            name: svc.name,
+            description: svc.description,
+            domainName: svc.domain?.name ?? null,
+            tags: ((svc.dimensions || []) as ServiceDimensionTag[]).flatMap((d) =>
+              d.values.map((v) => ({
+                dimensionId: d.id, dimensionName: d.name, valueId: v.id, valueName: v.name,
+              }))),
+          })}
+        >
+          {(shown) => (
+            <div className="q-grid-cards">
+              {shown.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+            </div>
+          )}
+        </CatalogFilter>
       )}
 
       {retired.length > 0 && (
