@@ -76,28 +76,51 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         
         <div className="q-card q-section">
           <h2 className="q-section-title">2. Deliverables</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
-            <div className="q-stack q-stack-md">
-              {services.filter((s: any) => s.deliverables && s.deliverables.length > 0).length === 0 ? (
-                <p className="q-text-meta">None of the bundled services promise deliverables.</p>
-              ) : (
-                services.filter((s: any) => s.deliverables && s.deliverables.length > 0).map((s: any) => (
-                  <div key={s.id} style={{ marginBottom: '16px' }}>
-                    <h3 className="q-strong" style={{ marginBottom: '8px' }}>From {s.name}</h3>
-                    <div className="q-grid-cards">
-                      {s.deliverables.map((d: any) => (
-                        <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
-                          <div className="q-strong">{formatDeliverable(d)}</div>
-                        </div>
-                      ))}
-                    </div>
+          {(() => {
+            /*
+             * Deliverables hang off each bundled service, not off the package,
+             * so a bundle of two services has two sets of them and the page has
+             * to say which produces what.
+             *
+             * BUT ONLY WHEN THERE IS MORE THAN ONE. Every package here bundles a
+             * single service today, and each was printing "From Portrait
+             * Photography" beneath a heading that could not have meant anything
+             * else. One service, no attribution.
+             *
+             * AND EVERY BUNDLED SERVICE IS LISTED, including one that promises
+             * nothing. Filtering those out hid the gap an operator most needs to
+             * see: a Wedding package whose videography half has no deliverables
+             * set reads as finished when the empty half is simply not drawn.
+             */
+            if (services.length === 0) return <p className="q-text-meta">No services bundled.</p>;
+
+            const tiles = (s: any) => (
+              <div className="q-grid-cards">
+                {s.deliverables.map((d: any) => (
+                  <div key={d.id} className="q-tile" style={{ padding: '8px 12px' }}>
+                    <div className="q-strong">{formatDeliverable(d)}</div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+
+            const total = services.reduce((n: number, s: any) => n + (s.deliverables?.length || 0), 0);
+            if (total === 0) return <p className="q-text-meta">No deliverables set for this package.</p>;
+            if (services.length === 1) return tiles(services[0]);
+
+            return (
+              <div className="q-stack q-stack-md">
+                {services.map((s: any) => (
+                  <div key={s.id} className="q-stack q-stack-sm">
+                    <span className="q-eyebrow">{s.name}</span>
+                    {s.deliverables?.length
+                      ? tiles(s)
+                      : <p className="q-text-meta">No deliverables set.</p>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="q-card q-section">
