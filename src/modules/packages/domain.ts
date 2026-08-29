@@ -422,7 +422,13 @@ export async function createPackage(input: {
    */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
   /** The production sequences to run, each on the bundled service it belongs to. */
-  workflows?: { serviceId: string; blueprintId: string }[];
+  /*
+   * Never read and never written — no caller passes it and nothing consumes it.
+   * Kept only because a package DOES have workflows; what it does not have is
+   * this shape, which still named them blueprints. Whatever replaces it should
+   * be built from what package_tasks actually needs.
+   */
+  workflows?: { serviceId: string; workflowId: string }[];
   /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
   variableValues?: { serviceVariableId: string; value: unknown }[];
   /**

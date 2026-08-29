@@ -21,7 +21,7 @@ import type {
  * This module owns: Service Domains (Photography, Videography — the broad
  * capability), Services themselves (Portrait Photography — the specific
  * transformation), Deliverables (the vocabulary of what a Service can
- * produce), and Blueprints (a Service's Process — how the transformation is
+ * produce), and Workflows (a Service's Process — how the transformation is
  * carried out, already routed to roles via Team's interface).
  *
  * What a studio SELLS — Package, bundling one or more Services into a priced
@@ -350,7 +350,7 @@ export async function findOrCreateDimensionValue(input: {
   return resolveDimensionValueId(orgId, input.serviceDomainId, input.dimensionName, input.value);
 }
 
-// ── Blueprints: a Service's Process — how the transformation is carried out ─
+// ── Workflows: a Service's Process — how the transformation is carried out ─
 
 /**
  * Build a stage list for storage — resolving each stage's named role
@@ -935,18 +935,15 @@ export async function getDeliverableIdsForServices(serviceIds: string[]): Promis
   return Array.from(new Set((data || []).map((d: any) => d.deliverable_id))) as string[];
 }
 
-/**
- * Workflows are independent. A Service no longer owns a single hardcoded process.
- * To get a production plan for a specific service, we must find a workflow that 
- * matches its outputs. If it's part of a Package, the Package specifies the workflow.
- * For now, this returns an empty plan since Packages will handle workflow selection.
+/*
+ * getProductionPlanForService stood here.
+ *
+ * It returned `{ blueprintId: null, stages: [] }` unconditionally — its own
+ * comment said production plans are assembled at the Package level now — and
+ * nothing called it. A function that answers nothing, that nobody asks, holding
+ * the last `blueprintId` in the codebase. Packages builds the plan from
+ * package_tasks; a booking gets it from there.
  */
-export async function getProductionPlanForService(
-  serviceId: string
-): Promise<{ blueprintId: string | null; stages: { name: string; order: number; roleId: string | null; frontStage: boolean | null }[] }> {
-  // Production plans are now assembled at the Package level using package_workflows
-  return { blueprintId: null, stages: [] };
-}
 
 
 export async function listWorkflowsByDomain() {

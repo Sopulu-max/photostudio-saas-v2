@@ -26,7 +26,7 @@ export type Notification = {
 
 /**
  * Deliberately excluded: everything in the catalog (services, packages,
- * blueprints, roles) and every rename. Defining what the studio does is
+ * workflows, roles) and every rename. Defining what the studio does is
  * considered work, not news — it belongs in the activity feed. What arrives
  * here is the outside world acting, or a colleague changing something already
  * in motion.

@@ -5,11 +5,23 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
-    // These run against a real remote Supabase, not a local stub, so the
-    // purge/seed hooks are network-bound. The 10s default fails on latency
-    // rather than on anything being wrong, which reads as a false regression.
-    hookTimeout: 60000,
-    testTimeout: 60000,
+    /*
+     * These run against a real remote Supabase over a high-latency connection,
+     * not a local stub, so every hook is network-bound. The 10s default failed
+     * on latency alone; 60s was then marginal and failed intermittently.
+     *
+     * A beforeAll that seeds an organization, a contact, two booking stages, a
+     * service and a package is dozens of round trips — measured directly, seven
+     * ordinary operations took fifty seconds. The setup lived just under the old
+     * limit and crossed it at random, producing a red run that meant nothing
+     * except that the network was slower that minute.
+     *
+     * Raised rather than worked around, because the cost of a flaky suite is
+     * that a real regression gets waved through as "probably the network
+     * again". Individual tests that need longer still say so themselves.
+     */
+    hookTimeout: 120000,
+    testTimeout: 120000,
     /*
      * One test file at a time.
      *

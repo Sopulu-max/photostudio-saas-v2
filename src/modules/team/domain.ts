@@ -277,7 +277,7 @@ export async function deleteRole(roleId: string) {
 
 /**
  * Find a role by name, or create it — same find-or-create mechanism Services
- * uses for its own facets. This is how a Blueprint stage can name a role
+ * uses for its own facets. This is how a Workflow task can name a role
  * ("Video Editor") without a separate trip to Team first, whether typed by a
  * studio or suggested by a Template.
  */
@@ -343,7 +343,7 @@ export async function listRoles() {
   const { data, error } = await supabaseAdmin
     .from('roles')
     // Who holds it, not just what it is called. Roles are found-or-created by
-    // blueprints, so a studio accumulates the names its PROCESS needs — and
+    // workflows, so a studio accumulates the names its PROCESS needs — and
     // nothing ever asked which of them a person actually fills. A role nobody
     // holds cannot staff the work that routes to it, and that was invisible.
     .select('id, name, description, employee_roles(employee_id)')

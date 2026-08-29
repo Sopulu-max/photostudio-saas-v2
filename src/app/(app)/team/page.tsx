@@ -86,7 +86,7 @@ export default async function TeamPage() {
         <div className="q-card">
           <h2 style={{ fontSize: '1.05rem', marginTop: 0, marginBottom: '6px', fontWeight: 600 }}>Roles</h2>
           <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: 'var(--q-color-ink-500)' }}>
-            Roles are what work is routed to. A blueprint stage names a role, so these are created as
+            Roles are what work is routed to. A workflow task names a role, so these are created as
             you define your processes. A role with no one assigned cannot staff the work that requires it.
           </p>
           {unfilled.length > 0 && (

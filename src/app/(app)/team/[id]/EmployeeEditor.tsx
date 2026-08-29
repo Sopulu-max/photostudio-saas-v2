@@ -78,7 +78,7 @@ export function EmployeeEditor({
 
       {/*
         * No skills field. What a person can do is a ROLE — one vocabulary, the
-        * same one blueprints route work to, managed just below this. A second
+        * same one workflows route work to, managed just below this. A second
         * free-text list looked like capability and staffed nobody.
         */}
       <div className="q-row">

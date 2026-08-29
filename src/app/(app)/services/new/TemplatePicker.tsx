@@ -15,7 +15,7 @@ import { TEMPLATE_DIMENSION_NAMES } from '@/modules/services/interface';
  * it suggests stays fully editable. When none of the curated starting
  * points match — a discipline this studio does that isn't in the library —
  * "Create a custom service" opens the identical editor with nothing filled
- * in. The Service's shape (Domain, Deliverables, Blueprint, and whatever the
+ * in. The Service's shape (Domain, Deliverables, Workflow, and whatever the
  * domain classifies by) is the same either way; only the starting values
  * differ. That's not a blank canvas in the no-code-builder
  * sense — it's Progressive Enrichment: an entity has to be creatable with

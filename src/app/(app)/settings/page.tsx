@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Studio-wide settings only. Anything belonging to one capability lives in that
- * module's own app — stages in Bookings, roles in Team, blueprints in Services.
+ * module's own app — stages in Bookings, roles in Team, workflows in Services.
  * Ordered from the most fundamental outwards: who you are, how you bill, who
  * gets in.
  */
@@ -140,7 +140,7 @@ export default async function SettingsPage() {
             </Link>
             <Link href="/services/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
-                <strong className="q-strong">Groups, blueprints &amp; defaults</strong>
+                <strong className="q-strong">Groups, workflows &amp; defaults</strong>
                 <div className="q-meta">How your catalogue is arranged, and what a new service starts with</div>
               </div>
               <span className="q-meta-sm">Services &rarr;</span>

@@ -70,9 +70,20 @@ const ACTIVITY_PHRASING: Record<string, string> = {
   'service.retired':    'retired a service',
   'service.restored':   'brought a service back',
   'service.variables_updated': 'changed what varies on a service',
-  'blueprint.created':  'created a blueprint',
-  'blueprint.updated':  'changed a blueprint',
-  'blueprint.deleted':  'removed a blueprint',
+  /*
+      * Keyed on the old entity name, phrased in the current one.
+      *
+      * Blueprints became workflows. One event row in the database still carries
+      * entity_type 'blueprint', so the keys have to stay or that row loses its
+      * phrase — but what it describes is what this system now calls a workflow,
+      * and an audit trail is for reading, so it reads in today's words.
+      */
+  'blueprint.created':  'created a workflow',
+  'blueprint.updated':  'changed a workflow',
+  'blueprint.deleted':  'removed a workflow',
+  'workflow.created':   'created a workflow',
+  'workflow.updated':   'changed a workflow',
+  'workflow.deleted':   'removed a workflow',
 
   // Packages — the commercial layer
   'package.created':           'created a package',

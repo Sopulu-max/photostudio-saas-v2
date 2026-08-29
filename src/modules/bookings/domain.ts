@@ -1827,7 +1827,7 @@ export async function extractPackageFromEnquiry(bookingId: string) {
  * Who this booking needs, derived from what was actually booked.
  *
  * The whole chain already exists in the data and used to die before reaching
- * anyone: a Service's Blueprint routes each stage to a role → a Package
+ * anyone: a Service's Workflow routes each task to a role → a Package
  * inherits the union of its bundled Services' stages → a booking line points
  * at that Package. So the booking already knows it needs a Photographer and a
  * Video Editor; nothing ever said so out loud until work had been started and
@@ -1836,8 +1836,8 @@ export async function extractPackageFromEnquiry(bookingId: string) {
  * Surfaced, never acted on — the same discipline as reviewCascadeForCancel.
  * This does not assign anyone, and a role going unfilled is not an error: a
  * studio may well shoot it themselves. Roles are matched by id, not name, and
- * stages the blueprints left unrouted are reported rather than hidden, because
- * "the blueprint doesn't say who does this" is real information.
+ * stages the workflow tasks left unrouted are reported rather than hidden, because
+ * "the workflow doesn't say who does this" is real information.
  */
 export async function getStaffingNeedsForBooking(bookingId: string): Promise<{
   roles: { roleId: string; roleName: string; stageCount: number; fromPackages: string[]; assigned: { employeeId: string; name: string }[] }[];

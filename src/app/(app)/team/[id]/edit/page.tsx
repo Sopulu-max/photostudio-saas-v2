@@ -65,7 +65,7 @@ export default async function EditEmployeePage(props: { params: Promise<{ id: st
         <div className="q-card q-section">
           <h2 className="q-section-title">Roles</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            What this person can be assigned to on a booking. Blueprints route stages to roles, and roles route to people.
+            What this person can be assigned to on a booking. Workflows route tasks to roles, and roles route to people.
           </p>
           <EmployeeRoles employeeId={employee.id} assigned={assignedRoles} available={availableRoles} />
         </div>

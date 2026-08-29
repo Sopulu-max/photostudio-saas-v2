@@ -3,7 +3,7 @@
  *
  * The ontology layer: Service Domains, Services (the specific
  * transformations a studio performs), Deliverables (what they produce), and
- * Blueprints (how — a Service's Process, already routed to Team's roles).
+ * Workflows (how — a Service's Process, already routed to Team's roles).
  *
  * What a studio sells is a different module (Packages) — it asks this
  * interface for the real Services it bundles and the Processes they run,
@@ -21,7 +21,7 @@ export {
   // depends on Services one-way, never the reverse — and read per domain,
   // because a domain is the boundary everything below it belongs to.
   listDimensionsByDomain, findOrCreateDimensionValue,
-  // Blueprints — a Service's Process
+  // Workflows — a Service's Process
     getDeliverableIdsForServices,
   // Service Variables — the quantities that scope a service (outfits, hours)
   listServiceVariables, listVariablesForServices, setServiceVariables,

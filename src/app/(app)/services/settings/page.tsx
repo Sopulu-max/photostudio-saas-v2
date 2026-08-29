@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Services' own settings — the ontology layer's configuration. Domains and
- * Deliverables are studio-editable vocabulary; Blueprints are the Processes
+ * Deliverables are studio-editable vocabulary; Workflows are the Processes
  * a Service runs. How each domain classifies its work lives here too — it
  * applies to both Service and Package, and Services is the layer both depend
  * on. Category and pricing stay in Packages' own settings — those describe how

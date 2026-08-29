@@ -64,7 +64,12 @@ export type ServiceTemplate = {
   /** What this transformation directly produces — Deliverables, studio vocabulary. */
   deliverables: string[];
   /** The Service's default Process. */
-  blueprint?: { name: string; stages: TemplateStage[] };
+  /*
+   * No template in this file sets one and nothing reads it. A template's
+   * production steps now arrive as a workflow on the service it creates, so
+   * this describes a shape the library stopped using.
+   */
+  workflow?: { name: string; stages: TemplateStage[] };
   /**
    * What may vary about this service — outfits, images, coverage, revisions.
    * A package fixes a value; anything it leaves open becomes a question for
@@ -122,7 +127,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
   // Portrait Photography — no structural difference the model can see, so
   // no separate Service. If a studio's newborn work genuinely needs a
   // specialist, that belongs on a role (a "Newborn Photographer" role on
-  // this same Service's blueprint), not a second Service with the same
+  // this same Service's workflow), not a second Service with the same
   // shape. Both fold into Portrait Photography, distinguished by Occasion.
   {
     id: 'event-photography',
@@ -214,7 +219,7 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
   // Everything above creates new photographs. These transform ones that are
   // already there — the client brings the material. That is a different
   // transformation, which is the whole reason they are separate services and
-  // not stages inside a shoot's blueprint. It is also why a restoration studio
+  // not stages inside a shoot's workflow. It is also why a restoration studio
   // can exist without ever owning a camera.
   //
   // NOTE: the schema cannot currently express "this service consumes an

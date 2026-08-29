@@ -99,7 +99,7 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
         </Section>
 
         {/*
-          * One vocabulary, not two. Roles are what blueprints route work to;
+          * One vocabulary, not two. Roles are what workflows route work to;
           * skills were a parallel free-text list that staffing never consulted,
           * so an employee's drone experience could be recorded and never
           * surfaced when a drone shoot needed staffing.
