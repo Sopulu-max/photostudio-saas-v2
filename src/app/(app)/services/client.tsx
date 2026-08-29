@@ -20,45 +20,67 @@ export function ServicesClient({
   const active = initialServices.filter((s: any) => s.status !== 'retired');
   const retired = initialServices.filter((s: any) => s.status === 'retired');
 
-  const Card = ({ svc }: { svc: any }) => (
-    <div className="q-card q-stack">
-      <div className="q-row q-row-between">
+  /**
+   * One service, as a card.
+   *
+   * WHAT WAS WRONG BEYOND THE LOOK. Every card carried a line reading "No
+   * blueprint attached" — blueprints became workflows in the production rework
+   * and `svc.blueprint` has not existed since, so that line was permanently
+   * false on every service and told the studio nothing. It now says the thing
+   * that is actually true and actually matters: whether this service defines
+   * how its work gets done, because without that a booking of it produces no
+   * tasks and nobody can be put on the job.
+   *
+   * The status badge went too. Retired services already sit under their own
+   * heading, so a badge reading "active" on every card in the active list is
+   * noise standing where information should be.
+   *
+   * The whole card is the link. It used to end in a full-width secondary button
+   * saying "View service" — a second thing to aim at, on a card that was
+   * already the subject. Nothing inside it links any more either: nested
+   * anchors are why the classifications had to be built out of spans with
+   * hand-written commas and inherited colours.
+   */
+  const Card = ({ svc }: { svc: any }) => {
+    const tags = (svc.dimensions || []) as ServiceDimensionTag[];
+    const produces = (svc.deliverables || []).map((d: any) => d.name);
+    const steps = svc.workflow?.tasks?.length ?? 0;
+
+    return (
+      <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive">
         <div>
-          <h3 className="q-section-title">{svc.name}</h3>
-          <div className="q-meta-sm">{svc.domain?.name || 'No domain'}</div>
+          <h3 className="q-card-title">{svc.name}</h3>
+          <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
         </div>
-        <span className={`q-badge ${svc.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{svc.status}</span>
-      </div>
-      <div className="q-meta">
-        {svc.deliverables?.length ? `Produces: ${svc.deliverables.map((d: any) => d.name).join(', ')}` : 'No deliverables set'}
-      </div>
-      <div className="q-meta-sm">{svc.blueprint?.name ? `Blueprint: ${svc.blueprint.name}` : 'No blueprint attached'}</div>
-      {/* However many dimensions this service's domain happens to ask, and
-          however many values it carries under each. */}
-      {((svc.dimensions || []) as ServiceDimensionTag[]).length > 0 && (
-        <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-          {((svc.dimensions || []) as ServiceDimensionTag[]).map((d) => (
-            <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
-              <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
-              <span className="q-row" style={{ gap: '4px' }}>
-                {d.values.map((v, i) => (
-                  <span key={v.id}>
-                    <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
-                      {v.name}
-                    </Link>
-                    {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
-                  </span>
-                ))}
-              </span>
-            </div>
-          ))}
+
+        {/* q-row already wraps and gaps, so the label and its value sit on one
+            line and break onto two when the card is narrow, rather than being
+            held apart by a fixed column that a 250px card cannot afford. */}
+        <div className="q-stack q-stack-sm">
+          <div className="q-row q-row-sm">
+            <span className="q-eyebrow">Produces</span>
+            <span className="q-meta">{produces.length > 0 ? produces.join(', ') : 'Nothing set'}</span>
+          </div>
+          <div className="q-row q-row-sm">
+            <span className="q-eyebrow">Workflow</span>
+            <span className="q-meta">
+              {svc.workflow?.name
+                ? `${svc.workflow.name} · ${steps} ${steps === 1 ? 'step' : 'steps'}`
+                : 'None, so it produces no tasks'}
+            </span>
+          </div>
         </div>
-      )}
-      <div className="q-tile-sub">
-        <Link href={`/services/${svc.id}`} className="q-btn q-btn-secondary q-fill q-center-text">View service</Link>
-      </div>
-    </div>
-  );
+
+        {tags.length > 0 && (
+          <div className="q-row q-row-sm">
+            {tags.flatMap((d) => d.values.map((v) => (
+              <span key={v.id} className="q-value q-value-sm" title={d.name}>{v.name}</span>
+            )))}
+          </div>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <div>
@@ -72,7 +94,7 @@ export function ServicesClient({
               destination called Lens, which made a way of looking sit among the
               things a studio owns; it is a view of what is on this page. */}
           <Link href="/services/classifications" className="q-btn q-btn-secondary">By classification</Link>
-          <Link href="/services/settings" className="q-btn q-btn-secondary">Domains, deliverables &amp; blueprints</Link>
+          <Link href="/services/settings" className="q-btn q-btn-secondary">Domains, deliverables &amp; workflows</Link>
           <Link href="/services/new" className="q-btn q-btn-primary">Create service</Link>
         </div>
       </header>

@@ -458,6 +458,7 @@ body {
 .q-row-between{ justify-content: space-between; }
 .q-row-end    { justify-content: flex-end; }
 .q-row-nowrap { flex-wrap: nowrap; }
+.q-row-sm     { --gap: 6px; }
 .q-spacer     { flex: 1 1 auto; }
 
 /* A bordered list item â€” the repeated "row in a card" box. */
@@ -471,6 +472,21 @@ body {
 
 /* A titled block inside a page. */
 .q-section        { padding: 24px; }
+/*
+ * A card's own name, as distinct from a section's heading.
+ *
+ * q-section-title carries a 16px margin below it, which is right for a heading
+ * that opens a section and wrong for a title with a label directly under it —
+ * card markup was cancelling that margin inline. Two different jobs, so two
+ * classes, and neither has to be argued with at the call site.
+ */
+.q-card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
 .q-section-title  { font-size: 1.05rem; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.01em; }
 
 /* Text roles. */
@@ -1004,6 +1020,12 @@ body {
 }
 
 .q-value:active { transform: translateY(0); }
+
+/* The same value, in a dense context: a card, a list row. */
+.q-value-sm {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
 
 .q-chip {
   font-size: 0.75rem; padding: 2px 8px; border-radius: 999px;
