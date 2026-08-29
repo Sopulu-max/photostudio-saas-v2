@@ -60,9 +60,18 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         </p>
       )}
 
-      <Classifications tags={tags as any} />
-
+      {/*
+        * Inside the stack, not above it.
+        *
+        * The stack owns the 24px between sections, and it only gives that to
+        * its own children — so a section sitting outside it had nothing
+        * separating it from the one below, and the two read as touching. The
+        * spacing stays a property of the container rather than a margin this
+        * section carries around with it.
+        */}
       <div className="q-stack q-stack-lg">
+        <Classifications tags={tags as any} />
+
         <div className="q-card q-section">
           <h2 className="q-section-title">Deliverables</h2>
           <div className="q-grid-1">
