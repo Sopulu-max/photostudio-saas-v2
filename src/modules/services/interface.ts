@@ -25,6 +25,9 @@ export {
     getDeliverableIdsForServices,
   // Service Variables — the quantities that scope a service (outfits, hours)
   listServiceVariables, listVariablesForServices, setServiceVariables,
+  // Additive: adds one without reconciling the rest away, which is what a
+  // caller holding only its own new variable needs.
+  declareServiceVariable,
   // What a bundled service may be narrowed to — asked by Packages before it
   // records a narrowing, so the check lives with the domain that owns it.
   listDimensionValueIdsForServices,

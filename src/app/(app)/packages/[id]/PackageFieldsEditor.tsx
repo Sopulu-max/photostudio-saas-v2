@@ -113,6 +113,59 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const embedded = Boolean(hideControls);
   const heading = (n: number, title: string) => (embedded ? title : `${n}. ${title}`);
 
+  /*
+   * Declaring a variable while building the package.
+   *
+   * A package could only ever fix a value for a variable the service had
+   * already declared — so a service that declared none could be packaged
+   * exactly one way, and adding "outfits" meant leaving, editing the service,
+   * and coming back.
+   *
+   * But declaring what varies is most of what building a package IS. The same
+   * Portrait Photography becomes Basic and Deluxe by saying two outfits or
+   * five, and the moment you notice the studio needs an outfits variable is the
+   * moment you are trying to sell two different amounts of it.
+   *
+   * The variable lands on the SERVICE, not on this package. That is the point:
+   * it becomes available to every package of that service and to the booking
+   * form. What this package contributes is the value it then fixes.
+   */
+  const [declaringFor, setDeclaringFor] = useState<string | null>(null);
+  const [newVar, setNewVar] = useState<{ label: string; kind: string; unit: string; options: string }>(
+    { label: '', kind: 'number', unit: '', options: '' },
+  );
+  const [declaredVars, setDeclaredVars] = useState<any[]>([]);
+
+  const declare = (serviceId: string) => {
+    const label = newVar.label.trim();
+    if (!label) return;
+    startTransition(async () => {
+      try {
+        const { declareServiceVariable } = await import('@/modules/services/interface');
+        const created: any = await declareServiceVariable({
+          serviceId,
+          variable: {
+            key: label,
+            label,
+            kind: newVar.kind as any,
+            unit: newVar.unit.trim() || null,
+            options: newVar.options.split(',').map((o) => o.trim()).filter(Boolean),
+          } as any,
+        });
+        if (created) {
+          // Held locally so it appears at once. The page reloads it from the
+          // service on the next render, which is where it actually lives.
+          setDeclaredVars((prev) => prev.some((v) => v.id === created.id) ? prev : [...prev, created]);
+        }
+        setNewVar({ label: '', kind: 'number', unit: '', options: '' });
+        setDeclaringFor(null);
+      } catch (e: any) {
+        alert(e?.message || 'Could not add that variable.');
+      }
+    });
+  };
+
+
   const [nameTouched, setNameTouched] = useState(!!initial.name);
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
@@ -465,10 +518,21 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   };
 
   const renderVariables = (s: ServiceOption) => {
-    const vars = allVariables.filter(v => v.serviceId === s.id);
-    if (vars.length === 0) return null;
+    // Whatever the service already declares, plus anything declared here since
+    // the page loaded. Rendered even when there are none, because "nothing
+    // varies about this yet" is where a studio most needs to be able to say
+    // that something does.
+    const vars = [
+      ...allVariables.filter((v) => v.serviceId === s.id),
+      ...declaredVars.filter((v) => v.serviceId === s.id && !allVariables.some((a) => a.id === v.id)),
+    ];
     return (
       <div className="q-stack q-stack-sm">
+        {vars.length === 0 && declaringFor !== s.id && (
+          <p className="q-meta-sm">
+            Nothing varies about {s.name} yet, so every package of it offers the same thing.
+          </p>
+        )}
         {vars.map((v) => {
           const current = variableValues[v.id] ?? '';
           return (
@@ -543,6 +607,108 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             </div>
           );
         })}
+
+        {/*
+          * Declaring a new one, here, while building the package.
+          *
+          * It is added to the SERVICE — so it becomes available to every other
+          * package of that service and to the booking form — and this package
+          * then fixes a value for it like any other. That is what makes two
+          * packages of one service different: not different services, the same
+          * service with different values fixed.
+          */}
+        {declaringFor === s.id ? (
+          <div className="q-tile q-stack q-stack-sm">
+            <div className="q-row">
+              <div className="q-field" style={{ flex: 1, minWidth: '10rem' }}>
+                <label className="q-label">What varies</label>
+                <input
+                  className="q-input"
+                  value={newVar.label}
+                  disabled={isPending}
+                  onChange={(e) => setNewVar({ ...newVar, label: e.target.value })}
+                  placeholder="e.g. Outfits"
+                />
+              </div>
+              <div className="q-field" style={{ minWidth: '9rem' }}>
+                <label className="q-label">Kind</label>
+                <select
+                  className="q-select"
+                  value={newVar.kind}
+                  disabled={isPending}
+                  onChange={(e) => setNewVar({ ...newVar, kind: e.target.value })}
+                >
+                  <option value="number">Number</option>
+                  <option value="choice">One of a list</option>
+                  <option value="multichoice">Several of a list</option>
+                  <option value="boolean">Included or not</option>
+                  <option value="text">Text</option>
+                  <option value="date">Date</option>
+                </select>
+              </div>
+              {newVar.kind === 'number' && (
+                <div className="q-field" style={{ minWidth: '8rem' }}>
+                  <label className="q-label">Unit (optional)</label>
+                  <input
+                    className="q-input"
+                    value={newVar.unit}
+                    disabled={isPending}
+                    onChange={(e) => setNewVar({ ...newVar, unit: e.target.value })}
+                    placeholder="hour"
+                  />
+                </div>
+              )}
+            </div>
+
+            {(newVar.kind === 'choice' || newVar.kind === 'multichoice') && (
+              <div className="q-field">
+                <label className="q-label">Choices, separated by commas</label>
+                <input
+                  className="q-input"
+                  value={newVar.options}
+                  disabled={isPending}
+                  onChange={(e) => setNewVar({ ...newVar, options: e.target.value })}
+                  placeholder="Indoor, Outdoor, Both"
+                />
+              </div>
+            )}
+
+            <div className="q-row">
+              <button
+                type="button"
+                className="q-btn q-btn-primary q-btn-sm"
+                disabled={isPending || !newVar.label.trim()}
+                onClick={() => declare(s.id)}
+              >
+                {isPending ? 'Adding…' : 'Add to ' + s.name}
+              </button>
+              <button
+                type="button"
+                className="q-btn q-btn-secondary q-btn-sm"
+                disabled={isPending}
+                onClick={() => { setDeclaringFor(null); setNewVar({ label: '', kind: 'number', unit: '', options: '' }); }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            <span className="q-meta-sm">
+              Added to {s.name} itself, so every package of it can set a value — and the booking form
+              can ask a client when a package leaves it open.
+            </span>
+          </div>
+        ) : (
+          <div>
+            <button
+              type="button"
+              className="q-btn q-btn-secondary q-btn-sm"
+              disabled={isPending}
+              onClick={() => setDeclaringFor(s.id)}
+            >
+              Add a variable
+            </button>
+          </div>
+        )}
       </div>
     );
   };

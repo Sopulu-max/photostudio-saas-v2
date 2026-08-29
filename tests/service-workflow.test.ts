@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createService, updateService, getService } from '@/modules/services/domain';
-import { listServiceVariables } from '@/modules/services/domain';
+import { listServiceVariables, declareServiceVariable } from '@/modules/services/domain';
 import { PURGE_ORDER } from './purge';
 
 let serviceId = '';
@@ -184,6 +184,71 @@ describe('A service keeps its workflow', () => {
         await listServiceVariables(serviceId),
         'a service could not be cleared of its variables',
       ).toHaveLength(0);
+    }, 90000);
+  });
+
+  /*
+   * Declaring one from outside the service's own form.
+   *
+   * A package could only fix a value for a variable the service had already
+   * declared, so a service that declared none could be packaged exactly one
+   * way. But declaring what varies is most of what building a package is: the
+   * same service becomes Basic and Deluxe by saying two outfits or five.
+   *
+   * It has to be ADDITIVE. setServiceVariables reconciles — anything absent is
+   * deleted — so a caller holding only its own new variable would wipe every
+   * other one the service had.
+   */
+  describe('declaring a variable additively', () => {
+    it('adds one without disturbing the others', async () => {
+      await updateService({
+        serviceId,
+        variables: [
+          { key: 'outfits', label: 'Outfits', kind: 'number', min: 1, max: 6 },
+          { key: 'hours', label: 'Hours of coverage', kind: 'number', unit: 'hour' },
+        ],
+      } as any);
+
+      await declareServiceVariable({
+        serviceId,
+        variable: { key: 'locations', label: 'Locations', kind: 'number' } as any,
+      });
+
+      const after = await listServiceVariables(serviceId);
+      expect(
+        after.map((v: any) => v.key).sort(),
+        'declaring one variable removed the others',
+      ).toEqual(['hours', 'locations', 'outfits']);
+    }, 90000);
+
+    it('returns the existing one rather than making a second', async () => {
+      const before = (await listServiceVariables(serviceId)).length;
+      const again: any = await declareServiceVariable({
+        serviceId,
+        variable: { key: 'locations', label: 'Locations', kind: 'number' } as any,
+      });
+
+      expect(again?.key).toBe('locations');
+      expect(
+        (await listServiceVariables(serviceId)).length,
+        'asking twice for the same variable made two',
+      ).toBe(before);
+    }, 90000);
+
+    it('takes the key from the label when none is given', async () => {
+      const made: any = await declareServiceVariable({
+        serviceId,
+        variable: { label: 'Edited images', kind: 'number' } as any,
+      });
+      // Two variables sharing a key is the state setServiceVariables refuses
+      // outright, so a generated one has to be normalised the same way.
+      expect(made?.key).toBe('edited_images');
+    }, 90000);
+
+    it('refuses a variable with no name', async () => {
+      await expect(
+        declareServiceVariable({ serviceId, variable: { label: '  ', kind: 'number' } as any }),
+      ).rejects.toThrow(/needs a name/i);
     }, 90000);
   });
 });

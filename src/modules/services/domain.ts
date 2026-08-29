@@ -865,6 +865,104 @@ export async function listDimensionValueIdsForServices(
  * correct: a package cannot hold a value for something the service no longer
  * recognizes.
  */
+/**
+ * Add one variable to a service, without disturbing the others.
+ *
+ * WHY THIS IS SEPARATE FROM setServiceVariables. That one reconciles: whatever
+ * is not in the list it receives is deleted. That is right for a form that
+ * holds the whole set, and catastrophic for a caller that only knows about one
+ * — a package sending its new variable would silently remove every other
+ * variable the service had.
+ *
+ * WHY PACKAGES NEEDS IT. A package could only ever fix a value for a variable
+ * the service had already declared, so a service that declared none could be
+ * packaged in only one way. But declaring what varies is most of what building
+ * a package IS: the same Portrait Photography becomes Basic and Deluxe by
+ * saying two outfits or five, and you notice the studio needs an "outfits"
+ * variable at the moment you are trying to sell two different amounts of it.
+ *
+ * The variable still belongs to the SERVICE, which is the point. Declaring it
+ * while packaging does not make it the package's — it makes it available to
+ * every package of that service, and to the booking form, and to the client.
+ * One definition, reused. The package's own contribution is the value it fixes.
+ *
+ * Idempotent on the key: asking twice for "outfits" returns the one that
+ * exists rather than making a second. Two variables with one name is the state
+ * setServiceVariables refuses outright, and this must not create it by the back
+ * door.
+ */
+export async function declareServiceVariable(input: {
+  serviceId: string;
+  variable: ServiceVariableInput;
+}): Promise<ServiceVariable | null> {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  // Same check setServiceVariables makes, for the same reason: the service has
+  // to be this studio's before anything is declared on it.
+  const { data: service } = await supabaseAdmin
+    .from('services').select('id').eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
+  if (!service) throw new Error('Service not found');
+
+  const key = (input.variable.key || input.variable.label || '')
+    .trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+  const label = (input.variable.label || '').trim();
+  if (!key || !label) throw new Error('A variable needs a name.');
+
+  const existing = await listServiceVariables(input.serviceId);
+  const already = existing.find((v) => v.key === key);
+  if (already) return already;
+
+  const { data, error } = await supabaseAdmin
+    .from('service_variables')
+    .insert({
+      organization_id: orgId,
+      service_id: input.serviceId,
+      key,
+      label,
+      kind: input.variable.kind || 'number',
+      unit: (input.variable.unit || '').trim() || null,
+      options: input.variable.options || [],
+      default_value: input.variable.defaultValue ?? null,
+      min_value: input.variable.min ?? null,
+      max_value: input.variable.max ?? null,
+      // Onto the end of whatever the service already declares.
+      position: existing.length,
+    })
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to declare a service variable:', error);
+    throw new Error(`Failed to add "${label}"`);
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.serviceId,
+    action: 'variables_updated',
+    actorId: actorId ?? undefined,
+    payload: { declared: key },
+  });
+
+  revalidatePath('/services');
+  revalidatePath(`/services/${input.serviceId}`);
+  revalidatePath('/packages');
+
+  return {
+    id: data.id,
+    serviceId: data.service_id,
+    key: data.key,
+    label: data.label,
+    kind: data.kind,
+    unit: data.unit ?? null,
+    options: data.options || [],
+    defaultValue: data.default_value ?? null,
+    min: data.min_value ?? null,
+    max: data.max_value ?? null,
+    position: data.position ?? 0,
+  };
+}
+
 export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
