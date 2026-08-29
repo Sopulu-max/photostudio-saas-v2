@@ -965,6 +965,46 @@ body {
 .q-picked-head   { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .q-picked-name   { font-weight: 600; font-size: 1.05rem; }
 .q-chip-row      { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+/*
+ * A classification value, at the size it matters.
+ *
+ * These were drawn as .q-badge — mono, 0.68rem, grey — which is the styling
+ * this system uses for metadata: a status, a count, a stamp. But a value like
+ * Maternity is not metadata about a service. It is one of the doors a client
+ * walks through: on the storefront every value is a filter, and on the custom
+ * enquiry path they are what a client picks to say what they want. Read as tags
+ * they looked like something the studio had scribbled on the back of a service.
+ *
+ * So they carry the weight of the thing they are. Larger, in the body face
+ * rather than the mono one, on paper rather than in a grey pill, and they lift
+ * when a pointer is on them — because they are links to every service classified
+ * the same way, and Lumen says a thing you can press should say so.
+ */
+.q-value {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--q-color-ink-900);
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-200);
+  text-decoration: none;
+  transition: transform var(--q-dur-2) var(--q-ease),
+              border-color var(--q-dur-2) var(--q-ease),
+              box-shadow var(--q-dur-2) var(--q-ease);
+}
+
+.q-value:hover,
+.q-value:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--q-color-accent);
+  box-shadow: var(--q-shadow-sm);
+}
+
+.q-value:active { transform: translateY(0); }
+
 .q-chip {
   font-size: 0.75rem; padding: 2px 8px; border-radius: 999px;
   background: var(--q-color-ink-50); border: 1px solid var(--q-color-ink-100);

@@ -60,11 +60,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         </p>
       )}
 
-      <Classifications
-        tags={tags as any}
-        serviceName={service.name}
-        soldNames={soldIn.map((p: any) => p.name)}
-      />
+      <Classifications tags={tags as any} />
 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
