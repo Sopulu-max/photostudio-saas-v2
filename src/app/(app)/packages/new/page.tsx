@@ -8,12 +8,22 @@ import { PackageFieldsEditor } from '../[id]/PackageFieldsEditor';
 export const dynamic = 'force-dynamic';
 
 /**
- * `?value=` arrives from the classification view: entering at Birthday and choosing to package
- * what the studio already does should not drop you into a blank form and make
- * you re-say Birthday. The value is preselected; everything else is the same
- * builder.
+ * Arriving with the answer already half given.
+ *
+ * `?value=` comes from the classification view: entering at Birthday and
+ * choosing to package what the studio already does should not drop you into a
+ * blank form and make you re-say Birthday.
+ *
+ * `?values=` comes from a service's own classifications, where a COMBINATION was
+ * chosen — Studio, Maternity — and `?name=` carries what that combination is
+ * called. A service classified across four occasions and two contexts covers
+ * eight sellable things; naming one and pressing create is the shortest path
+ * from "we do this" to "a client can buy this", and it should not begin with an
+ * empty form.
  */
-export default async function NewPackagePage(props: { searchParams: Promise<{ value?: string }> }) {
+export default async function NewPackagePage(props: {
+  searchParams: Promise<{ value?: string; values?: string; name?: string }>;
+}) {
   const sp = await props.searchParams;
   try {
     await getAuthOrgId();
@@ -49,8 +59,12 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         // Arrived from the classifications lens — "build a package for Weddings".
         // It cannot become a narrowing until a service is chosen to narrow, so it
         // is carried as intent and applied to the first service that speaks it.
-        intendedValueIds={sp.value ? [String(sp.value)] : []}
-        initial={{ variableValues: [] }}
+        intendedValueIds={
+          sp.values
+            ? String(sp.values).split(',').map((v) => v.trim()).filter(Boolean)
+            : sp.value ? [String(sp.value)] : []
+        }
+        initial={{ variableValues: [], name: sp.name ? String(sp.name) : undefined }}
       />
     </div>
   );

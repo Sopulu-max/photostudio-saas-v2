@@ -6,6 +6,7 @@ import type { ServiceDimensionTag } from '@/modules/services/interface';
 // Composed here rather than reached for: Packages owns `package ↔ service`, and
 // Services never reads package tables. The page joins the two modules.
 import { listPackagesForService } from '@/modules/packages/interface';
+import { Classifications } from './Classifications';
 
 import { CheckCircle2, CircleDashed, Package as PackageIcon } from 'lucide-react';
 
@@ -59,40 +60,11 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
         </p>
       )}
 
-      {/*
-        * Shown whether or not there are any. A section that disappears when
-        * empty leaves the reader unable to tell "none" from "this service does
-        * not have that idea at all" — and the whole point of this page is to
-        * say what a service IS, which includes what it has not been told.
-        */}
-      <div className="q-card q-section">
-        <h2 className="q-section-title">Classifications</h2>
-        {tags.length === 0 ? (
-          <p className="q-empty">
-            Not classified yet, so it will not be found by anyone narrowing a search for it.
-          </p>
-        ) : (
-          <div className="q-grid-3">
-            {tags.map((d) => (
-              <div key={d.id} className="q-panel">
-                <div className="q-stat-label">{d.name}</div>
-                <div className="q-row" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                  {d.values.map((v) => (
-                    <Link
-                      key={v.id}
-                      href={`/services/classifications/${encodeURIComponent(v.id)}`}
-                      className="q-badge q-badge-neutral"
-                      title={`See every service tagged ${d.name}: ${v.name}`}
-                    >
-                      {v.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Classifications
+        tags={tags as any}
+        serviceName={service.name}
+        soldNames={soldIn.map((p: any) => p.name)}
+      />
 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
