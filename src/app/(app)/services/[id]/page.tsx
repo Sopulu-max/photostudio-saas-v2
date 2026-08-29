@@ -96,10 +96,10 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
 
       <div className="q-stack q-stack-lg">
         <div className="q-card q-section">
-          <h2 className="q-section-title">What it produces</h2>
+          <h2 className="q-section-title">Deliverables</h2>
           <div className="q-grid-1">
             <div className="q-panel">
-              <div className="q-stat-label">Primary output</div>
+              <div className="q-stat-label">Primary deliverable</div>
               <div className="q-stat-value" style={{ fontSize: '1.1rem' }}>
                 {dims.primary_deliverable ? (
                   <span className="q-row" style={{ gap: '8px', color: 'var(--q-color-primary)' }}><CheckCircle2 size={18} /> {dims.primary_deliverable.name}</span>
@@ -111,10 +111,10 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           </div>
           
           <div style={{ marginTop: '24px' }}>
-            <div className="q-stat-label" style={{ marginBottom: '8px' }}>Other outputs</div>
+            <div className="q-stat-label" style={{ marginBottom: '8px' }}>Additional deliverables</div>
             {!dims.deliverables || dims.deliverables.length === 0 ? (
               <p className="q-empty">
-                This service produces only its primary output.
+                This service produces only its primary deliverable.
               </p>
             ) : (
               <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--q-color-ink-700)' }}>
@@ -137,7 +137,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * silently is not there.
           */}
         <div className="q-card q-section">
-          <h2 className="q-section-title">What varies</h2>
+          <h2 className="q-section-title">Variables</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             The quantities a package can fix, or leave open for the client to answer when booking.
           </p>
@@ -194,7 +194,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * again. No workflow means no tasks means nobody can be assigned.
           */}
         <div className="q-card q-section">
-          <h2 className="q-section-title">How it&rsquo;s done</h2>
+          <h2 className="q-section-title">Workflow</h2>
           {!workflow || (workflow.tasks || []).length === 0 ? (
             <>
               <p className="q-empty">
@@ -243,7 +243,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * what they bundle.
           */}
         <div className="q-card q-section">
-          <h2 className="q-section-title">Where it&rsquo;s sold</h2>
+          <h2 className="q-section-title">Packages</h2>
           {soldIn.length === 0 ? (
             <p className="q-empty">
               Nothing bundles {service.name} yet, so a client can&rsquo;t buy it. A service is what you know

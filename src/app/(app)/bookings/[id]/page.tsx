@@ -228,7 +228,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* What the client told us — answers to the service's intake questions */}
         {intake.length > 0 && (
-          <Section title="Client submission">
+          <Section title="Intake answers">
             <div className="q-stack q-stack-sm">
               {intake.map((row: any, i: number) => (
                 <div key={i} className="q-tile q-row q-row-between">
@@ -244,7 +244,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         )}
 
         {/* When */}
-        <Section title="Schedule">
+        <Section title="Date and time">
           {booking.scheduled_for ? (
             <div>
               <strong className="q-strong">
