@@ -45,42 +45,31 @@ export function BookingsClient({
       <Link href={`/bookings/${b.id}`} className="q-card q-card-interactive q-plain-link q-stack">
         <div className="q-row q-row-between">
           <div className="q-fill">
-            {/*
-              * The date leads, because the first thing anyone asks of a booking
-              * is when it is. The list could not show one at all until
-              * recently: the query never asked for scheduled_for, and ordered
-              * by the moment somebody opened the form instead.
-              */}
+            {/* The date leads the card, because the first thing anyone asks of
+                a booking is when it is. */}
             <span className={date ? 'q-eyebrow' : 'q-eyebrow q-absent'}>{date || 'No date set'}</span>
             <h3 className="q-card-title">{b.title}</h3>
           </div>
           {b.stage?.name && <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>}
         </div>
 
-        {/* One edge for the labels, one for the values — the same two columns
-            the service and package cards use, so a row of cards can be read
-            down rather than one card at a time. */}
-        <dl className="q-defs">
-          <dt>Client</dt>
-          <dd className={b.clientName ? undefined : 'q-absent'}>{b.clientName || 'Not named yet'}</dd>
+        {/* Who it is for: the answer somebody opened the list to find, in the
+            same place the other two catalogues put theirs. */}
+        <p className={b.clientName ? 'q-lead' : 'q-lead q-absent'}>
+          {b.clientName || 'No client named yet'}
+        </p>
 
-          <dt>Packages</dt>
-          <dd className={b.lineCount > 0 ? undefined : 'q-absent'}>
-            {b.lineCount > 0
-              ? `${b.lineCount} ${b.lineCount === 1 ? 'package' : 'packages'}`
-              : 'Nothing on it yet'}
-          </dd>
+        <div className="q-facts">
+          <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
+            <span className="q-fact-key">Packages</span>
+            {b.lineCount > 0 ? b.lineCount : 'None'}
+          </span>
+          <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
+            <span className="q-fact-key">Contract</span>
+            {b.hasContract ? 'Raised' : 'None'}
+          </span>
+        </div>
 
-          <dt>Contract</dt>
-          <dd className={b.hasContract ? undefined : 'q-absent'}>{b.hasContract ? 'Raised' : 'None'}</dd>
-        </dl>
-
-        {/*
-          * Money outstanding is the one thing here that is a state rather than
-          * a fact, so it is the one thing that keeps a badge — and it sits on
-          * the pinned bottom line, where it lands at the same height on every
-          * card instead of wherever the content above happened to end.
-          */}
         <div className="q-card-foot">
           {b.pendingTotal > 0 ? (
             <span className="q-badge q-badge-warning">

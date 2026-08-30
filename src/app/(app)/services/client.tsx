@@ -54,32 +54,24 @@ export function ServicesClient({
           <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
         </div>
 
-        {/*
-          * Label column and value column, so the values start at one edge on
-          * every row of every card. These were wrapping rows of label-then-
-          * value, which put each value at a different x and gave the eye
-          * nothing to run down — and a grid of cards exists to be read down.
-          *
-          * The classifications carry their dimension now. They were a row of
-          * chips with the question hidden in a title attribute, so Maternity
-          * and Studio floated with nothing to say what either was an answer to.
-          */}
-        <dl className="q-defs">
-          <dt>Produces</dt>
-          <dd className={produces.length > 0 ? undefined : 'q-absent'}>
-            {produces.length > 0 ? produces.join(', ') : 'Nothing set'}
-          </dd>
+        {/* What it produces leads, because that is what a service is for. The
+            same three zones the package cards use, so the two catalogues read
+            the same way. */}
+        <p className={produces.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
+          {produces.length > 0 ? produces.join(' · ') : 'Produces nothing yet'}
+        </p>
 
-          {tags.map((d) => (
-            <React.Fragment key={d.id}>
-              <dt>{d.name}</dt>
-              <dd>{d.values.map((v) => v.name).join(', ')}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
+        {tags.length > 0 && (
+          <div className="q-facts">
+            {tags.map((d) => (
+              <span key={d.id} className="q-fact">
+                <span className="q-fact-key">{d.name}</span>
+                {d.values.map((v) => v.name).join(', ')}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* How it gets done, pinned to the bottom — the same place a package
-            card keeps its tasks, and the same question. */}
         <div className="q-card-foot">
           <span className={svc.workflow?.name ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
             {svc.workflow?.name

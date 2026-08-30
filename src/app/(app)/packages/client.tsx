@@ -50,31 +50,30 @@ export function PackagesClient({
   /**
    * One package, as a card in a grid of them.
    *
-   * A GRID IS FOR COMPARING, and none of this was comparable. Every fact was
-   * drawn as a wrapping row of label-then-value, so the values began at a
-   * different x on every line and a different x again on the next card; the
-   * price and a missing price were the same grey at the same weight; and the
-   * description had no bound, so one package with a paragraph stretched every
-   * card beside it and left the short ones half empty. Cards in a row are
-   * stretched to the tallest of them — that is the whole reason a long
-   * description made a long card.
+   * FEWER FACTS, AND NOT ALL AT ONE RANK. This carried seven — name, services,
+   * price, description, deliverables, variables, classifications, tasks — and
+   * the last attempt lined them all up in a labelled column, which straightened
+   * the list without organising it: six rows of small mono capitals beside six
+   * rows of small grey text. Regular sameness is still sameness.
    *
-   * So: a fixed label column that every value starts at, a description clamped
-   * to two lines because it is the only part with no natural length, a footer
-   * pinned to the bottom so every card in a row ends on the same line, and
-   * absent facts drawn as absences rather than as values.
+   * Four zones now, each in a different voice. The name and the price, because
+   * those are what a package IS and what it costs. What the client receives, in
+   * body ink and with no label — a line directly under a title does not need to
+   * be told what it is, and the labels were half the clutter. Then everything
+   * that distinguishes this package from the next one, as a single quiet strip
+   * across the card rather than a stack down it. Then how much work it involves,
+   * on the pinned last line.
    *
-   * CLASSIFICATIONS ARE NOT TAGS, and were being drawn as a row of them with
-   * the dimension hidden in a title attribute — so "Studio, Maternity" floated
-   * with nothing to say which question either answered. The dimension IS the
-   * label: Context / Studio, Occasion / Maternity. They read as answers now,
-   * and the same dimension lands on the same line of every card, which is what
-   * lets you read down a column.
+   * THE DESCRIPTION IS GONE. It is prose written for a client, shown on the
+   * storefront and on the package's own page where it does its job; on an
+   * operator's grid it repeated what the deliverables already say and was the
+   * only element with no natural length, which is what made one long package
+   * stretch every card beside it.
    *
-   * They are plain text here rather than the value chips the detail page uses.
-   * A chip lifts under the pointer because it is a link to everything
-   * classified that way, and inside a card that is itself one link it would be
-   * promising a click it cannot honour.
+   * Fixed variables sit with the classifications because they are the same kind
+   * of fact: what makes this package a different offer from the next package of
+   * the same service. The ones it leaves open are the client's answer, not the
+   * package's, so they are counted rather than named.
    */
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
@@ -102,34 +101,34 @@ export function PackagesClient({
           </span>
         </div>
 
-        {pkg.description && <p className="q-meta q-clamp-2">{pkg.description}</p>}
+        {/* What the client gets: the one line the card is about. Bounded,
+            because a package promising six things must not make a taller card
+            than one promising two — a row of cards is stretched to its tallest. */}
+        <p className={promises.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
+          {promises.length > 0 ? promises.join(' · ') : 'Nothing promised yet'}
+        </p>
 
-        <dl className="q-defs">
-          <dt>Deliverables</dt>
-          <dd className={promises.length > 0 ? undefined : 'q-absent'}>
-            {promises.length > 0 ? promises.join(', ') : 'Nothing promised'}
-          </dd>
-
-          <dt>Variables</dt>
-          {/* What this package FIXES is most of what makes it a different offer
-              from the next package of the same service. The ones it leaves open
-              are a question the client answers, not something this package says
-              — so they are counted, not named. */}
-          <dd className={fixed.length > 0 ? undefined : 'q-absent'}>
-            {fixed.length > 0
-              ? fixed.map((v: any) => `${v.label} ${formatVariableValue(v)}`).join(', ')
-              : openVars.length > 0
-                ? `${openVars.length} asked at booking`
-                : 'None'}
-          </dd>
-
-          {tags.map((d) => (
-            <React.Fragment key={d.id}>
-              <dt>{d.name}</dt>
-              <dd>{d.values.map((v) => v.name).join(', ')}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
+        {(tags.length > 0 || fixed.length > 0 || openVars.length > 0) && (
+          <div className="q-facts">
+            {tags.map((d) => (
+              <span key={d.id} className="q-fact">
+                <span className="q-fact-key">{d.name}</span>
+                {d.values.map((v) => v.name).join(', ')}
+              </span>
+            ))}
+            {fixed.map((v: any) => (
+              <span key={v.serviceVariableId} className="q-fact">
+                <span className="q-fact-key">{v.label}</span>
+                {formatVariableValue(v)}
+              </span>
+            ))}
+            {fixed.length === 0 && openVars.length > 0 && (
+              <span className="q-fact q-absent">
+                {openVars.length} {openVars.length === 1 ? 'variable' : 'variables'} asked at booking
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="q-card-foot">
           <span className={taskCount > 0 ? 'q-meta-sm' : 'q-meta-sm q-absent'}>

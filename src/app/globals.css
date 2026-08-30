@@ -657,41 +657,57 @@ body {
 .q-num      { font-variant-numeric: tabular-nums; }
 
 /*
- * Label and value, in two columns that hold their line.
+ * The line a card is actually about.
  *
- * A card made of rows like "Deliverables  20 edited photographs" was being
- * drawn as a wrapping flex row per fact, so the value began wherever its label
- * happened to end — a different x on every line, and a different x again on the
- * next card. There was nothing for the eye to run down. Four facts drawn that
- * way are four separate readings.
+ * A card carrying seven facts at one rank is a wall however well the columns
+ * line up — the first attempt at this gave every fact its own labelled row and
+ * produced six rows of small mono capitals with small grey text beside them.
+ * Straightening a list does not organise it; it only makes the sameness
+ * regular.
  *
- * A fixed label column gives one edge for the labels and one for the values, on
- * every row of every card in the grid, because the cards are the same width. It
- * is then possible to read down a column and compare one package to the next,
- * which is the only reason to lay packages out in a grid at all.
- *
- * The label keeps the eyebrow's voice — quiet, spaced, secondary — and the
- * value takes the ink, because the value is the thing you came to read.
+ * So one thing leads. On a package it is what the client receives, on a service
+ * what it produces, on a booking who it is for — the answer somebody opened the
+ * page to find. It carries no label at all, because a line in body ink directly
+ * under a title does not need to be told what it is, and the label was half the
+ * clutter.
  */
-.q-defs {
-  display: grid;
-  grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
-  gap: 7px 14px;
-  margin: 0;
-  align-items: baseline;
-}
-.q-defs > dt {
-  font-family: var(--q-font-mono);
-  font-size: 0.64rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--q-color-ink-500);
-}
-.q-defs > dd {
-  margin: 0;
-  font-size: 0.875rem;
+.q-lead {
+  font-size: 0.95rem;
   color: var(--q-color-ink-900);
+}
+
+/*
+ * Everything else, as one quiet strip rather than a stack of rows.
+ *
+ * Classifications and fixed variables are the same kind of thing — small facts
+ * that distinguish this one from the next — so they read as one band of text
+ * across the card instead of six lines down it. Three facts on one line take a
+ * quarter of the room and one glance.
+ *
+ * Each keeps the question it answers. "Studio" and "Maternity" as bare chips
+ * were tags with the dimension hidden in a title attribute; a fact carries its
+ * own key, quietly, so Context and Occasion are readable without competing with
+ * the values that answer them.
+ */
+.q-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 18px;
+}
+.q-fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--q-color-ink-800);
+}
+.q-fact-key {
+  font-family: var(--q-font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-400);
 }
 
 /*
