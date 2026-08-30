@@ -40,10 +40,17 @@ export type CatalogFacets = {
  * filtered list that does not say it is filtered is indistinguishable from a
  * studio that owns nine packages.
  *
- * The list itself is never capped. A catalogue is a thing you browse, and
- * hiding inventory behind a "show more" is a different failure from the one
- * this solves — the picker inside a form caps, because there you are choosing
- * rather than looking.
+ * A CATALOGUE IS NEVER CAPPED, and a picker always is. Browsing inventory is a
+ * real thing to do, so hiding some of it behind a "show more" would be its own
+ * failure — but inside a form you are choosing rather than looking, and fifty
+ * rows between two fields buries the fields. So `cap` is the caller's to set,
+ * and when it is set the count of what is held back is stated with a way to
+ * open it. A bound that says how much it is holding is not a wall.
+ *
+ * The children are handed the query as well as the matches, because a picker
+ * that offers to CREATE what was searched for — "no package called that, make
+ * one" — needs the words that found nothing. That is the caller's to render;
+ * this only knows how to narrow.
  */
 export function CatalogFilter<T>({
   items,
@@ -51,6 +58,7 @@ export function CatalogFilter<T>({
   noun,
   facetLabel = 'domain',
   threshold = 8,
+  cap,
   children,
 }: {
   items: T[];
@@ -59,14 +67,18 @@ export function CatalogFilter<T>({
   noun: string;
   /** What the single-select facet is called, for its own empty option. */
   facetLabel?: string;
+  /** Below this many, the control is furniture and does not draw. 0 always draws. */
   threshold?: number;
-  children: (shown: T[]) => React.ReactNode;
+  /** Most rows to draw at once. Unset means all of them, which is a catalogue. */
+  cap?: number;
+  children: (shown: T[], state: { query: string; narrowed: boolean }) => React.ReactNode;
 }) {
   const [search, setSearch] = useState('');
   const [facet, setFacet] = useState('');
   const [values, setValues] = useState<string[]>([]);
+  const [uncapped, setUncapped] = useState(false);
 
-  if (items.length < threshold) return <>{children(items)}</>;
+  if (items.length < threshold) return <>{children(items, { query: '', narrowed: false })}</>;
 
   const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
   const facetValues = [...new Set([...facets.values()].map((f) => f.facet).filter(Boolean))] as string[];
@@ -100,6 +112,8 @@ export function CatalogFilter<T>({
   });
 
   const narrowed = Boolean(needle) || Boolean(facet) || values.length > 0;
+  const drawn = cap && !uncapped ? shown.slice(0, cap) : shown;
+  const held = shown.length - drawn.length;
   const toggle = (valueId: string) =>
     setValues((prev) => prev.includes(valueId) ? prev.filter((v) => v !== valueId) : [...prev, valueId]);
 
@@ -164,7 +178,19 @@ export function CatalogFilter<T>({
         <p className="q-empty">
           No {noun} matches. Clear the filters, or nothing here is like this yet.
         </p>
-      ) : children(shown)}
+      ) : (
+        <>
+          {children(drawn, { query: search.trim(), narrowed })}
+          {held > 0 && (
+            <div className="q-row q-row-sm">
+              <span className="q-meta-sm">{drawn.length} of {shown.length} shown.</span>
+              <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => setUncapped(true)}>
+                Show the other {held}
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

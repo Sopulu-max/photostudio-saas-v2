@@ -17,6 +17,9 @@ import { QuestionEditor } from './QuestionEditor';
  * feature while it was being written. They were the same feature twice.
  */
 import { PickMany, PickToAdd } from '@/components/Pick';
+// The same narrowing the catalogues do. A picker differs only in excluding
+// what is chosen and bounding what it draws, and both are arguments.
+import { CatalogFilter } from '@/components/CatalogFilter';
 
 type ServiceOption = { 
   id: string; 
@@ -374,9 +377,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * The same answer the booking form already reached for the same problem: a
    * search box, and a filter on the vocabulary the studio classifies by.
    */
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [serviceDomain, setServiceDomain] = useState('');
-  const [showAllServices, setShowAllServices] = useState(false);
+
   /*
    * Which bundled service is open.
    *
@@ -1210,32 +1211,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
            * bundled, which is the only place it can be acted on.
            */
           const chosen = allServices.filter((s) => serviceIds.includes(s.id));
-          const domains = [...new Set(allServices.map((s) => s.domain?.name).filter(Boolean))] as string[];
-
-          const needle = serviceSearch.trim().toLowerCase();
-          const matches = allServices.filter((s) => {
-            if (serviceIds.includes(s.id)) return false;
-            if (serviceDomain && s.domain?.name !== serviceDomain) return false;
-            if (!needle) return true;
-            const tags = (s.dimensions || []).flatMap((d: any) => d.values.map((v: any) => v.name));
-            return [s.name, s.description, s.domain?.name, ...tags]
-              .some((f) => (f || '').toLowerCase().includes(needle));
-          });
-
           /*
-           * Bounded, and openable.
+           * Narrowing this list is CatalogFilter's job, not this form's.
            *
-           * Bounding it is right — this is a form, and you are choosing rather
-           * than browsing, so fifty rows between two fields buries the fields.
-           * But the first cut told you to search and left no other way through:
-           * a service you could not name and could not narrow to was simply
-           * unreachable. Saying how many are held back and offering to show
-           * them is the difference between a bound and a wall.
+           * The search, the domain select, the count line, the clear, the cap
+           * and the "show the other twelve" were all written out again here —
+           * the same act the packages and services catalogues do, differing
+           * only in that a picker excludes what is already chosen and bounds
+           * what it draws. Both of those are what the caller passes in.
            */
-          const LIMIT = 15;
-          const shown = showAllServices ? matches : matches.slice(0, LIMIT);
-          const hidden = matches.length - shown.length;
-
           const tagsOf = (s: any) => (s.dimensions || []).flatMap((d: any) => d.values);
 
           return (
@@ -1346,62 +1330,59 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
               {/*
                 * Only where there is something left to find. Inside a booking
-                * the catalogue is already narrowed to the chosen package own
+                * the catalogue is already narrowed to the chosen package's own
                 * services and every one of them is bundled, so a search box
                 * there searches an empty set.
                 */}
               {allServices.length > chosen.length && (
-              <div className="q-stack q-stack-sm">
-                <div className="q-row q-row-sm">
-                  <input
-                    className="q-input"
-                    placeholder="Search services by name, domain or classification"
-                    value={serviceSearch}
-                    onChange={(e) => setServiceSearch(e.target.value)}
-                    style={{ flex: '1 1 16rem' }}
-                  />
-                  {domains.length > 1 && (
-                    <select className="q-select" value={serviceDomain} onChange={(e) => setServiceDomain(e.target.value)}>
-                      <option value="">Every domain</option>
-                      {domains.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                <CatalogFilter
+                  items={allServices.filter((s) => !serviceIds.includes(s.id))}
+                  noun="service"
+                  facetLabel="domain"
+                  // Always drawn: below the catalogue's threshold this control
+                  // is furniture, but in a form you are here to pick one thing
+                  // and the box you type into cannot come and go.
+                  threshold={0}
+                  // Bounded, because this sits between two fields. The count
+                  // held back is stated with a way to open it, so a service you
+                  // could not name and could not narrow to is never unreachable.
+                  cap={15}
+                  read={(s: any) => ({
+                    name: s.name,
+                    description: s.description,
+                    facet: s.domain?.name ?? null,
+                    // The classifications are searched but not offered as chips:
+                    // a row of every value in the studio, above a list of
+                    // fifteen services, is the density this section was just
+                    // taken apart for.
+                    tags: [],
+                  })}
+                >
+                  {(shown) => (
+                    <div className="q-stack q-stack-sm">
+                      {shown.map((s: any) => {
+                        const tags = tagsOf(s);
+                        return (
+                          <button key={s.id} type="button" className="q-option" onClick={() => toggleService(s.id)}>
+                            <div className="q-row q-row-between">
+                              <div>
+                                <span className="q-strong">{s.name}</span>{' '}
+                                <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
+                              </div>
+                              {tags.length > 0 && (
+                                <div className="q-row q-row-sm">
+                                  {tags.slice(0, 3).map((t: any) => (
+                                    <span key={t.id} className="q-value q-value-sm">{t.name}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
-
-                {shown.map((s) => {
-                  const tags = tagsOf(s);
-                  return (
-                    <button key={s.id} type="button" className="q-option" onClick={() => toggleService(s.id)}>
-                      <div className="q-row q-row-between">
-                        <div>
-                          <span className="q-strong">{s.name}</span>{' '}
-                          <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
-                        </div>
-                        {tags.length > 0 && (
-                          <div className="q-row q-row-sm">
-                            {tags.slice(0, 3).map((t: any) => (
-                              <span key={t.id} className="q-value q-value-sm">{t.name}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {hidden > 0 && (
-                  <div className="q-row q-row-sm">
-                    <span className="q-meta-sm">{shown.length} of {matches.length} shown.</span>
-                    <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => setShowAllServices(true)}>
-                      Show the other {hidden}
-                    </button>
-                  </div>
-                )}
-
-                {matches.length === 0 && (
-                  <p className="q-meta-sm">No service matches. Clear the search or pick another domain.</p>
-                )}
-              </div>
+                </CatalogFilter>
               )}
 
               {allServices.length === 0 && (

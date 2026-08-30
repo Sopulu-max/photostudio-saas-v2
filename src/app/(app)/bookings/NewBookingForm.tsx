@@ -9,6 +9,7 @@ import { createClient, updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
 import { getPackage, createPackage } from '@/modules/packages/interface';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
+import { CatalogFilter } from '@/components/CatalogFilter';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
 
@@ -27,95 +28,6 @@ export type ServiceOption = {
   name: string;
   domainName: string;
 };
-
-function PackageCombobox({
-  packages, 
-  onSelect,
-  onCustom
-}: { 
-  packages: { id: string, name: string, description?: string | null }[]; 
-  onSelect: (id: string) => void;
-  onCustom: (name: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-
-  const filtered = query === '' 
-    ? packages 
-    : packages.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <div className="q-field q-combo" style={{ position: 'relative' }}>
-      <input
-        className="q-input"
-        placeholder="Type a package name or domain to search..."
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIsOpen(true);
-        }}
-        onFocus={(e) => { setIsOpen(true); e.target.select(); }}
-        onBlur={() => { setTimeout(() => setIsOpen(false), 200); }}
-      />
-
-      {isOpen && (
-        <div className="q-combo-menu" style={{ zIndex: 10 }}>
-          {filtered.map(p => (
-            <button
-              type="button"
-              key={p.id}
-              className="q-combo-option"
-              onMouseDown={() => {
-                onSelect(p.id);
-                setQuery('');
-                setIsOpen(false);
-              }}
-            >
-              <div className="q-combo-title">{p.name}</div>
-              {p.description && (
-                <div className="q-combo-sub">
-                  {p.description}
-                </div>
-              )}
-            </button>
-          ))}
-          {query.trim() !== '' && (
-            <>
-              {filtered.length > 0 && <div className="q-combo-sep" />}
-              <button
-                type="button"
-                className="q-combo-option q-combo-create"
-                onMouseDown={() => {
-                  onCustom(query.trim());
-                  setIsOpen(false);
-                  setQuery('');
-                }}
-              >
-                + Build a custom package: &ldquo;{query.trim()}&rdquo;
-              </button>
-            </>
-          )}
-          {filtered.length === 0 && query.trim() === '' && (
-            <>
-              <div className="q-combo-empty">Search existing templates</div>
-              <div className="q-combo-sep" />
-              <button
-                type="button"
-                className="q-combo-option q-combo-create"
-                onMouseDown={() => {
-                  onCustom('');
-                  setIsOpen(false);
-                }}
-              >
-                + Or build a custom package from scratch
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function NewBookingForm({ 
   clients, 
@@ -204,7 +116,6 @@ export function NewBookingForm({
     linePrice: string;
     selectedDimensionValues: Record<string, string>;
     /** What was typed while looking for a package — becomes its name if none exists. */
-    search: string;
   };
 
   const freshLine = (): LineState => ({
@@ -216,7 +127,6 @@ export function NewBookingForm({
     isLoadingDeep: false,
     linePrice: '',
     selectedDimensionValues: {},
-    search: '',
   });
 
   const [lines, setLines] = useState<LineState[]>([freshLine()]);
@@ -640,87 +550,81 @@ export function NewBookingForm({
                     <h4 className="q-strong" style={{ marginBottom: '8px' }}>Package</h4>
 
                     {/*
-                      * Typing narrows the same way the dimensions above do.
-                      * A studio with thirty packages cannot pick one out of a
-                      * list, and scrolling one is not searching it.
+                      * THE SEARCH IS CatalogFilter'S; THE DIMENSIONS ABOVE ARE NOT.
+                      *
+                      * Narrowing a list by typing, saying how many of how many
+                      * are left, and offering a clear is one act, written here
+                      * and in two catalogues and in the service picker. This one
+                      * now goes through the same component as the rest.
+                      *
+                      * The dimension selects above deliberately stay outside it,
+                      * and not for want of effort. They do two things a filter
+                      * does not. They carry into the package that gets created,
+                      * so a search that found nothing becomes a package already
+                      * classified the way it was looked for. And they match by
+                      * the open-narrowing rule — a package that never narrowed a
+                      * dimension accepts any value of it — which is a statement
+                      * about the ontology, not a set membership test. Folding
+                      * either into a general filter would have meant teaching it
+                      * this module's rules.
                       */}
-                    <input
-                      className="q-input"
-                      placeholder="Search packages by name or description"
-                      value={line.search}
-                      onChange={(e) => {
-                        const newLines = [...lines];
-                        newLines[index].search = e.target.value;
-                        setLines(newLines);
-                      }}
-                    />
-
-                    {(() => {
-                      const needle = line.search.trim().toLowerCase();
-                      const pkgs = filteredPackagesForLine(line).filter((p) =>
-                        needle === '' ||
-                        [p.name, p.description].some((f) => (f || '').toLowerCase().includes(needle)));
-                      return (
+                    <CatalogFilter
+                      items={filteredPackagesForLine(line)}
+                      noun="package"
+                      // Always drawn: this is the step, not an aid to it.
+                      threshold={0}
+                      read={(p: any) => ({ name: p.name, description: p.description, tags: [] })}
+                    >
+                      {(pkgs, { query }) => (
                         <div className="q-stack q-stack-sm">
-                          {pkgs.map(p => (
+                          {pkgs.map((p: any) => (
                             <button
                               key={p.id}
                               type="button"
-                              className="q-tile q-card-interactive"
-                              style={{ textAlign: 'left', width: '100%', border: '1px solid var(--q-color-ink-200)', background: 'transparent' }}
+                              className="q-option"
                               onClick={() => handlePackageSelect(index, p.id)}
                             >
-                              <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                              <div className="q-row q-row-between">
                                 <div>
                                   <div className="q-strong">{p.name}</div>
-                                  {p.description && (
-                                    <div className="q-meta-sm" style={{ marginTop: '4px' }}>{p.description}</div>
-                                  )}
-                                  <div className="q-meta-sm" style={{ marginTop: '8px', display: 'flex', gap: '12px', color: 'var(--q-color-ink-500)' }}>
-                                    {p.durationMinutes ? <span>⏱ {p.durationMinutes} minutes</span> : null}
-                                    {p.deliverables && p.deliverables.length > 0 ? (
-                                      <span>📦 {p.deliverables.length} deliverable{p.deliverables.length === 1 ? '' : 's'}</span>
+                                  {p.description && <div className="q-meta-sm">{p.description}</div>}
+                                  <div className="q-row q-row-sm">
+                                    {p.durationMinutes ? <span className="q-meta-sm">{p.durationMinutes} minutes</span> : null}
+                                    {p.deliverables?.length ? (
+                                      <span className="q-meta-sm">
+                                        {p.deliverables.length} deliverable{p.deliverables.length === 1 ? '' : 's'}
+                                      </span>
                                     ) : null}
-                                    {p.services && p.services.length > 0 ? (
-                                      <span>🛠 {p.services.length} service{p.services.length === 1 ? '' : 's'}</span>
+                                    {p.services?.length ? (
+                                      <span className="q-meta-sm">
+                                        {p.services.length} service{p.services.length === 1 ? '' : 's'}
+                                      </span>
                                     ) : null}
                                   </div>
                                 </div>
-                                <span className="q-btn-ghost q-btn-xs" style={{ whiteSpace: 'nowrap' }}>Select &rarr;</span>
+                                <span className="q-meta-sm">Select &rarr;</span>
                               </div>
                             </button>
                           ))}
-                          
-                          {pkgs.length === 0 && (
-                            <p className="q-meta" style={{ padding: '12px 0' }}>
-                              No packages match these criteria. Create one below; the domain and
-                              classifications selected above carry over.
-                            </p>
-                          )}
 
                           {/*
-                            * Creating is always offered, not just when the list
-                            * comes back empty: the operator often knows before
+                            * Creating is always offered, not only when the list
+                            * comes back empty: an operator often knows before
                             * they look that this one is bespoke. The name they
                             * typed and the classifications they narrowed by both
-                            * carry into the new package, so a search that found
-                            * nothing does not become a blank form.
+                            * carry into the new package, which is why the query
+                            * has to come back out of the filter.
                             */}
-                          <div style={{ marginTop: '8px' }}>
-                            <button
-                              type="button"
-                              className="q-btn q-btn-secondary"
-                              onClick={() => handlePackageSelect(index, 'custom', line.search.trim())}
-                              style={{ width: '100%', justifyContent: 'center' }}
-                            >
-                              {line.search.trim()
-                                ? `Create package: “${line.search.trim()}”`
-                                : 'Create a new package'}
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            className="q-btn q-btn-secondary q-fill q-center-text"
+                            onClick={() => handlePackageSelect(index, 'custom', query)}
+                          >
+                            {query ? `Create package: “${query}”` : 'Create a new package'}
+                          </button>
                         </div>
-                      );
-                    })()}
+                      )}
+                    </CatalogFilter>
                   </div>
                 </div>
 
