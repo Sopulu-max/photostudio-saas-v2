@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getStudioAssetUploadTarget, getPublicUrlForStudioAsset } from '@/kernel/organizations';
 
@@ -14,16 +14,24 @@ const MAX_BYTES = 5 * 1024 * 1024;
  * somewhere scoped to the studio, hand back a public URL — and they had been
  * written out separately for the studio logo and for a contact's avatar, each
  * with its own idea of the size limit and its own wording when a file was
- * refused. A third copy for package covers would have made three.
+ * refused. What differs between them is not the uploading; it is what happens
+ * to the URL afterwards, and that is the only thing a caller passes.
  *
- * What differs between them is not the uploading. It is what happens to the URL
- * afterwards: a logo goes into a form that saves later, an avatar is written to
- * its contact immediately. That difference is the caller's, and it is the only
- * thing the caller passes.
+ * A LABEL OPENS THE FILE DIALOG, NOT A CLICK HANDLER. The first version was a
+ * button whose onClick called .click() on a `hidden` input — the pattern this
+ * app already used twice. Nothing reached storage. A display:none input is the
+ * known weak spot in that pattern: browsers differ on whether a synthetic click
+ * on one is allowed to open a file dialog, and when it is refused it is refused
+ * silently, so there is nothing to see and nothing to catch.
  *
- * The preview is the control. There is nothing to press but the image itself —
- * a picture is what you are choosing, so a picture is what you click, and an
- * empty one says what it wants.
+ * A label pointing at the input needs no JavaScript at all. Clicking it is a
+ * native activation of the control, which every browser honours, and the input
+ * is visually hidden by clipping rather than by display:none so it stays a real
+ * focusable control for a keyboard.
+ *
+ * AND FAILURES ARE SHOWN, NOT ALERTED. An alert can be suppressed by the
+ * browser and says nothing once dismissed; the message belongs under the
+ * control it is about.
  */
 export function ImageUpload({
   url,
@@ -45,14 +53,18 @@ export function ImageUpload({
   aspect?: string;
   disabled?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
   const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Pick an image file.'); return; }
-    if (file.size > MAX_BYTES) { alert('Keep it under 5MB.'); return; }
+    setProblem(null);
+
+    if (!file.type.startsWith('image/')) { setProblem('That is not an image file.'); input.value = ''; return; }
+    if (file.size > MAX_BYTES) { setProblem('Images have to be under 5MB.'); input.value = ''; return; }
 
     setBusy(true);
     try {
@@ -62,37 +74,45 @@ export function ImageUpload({
       if (error) throw new Error(error.message);
       onUploaded(await getPublicUrlForStudioAsset(path));
     } catch (err: any) {
-      alert(err?.message || 'Upload failed.');
+      // Said in full. A studio that cannot upload needs to know whether it is
+      // the file, the network or the studio's own permissions.
+      setProblem(err?.message ? `Upload failed: ${err.message}` : 'Upload failed.');
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = '';
+      input.value = '';
     }
   };
 
   return (
     <div className="q-stack q-stack-sm">
-      <button
-        type="button"
+      <label
+        htmlFor={inputId}
         className={url ? 'q-imagepick q-imagepick-filled' : 'q-imagepick'}
         style={{ aspectRatio: aspect, backgroundImage: url ? `url(${url})` : undefined }}
-        onClick={() => inputRef.current?.click()}
-        disabled={disabled || busy}
       >
         {!url && <span className="q-meta-sm">{busy ? 'Uploading…' : `Add a ${label}`}</span>}
-      </button>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="q-visually-hidden"
+          disabled={disabled || busy}
+          onChange={pick}
+        />
+      </label>
 
       {url && onCleared && (
         <div className="q-row q-row-sm">
-          <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={busy} onClick={() => inputRef.current?.click()}>
-            Replace
-          </button>
+          <label htmlFor={inputId} className="q-btn q-btn-ghost q-btn-xs">
+            {busy ? 'Uploading…' : 'Replace'}
+          </label>
           <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={busy} onClick={onCleared}>
             Remove
           </button>
         </div>
       )}
 
-      <input ref={inputRef} type="file" accept="image/*" hidden onChange={pick} />
+      {problem && <span className="q-meta-sm q-text-danger">{problem}</span>}
     </div>
   );
 }

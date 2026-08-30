@@ -254,6 +254,36 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * skipped. An empty string is a deliberate removal.
    */
   const [coverUrl, setCoverUrl] = useState<string | null | undefined>(initial.coverUrl);
+  const [coverProblem, setCoverProblem] = useState<string | null>(null);
+
+  /*
+   * A picture saves itself; a field waits for Save.
+   *
+   * Typing in a field is an edit in progress and belongs with the others under
+   * one button. Choosing a picture is not: by the time it appears it is already
+   * in the studio bucket, and the only thing still pending is one column. Making
+   * that wait for a Save at the far end of a long form means an operator who
+   * came from the package page to add a cover, added one, saw it, and left —
+   * with a file in storage that nothing points at.
+   *
+   * Only where there is a package to save it to. While building one there is no
+   * row yet, so it travels with the rest of the form as every other field does.
+   */
+  const applyCover = (next: string | null) => {
+    setCoverUrl(next ?? '');
+    setCoverProblem(null);
+    if (mode !== 'edit' || !packageId) return;
+    startTransition(async () => {
+      try {
+        const { updatePackage } = await import('@/modules/packages/interface');
+        // Only the cover. Every other field is absent, and absent means leave
+        // it alone — the same rule that keeps this from erasing the price.
+        await updatePackage({ packageId, coverUrl: next });
+      } catch (e: any) {
+        setCoverProblem(e?.message || 'The cover could not be saved.');
+      }
+    });
+  };
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -1190,9 +1220,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 url={coverUrl || null}
                 folder="packages"
                 label="cover"
-                onUploaded={(u) => setCoverUrl(u)}
-                onCleared={() => setCoverUrl('')}
+                onUploaded={(u) => applyCover(u)}
+                onCleared={() => applyCover(null)}
               />
+              {coverProblem && <span className="q-meta-sm q-text-danger">{coverProblem}</span>}
+              {mode === 'edit' && <span className="q-meta-sm">Saved as soon as it is chosen.</span>}
             </div>
           )}
           <div className="q-field">
