@@ -152,7 +152,9 @@ export async function getDimensionValue(valueId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('dimension_values')
-    .select('id, name, parent_id, dimension:dimensions(id, name, question, service_domain_id, domain:service_domains(name))')
+    // The domains that ask this question, rather than the one that used to own
+    // it. A studio's Occasion can be asked by photography and videography both.
+    .select('id, name, parent_id, dimension:dimensions(id, name, question, service_domain_dimensions(domain:service_domains(name)))')
     .eq('id', valueId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -165,7 +167,10 @@ export async function getDimensionValue(valueId: string) {
     dimensionId: dim?.id as string,
     dimensionName: dim?.name as string,
     question: (dim?.question ?? null) as string | null,
-    domainName: (dim?.domain?.name ?? null) as string | null,
+    // Named for what it is now: possibly several. Joined rather than picked, so
+    // a question two domains ask does not silently report only one of them.
+    domainName: (((dim?.service_domain_dimensions || []) as any[])
+      .map((l) => l.domain?.name).filter(Boolean).join(', ') || null) as string | null,
   };
 }
 

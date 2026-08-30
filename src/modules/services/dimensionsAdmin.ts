@@ -4,6 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
+// Exact-match naming, so "Occasion" typed again finds the studio's Occasion
+// rather than making a second one beside it.
+import { findByName } from '@/kernel/naming';
 
 /**
  * A studio defining how it classifies its own work.
@@ -28,12 +31,19 @@ export type StudioDimension = {
   values: { id: string; name: string; position: number; parentId: string | null }[];
 };
 
-/** Every dimension this domain classifies by, with its values. */
+/**
+ * Every dimension this domain classifies by, with its values.
+ *
+ * Asked through the join now, because a dimension belongs to the STUDIO and a
+ * domain declares which ones it asks. It used to belong to the domain, which
+ * meant a studio doing photography and videography held two Occasions with two
+ * Birthdays in them — the same fact typed twice and maintained once.
+ */
 export async function listDimensionsForDomain(serviceDomainId: string): Promise<StudioDimension[]> {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
-    .from('dimensions')
-    .select('id, name, question, example, is_active, position, dimension_values(id, name, position, parent_id)')
+    .from('service_domain_dimensions')
+    .select('position, dimension:dimensions(id, name, question, example, is_active, position, dimension_values(id, name, position, parent_id))')
     .eq('organization_id', orgId)
     .eq('service_domain_id', serviceDomainId)
     .order('position');
@@ -41,7 +51,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     console.error('Failed to list dimensions:', error);
     return [];
   }
-  return ((data || []) as any[]).map((d) => ({
+  return ((data || []) as any[]).map((row) => row.dimension).filter(Boolean).map((d: any) => ({
     id: d.id,
     name: d.name,
     question: d.question,
@@ -72,8 +82,40 @@ export async function createDimension(input: {
   const name = (input.name || '').trim();
   if (!name) throw new Error('Give the dimension a name.');
 
-  const { data: last } = await supabaseAdmin
+  /*
+   * FOUND BEFORE CREATED. The studio asks a question once; a domain that starts
+   * asking a question another domain already asks links to the same one rather
+   * than making a second with the same name. That second copy is precisely what
+   * this studio had: two Occasions, one per domain, each with its own Birthday.
+   */
+  const { data: known } = await supabaseAdmin
     .from('dimensions')
+    .select('id, name')
+    .eq('organization_id', orgId);
+  const existing = findByName(known, name);
+
+  let dimensionId = existing?.id as string | undefined;
+  if (!dimensionId) {
+    const { data, error } = await supabaseAdmin
+      .from('dimensions')
+      .insert({
+        organization_id: orgId,
+        name,
+        question: (input.question || '').trim() || null,
+        example: (input.example || '').trim() || null,
+        position: 0,
+      })
+      .select('id')
+      .single();
+    if (error || !data) {
+      console.error('Failed to create dimension:', error);
+      throw new Error('Failed to add that dimension');
+    }
+    dimensionId = data.id as string;
+  }
+
+  const { data: last } = await supabaseAdmin
+    .from('service_domain_dimensions')
     .select('position')
     .eq('organization_id', orgId)
     .eq('service_domain_id', input.serviceDomainId)
@@ -81,28 +123,24 @@ export async function createDimension(input: {
     .limit(1)
     .maybeSingle();
 
-  const { data, error } = await supabaseAdmin
-    .from('dimensions')
+  const { error } = await supabaseAdmin
+    .from('service_domain_dimensions')
     .insert({
       organization_id: orgId,
       service_domain_id: input.serviceDomainId,
-      name,
-      question: (input.question || '').trim() || null,
-      example: (input.example || '').trim() || null,
+      dimension_id: dimensionId,
       position: ((last?.position as number) ?? -1) + 1,
-    })
-    .select('id')
-    .single();
+    });
 
   if (error) {
     if ((error as any).code === '23505') throw new Error(`This domain already classifies by ${name}.`);
-    console.error('Failed to create dimension:', error);
+    console.error('Failed to attach dimension to domain:', error);
     throw new Error('Failed to add that dimension');
   }
 
   revalidatePath('/services/settings');
   revalidatePath('/services');
-  return { dimensionId: data.id as string };
+  return { dimensionId };
 }
 
 export async function renameDimension(input: { dimensionId: string; name?: string; question?: string | null; example?: string | null }) {
@@ -141,15 +179,76 @@ export async function setDimensionActive(input: { dimensionId: string; isActive:
 }
 
 /** Delete it and everything filed under it. Deactivating is nearly always what a studio means. */
-export async function deleteDimension(dimensionId: string) {
+/**
+ * This domain stops asking this question.
+ *
+ * WHY IT IS NOT A DELETE ANY MORE. A dimension used to belong to one domain, so
+ * removing it was contained: nothing else could be looking at it. Now the studio
+ * owns the question and several domains may ask it, and deleting the row from
+ * Photography's settings would take it out of Videography's as well — along
+ * with every value under it, and therefore every classification on every
+ * service and package that used one. A destructive action that used to affect
+ * one screen would silently reach across the studio.
+ *
+ * So this unlinks. The question itself goes only when no domain asks it any
+ * more AND nothing is filed under it — at which point removing it is tidying up
+ * rather than throwing anything away.
+ */
+export async function deleteDimension(dimensionId: string, serviceDomainId?: string) {
   const { orgId } = await getAuthOrgId();
+
+  if (serviceDomainId) {
+    const { error } = await supabaseAdmin
+      .from('service_domain_dimensions').delete()
+      .eq('organization_id', orgId)
+      .eq('service_domain_id', serviceDomainId)
+      .eq('dimension_id', dimensionId);
+    if (error) { console.error('Failed to unlink dimension:', error); throw new Error('Failed to remove that dimension'); }
+  }
+
+  // Still asked somewhere? Then it stays, whole.
+  const { count: stillAsked } = await supabaseAdmin
+    .from('service_domain_dimensions')
+    .select('dimension_id', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .eq('dimension_id', dimensionId);
+  if ((stillAsked ?? 0) > 0) {
+    revalidatePath('/services/settings');
+    revalidatePath('/services');
+    return { ok: true, removed: false };
+  }
+
+  /*
+   * Nobody asks it. It still does not go if anything is filed under it — a
+   * service or a package classified by one of its values would lose that
+   * classification without anyone having said so.
+   */
+  const { data: values } = await supabaseAdmin
+    .from('dimension_values').select('id')
+    .eq('organization_id', orgId).eq('dimension_id', dimensionId);
+  const valueIds = ((values || []) as any[]).map((v) => v.id);
+
+  if (valueIds.length > 0) {
+    const [{ count: onServices }, { count: onPackages }] = await Promise.all([
+      supabaseAdmin.from('service_dimension_values')
+        .select('dimension_value_id', { count: 'exact', head: true }).in('dimension_value_id', valueIds),
+      supabaseAdmin.from('package_service_dimension_values')
+        .select('dimension_value_id', { count: 'exact', head: true }).in('dimension_value_id', valueIds),
+    ]);
+    if ((onServices ?? 0) > 0 || (onPackages ?? 0) > 0) {
+      revalidatePath('/services/settings');
+      revalidatePath('/services');
+      return { ok: true, removed: false };
+    }
+  }
+
   const { error } = await supabaseAdmin
     .from('dimensions').delete()
     .eq('id', dimensionId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to remove that dimension');
   revalidatePath('/services/settings');
   revalidatePath('/services');
-  return { ok: true };
+  return { ok: true, removed: true };
 }
 
 /** A value under a dimension — Outdoor under Context, Editorial under Purpose. */

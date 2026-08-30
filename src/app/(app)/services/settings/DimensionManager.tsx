@@ -119,10 +119,14 @@ export function DimensionManager({
                   </button>
                   <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
                     onClick={() => {
-                      if (!confirm(`Delete ${d.name} and everything filed under it? Turning it off keeps the record.`)) return;
-                      run(() => deleteDimension(d.id));
+                      // Says what it does: this domain stops asking. The
+                      // question survives wherever else it is asked, and goes
+                      // altogether only when nobody asks it and nothing is
+                      // filed under it.
+                      if (!confirm(`Stop ${domainName} classifying by ${d.name}? Other kinds of work that ask it keep it.`)) return;
+                      run(() => deleteDimension(d.id, domainId));
                     }}>
-                    Delete
+                    Remove
                   </button>
                 </div>
               </div>

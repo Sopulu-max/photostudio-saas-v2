@@ -88,23 +88,27 @@ async function resolveDimensionValueId(
   const value = (valueName || '').trim();
   if (!dimName || !value) return null;
 
+  /*
+   * FOUND ACROSS THE STUDIO, NOT WITHIN THE DOMAIN.
+   *
+   * This looked for the dimension among the ones this domain owned, and made
+   * one when it found none — which is how a studio ended up with Photography's
+   * Occasion and Videography's Occasion, each holding its own Birthday. A
+   * question belongs to the studio; a domain only says that it asks it.
+   */
   const { data: dimRows } = await supabaseAdmin
     .from('dimensions').select('id, name')
-    .eq('organization_id', orgId).eq('service_domain_id', domainId);
+    .eq('organization_id', orgId);
 
   let dimensionId = findByName(dimRows, dimName)?.id as string | undefined;
   if (!dimensionId) {
-    const { data: last } = await supabaseAdmin
-      .from('dimensions').select('position')
-      .eq('organization_id', orgId).eq('service_domain_id', domainId)
-      .order('position', { ascending: false }).limit(1).maybeSingle();
     const { data: made, error } = await supabaseAdmin
       .from('dimensions')
-      .insert({ organization_id: orgId, service_domain_id: domainId, name: dimName, position: ((last?.position as number) ?? -1) + 1 })
+      .insert({ organization_id: orgId, name: dimName, position: 0 })
       .select('id').maybeSingle();
     if (error) {
       if (error.code === '23505') {
-        const { data: retryDims } = await supabaseAdmin.from('dimensions').select('id, name').eq('organization_id', orgId).eq('service_domain_id', domainId);
+        const { data: retryDims } = await supabaseAdmin.from('dimensions').select('id, name').eq('organization_id', orgId);
         dimensionId = findByName(retryDims, dimName)?.id;
       }
       if (!dimensionId) { console.error('Failed to create dimension:', error); return null; }
@@ -113,6 +117,32 @@ async function resolveDimensionValueId(
     }
   }
   if (!dimensionId) return null;
+
+  /*
+   * And the domain is recorded as asking it.
+   *
+   * Without this a value created through this path would belong to a question
+   * the domain never declared, so it would classify a service that no screen
+   * would ever offer it on. Idempotent: a domain already asking it stays as it
+   * is.
+   */
+  if (domainId) {
+    const { data: last } = await supabaseAdmin
+      .from('service_domain_dimensions').select('position')
+      .eq('organization_id', orgId).eq('service_domain_id', domainId)
+      .order('position', { ascending: false }).limit(1).maybeSingle();
+    await supabaseAdmin
+      .from('service_domain_dimensions')
+      .upsert(
+        {
+          organization_id: orgId,
+          service_domain_id: domainId,
+          dimension_id: dimensionId,
+          position: ((last?.position as number) ?? -1) + 1,
+        },
+        { onConflict: 'service_domain_id,dimension_id', ignoreDuplicates: true },
+      );
+  }
 
   const { data: valueRows } = await supabaseAdmin
     .from('dimension_values').select('id, name')
@@ -276,18 +306,24 @@ export async function deleteServiceDomain(id: string) { return deleteNamed('serv
  */
 export async function listDimensionsByDomain(): Promise<Record<string, StudioDimensionShape[]>> {
   const { orgId } = await getAuthOrgId();
+  /*
+   * Read through the join, because one dimension can now be asked by several
+   * domains. It used to belong to a domain, so a studio doing photography and
+   * videography carried two Occasions with two Birthdays inside them — and
+   * grouping by domain was a matter of reading a column.
+   */
   const { data, error } = await supabaseAdmin
-    .from('dimensions')
-    .select('id, name, question, example, position, is_active, service_domain_id, domain:service_domains(name), dimension_values(id, name, position)')
+    .from('service_domain_dimensions')
+    .select('position, domain:service_domains(name), dimension:dimensions(id, name, question, example, position, is_active, dimension_values(id, name, position))')
     .eq('organization_id', orgId)
-    .eq('is_active', true)
     .order('position');
   if (error) { console.error('Failed to list dimensions by domain:', error); return {}; }
 
   const out: Record<string, StudioDimensionShape[]> = {};
-  for (const d of ((data || []) as any[])) {
-    const domainName = d.domain?.name;
-    if (!domainName) continue;
+  for (const row of ((data || []) as any[])) {
+    const d = row.dimension;
+    const domainName = row.domain?.name;
+    if (!d || !d.is_active || !domainName) continue;
     (out[domainName] ||= []).push({
       id: d.id,
       name: d.name,
@@ -313,14 +349,17 @@ export async function listDimensionsByDomain(): Promise<Record<string, StudioDim
  * two domains may both ask about Context and mean different things.
  */
 export async function getPublicIntakeDimensions(organizationId: string): Promise<PublicIntakeDimension[]> {
+  // One row per (domain, dimension): a question asked by two domains is offered
+  // under each, which is what the enquiry path narrows by.
   const { data } = await supabaseAdmin
-    .from('dimensions')
-    .select('id, name, question, position, service_domain_id, domain:service_domains(name), dimension_values(id, name, position)')
+    .from('service_domain_dimensions')
+    .select('position, service_domain_id, domain:service_domains(name), dimension:dimensions(id, name, question, position, is_active, dimension_values(id, name, position))')
     .eq('organization_id', organizationId)
-    .eq('is_active', true)
     .order('position');
 
   return ((data || []) as any[])
+    .filter((row) => row.dimension?.is_active)
+    .map((row) => ({ ...row.dimension, service_domain_id: row.service_domain_id, domain: row.domain }))
     .map((d) => ({
       id: d.id as string,
       name: d.name as string,
@@ -839,16 +878,23 @@ export async function listDimensionValueIdsForServices(
 
   const { data: values } = await supabaseAdmin
     .from('dimension_values')
-    .select('id, dimension:dimensions!inner(service_domain_id)')
+    // Which domains ask the question this value answers. One value can now be
+    // reached through more than one domain, so this is a join rather than a
+    // column read.
+    .select('id, dimension:dimensions!inner(id, service_domain_dimensions!inner(service_domain_id))')
     .eq('organization_id', orgId)
-    .in('dimensions.service_domain_id', domainIds);
+    .in('dimensions.service_domain_dimensions.service_domain_id', domainIds);
 
   const byDomain = new Map<string, string[]>();
   for (const v of ((values || []) as any[])) {
-    const domainId = v.dimension?.service_domain_id;
-    if (!domainId) continue;
-    if (!byDomain.has(domainId)) byDomain.set(domainId, []);
-    byDomain.get(domainId)!.push(v.id as string);
+    // A value reached through several domains counts for each of them, which is
+    // the whole point of a question the studio owns rather than a domain.
+    for (const link of (v.dimension?.service_domain_dimensions || [])) {
+      const domainId = link.service_domain_id;
+      if (!domainId || !domainIds.includes(domainId)) continue;
+      if (!byDomain.has(domainId)) byDomain.set(domainId, []);
+      byDomain.get(domainId)!.push(v.id as string);
+    }
   }
 
   return rows.map((s) => ({
