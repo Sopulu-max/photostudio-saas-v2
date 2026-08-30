@@ -632,7 +632,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
   const buildPayload = () => {
     // Only send values for variables belonging to currently selected services
-    const activeVariables = allVariables.filter((v) => serviceIds.includes(v.serviceId));
+    // A variable owned by a dimension has no serviceId; it is in play because
+    // of how the package is classified, not because of what it bundles.
+    const activeVariables = allVariables.filter((v) => !v.serviceId || serviceIds.includes(v.serviceId));
     /*
      * Both decisions travel, and silence travels as silence.
      *
@@ -954,8 +956,27 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     // the page loaded. Rendered even when there are none, because "nothing
     // varies about this yet" is where a studio most needs to be able to say
     // that something does.
+    /*
+     * The service's own, and whatever its classifications bring with them.
+     *
+     * An Occasion has a date, declared once for the studio — so a service
+     * classified Birthday carries that date here without anybody adding it to
+     * the service. It is answered by the same rule as any other: the package
+     * either fixes it or leaves it to the client.
+     *
+     * Read from the values in play, which is the package's narrowing where it
+     * made one and the service's own classification where it did not — the same
+     * set the classifications control above is showing.
+     */
+    const valuesInPlay = narrowings[s.id] ?? offeredBy(s.id);
+    const dimsInPlay = new Set(
+      (s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [])
+        .filter((d: any) => d.values.some((v: any) => valuesInPlay.includes(v.id)))
+        .map((d: any) => d.id),
+    );
     const vars = [
       ...allVariables.filter((v) => v.serviceId === s.id),
+      ...allVariables.filter((v: any) => v.dimensionId && dimsInPlay.has(v.dimensionId)),
       ...declaredVars.filter((v) => v.serviceId === s.id && !allVariables.some((a) => a.id === v.id)),
     ];
     return (

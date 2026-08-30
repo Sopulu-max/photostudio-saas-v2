@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  listServices, listDimensionsByDomain,
+  listServices, listStudioDimensions,
   buildDimensionSuggestions, buildDeliverableSuggestions,
   listServiceDomains, createServiceDomain, renameServiceDomain, deleteServiceDomain,
 } from '@/modules/services/interface';
@@ -31,9 +31,9 @@ export default async function ServiceSettingsPage() {
     redirect('/login');
   }
 
-  const [services, domains, roles, dimensionsByDomain, workflowsByDomain] = await Promise.all([
+  const [services, domains, roles, studioQuestions, workflowsByDomain] = await Promise.all([
     listServices(), listServiceDomains(), listRoles(),
-    listDimensionsByDomain(), listWorkflowsByDomain(),
+    listStudioDimensions(), listWorkflowsByDomain(),
   ]);
 
   // The same knowledge the service form narrows with. Defining the vocabulary
@@ -41,12 +41,6 @@ export default async function ServiceSettingsPage() {
   const dimensionSuggestions = buildDimensionSuggestions(services as any);
   const deliverableSuggestions = buildDeliverableSuggestions(services as any);
 
-  // Questions worth offering when inventing one: what this studio's other
-  // domains already ask. Printing could classify by Style because Photography
-  // does — that is the studio teaching itself, not the engine prescribing.
-  const questionNames = [...new Set(
-    Object.values(dimensionsByDomain).flat().map((d: any) => d.name)
-  )].sort();
   const roleOptions = (roles as any[]).map((r) => r.name);
 
   const domainCounts: Record<string, number> = {};
@@ -89,14 +83,14 @@ export default async function ServiceSettingsPage() {
             classified against them, which drives filtering and reporting.
           </p>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            Those listed below are supplied as defaults. Rename them, disable any you do not use, or add
-            your own. Each belongs to a single domain, so Photography can classify by Style without
-            affecting Printing.
+            Those listed below are supplied as defaults. Rename them, turn off any you do not use, or add
+            your own. A classification belongs to the studio; each domain chooses which of them it asks,
+            so Photography can classify by Style while Printing does not.
           </p>
           <DimensionManager
             domains={domains.map((d: any) => ({ id: d.id, name: d.name }))}
             suggestions={dimensionSuggestions}
-            questionNames={questionNames}
+            studioQuestions={studioQuestions}
           />
         </section>
 

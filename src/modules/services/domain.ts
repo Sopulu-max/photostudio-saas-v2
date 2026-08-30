@@ -205,7 +205,7 @@ async function writeServiceDimensions(
 
 /** One embed, however many dimensions the domain happens to ask. */
 const SERVICE_DIMENSION_SELECT =
-  'service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, question, position, is_active)))';
+  'service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, question, position)))';
 
 /** Flat links → the dimensions that asked, each with the values this service carries. */
 function shapeServiceDimensions(row: any): ServiceDimensionTag[] {
@@ -291,10 +291,11 @@ export async function renameServiceDomain(id: string, name: string) { return ren
 export async function deleteServiceDomain(id: string) { return deleteNamed('service_domains', id, 'service domain'); }
 
 // ── How each domain classifies its work ──────────────────────────────────────
-// A dimension belongs to a service domain, so there is no studio-wide "which
-// dimensions do you organize by" setting any more — the question is answered
-// per domain by `dimensions.is_active`. Adding and editing them is
-// `dimensionsAdmin.ts`; what follows is what the surfaces need to READ.
+// A dimension belongs to the STUDIO, and `service_domain_dimensions` says which
+// domains ask it — so "which dimensions do you organize by" is answered per
+// domain by that join row, and whether it is asked right now by its is_active.
+// Adding and editing them is `dimensionsAdmin.ts`; what follows is what the
+// surfaces need to READ.
 
 /**
  * Every domain's active dimensions, keyed by domain name.
@@ -314,7 +315,7 @@ export async function listDimensionsByDomain(): Promise<Record<string, StudioDim
    */
   const { data, error } = await supabaseAdmin
     .from('service_domain_dimensions')
-    .select('position, domain:service_domains(name), dimension:dimensions(id, name, question, example, position, is_active, dimension_values(id, name, position))')
+    .select('position, is_active, domain:service_domains(name), dimension:dimensions(id, name, question, example, dimension_values(id, name, position))')
     .eq('organization_id', orgId)
     .order('position');
   if (error) { console.error('Failed to list dimensions by domain:', error); return {}; }
@@ -323,13 +324,15 @@ export async function listDimensionsByDomain(): Promise<Record<string, StudioDim
   for (const row of ((data || []) as any[])) {
     const d = row.dimension;
     const domainName = row.domain?.name;
-    if (!d || !d.is_active || !domainName) continue;
+    // Active is the JOIN's answer — Photography may ask Occasion while
+    // Videography has it turned off.
+    if (!d || !row.is_active || !domainName) continue;
     (out[domainName] ||= []).push({
       id: d.id,
       name: d.name,
       question: d.question ?? null,
       example: d.example ?? null,
-      position: d.position ?? 0,
+      position: row.position ?? 0,
       values: (d.dimension_values || [])
         .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0 }))
         .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name))
@@ -353,12 +356,14 @@ export async function getPublicIntakeDimensions(organizationId: string): Promise
   // under each, which is what the enquiry path narrows by.
   const { data } = await supabaseAdmin
     .from('service_domain_dimensions')
-    .select('position, service_domain_id, domain:service_domains(name), dimension:dimensions(id, name, question, position, is_active, dimension_values(id, name, position))')
+    .select('position, is_active, service_domain_id, domain:service_domains(name), dimension:dimensions(id, name, question, dimension_values(id, name, position))')
     .eq('organization_id', organizationId)
     .order('position');
 
   return ((data || []) as any[])
-    .filter((row) => row.dimension?.is_active)
+    // The join's answer, so a question Photography asks and Videography does not
+    // is offered under Photography alone rather than under both or neither.
+    .filter((row) => row.is_active && row.dimension)
     .map((row) => ({ ...row.dimension, service_domain_id: row.service_domain_id, domain: row.domain }))
     .map((d) => ({
       id: d.id as string,
@@ -808,7 +813,8 @@ export async function getService(serviceId: string) {
 function rowToVariable(r: any): ServiceVariable {
   return {
     id: r.id,
-    serviceId: r.service_id,
+    serviceId: r.service_id ?? null,
+    dimensionId: r.dimension_id ?? null,
     key: r.key,
     label: r.label,
     kind: r.kind,
@@ -837,6 +843,117 @@ export async function listServiceVariables(serviceId: string): Promise<ServiceVa
 }
 
 /** Variables for several services at once — what a Package builder needs. */
+/**
+ * What follows from the answers to these questions.
+ *
+ * An Occasion has a date. A Context might have a location. The dimension
+ * declares it once for the whole studio, and every package classified that way
+ * inherits it — rather than each package inventing its own "occasion date"
+ * field, unrelated to Occasion and to every other package's copy of it.
+ */
+export async function listVariablesForDimensions(dimensionIds: string[]): Promise<ServiceVariable[]> {
+  if (dimensionIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_variables')
+    .select('*')
+    .eq('organization_id', orgId)
+    .in('dimension_id', dimensionIds)
+    .order('position');
+  if (error) {
+    console.error('Failed to list variables for dimensions:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map(rowToVariable);
+}
+
+/**
+ * Declare something that follows from a dimension's answers.
+ *
+ * The same act as declareServiceVariable, and deliberately the same shape: a
+ * kind, a unit, options, bounds. What differs is only what it hangs off. A
+ * studio saying "an occasion has a date" says it once here, and every package
+ * classified by Occasion can then either fix that date or ask the client for
+ * it — the same two classes as everywhere else.
+ *
+ * Idempotent on the key, because asking twice for "date" must find the one that
+ * exists rather than making a second the unique index would refuse anyway.
+ */
+export async function declareDimensionVariable(input: {
+  dimensionId: string;
+  variable: ServiceVariableInput;
+}): Promise<ServiceVariable | null> {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  // Scoped read, so this doubles as the ownership check: a dimension that is
+  // not this studio's comes back empty.
+  const { data: dimension } = await supabaseAdmin
+    .from('dimensions').select('id')
+    .eq('id', input.dimensionId).eq('organization_id', orgId).maybeSingle();
+  if (!dimension) throw new Error('Dimension not found');
+
+  const key = (input.variable.key || input.variable.label || '')
+    .trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+  const label = (input.variable.label || '').trim();
+  if (!key || !label) throw new Error('That needs a name.');
+
+  const existing = await listVariablesForDimensions([input.dimensionId]);
+  const already = existing.find((v) => v.key === key);
+  if (already) return already;
+
+  const { data, error } = await supabaseAdmin
+    .from('service_variables')
+    .insert({
+      organization_id: orgId,
+      // The owner, and the only thing that makes this different from a
+      // service's variable. The table's check constraint refuses both.
+      dimension_id: input.dimensionId,
+      service_id: null,
+      key,
+      label,
+      kind: input.variable.kind || 'text',
+      unit: (input.variable.unit || '').trim() || null,
+      options: input.variable.options || [],
+      default_value: input.variable.defaultValue ?? null,
+      min_value: input.variable.min ?? null,
+      max_value: input.variable.max ?? null,
+      position: existing.length,
+    })
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to declare a dimension variable:', error);
+    throw new Error(`Failed to add "${label}"`);
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'service',
+    entityId: input.dimensionId,
+    action: 'variables_updated',
+    actorId: actorId ?? undefined,
+    payload: { declaredOn: 'dimension', key },
+  });
+
+  revalidatePath('/services/settings');
+  revalidatePath('/packages');
+  return rowToVariable(data);
+}
+
+/** Remove one. Only ever called for a dimension's own. */
+export async function removeDimensionVariable(variableId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('service_variables').delete()
+    .eq('id', variableId).eq('organization_id', orgId)
+    .not('dimension_id', 'is', null);
+  if (error) { console.error('Failed to remove a dimension variable:', error); throw new Error('Failed to remove that'); }
+  revalidatePath('/services/settings');
+  revalidatePath('/packages');
+  return { ok: true };
+}
+
 export async function listVariablesForServices(serviceIds: string[]): Promise<ServiceVariable[]> {
   if (serviceIds.length === 0) return [];
   const { orgId } = await getAuthOrgId();

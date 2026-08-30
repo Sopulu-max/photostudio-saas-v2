@@ -43,7 +43,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('service_domain_dimensions')
-    .select('position, dimension:dimensions(id, name, question, example, is_active, position, dimension_values(id, name, position, parent_id))')
+    .select('position, is_active, dimension:dimensions(id, name, question, example, position, dimension_values(id, name, position, parent_id))')
     .eq('organization_id', orgId)
     .eq('service_domain_id', serviceDomainId)
     .order('position');
@@ -51,16 +51,61 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     console.error('Failed to list dimensions:', error);
     return [];
   }
-  return ((data || []) as any[]).map((row) => row.dimension).filter(Boolean).map((d: any) => ({
-    id: d.id,
-    name: d.name,
-    question: d.question,
-    example: d.example,
-    isActive: d.is_active,
-    position: d.position ?? 0,
-    values: (d.dimension_values || [])
+  // isActive comes off the JOIN, not the dimension: whether a question is asked
+  // is this domain's answer, and the studio's copy is shared with every other
+  // domain asking it.
+  return ((data || []) as any[]).filter((row) => row.dimension).map((row: any) => ({
+    id: row.dimension.id,
+    name: row.dimension.name,
+    question: row.dimension.question,
+    example: row.dimension.example,
+    isActive: row.is_active,
+    position: row.position ?? 0,
+    values: (row.dimension.dimension_values || [])
       .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0, parentId: v.parent_id ?? null }))
       .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name)),
+  }));
+}
+
+/** A question the studio already has, and what adopting it would bring with it. */
+export type StudioQuestion = {
+  id: string;
+  name: string;
+  question: string | null;
+  values: string[];
+  /** The domains already asking it. Empty when the studio has it but nobody asks. */
+  domains: string[];
+};
+
+/**
+ * Every question this studio has, whether or not any domain currently asks it.
+ *
+ * UNFILTERED BY is_active, DELIBERATELY. createDimension find-or-creates against
+ * the whole studio, so typing the name of a question every domain has switched
+ * off adopts that question — values and all. A list that showed only the active
+ * ones would leave exactly the surprising case invisible, which is the opposite
+ * of what it is for.
+ */
+export async function listStudioDimensions(): Promise<StudioQuestion[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('dimensions')
+    .select('id, name, question, dimension_values(name, position), service_domain_dimensions(domain:service_domains(name))')
+    .eq('organization_id', orgId)
+    .order('name');
+  if (error) {
+    console.error('Failed to list studio dimensions:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map((d) => ({
+    id: d.id as string,
+    name: d.name as string,
+    question: (d.question ?? null) as string | null,
+    values: ((d.dimension_values || []) as any[])
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((v) => v.name as string),
+    domains: ((d.service_domain_dimensions || []) as any[])
+      .map((l) => l.domain?.name).filter(Boolean).sort() as string[],
   }));
 }
 
@@ -143,12 +188,26 @@ export async function createDimension(input: {
   return { dimensionId };
 }
 
+/**
+ * Rename reaches every domain, deliberately — the studio owns the question, so
+ * its name is one name. Which is also why renaming onto another question's name
+ * is refused rather than allowed to make a second Occasion: creating goes
+ * through findByName and would have found the existing one, and renaming is the
+ * same act arrived at differently.
+ */
 export async function renameDimension(input: { dimensionId: string; name?: string; question?: string | null; example?: string | null }) {
   const { orgId } = await getAuthOrgId();
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) {
     const n = input.name.trim();
     if (!n) throw new Error('A dimension needs a name.');
+
+    const { data: known } = await supabaseAdmin
+      .from('dimensions').select('id, name').eq('organization_id', orgId);
+    const clash = findByName(known, n);
+    if (clash && clash.id !== input.dimensionId) {
+      throw new Error(`This studio already classifies by ${clash.name}.`);
+    }
     patch.name = n;
   }
   if (input.question !== undefined) patch.question = (input.question || '').trim() || null;
@@ -160,18 +219,28 @@ export async function renameDimension(input: { dimensionId: string; name?: strin
     .eq('id', input.dimensionId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to save that dimension');
   revalidatePath('/services/settings');
+  revalidatePath('/services');
   return { ok: true };
 }
 
 /**
- * Stop classifying by this, without forgetting what was already classified.
- * Turning Occasion off shouldn't lose which services were weddings.
+ * This domain stops classifying by this, without forgetting what was already
+ * classified. Turning Occasion off shouldn't lose which services were weddings.
+ *
+ * PER DOMAIN, like Remove beside it. This wrote `dimensions.is_active` while
+ * the screen it is on is shown one domain at a time and says so — once a
+ * dimension is shared, turning Occasion off from Videography turned it off for
+ * Photography too, and the public intake stopped offering it under either. The
+ * flag belongs on the join, which is where "this domain asks this" already
+ * lives.
  */
-export async function setDimensionActive(input: { dimensionId: string; isActive: boolean }) {
+export async function setDimensionActive(input: { dimensionId: string; isActive: boolean; serviceDomainId: string }) {
   const { orgId } = await getAuthOrgId();
   const { error } = await supabaseAdmin
-    .from('dimensions').update({ is_active: input.isActive })
-    .eq('id', input.dimensionId).eq('organization_id', orgId);
+    .from('service_domain_dimensions').update({ is_active: input.isActive })
+    .eq('organization_id', orgId)
+    .eq('service_domain_id', input.serviceDomainId)
+    .eq('dimension_id', input.dimensionId);
   if (error) throw new Error('Failed to change that dimension');
   revalidatePath('/services/settings');
   revalidatePath('/services');

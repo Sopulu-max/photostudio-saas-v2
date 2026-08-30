@@ -25,6 +25,9 @@ export {
     getDeliverableIdsForServices,
   // Service Variables — the quantities that scope a service (outfits, hours)
   listServiceVariables, listVariablesForServices, setServiceVariables,
+  // A dimension's own: what follows from an answer, declared once for the
+  // studio rather than re-invented in every package that needs it.
+  listVariablesForDimensions, declareDimensionVariable, removeDimensionVariable,
   // Additive: adds one without reconciling the rest away, which is what a
   // caller holding only its own new variable needs.
   declareServiceVariable,
@@ -65,11 +68,11 @@ export type { Narrowed, DimensionSuggestions, VariableSuggestions } from './sugg
 // A studio defining how each of its domains classifies work — dimensions are
 // the studio's own now, not five the engine owns.
 export {
-  listDimensionsForDomain, createDimension, renameDimension,
+  listDimensionsForDomain, listStudioDimensions, createDimension, renameDimension,
   setDimensionActive, deleteDimension, addDimensionValue, removeDimensionValue,
   setValueParent,
 } from './dimensionsAdmin';
-export type { StudioDimension } from './dimensionsAdmin';
+export type { StudioDimension, StudioQuestion } from './dimensionsAdmin';
 
 // Reading the dimension graph backwards — the same edges the service form
 // narrows with, entered from the value end. The lens sits on these.

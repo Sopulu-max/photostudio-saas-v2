@@ -21,7 +21,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const { listDimensionsByDomain, listVariablesForServices } = await import('@/modules/services/interface');
+  const { listDimensionsByDomain, listVariablesForServices, listVariablesForDimensions } = await import('@/modules/services/interface');
   const { listDeliverables } = await import('@/modules/deliverables/interface');
   const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
@@ -32,8 +32,23 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const allVariables = (await listVariablesForServices(allServices.map((s: any) => s.id)))
     .map((v: any) => {
       const sName = (allServices as any[]).find(s => s.id === v.serviceId)?.name || 'Service';
+
       return { ...v, serviceName: sName };
     });
+
+  /*
+   * And what the studio's questions say follows from their answers.
+   *
+   * An Occasion has a date. Every dimension the studio asks contributes its
+   * variables here, so a package classified by Occasion can fix that date or
+   * leave it to the client, exactly as it does with a service's own variables.
+   * Loaded for every dimension rather than only the ones in play: which
+   * dimensions apply depends on what the operator bundles, and that changes
+   * while the form is open.
+   */
+  const dimensionVariables = await listVariablesForDimensions(
+    Object.values(dimensionsByDomain).flat().map((d: any) => d.id),
+  );
 
   return (
     <div className="q-page-narrow">
@@ -65,7 +80,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           status={pkg.status}
           currencyCode={currencyCode}
           allServices={allServices as any}
-          allVariables={allVariables as any}
+          allVariables={[...allVariables, ...dimensionVariables] as any}
           allDeliverables={allDeliverables as any}
           dimensionsByDomain={dimensionsByDomain}
           roleOptions={(roles as any[]).map((r) => r.name)}

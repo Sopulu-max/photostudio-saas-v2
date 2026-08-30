@@ -183,7 +183,11 @@ export async function listValueEntries(): Promise<ValueEntry[]> {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('dimension_values')
-    .select('id, name, position, parent_id, dimension:dimensions(id, name, position, is_active, domain:service_domains(name)), service_dimension_values(service_id)')
+    // Through the join, like getDimensionValue above it. This read the retired
+    // service_domain_id, so a question two domains ask reported whichever one
+    // happened to own it before they were merged — the index and the value's
+    // own page disagreeing about the same fact.
+    .select('id, name, position, parent_id, dimension:dimensions(id, name, position, service_domain_dimensions(domain:service_domains(name))), service_dimension_values(service_id)')
     .eq('organization_id', orgId);
 
   const rows = ((data || []) as any[])
@@ -192,7 +196,8 @@ export async function listValueEntries(): Promise<ValueEntry[]> {
       name: v.name as string,
       dimensionId: v.dimension?.id as string,
       dimensionName: (v.dimension?.name ?? '') as string,
-      domainName: (v.dimension?.domain?.name ?? null) as string | null,
+      domainName: (((v.dimension?.service_domain_dimensions || []) as any[])
+        .map((l) => l.domain?.name).filter(Boolean).join(', ') || null) as string | null,
       parentId: (v.parent_id ?? null) as string | null,
       services: (v.service_dimension_values || []).length,
       _dimPosition: v.dimension?.position ?? 0,

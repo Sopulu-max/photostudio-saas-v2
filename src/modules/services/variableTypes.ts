@@ -41,7 +41,17 @@ export const variableIsNumeric = (kind: ServiceVariableKind) => kind === 'number
 
 export type ServiceVariable = {
   id: string;
-  serviceId: string;
+  /**
+   * Exactly one owner, and this is one of the two.
+   *
+   * A variable owned by a SERVICE is what varies about the work — outfits,
+   * coverage hours. One owned by a DIMENSION is what follows from a
+   * classification — the date of the occasion. Same shape, same types, same
+   * decision about who answers it; only the thing it hangs off differs, which
+   * is why this is one type rather than two parallel stacks.
+   */
+  serviceId: string | null;
+  dimensionId?: string | null;
   key: string;
   label: string;
   kind: ServiceVariableKind;

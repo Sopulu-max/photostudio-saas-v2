@@ -343,10 +343,21 @@ async function writePackageVariableValues(
 
     links = wanted.flatMap((v) => {
       const serviceId = serviceOfVariable.get(v.serviceVariableId);
-      if (!serviceId) throw new Error('That option belongs to a service this package does not include.');
+      /*
+       * A variable with no service among these is a DIMENSION'S, not a stray.
+       *
+       * It is in play because of how the package is classified rather than what
+       * it bundles, so it has no service to match and belongs to the package as
+       * a whole — written against every bundle row, the same way a service's
+       * variable is written against every row of that service.
+       */
+      const targets = serviceId
+        ? rows.filter((r) => r.service_id === serviceId)
+        : rows;
+      if (targets.length === 0) throw new Error('That option belongs to a service this package does not include.');
       const asked = v.answeredBy === 'client';
       // Every bundle row of that service, so bundling it twice decides both.
-      return rows.filter((r) => r.service_id === serviceId).map((r) => ({
+      return targets.map((r) => ({
         organization_id: orgId,
         package_service_id: r.id,
         service_variable_id: v.serviceVariableId,
@@ -1237,13 +1248,51 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
   const { data: rows, error: rowsError } = await supabaseAdmin
     .from('package_services')
     .select(`
-      service:services(id, name, service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position)),
+      service:services(
+        id, name,
+        service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
+        service_dimension_values(dimension_value:dimension_values(id, dimension_id))
+      ),
+      package_service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
       package_variable_values(service_variable_id, answered_by)
     `)
     .eq('package_id', packageId)
     .eq('organization_id', orgId)
     .order('position');
   if (rowsError) throw new Error(`Could not read the package's services: ${rowsError.message}`);
+
+  /*
+   * WHAT THE CLASSIFICATIONS BRING WITH THEM.
+   *
+   * An Occasion has a date, declared once on the dimension. A package
+   * classified Birthday therefore carries that date, without anybody having
+   * added it to the service — which is the point: one declaration, inherited by
+   * every package classified that way, instead of an "occasion date" invented
+   * in each and connected to Occasion in none.
+   *
+   * Read from the values actually in play: the package's own narrowing where it
+   * made one, and the service's classification where it did not. That is the
+   * same rule the operator's screens use for deciding what a package is
+   * classified as, and it has to be, or a client would be asked about a
+   * classification the package does not carry.
+   */
+  const dimensionIds = new Set<string>();
+  for (const row of ((rows || []) as any[])) {
+    const narrowed = ((row.package_service_dimension_values || []) as any[])
+      .map((l) => l.dimension_value).filter(Boolean);
+    const inherited = ((row.service?.service_dimension_values || []) as any[])
+      .map((l) => l.dimension_value).filter(Boolean);
+    for (const v of (narrowed.length > 0 ? narrowed : inherited)) {
+      if (v.dimension_id) dimensionIds.add(v.dimension_id);
+    }
+  }
+
+  const dimensionVariables = dimensionIds.size === 0 ? [] : (await supabaseAdmin
+    .from('service_variables')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id')
+    .eq('organization_id', orgId)
+    .in('dimension_id', [...dimensionIds])
+    .order('position')).data || [];
 
   const all: any[] = [];
   for (const row of ((rows || []) as any[])) {
@@ -1270,6 +1319,27 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
         // Asked only where the package said so. A variable nobody has decided
         // about is not a question — that inference is what let a new variable
         // appear on every live booking form the moment it was declared.
+        asked: decided.get(v.id) === 'client',
+      });
+    }
+
+    // The classification's own, decided by the same rows and the same rule.
+    for (const v of (dimensionVariables as any[])) {
+      if (all.some((x) => x.id === v.id)) continue;
+      all.push({
+        id: v.id,
+        serviceId: service.id,
+        serviceName: service.name,
+        key: v.key,
+        label: v.label,
+        kind: v.kind,
+        unit: v.unit ?? null,
+        options: Array.isArray(v.options) ? v.options : [],
+        defaultValue: v.default_value ?? null,
+        min: v.min_value ?? null,
+        max: v.max_value ?? null,
+        position: 1000 + (v.position ?? 0),
+        fixed: decided.get(v.id) === 'studio',
         asked: decided.get(v.id) === 'client',
       });
     }
