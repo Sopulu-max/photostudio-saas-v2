@@ -185,12 +185,59 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     : billing.leftToInvoice;
   const leftToPay = billing.leftToPay;
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="q-card q-section">
-      <h2 className="q-section-title">{title}</h2>
-      {children}
-    </div>
+  /*
+   * WHY THIS PAGE FOLDS AND THE PACKAGE PAGE DID NOT.
+   *
+   * A package detail page is four readings of one thing — every section says
+   * something about a bundled service — so grouping by service collapsed it
+   * honestly. A booking is not like that. Client, date, packages, team, tasks,
+   * deliverables, invoices and contract are nine genuinely different concerns
+   * of one job, and none of them is a facet of another. There is nothing here
+   * to group.
+   *
+   * What there is, is length. Nine stacked sections on a real booking run to
+   * several screens, and an operator opening one has come to answer a single
+   * question: is it paid, is it staffed, has it been sent. Reading the answer
+   * meant scrolling past eight things it was not.
+   *
+   * SO EACH SECTION ANSWERS ITSELF ON ITS OWN HEADER, and the page opens on
+   * what still needs somebody. Settled and empty sections stay shut with their
+   * answer showing — "Signed", "None raised", "Everything shared" — so folding
+   * hides the controls and never the state. Packages stays open regardless,
+   * being the substance of the job rather than a task within it.
+   *
+   * Native <details>, so the page stays a server component and folds with no
+   * JavaScript, exactly as the package page does.
+   */
+  const Section = ({ title, summary, open = false, children }: {
+    title: string;
+    summary?: string;
+    open?: boolean;
+    children: React.ReactNode;
+  }) => (
+    <details className="q-details q-card q-section" open={open}>
+      <summary className="q-disclosure">
+        <span className="q-disclosure-mark" aria-hidden="true" />
+        <span className="q-row q-row-between q-fill">
+          <h2 className="q-section-title">{title}</h2>
+          {summary && <span className="q-meta-sm">{summary}</span>}
+        </span>
+      </summary>
+      <div className="q-tile-sub">{children}</div>
+    </details>
   );
+
+  // The figures each header states. Derived here rather than inside the JSX so
+  // the summary and the section it heads cannot drift apart.
+  const tasksDone = (bookingTasks as any[]).filter((t) => t.done).length;
+  const tasksUnassigned = (bookingTasks as any[]).filter((t) => !t.assignee).length;
+  const sharedCount = fulfilment.filter((f: any) => f.shared).length;
+  const scheduled = booking.scheduled_for
+    ? new Date(booking.scheduled_for).toLocaleString(undefined, {
+        weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+      })
+    : null;
+  const money = (n: number) => formatMoney(n, moneyCurrency);
 
   return (
     <div className="q-page-narrow">
@@ -212,7 +259,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
       <div className="q-stack q-stack-lg">
 
         {/* Client */}
-        <Section title="Client">
+        <Section
+          title="Client"
+          summary={booking.contact?.display_name || 'Not named yet'}
+          open={!booking.contact?.display_name}
+        >
           {booking.contact?.display_name ? (
             <div>
               <strong className="q-strong">{booking.contact?.display_name}</strong>
@@ -228,7 +279,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* What the client told us — answers to the service's intake questions */}
         {intake.length > 0 && (
-          <Section title="Intake answers">
+          <Section
+            title="Intake answers"
+            summary={`${intake.length} answered`}
+          >
             <div className="q-stack q-stack-sm">
               {intake.map((row: any, i: number) => (
                 <div key={i} className="q-tile q-row q-row-between">
@@ -244,7 +298,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         )}
 
         {/* When */}
-        <Section title="Date and time">
+        <Section
+          title="Date and time"
+          summary={scheduled || 'Not scheduled'}
+          open={!booking.scheduled_for}
+        >
           {booking.scheduled_for ? (
             <div>
               <strong className="q-strong">
@@ -272,7 +330,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
 
         {/* What they're booking — one line per Package */}
-        <Section title="Packages">
+        <Section
+          title="Packages"
+          summary={lines.length === 0
+            ? 'Nothing on it yet'
+            : `${lines.length} ${lines.length === 1 ? 'package' : 'packages'} · ${money(bookedTotal)}`}
+          open
+        >
           {lines.length === 0 ? (
             <div>
               <p className="q-empty">
@@ -392,7 +456,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * with nobody on it is a thing the studio needs to see, and hiding the
           * section hid the only way to put anyone on one.
           */}
-        <Section title="Team">
+        <Section
+          title="Team"
+          summary={team.roles.length === 0
+            ? 'Nobody assigned'
+            : team.unfilled > 0
+              ? `${team.unfilled} ${team.unfilled === 1 ? 'task' : 'tasks'} unassigned`
+              : 'Fully staffed'}
+          open={team.roles.length === 0 || team.unfilled > 0}
+        >
           {team.roles.length === 0 ? (
             <p className="q-meta" style={{ marginBottom: '16px' }}>
               No team members assigned.
@@ -466,7 +538,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * package a task came from is still shown against it; it just no
           * longer decides how the list is organised.
           */}
-        <Section title="Tasks">
+        <Section
+          title="Tasks"
+          summary={bookingTasks.length === 0
+            ? 'No work defined'
+            : `${tasksDone} of ${bookingTasks.length} done`}
+          open={bookingTasks.length === 0 || tasksDone < bookingTasks.length || tasksUnassigned > 0}
+        >
           <BookingTasks
             bookingId={booking.id}
             tasks={bookingTasks as any}
@@ -476,7 +554,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Deliverables */}
-        <Section title="Deliverables">
+        <Section
+          title="Deliverables"
+          summary={fulfilment.length === 0
+            ? 'Nothing promised'
+            : undelivered.length === 0
+              ? 'Everything shared'
+              : `${sharedCount} of ${fulfilment.length} shared`}
+          open={undelivered.length > 0}
+        >
           {/* What the packages promised, and whether it's been handed over. */}
           {fulfilment.length > 0 && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
@@ -589,7 +675,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Money */}
-        <Section title="Invoices & Payments">
+        <Section
+          title="Invoices & Payments"
+          summary={bookingValue === 0
+            ? 'Nothing to bill yet'
+            : leftToPay > 0
+              ? `${money(leftToPay)} outstanding`
+              : leftToInvoice > 0
+                ? `${money(leftToInvoice)} left to invoice`
+                : 'Settled in full'}
+          open={leftToPay > 0 || leftToInvoice > 0}
+        >
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
               {invoices.length === 0
@@ -693,7 +789,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Contract */}
-        <Section title="Contract">
+        <Section
+          title="Contract"
+          summary={latestContract ? String(latestContract.status) : 'None raised'}
+          open={!latestContract}
+        >
           {contracts.length > 0 && (
             <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
               {contracts.map((c) => (

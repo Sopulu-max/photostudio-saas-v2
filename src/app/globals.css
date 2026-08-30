@@ -903,7 +903,9 @@ body {
 .q-plain-link { text-decoration: none; color: inherit; }
 .q-btn-ghost  { border: none; background: transparent; cursor: pointer; padding: 6px 10px; font-weight: 500; }
 .q-empty-icon { width: 54px; height: 54px; border-radius: 15px; background: var(--q-color-accent-soft); color: var(--q-color-accent); display: flex; align-items: center; justify-content: center; }
-.q-fill { flex: 1 1 auto; }
+/* .q-fill is declared once, above, with the min-width: 0 that lets a flex child
+   actually shrink. A second copy here without it silently won the cascade, so
+   every long title in a q-fill row overflowed instead of truncating. */
 .q-link { color: var(--q-color-accent); text-decoration: none; font-weight: 500; }
 .q-link:hover { text-decoration: underline; }
 

@@ -84,6 +84,7 @@ let userId = '';
 let orgId = '';
 let cookieHeader = '';
 let packageId = '';
+let bookingId = '';
 let workflowId = '';
 
 describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
@@ -199,6 +200,23 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
       organization_id: orgId, package_service_id: bundledId, deliverable_id: deliverableId, quantity: 20,
     });
     if (promised.error) throw new Error(`Could not seed what the package promises: ${promised.error.message}`);
+
+    /*
+     * A booking, because its detail page is the largest in the app and was the
+     * one with no render coverage at all — nine sections of client, date,
+     * packages, team, tasks, deliverables, invoices and contract, none of which
+     * anything here had ever loaded.
+     *
+     * Deliberately bare: no client, no date, no lines. That is a real state —
+     * a booking is taken with whatever is known and filled in as it comes — and
+     * it is the state most likely to divide by zero somewhere.
+     */
+    const stageId = await seed('booking_stages', {
+      organization_id: orgId, name: 'Smoke Stage', kind: 'enquiry', position: 0, is_default: true,
+    });
+    bookingId = await seed('bookings', {
+      organization_id: orgId, title: 'Smoke Booking', stage_id: stageId,
+    });
   });
 
   afterAll(async () => {
@@ -206,6 +224,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     if (orgId) {
       // These do not cascade from the studio, so they go first. Services before
       // workflows, because a service points at the workflow that produces it.
+      await supabaseAdmin.from('bookings').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('services').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('workflows').delete().eq('organization_id', orgId);
@@ -285,6 +304,29 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html, 'the price box rendered without the price in it').toMatch(/value="42000"/);
+  });
+
+  /*
+   * Every section of a booking renders, on a booking that holds almost nothing.
+   *
+   * The page folds its sections now and each states its own answer on its
+   * header, so a shut one still says where the job has got to. Asserting the
+   * headers proves both: that the nine sections are drawn, and that a booking
+   * with no client, no date and no packages says so rather than throwing.
+   */
+  it('renders every section of a booking that holds almost nothing', async () => {
+    const res = await fetch(`${BASE}/bookings/${bookingId}`, {
+      headers: { cookie: cookieHeader }, redirect: 'manual',
+    });
+    expect(res.status, `the booking page returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the booking page rendered Next error page').not.toMatch(CRASHED);
+    for (const section of ['Client', 'Date and time', 'Packages', 'Team', 'Tasks', 'Deliverables', 'Contract']) {
+      expect(html, `the booking page is missing its ${section} section`).toMatch(section);
+    }
+    // The states an empty booking is in, said rather than left blank.
+    expect(html, 'an unnamed client did not say so').toMatch(/Not named yet/i);
+    expect(html, 'an unscheduled booking did not say so').toMatch(/Not scheduled/i);
   });
 
   it('serves the public storefront without a session at all', async () => {
