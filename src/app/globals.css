@@ -86,6 +86,9 @@
   --q-gal-control:     rgba(255, 255, 255, 0.13);
   --q-gal-control-hi:  rgba(255, 255, 255, 0.24);
 
+  /* Lets a height transition end on `auto` instead of a measured guess,
+     which is what makes a disclosure open to its own size. */
+  interpolate-size: allow-keywords;
   --q-ease:   cubic-bezier(0.22, 0.8, 0.28, 1);
   --q-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
   --q-dur-1: 130ms;
@@ -181,14 +184,68 @@ body {
   text-align: left;
   cursor: pointer;
 }
+
+/*
+ * The mark, drawn rather than typed.
+ *
+ * It was a "+" swapped for a "-", which is a fact appearing where a different
+ * fact used to be — nothing moves, so nothing tells you the row is the thing
+ * that opened. A chevron that turns is the same information carried by the
+ * motion: it points at the row while shut and down into the contents while
+ * open, and the quarter turn IS the opening, seen small.
+ *
+ * On the spring rather than the ease, because it is a small thing being flicked
+ * over and it should overshoot very slightly and settle, the way everything
+ * else in Lumen that you press does.
+ */
 .q-disclosure-mark {
-  font-family: var(--q-font-mono);
   color: var(--q-color-ink-500);
   width: 1ch;
   flex: none;
+  transition: color var(--q-dur-2) var(--q-ease);
 }
+.q-disclosure-mark::after {
+  content: "\25B8";
+  display: inline-block;
+  transition: transform var(--q-dur-2) var(--q-spring);
+}
+.q-disclosure[aria-expanded="true"] .q-disclosure-mark::after,
+.q-details[open] > summary .q-disclosure-mark::after { transform: rotate(90deg); }
+
 .q-disclosure:hover .q-disclosure-mark,
 .q-disclosure:focus-visible .q-disclosure-mark { color: var(--q-color-accent); }
+
+/*
+ * The contents, opening to their own height.
+ *
+ * A height cannot be transitioned from nothing to "however tall this turns out
+ * to be" — which is why disclosures usually either snap open or get measured in
+ * JavaScript. The grid does it honestly: one row sized 0fr becomes 1fr, the
+ * fraction is animatable, and the content is never measured or guessed at, so
+ * it works for a service with one task and for one with twenty.
+ *
+ * The child has to carry the overflow, because the row is what is being sized
+ * and the thing inside it keeps its own full height throughout.
+ *
+ * Closed contents stay in the DOM, so they are marked inert by the component
+ * that renders them — a form field that has been folded away must not still be
+ * reachable by tabbing into a service you cannot see.
+ *
+ * NOT .q-reveal, which is taken: the marketing pages use that name for content
+ * rising into view as you scroll past it. Both were declared in this one file
+ * and the later one silently won the opacity and the transition, so the fold
+ * animated by accident and would have kept doing so until somebody edited the
+ * marketing site.
+ */
+.q-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--q-dur-3) var(--q-ease),
+              opacity var(--q-dur-2) var(--q-ease);
+}
+.q-fold > * { overflow: hidden; min-height: 0; }
+.q-fold-open { grid-template-rows: 1fr; opacity: 1; }
 
 /*
  * The same row, folded by the browser rather than by React.
@@ -197,11 +254,21 @@ body {
  * fold with no JavaScript at all — which also means they are open before any
  * script runs, and open in a print or a view-source. The native triangle goes
  * because the mark is drawn where the row wants it.
+ *
+ * ::details-content is what makes a native <details> animate at all, and
+ * interpolate-size is what lets it land on auto rather than a guessed height.
+ * Both are recent; where they are missing the row simply snaps open, which is
+ * exactly what it did before and is no worse than it was.
  */
 .q-details > summary { list-style: none; }
 .q-details > summary::-webkit-details-marker { display: none; }
-.q-details > summary .q-disclosure-mark::after { content: "+"; }
-.q-details[open] > summary .q-disclosure-mark::after { content: "\2212"; }
+.q-details::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size var(--q-dur-3) var(--q-ease), content-visibility var(--q-dur-3);
+  transition-behavior: allow-discrete;
+}
+.q-details[open]::details-content { block-size: auto; }
 
 /*
  * One row in a list you are choosing from.

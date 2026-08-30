@@ -1302,7 +1302,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                           onClick={() => setOpenService((prev) => ({ ...prev, [s.id]: !isOpen }))}
                           aria-expanded={isOpen}
                         >
-                          <span className="q-disclosure-mark" aria-hidden="true">{isOpen ? '\u2212' : '+'}</span>
+                          <span className="q-disclosure-mark" aria-hidden="true" />
                           <span>
                             <span className="q-strong">{s.name}</span>{' '}
                             <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
@@ -1318,7 +1318,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                         </button>
                       </div>
 
-                      {isOpen && (
+                      {/*
+                        * Rendered whether or not it is open, because a height
+                        * cannot be animated from a thing that is not there. The
+                        * grid row does the opening; `inert` does what unmounting
+                        * used to do for everything except the drawing — a folded
+                        * service must not still be reachable by tabbing into
+                        * fields nobody can see.
+                        */}
+                      <div className={isOpen ? 'q-fold q-fold-open' : 'q-fold'} inert={!isOpen}>
                         <div className="q-stack q-stack-lg q-tile-sub">
                           <div className="q-stack q-stack-sm">
                             <h4 className="q-strong">Deliverables</h4>
@@ -1358,7 +1366,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                             {renderTasks(s)}
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
