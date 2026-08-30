@@ -685,10 +685,29 @@ body {
  * clutter.
  */
 .q-lead {
-  font-size: 1.02rem;
-  font-weight: 500;
-  line-height: 1.4;
+  font-size: 1rem;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--q-color-ink-700);
+}
+/*
+ * The quantity, which is the whole difference between two packages.
+ *
+ * Two packages of the same service carry the same name, the same
+ * classifications and the same everything — and differ by a number. Set at the
+ * weight of the words around it, that number was the least visible thing on a
+ * card whose only job was to tell one from the other. It gets the size and the
+ * weight; the words it counts step back to make room.
+ *
+ * Not the accent, though. The price owns the one colour on the card, and two
+ * things competing for it is how an accent stops meaning anything.
+ */
+.q-lead-num {
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
   color: var(--q-color-ink-900);
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -742,8 +761,11 @@ body {
   background: var(--q-color-ink-50);
   border: 1px solid var(--q-color-ink-100);
   font-size: 0.74rem;
+  font-weight: 500;
   line-height: 1.5;
-  color: var(--q-color-ink-700);
+  /* The answer takes the ink; its key stays quiet. Both at ink-700 made a pill
+     one flat grey phrase in which neither half led. */
+  color: var(--q-color-ink-900);
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;

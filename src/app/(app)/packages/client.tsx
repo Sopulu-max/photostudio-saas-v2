@@ -87,6 +87,20 @@ export function PackagesClient({
   const few = (names: string[]) =>
     names.length <= 1 ? names[0] : `${names[0]} +${names.length - 1}`;
 
+  /**
+   * The count, set apart from the thing being counted.
+   *
+   * formatDeliverable always puts the quantity first when there is one — "2
+   * Edited photographs" — so the leading integer is separable, and separating
+   * it is what makes two packages of one service tell themselves apart at a
+   * glance. Without a quantity the line is returned untouched.
+   */
+  const counted = (text: string) => {
+    const m = text.match(/^(\d+)\s+(.*)$/);
+    if (!m) return text;
+    return <><span className="q-lead-num">{m[1]}</span> {m[2]}</>;
+  };
+
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
@@ -122,7 +136,11 @@ export function PackagesClient({
             because a package promising six things must not make a taller card
             than one promising two — a row of cards is stretched to its tallest. */}
         <p className={promises.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
-          {promises.length > 0 ? promises.join(' · ') : 'Nothing promised yet'}
+          {promises.length > 0
+            ? promises.map((t: string, i: number) => (
+                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{counted(t)}</React.Fragment>
+              ))
+            : 'Nothing promised yet'}
         </p>
 
         {(tags.length > 0 || fixed.length > 0 || openVars.length > 0) && (
