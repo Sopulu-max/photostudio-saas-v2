@@ -3,10 +3,10 @@
 import React, { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { prepareImage } from './prepareImage';
 import { getAvatarUploadTarget, setContactAvatar, removeContactAvatar } from '@/kernel/contacts';
 import { ContactAvatar } from './ContactAvatar';
 
-const MAX_BYTES = 5 * 1024 * 1024;
 
 /** Photo + upload/remove controls, shared by the Client and Employee detail pages. */
 export function AvatarUpload({ contactId, name, url }: { contactId: string; name: string; url: string | null }) {
@@ -20,14 +20,19 @@ export function AvatarUpload({ contactId, name, url }: { contactId: string; name
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Pick an image file.'); return; }
-    if (file.size > MAX_BYTES) { alert('Keep it under 5MB.'); return; }
 
     setBusy(true);
     try {
-      const { bucket, path } = await getAvatarUploadTarget(contactId, file.name);
+      /*
+       * 512 is the whole of it. A face is drawn at 40 pixels in a list and at
+       * a little over a hundred on a profile, so anything past this is bytes
+       * carrying detail that is never on screen — and refusing a 12MB portrait
+       * outright, as this did, was the wrong answer to the same problem.
+       */
+      const prepared = await prepareImage(file, { maxEdge: 512 });
+      const { bucket, path } = await getAvatarUploadTarget(contactId, prepared.file.name);
       const supabase = createClient();
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      const { error } = await supabase.storage.from(bucket).upload(path, prepared.file);
       if (error) throw new Error(error.message);
       await setContactAvatar({ contactId, storagePath: path });
       router.refresh();

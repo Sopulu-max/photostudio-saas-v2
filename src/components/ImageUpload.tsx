@@ -3,19 +3,18 @@
 import React, { useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getStudioAssetUploadTarget, getPublicUrlForStudioAsset } from '@/kernel/organizations';
-
-const MAX_BYTES = 5 * 1024 * 1024;
+import { prepareImage, readableBytes } from './prepareImage';
 
 /**
  * Pick an image, put it in the studio's bucket, hand back the URL.
  *
- * WHY THIS IS ONE COMPONENT. Every upload in this app is the same five steps —
- * pick a file, refuse what is not an image, refuse what is too big, put it
- * somewhere scoped to the studio, hand back a public URL — and they had been
- * written out separately for the studio logo and for a contact's avatar, each
- * with its own idea of the size limit and its own wording when a file was
- * refused. What differs between them is not the uploading; it is what happens
- * to the URL afterwards, and that is the only thing a caller passes.
+ * WHY THIS IS ONE COMPONENT. Every upload in this app is the same four steps —
+ * pick a file, cut it down to the size it will be shown at, put it somewhere
+ * scoped to the studio, hand back a public URL — and they had been written out
+ * separately for the studio logo and for a contact avatar, each with its own
+ * invented size limit and its own wording when a file was turned away. What
+ * differs between them is not the uploading; it is what happens to the URL
+ * afterwards, and that is the only thing a caller passes.
  *
  * A LABEL OPENS THE FILE DIALOG, NOT A CLICK HANDLER. The first version was a
  * button whose onClick called .click() on a `hidden` input — the pattern this
@@ -32,6 +31,14 @@ const MAX_BYTES = 5 * 1024 * 1024;
  * AND FAILURES ARE SHOWN, NOT ALERTED. An alert can be suppressed by the
  * browser and says nothing once dismissed; the message belongs under the
  * control it is about.
+ *
+ * NOTHING IS REFUSED FOR BEING LARGE. This used to turn away anything over 5MB
+ * — a number nothing required, since the buckets carry no size limit at all,
+ * invented in one component and copied into the next two. A studio exporting
+ * from Lightroom routinely produces 15 to 40MB, so the app was asking a
+ * photography business to shrink its own photographs before it would accept
+ * them. They are resized here instead, to the largest size the screen they
+ * appear on can actually resolve. See prepareImage.
  */
 export function ImageUpload({
   url,
@@ -40,6 +47,7 @@ export function ImageUpload({
   folder = 'studio',
   label = 'image',
   aspect = '16 / 9',
+  maxEdge,
   disabled,
 }: {
   url: string | null;
@@ -51,28 +59,43 @@ export function ImageUpload({
   /** What to call it when there is none yet, in the middle of a sentence. */
   label?: string;
   aspect?: string;
+  /**
+   * The longest edge worth keeping, in pixels.
+   *
+   * Set by whoever knows how big the picture will ever be drawn — a cover
+   * spanning a page needs far more than a face in a 40px circle, and every
+   * pixel past what a screen can resolve is bytes spent on detail nobody sees.
+   */
+  maxEdge?: number;
   disabled?: boolean;
 }) {
   const inputId = useId();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
     setProblem(null);
-
-    if (!file.type.startsWith('image/')) { setProblem('That is not an image file.'); input.value = ''; return; }
-    if (file.size > MAX_BYTES) { setProblem('Images have to be under 5MB.'); input.value = ''; return; }
+    setSaved(null);
 
     setBusy(true);
     try {
-      const { bucket, path } = await getStudioAssetUploadTarget(file.name, folder);
+      // Resized before anything is asked of the network, so what travels is
+      // what will be shown rather than what came off the camera.
+      const prepared = await prepareImage(file, { maxEdge });
+      const { bucket, path } = await getStudioAssetUploadTarget(prepared.file.name, folder);
       const supabase = createClient();
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      const { error } = await supabase.storage.from(bucket).upload(path, prepared.file);
       if (error) throw new Error(error.message);
       onUploaded(await getPublicUrlForStudioAsset(path));
+      setSaved(
+        prepared.resized
+          ? `Resized from ${readableBytes(prepared.originalBytes)} to ${readableBytes(prepared.file.size)}.`
+          : null,
+      );
     } catch (err: any) {
       // Said in full. A studio that cannot upload needs to know whether it is
       // the file, the network or the studio's own permissions.
@@ -113,6 +136,7 @@ export function ImageUpload({
       )}
 
       {problem && <span className="q-meta-sm q-text-danger">{problem}</span>}
+      {saved && !problem && <span className="q-meta-sm">{saved}</span>}
     </div>
   );
 }

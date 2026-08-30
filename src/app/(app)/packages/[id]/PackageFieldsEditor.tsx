@@ -1220,6 +1220,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 url={coverUrl || null}
                 folder="packages"
                 label="cover"
+                // Twice the widest a cover is ever drawn, which is as much as
+                // the densest display can resolve.
+                maxEdge={2400}
                 onUploaded={(u) => applyCover(u)}
                 onCleared={() => applyCover(null)}
               />

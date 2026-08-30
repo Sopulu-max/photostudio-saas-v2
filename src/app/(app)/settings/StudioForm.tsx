@@ -41,6 +41,9 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
           url={logoUrl || null}
           label="logo"
           aspect="1 / 1"
+          // A logo is a 32px mark in the sidebar and a 96px circle on the
+          // storefront. It has never needed more than this.
+          maxEdge={512}
           onUploaded={setLogoUrl}
           onCleared={() => setLogoUrl('')}
         />
@@ -56,6 +59,7 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
           url={coverUrl || null}
           label="cover"
           aspect="3 / 1"
+          maxEdge={2400}
           onUploaded={setCoverUrl}
           onCleared={() => setCoverUrl('')}
         />
