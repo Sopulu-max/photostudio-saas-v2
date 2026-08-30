@@ -360,10 +360,15 @@ body {
 
 /* ---- Cards ---- */
 .q-card {
+  /* Named, because a band that spans the card edge to edge has to cancel this
+     padding and match this radius, and two hard-coded copies of 28px would go
+     out of step the first time a card was made roomier. */
+  --q-card-pad: 28px;
+  --q-card-radius: 16px;
   background: var(--q-color-paper-elevated);
   border: 1px solid var(--q-color-ink-100);
-  border-radius: 16px;
-  padding: 28px;
+  border-radius: var(--q-card-radius);
+  padding: var(--q-card-pad);
   box-shadow: var(--q-shadow-sm);
   transition: transform var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
 }
@@ -641,10 +646,18 @@ body {
  * card markup was cancelling that margin inline. Two different jobs, so two
  * classes, and neither has to be argued with at the call site.
  */
+/*
+ * A card's name, at a size that makes it one.
+ *
+ * 1.05rem against a 0.95rem body is not a hierarchy, it is a rounding error —
+ * so a card read as one undifferentiated block of text however carefully the
+ * facts under it were arranged. The name of the thing has to win.
+ */
 .q-card-title {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
   margin: 0;
 }
 
@@ -677,33 +690,43 @@ body {
 }
 
 /*
- * Everything else, as one quiet strip rather than a stack of rows.
+ * Everything else, as one strip of pills rather than a stack of rows.
  *
- * Classifications and fixed variables are the same kind of thing — small facts
- * that distinguish this one from the next — so they read as one band of text
- * across the card instead of six lines down it. Three facts on one line take a
- * quarter of the room and one glance.
+ * WHY THESE ARE SHAPES AND NOT TEXT. Three lines of "Context Studio" set in
+ * plain type is still three lines of type, and a card made only of type reads
+ * as an unstyled document however well it is arranged — which is exactly what
+ * this looked like through two attempts at rearranging it. A fact with an
+ * outline and a ground becomes an object: countable at a glance, separable
+ * from its neighbour without a comma, and obviously a different KIND of thing
+ * from the sentence above it.
  *
- * Each keeps the question it answers. "Studio" and "Maternity" as bare chips
- * were tags with the dimension hidden in a title attribute; a fact carries its
- * own key, quietly, so Context and Occasion are readable without competing with
- * the values that answer them.
+ * This system already had the shape — .q-chip — and these were built beside it
+ * out of bare spans. The pill is that chip, holding its own key.
+ *
+ * Not .q-value, which is the same idea at a larger size: that one lifts under
+ * the pointer because it is a link to everything classified the same way, and
+ * inside a card that is itself one link it would promise a click it cannot
+ * honour.
  */
 .q-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 18px;
+  gap: 6px;
 }
 .q-fact {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 0.82rem;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--q-color-ink-50);
+  border: 1px solid var(--q-color-ink-100);
+  font-size: 0.78rem;
   color: var(--q-color-ink-800);
 }
 .q-fact-key {
   font-family: var(--q-font-mono);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -721,19 +744,27 @@ body {
 .q-absent { color: var(--q-color-ink-400); }
 
 /*
- * What it costs, as the numeric anchor of the card.
+ * What it costs — and the only colour on the card.
+ *
+ * These cards were entirely ink on paper. A studio's own accent existed in the
+ * tokens and appeared nowhere in its catalogue, which is most of why a page of
+ * them read as markup that styling had not reached yet. The price is the right
+ * place to spend it: it is the one fact that is a number, the one an operator
+ * scans a catalogue for, and one accent per card is a punctuation mark rather
+ * than a paint job.
  *
  * Tabular figures so the digits line up down a column of cards, which is what
  * makes two prices comparable at a glance rather than at a read.
  */
 .q-price {
   font-variant-numeric: tabular-nums;
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: var(--q-color-ink-900);
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--q-color-accent);
   white-space: nowrap;
 }
-.q-price.q-absent { font-size: 0.875rem; font-weight: 500; }
+.q-price.q-absent { font-size: 0.85rem; font-weight: 500; color: var(--q-color-ink-400); }
 
 /*
  * Two lines of description, and no more.
@@ -751,17 +782,28 @@ body {
 }
 
 /*
- * The last line of a card, pinned to the bottom of it.
+ * The foot of a card, as a band rather than a line.
  *
- * Without this the footer sits directly under the content, so it lands at a
- * different height on every card and the row of cards has no bottom edge. The
- * card is a flex column, so auto on the top margin pushes it down and every
- * card in the row ends on the same line.
+ * Pinned first: the card is a flex column, so auto on the top margin pushes
+ * this down and every card in a row ends on the same line instead of wherever
+ * its content happened to stop.
+ *
+ * But a border alone is a rule drawn on a page. Cancelling the card's padding
+ * and filling the strip gives the card two surfaces — what it is above, what it
+ * costs below — and two surfaces is the difference between a document and a
+ * card. It is also where the price belongs: the commercial fact, in the
+ * commercial band, in the accent.
  */
 .q-card-foot {
-  margin-top: auto;
-  padding-top: 14px;
+  margin: auto calc(var(--q-card-pad) * -1) calc(var(--q-card-pad) * -1);
+  padding: 13px var(--q-card-pad);
+  background: var(--q-color-paper-subtle);
   border-top: 1px solid var(--q-color-ink-100);
+  border-radius: 0 0 calc(var(--q-card-radius) - 1px) calc(var(--q-card-radius) - 1px);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 .q-eyebrow  {
   font-family: var(--q-font-mono);

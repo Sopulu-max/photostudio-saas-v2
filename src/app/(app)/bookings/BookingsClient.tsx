@@ -70,11 +70,17 @@ export function BookingsClient({
           </span>
         </div>
 
+        {/* The money band. Outstanding takes the price treatment because it is
+            the number an operator scans a booking list for; nothing owed is a
+            quiet statement rather than a figure. */}
         <div className="q-card-foot">
           {b.pendingTotal > 0 ? (
-            <span className="q-badge q-badge-warning">
-              {formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)} due
-            </span>
+            <>
+              <span className="q-price">
+                {formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)}
+              </span>
+              <span className="q-meta-sm">outstanding</span>
+            </>
           ) : (
             <span className="q-meta-sm q-absent">Nothing outstanding</span>
           )}

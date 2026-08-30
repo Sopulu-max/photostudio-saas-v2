@@ -50,8 +50,8 @@ export function ServicesClient({
     return (
       <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive">
         <div>
-          <h3 className="q-card-title">{svc.name}</h3>
           <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
+          <h3 className="q-card-title">{svc.name}</h3>
         </div>
 
         {/* What it produces leads, because that is what a service is for. The
@@ -72,12 +72,15 @@ export function ServicesClient({
           </div>
         )}
 
+        {/* How it gets done — a service's equivalent of a price: the fact the
+            band exists to carry. */}
         <div className="q-card-foot">
           <span className={svc.workflow?.name ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
-            {svc.workflow?.name
-              ? `${svc.workflow.name} · ${steps} ${steps === 1 ? 'step' : 'steps'}`
-              : 'No workflow, so it produces no tasks'}
+            {svc.workflow?.name || 'No workflow, so it produces no tasks'}
           </span>
+          {svc.workflow?.name && (
+            <span className="q-meta-sm">{steps} {steps === 1 ? 'step' : 'steps'}</span>
+          )}
         </div>
       </Link>
     );

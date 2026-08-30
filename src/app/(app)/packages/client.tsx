@@ -89,16 +89,15 @@ export function PackagesClient({
 
     return (
       <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack">
-        <div className="q-row q-row-between">
-          <div className="q-fill">
-            <h3 className="q-card-title">{pkg.name}</h3>
-            <span className="q-eyebrow">{bundle || 'No services bundled'}</span>
-          </div>
-          <span className={priced ? 'q-price' : 'q-price q-absent'}>
-            {priced
-              ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
-              : 'No price set'}
-          </span>
+        {/*
+          * The category above the name, the way a label sits above a title
+          * rather than beside it. The price is not here at all any more — it
+          * belongs in the band at the foot, which is where the eye goes for a
+          * number and where the card gets its second surface.
+          */}
+        <div>
+          <span className="q-eyebrow">{bundle || 'No services bundled'}</span>
+          <h3 className="q-card-title">{pkg.name}</h3>
         </div>
 
         {/* What the client gets: the one line the card is about. Bounded,
@@ -130,11 +129,15 @@ export function PackagesClient({
           </div>
         )}
 
+        {/* What it costs, and what it takes: the commercial band. */}
         <div className="q-card-foot">
+          <span className={priced ? 'q-price' : 'q-price q-absent'}>
+            {priced
+              ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
+              : 'No price set'}
+          </span>
           <span className={taskCount > 0 ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
-            {taskCount > 0
-              ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`
-              : 'No tasks — a booking of it produces no work'}
+            {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'No tasks'}
           </span>
         </div>
       </Link>
