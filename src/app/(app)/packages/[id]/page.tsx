@@ -6,6 +6,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue } from '@/modules/services/interface';
 import { ClassificationsFor } from './Classifications';
+import { Counted } from '@/components/Counted';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,7 +134,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               <div className="q-stack q-stack-sm">
                 {promised.map(({ d, from }: any, i: number) => (
                   <div key={`${from}-${d.id}-${i}`} className="q-row q-row-between q-tile">
-                    <span className="q-text-body">{formatDeliverable(d)}</span>
+                    <span className="q-text-body"><Counted text={formatDeliverable(d)} /></span>
                     {services.length > 1 && <span className="q-meta-sm">{from}</span>}
                   </div>
                 ))}
@@ -201,7 +202,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                             <div className="q-grid-cards">
                               {promised.map((d: any) => (
                                 <div key={d.id} className="q-tile">
-                                  <div className="q-strong">{formatDeliverable(d)}</div>
+                                  <div><Counted text={formatDeliverable(d)} /></div>
                                 </div>
                               ))}
                             </div>

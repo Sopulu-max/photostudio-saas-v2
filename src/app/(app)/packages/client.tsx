@@ -7,6 +7,7 @@ import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { Counted } from '@/components/Counted';
 // Reached at its source rather than through the module door: the interface is
 // a server-actions file, and this is a pure formatter a client card can hold.
 import { formatVariableValue } from '@/modules/services/variableTypes';
@@ -75,20 +76,6 @@ export function PackagesClient({
    * the same service. The ones it leaves open are the client's answer, not the
    * package's, so they are counted rather than named.
    */
-  /**
-   * The count, set apart from the thing being counted.
-   *
-   * formatDeliverable always puts the quantity first when there is one — "2
-   * Edited photographs" — so the leading integer is separable, and separating
-   * it is what makes two packages of one service tell themselves apart at a
-   * glance. Without a quantity the line is returned untouched.
-   */
-  const counted = (text: string) => {
-    const m = text.match(/^(\d+)\s+(.*)$/);
-    if (!m) return text;
-    return <><span className="q-lead-num">{m[1]}</span> {m[2]}</>;
-  };
-
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
@@ -146,7 +133,7 @@ export function PackagesClient({
         <p className={promises.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
           {promises.length > 0
             ? promises.map((t: string, i: number) => (
-                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{counted(t)}</React.Fragment>
+                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}<Counted text={t} /></React.Fragment>
               ))
             : 'Nothing promised yet'}
         </p>

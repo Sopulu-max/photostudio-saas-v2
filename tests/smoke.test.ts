@@ -54,9 +54,26 @@ const BASE = (process.env.SMOKE_BASE_URL || 'http://localhost:3000').replace(/\/
  */
 async function load(path: string, init?: RequestInit): Promise<Response> {
   const ask = () => fetch(`${BASE}${path}`, { redirect: 'manual', ...init });
-  const first = await ask();
-  if (first.status !== 404 && first.status < 500) return first;
-  await new Promise((r) => setTimeout(r, 1500));
+  /*
+   * TWO CHANCES, AND THE SECOND ONE WAITS PROPERLY.
+   *
+   * A single 1.5s retry was not enough. The package editor is a very large
+   * client component, and touching one of its imports makes the first request
+   * for it wait on a rebuild that takes several seconds — during which the
+   * route answers 404. That looked exactly like a real regression twice, and
+   * twice it was diagnosed as one: stashed, seen to pass, unstashed, seen to
+   * fail. The experiment was worthless both times, because stashing recompiles
+   * too and the passing run had been warmed by an earlier request.
+   *
+   * A route that is genuinely broken answers the same way three times and still
+   * fails, with its own status, having cost nine seconds. A route that is
+   * merely being built gets long enough to finish being built.
+   */
+  for (const wait of [2000, 6000]) {
+    const res = await ask();
+    if (res.status !== 404 && res.status < 500) return res;
+    await new Promise((r) => setTimeout(r, wait));
+  }
   return ask();
 }
 
@@ -280,7 +297,10 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
      * look. Next puts the message and stack in the body; carry them into the
      * failure so the run that finds the break also explains it.
      */
-    const detail = res.status >= 500
+    // 404 included: an app calling notFound() and a route that does not exist
+    // are the same status and completely different problems, and only the body
+    // says which.
+    const detail = res.status === 404 || res.status >= 500
       ? '\n' + (await res.clone().text())
           .replace(/<script[\s\S]*?<\/script>/g, '')
           .replace(/<[^>]+>/g, ' ')

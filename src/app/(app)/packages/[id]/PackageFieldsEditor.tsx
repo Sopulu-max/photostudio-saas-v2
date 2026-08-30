@@ -21,6 +21,7 @@ import { PickMany, PickToAdd } from '@/components/Pick';
 // what is chosen and bounding what it draws, and both are arguments.
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { ImageUpload } from '@/components/ImageUpload';
+import { Counted } from '@/components/Counted';
 
 type ServiceOption = { 
   id: string; 
@@ -1537,11 +1538,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 return (
                   <div key={`${from}-${p.deliverableId}-${i}`} className="q-row q-row-between q-tile">
                     <span className="q-text-body">
-                      {formatDeliverable({
+                      <Counted text={formatDeliverable({
                         name,
                         quantity: p.quantity,
                         spec_values: p.specValues || def?.spec_values,
-                      } as any)}
+                      } as any)} />
                     </span>
                     {bundled.length > 1 && <span className="q-meta-sm">{from}</span>}
                   </div>
