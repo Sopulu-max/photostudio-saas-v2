@@ -6,6 +6,17 @@ import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from
 import { formatDeliverable } from '@/modules/packages/interface';
 import { DURATION_CHOICES } from '@/kernel/currency';
 import { QuestionEditor } from './QuestionEditor';
+/*
+ * The control this form kept rebuilding.
+ *
+ * Choosing from what is known, and typing something that is not, is one
+ * interaction — and it was already written, once, with the keyboard handling
+ * and the outside-click and the "Use X — new" line that a hand-rolled copy
+ * never gets round to. Two more copies went in here anyway, one for
+ * classifications and one for outputs, because each felt like a different
+ * feature while it was being written. They were the same feature twice.
+ */
+import { PickMany, PickToAdd } from '@/components/Pick';
 
 type ServiceOption = { 
   id: string; 
@@ -299,7 +310,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     }
     return byService;
   });
-  const [pendingValue, setPendingValue] = useState<Record<string, string>>({});
   /*
    * Classifications and outputs a package invented while it was being built.
    *
@@ -351,7 +361,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     setAddedTasks((prev) => [...prev, { serviceId, name: named, roleName: null }]);
     setNewTask((prev) => ({ ...prev, [serviceId]: '' }));
   };
-  const [newOutput, setNewOutput] = useState<Record<string, string>>({});
   /*
    * Finding a service to bundle, rather than scrolling past all of them.
    *
@@ -387,14 +396,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const [openService, setOpenService] = useState<Record<string, boolean>>({});
 
-  const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
-    const asked = (pendingValue[pendingKey] || '').trim();
-    if (!asked || !dim.domainId) return;
+  const createValue = (dim: any, asked: string, onCreated: (id: string) => void) => {
+    if (!asked.trim() || !dim.domainId) return;
     startTransition(async () => {
       try {
         const { findOrCreateDimensionValue } = await import('@/modules/services/interface');
         const id = await findOrCreateDimensionValue({
-          serviceDomainId: dim.domainId, dimensionName: dim.name, value: asked,
+          serviceDomainId: dim.domainId, dimensionName: dim.name, value: asked.trim(),
         });
         if (!id) throw new Error(`Could not add "${asked}".`);
         setCreatedValues((prev) => {
@@ -402,15 +410,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           return mine.some((v) => v.id === id) ? prev : { ...prev, [dim.id]: [...mine, { id, name: asked }] };
         });
         onCreated(id);
-        setPendingValue((prev) => ({ ...prev, [pendingKey]: '' }));
       } catch (e: any) {
         alert(e?.message || 'Could not add that value.');
       }
     });
   };
 
-  const declareOutput = (serviceId: string) => {
-    const asked = (newOutput[serviceId] || '').trim();
+  const declareOutput = (serviceId: string, name: string) => {
+    const asked = name.trim();
     if (!asked) return;
     startTransition(async () => {
       try {
@@ -422,7 +429,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             ? prev
             : [...prev, { ...created, serviceId }]);
         addPromise(serviceId, created.id);
-        setNewOutput((prev) => ({ ...prev, [serviceId]: '' }));
       } catch (e: any) {
         alert(e?.message || 'Could not add that output.');
       }
@@ -650,14 +656,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ...(createdValues[dim.id] || []).filter((v: any) => !dim.values.some((e: any) => e.id === v.id)),
     ];
     const chosen = forService.filter((id) => values.some((v: any) => v.id === id));
-    // Scoped to the card it is drawn in, so the same dimension on two bundled
-    // services keeps two independent answers.
-    const pendingKey = `${serviceId}:${dim.id}`;
     const setFor = (next: string[]) => setNarrowings((prev) => ({ ...prev, [serviceId]: next }));
-    const add = (id: string) => {
-      if (id && !forService.includes(id)) setFor([...forService, id]);
-      setPendingValue((prev) => ({ ...prev, [pendingKey]: '' }));
-    };
+    const chosenNames = chosen.map((id) => values.find((v: any) => v.id === id)?.name).filter(Boolean) as string[];
+
     return (
       <div className="q-field" key={dim.id}>
         <label className="q-label">{dim.name}</label>
@@ -666,97 +667,39 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {inherited && chosen.length > 0 && ' · as the service is classified'}
         </span>
         {/*
-          * ONE FIELD, NOT THREE.
+          * Chips and a box that filters and will take a new word — which is
+          * PickMany, and has been all along. This had three controls of its own
+          * making instead: a list, a dropdown with an Add, and a standing
+          * Create field beside it.
           *
-          * This had a list of chosen values, a dropdown of the rest with an Add
-          * beside it, and then a second input with a Create beside that — so
-          * every dimension of every bundled service carried three controls, and
-          * a studio with four dimensions met twelve of them before it had said
-          * anything.
-          *
-          * The Create field was the worst of the three because it gave a rare
-          * act a permanent control. Inventing a value is not a thing a studio
-          * does most times it opens this form; it is what it does on the one
-          * occasion the value it wants is not there. Giving that its own
-          * standing field made it cost exactly as much room as picking an
-          * existing one, on every dimension, forever.
-          *
-          * So there is one field, and it is for finding. Type, and what matches
-          * appears; type something that matches nothing, and the offer to
-          * create it appears in the same place the matches would have. The rare
-          * act shows up precisely when the common one has failed, and takes no
-          * room at all until then.
+          * PICKMANY SPEAKS IN NAMES AND THIS SECTION HOLDS IDS, which is what
+          * made a bespoke copy look necessary. It is not: findOrCreateDimensionValue
+          * takes a name and returns the id of the value it found or made, so a
+          * name is a complete answer here. The only care needed is that the
+          * narrowings array holds every dimension's values at once, so what
+          * belongs to the others is carried through untouched.
           */}
-        {chosen.length > 0 && (
-        <div className="q-row q-row-sm">
-          {chosen.map((id) => {
-            const name = values.find((v: any) => v.id === id)?.name || id;
-            return (
-              <span key={id} className="q-value q-value-sm q-value-on">
-                {name}
-                <button
-                  type="button" className="q-btn-ghost q-btn-xs"
-                  onClick={() => setFor(forService.filter((x) => x !== id))}
-                  title={`Remove ${name}`}
-                >&times;</button>
-              </span>
-            );
-          })}
-        </div>
-        )}
-
-        {(() => {
-          const typed = pendingValue[pendingKey] || '';
-          const needle = typed.trim().toLowerCase();
-          const available = values.filter((v: any) => !forService.includes(v.id));
-          const matches = needle
-            ? available.filter((v: any) => v.name.toLowerCase().includes(needle))
-            : available;
-          // Against every value in the dimension, not just the unchosen ones:
-          // typing a value this service already carries must not offer to make
-          // a second one with the same name.
-          const exists = values.some((v: any) => v.name.trim().toLowerCase() === needle);
-
-          return (
-            <>
-              <input
-                className="q-input q-input-sm"
-                placeholder={`Add a ${String(dim.name).toLowerCase()}`}
-                value={typed}
-                onChange={(e) => setPendingValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  if (matches.length === 1) add(matches[0].id);
-                  else if (needle && !exists && dim.domainId) createValue(dim, serviceId, pendingKey, add);
-                }}
-              />
-              <div className="q-row q-row-sm">
-                {matches.map((v: any) => (
-                  <button key={v.id} type="button" className="q-value q-value-sm" onClick={() => add(v.id)}>
-                    {v.name}
-                  </button>
-                ))}
-                {needle && !exists && dim.domainId && (
-                  <button
-                    type="button" className="q-value q-value-sm"
-                    disabled={isPending}
-                    onClick={() => createValue(dim, serviceId, pendingKey, add)}
-                  >
-                    Add &ldquo;{typed.trim()}&rdquo; to {dim.name}
-                  </button>
-                )}
-                {!needle && available.length === 0 && (
-                  <span className="q-meta-sm">
-                    {values.length === 0
-                      ? `No ${String(dim.name).toLowerCase()} defined yet — type one to add it.`
-                      : 'All of them are on this package.'}
-                  </span>
-                )}
-              </div>
-            </>
-          );
-        })()}
+        <PickMany
+          values={chosenNames}
+          options={values.map((v: any) => v.name)}
+          placeholder={`Choose or type a ${String(dim.name).toLowerCase()}`}
+          allowCreate={Boolean(dim.domainId)}
+          onChange={(next) => {
+            const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+            const others = forService.filter((id) => !values.some((v: any) => v.id === id));
+            const resolved: string[] = [];
+            let invented: string | null = null;
+            for (const name of next) {
+              const hit = values.find((v: any) => same(v.name, name));
+              if (hit) resolved.push(hit.id);
+              else invented = name;
+            }
+            setFor([...others, ...resolved]);
+            // Created against the domain, then added — so the id is the studio's
+            // own rather than a name this package alone would understand.
+            if (invented) createValue(dim, invented, (id) => setFor([...others, ...resolved, id]));
+          }}
+        />
       </div>
     );
   };
@@ -1184,69 +1127,30 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         })}
 
         {/*
-          * One field here too, for the same reason.
+          * The same box, and here the caller keeps its own chips.
+          *
+          * PickMany owns the chips it draws; a promise is not a chip. It is a
+          * tile with a quantity and whatever spec the output defines, so the
+          * chips are already rendered above and all that is wanted is the box —
+          * which is exactly what PickToAdd is for and says it is for.
           *
           * "All outputs produced by this service have been promised" was a dead
-          * end that stated a limit and offered no way past it — but the answer
-          * was not a standing Create box beside the list. It is the same field:
-          * type to find what the service already produces, and if what you
-          * typed is not among them, the offer to add it appears where the
-          * matches would have been.
-          *
-          * The output is declared onto the SERVICE, so it joins the menu for
-          * every package of it — the same act as declaring a variable, and safe
-          * for the same reason: a menu promises nothing on its own. And because
-          * the server finds-or-creates by name within the domain, typing the
-          * name of an output the studio already has attaches that one rather
-          * than making a second with the same name.
+          * end that stated a limit and offered no way past it. Typing past the
+          * list is the way past it, and because declareServiceDeliverable finds
+          * or creates by name within the domain, typing the name of an output
+          * the studio already has attaches that one rather than making a second
+          * with the same name.
           */}
-        {(() => {
-          const typed = newOutput[s.id] || '';
-          const needle = typed.trim().toLowerCase();
-          const matches = needle
-            ? suggested.filter((d: any) => d.name.toLowerCase().includes(needle))
-            : suggested;
-          const exists = produces.some((d: any) => d.name.trim().toLowerCase() === needle);
-
-          return (
-            <>
-              <input
-                className="q-input q-input-sm"
-                placeholder="Add an output"
-                value={typed}
-                onChange={(e) => setNewOutput((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  if (matches.length === 1) { addPromise(s.id, matches[0].id); setNewOutput((prev) => ({ ...prev, [s.id]: '' })); }
-                  else if (needle && !exists) declareOutput(s.id);
-                }}
-              />
-              <div className="q-row q-row-sm">
-                {matches.map((d: any) => (
-                  <button
-                    key={d.id} type="button" className="q-value q-value-sm"
-                    onClick={() => { addPromise(s.id, d.id); setNewOutput((prev) => ({ ...prev, [s.id]: '' })); }}
-                  >
-                    {d.name}
-                  </button>
-                ))}
-                {needle && !exists && (
-                  <button
-                    type="button" className="q-value q-value-sm"
-                    disabled={isPending}
-                    onClick={() => declareOutput(s.id)}
-                  >
-                    Add &ldquo;{typed.trim()}&rdquo; to {s.name}
-                  </button>
-                )}
-                {!needle && suggested.length === 0 && mine.length > 0 && (
-                  <span className="q-meta-sm">Everything it produces is promised — type to add another.</span>
-                )}
-              </div>
-            </>
-          );
-        })()}
+        <PickToAdd
+          options={suggested.map((d: any) => d.name)}
+          placeholder="Choose or type an output"
+          onAdd={(name) => {
+            const hit = produces.find((d: any) => d.name.trim().toLowerCase() === name.trim().toLowerCase());
+            if (hit) addPromise(s.id, hit.id);
+            // Onto the service, so every package of it can promise one too.
+            else declareOutput(s.id, name);
+          }}
+        />
       </div>
     );
   };
