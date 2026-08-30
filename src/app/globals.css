@@ -191,6 +191,19 @@ body {
 .q-disclosure:focus-visible .q-disclosure-mark { color: var(--q-color-accent); }
 
 /*
+ * The same row, folded by the browser rather than by React.
+ *
+ * A detail page is a document and stays a server component, so its sections
+ * fold with no JavaScript at all — which also means they are open before any
+ * script runs, and open in a print or a view-source. The native triangle goes
+ * because the mark is drawn where the row wants it.
+ */
+.q-details > summary { list-style: none; }
+.q-details > summary::-webkit-details-marker { display: none; }
+.q-details > summary .q-disclosure-mark::after { content: "+"; }
+.q-details[open] > summary .q-disclosure-mark::after { content: "\2212"; }
+
+/*
  * One row in a list you are choosing from.
  *
  * A picker option is not a card. It carries only what is needed to tell this
