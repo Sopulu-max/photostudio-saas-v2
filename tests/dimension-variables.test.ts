@@ -113,6 +113,31 @@ describe('A dimension says what follows from its answers', () => {
     await supabaseAdmin.from('organizations').delete().eq('id', TEST_ORG_ID);
   });
 
+  it('puts each new question after the ones already there', async () => {
+    /*
+     * Two orders exist and both are real: the join carries how one domain
+     * arranges the questions it asks, and this carries the studio's own — which
+     * is what sorts the classifications on a package card, where the reading
+     * can span domains and the join has no single answer.
+     *
+     * Created at position zero, every question made after dimensions became
+     * studio-owned would have sorted ahead of the ones a studio arranged
+     * deliberately, and tied with every other new one.
+     */
+    const second: any = await createDimension({
+      serviceDomainId: domainId, name: 'Style', question: 'What style is it in?',
+    });
+    const { data: rows } = await supabaseAdmin
+      .from('dimensions').select('name, position')
+      .eq('organization_id', TEST_ORG_ID).order('position');
+    const positions = new Map(((rows || []) as any[]).map((r) => [r.name, r.position]));
+    expect(
+      positions.get('Style'),
+      'a new question landed on top of the ones already arranged',
+    ).toBeGreaterThan(positions.get('Occasion') as number);
+    expect(second?.dimensionId ?? second?.id).toBeTruthy();
+  });
+
   it('declares the date on the question rather than on any one package', async () => {
     const declared = await declareDimensionVariable({
       dimensionId: occasionId,

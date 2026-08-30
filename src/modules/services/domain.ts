@@ -102,9 +102,16 @@ async function resolveDimensionValueId(
 
   let dimensionId = findByName(dimRows, dimName)?.id as string | undefined;
   if (!dimensionId) {
+    // Onto the end of the studio's questions. Zero would put every question
+    // made this way ahead of the ones a studio arranged deliberately.
+    const { data: lastDim } = await supabaseAdmin
+      .from('dimensions').select('position')
+      .eq('organization_id', orgId)
+      .order('position', { ascending: false })
+      .limit(1).maybeSingle();
     const { data: made, error } = await supabaseAdmin
       .from('dimensions')
-      .insert({ organization_id: orgId, name: dimName, position: 0 })
+      .insert({ organization_id: orgId, name: dimName, position: ((lastDim?.position as number) ?? -1) + 1 })
       .select('id').maybeSingle();
     if (error) {
       if (error.code === '23505') {

@@ -141,6 +141,27 @@ export async function createDimension(input: {
 
   let dimensionId = existing?.id as string | undefined;
   if (!dimensionId) {
+    /*
+     * ONTO THE END OF THE STUDIO'S QUESTIONS, not at position zero.
+     *
+     * There are two orders here and both are real. The join carries how one
+     * domain arranges the questions it asks; this carries the studio's own,
+     * and it is what orders the classifications shown on a package card or a
+     * package page, where the reading can span domains and the join has no
+     * single answer.
+     *
+     * Written as 0 when dimensions became studio-owned, every question created
+     * from then on would have sorted ahead of Context and Occasion and tied
+     * with every other new one — so a studio adding Style would have found it
+     * at the top of every card, and adding Season would have found the two of
+     * them ordered alphabetically by accident.
+     */
+    const { data: last } = await supabaseAdmin
+      .from('dimensions').select('position')
+      .eq('organization_id', orgId)
+      .order('position', { ascending: false })
+      .limit(1).maybeSingle();
+
     const { data, error } = await supabaseAdmin
       .from('dimensions')
       .insert({
@@ -148,7 +169,7 @@ export async function createDimension(input: {
         name,
         question: (input.question || '').trim() || null,
         example: (input.example || '').trim() || null,
-        position: 0,
+        position: ((last?.position as number) ?? -1) + 1,
       })
       .select('id')
       .single();
