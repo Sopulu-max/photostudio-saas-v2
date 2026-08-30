@@ -56,6 +56,15 @@ interface BookingFormProps {
    * than in a bag of form responses.
    */
   openVariables?: any[];
+  /**
+   * Classifications the package narrowed to more than one answer.
+   *
+   * Narrowing IS answering, partially: one value left means the studio settled
+   * it and there is nothing to ask; several means it is still a question, with
+   * a shorter list. So this needs no flag of its own — the shape of the
+   * narrowing carries it.
+   */
+  openClassifications?: { dimensionId: string; name: string; question: string | null; values: { id: string; name: string }[] }[];
   variant?: { axis_label: string; tiers: { label: string; price: number }[] } | null;
   currencyCode?: string;
   triggerLabel?: string;
@@ -69,6 +78,7 @@ export function BookingForm({
   packageName,
   formSchema,
   openVariables = [],
+  openClassifications = [],
   variant,
   currencyCode = 'USD',
   triggerLabel = 'Book this package',
@@ -88,6 +98,13 @@ export function BookingForm({
   const [variableAnswers, setVariableAnswers] = useState<Record<string, string>>({});
   const [tierIndex, setTierIndex] = useState<number | null>(variant ? 0 : null);
   const [dimensionSelections, setDimensionSelections] = useState<Record<string, string>>({});
+  /*
+   * Which one of the several this package offers. Kept apart from
+   * dimensionSelections, which is the custom path describing what a visitor
+   * wants in order to find a package — this is answering a package that has
+   * already been chosen, and its answer narrows the booking's own copy of it.
+   */
+  const [chosenClassifications, setChosenClassifications] = useState<Record<string, string>>({});
   /*
    * Which domain they are booking into.
    *
@@ -201,6 +218,11 @@ export function BookingForm({
               // One parser everywhere — see parseVariableValue.
               parseVariableValue(v.kind, variableAnswers[v.id]),
           })),
+        // One value per question the package left open. They narrow the
+        // booking's own instance of the package rather than being stored beside
+        // it, because "this booking is for a birthday" is a fact about what was
+        // booked, not an annotation on it.
+        chosenClassifications: Object.values(chosenClassifications).filter(Boolean),
         tierIndex: tierIndex ?? undefined,
         // Sent exactly as typed — "2026-08-29T10:00", no zone. new Date() here
         // read it in the BROWSER's zone, so a client booking from London for a
@@ -365,8 +387,41 @@ export function BookingForm({
                       </>
                     ) : (
                       <div className="q-stack q-stack-lg">
-                        {/* What the package left open. Asked first because these
-                            decide the shape of the job, not just its context. */}
+                        {/*
+                          * WHICH ONE, asked before anything that follows from it.
+                          *
+                          * A package offering Birthday, Anniversary and
+                          * Convocation is offering a choice; a booking of it is
+                          * for exactly one. Nothing asked this before, so every
+                          * booking carried all three.
+                          *
+                          * It comes first because the rest of the form may be
+                          * about the answer — the date of the occasion means
+                          * nothing until the occasion is settled.
+                          */}
+                        {openClassifications.length > 0 && (
+                          <div className="q-stack q-stack-md">
+                            {openClassifications.map((c) => (
+                              <div key={c.dimensionId} className="q-field">
+                                <label className="q-label">{c.question || c.name}</label>
+                                <select
+                                  className="q-select q-input-lg"
+                                  value={chosenClassifications[c.dimensionId] || ''}
+                                  onChange={(e) => setChosenClassifications({
+                                    ...chosenClassifications, [c.dimensionId]: e.target.value,
+                                  })}
+                                  required
+                                >
+                                  <option value="">Choose one</option>
+                                  {c.values.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* What the package left open. Asked after which one it
+                            is, because some of it follows from that. */}
                         {(() => {
                           if (!openVariables || openVariables.length === 0) return null;
                           

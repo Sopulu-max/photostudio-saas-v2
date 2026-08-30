@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { formatMoney } from '@/kernel/currency';
 import { getStudioBySlug } from '@/kernel/organizations';
-import { getPackagePublic, getOpenVariablesForPackagePublic } from '@/modules/packages/interface';
+import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic } from '@/modules/packages/interface';
 import { BookingForm } from './BookingForm';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,15 @@ export default async function BookingPage(props: {
 
   // What this package deliberately left open becomes the questions asked below.
   const openVariables = await getOpenVariablesForPackagePublic(org.id, params.packageId);
+  /*
+   * And the classifications this package has not settled.
+   *
+   * A package offering Birthday, Anniversary and Convocation is offering a
+   * choice, not describing three simultaneous facts — a booking of it is for
+   * exactly one. Narrowed to a single value the studio has already answered,
+   * and nothing is asked.
+   */
+  const openClassifications = await getOpenClassificationsForPackagePublic(org.id, params.packageId);
 
   const currencyCode = org.currency;
   const services = pkg.serviceNames;
@@ -63,6 +72,7 @@ export default async function BookingPage(props: {
               packageName={pkg.name}
               formSchema={pkg.formSchema}
               openVariables={openVariables}
+              openClassifications={openClassifications}
                             currencyCode={currencyCode}
             />
           </div>

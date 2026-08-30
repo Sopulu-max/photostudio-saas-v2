@@ -31,6 +31,9 @@ export {
   getDeliverablesForPackages,
   // What a package left open — the questions a client still has to answer
   getOpenVariablesForPackage, getOpenVariablesForPackagePublic,
+  // A classification narrowed to several is still a question. These are the
+  // ones a package has not settled, and the answer that settles them.
+  getOpenClassificationsForPackagePublic, answerPackageClassifications,
   // Everything the bundle declares, fixed or not — what an operator edits against
   getPackageVariables, getPackageVariablesPublic,
   // Intake questions

@@ -1228,6 +1228,159 @@ export async function getPackage(packageId: string) {
  * the studio had not yet thought about. Now it is what the studio deliberately
  * left to the client.
  */
+/**
+ * The classifications this package has not settled, as questions.
+ *
+ * THE STRUCTURE THIS BELONGS TO, rather than a feature about occasions.
+ *
+ * Everything in this app is a range that gets narrower as it travels. A service
+ * declares that outfits vary; a package says two; a booking carries two. A
+ * domain declares that Occasion has five answers; a package narrows to three; a
+ * booking is for exactly one. A workflow declares its tasks; a package switches
+ * some off; a booking instantiates what is left. The same movement every time:
+ * possibility, restriction, fact.
+ *
+ * Seen that way, a classification IS a variable — a choice one, whose options
+ * are the dimension's values — and narrowing IS answering, partially. Which is
+ * why this needs no new mechanism and no new column:
+ *
+ *   one value in play    the studio has answered it. Nothing to ask.
+ *   several in play      still a question, with a shorter list of answers.
+ *   none in play         the dimension does not apply here at all.
+ *
+ * The rule is DERIVED rather than stored, unlike who answers a variable. It has
+ * to be: a studio narrowing Occasion to Birthday is not making a separate
+ * decision about who answers, it is answering. Storing a second flag beside it
+ * would let the two disagree.
+ *
+ * The last step was missing. A package offering Birthday, Anniversary and
+ * Convocation asked nobody which one a booking was for, so every booking of it
+ * carried all three — and a booking is not for three occasions.
+ */
+export async function getOpenClassificationsForPackagePublic(orgId: string, packageId: string) {
+  const { data: rows, error } = await supabaseAdmin
+    .from('package_services')
+    .select(`
+      service:services(id, service_dimension_values(dimension_value:dimension_values(id, name, position, dimension_id))),
+      package_service_dimension_values(dimension_value:dimension_values(id, name, position, dimension_id))
+    `)
+    .eq('package_id', packageId)
+    .eq('organization_id', orgId)
+    .order('position');
+  if (error) throw new Error(`Could not read what this package is classified as: ${error.message}`);
+
+  // Values in play: what the package narrowed to where it narrowed, and what
+  // the service says where it did not. The same rule every operator screen
+  // uses, because a client must never be asked about a classification the
+  // package does not carry.
+  const byDimension = new Map<string, Map<string, { id: string; name: string; position: number }>>();
+  for (const row of ((rows || []) as any[])) {
+    const narrowed = ((row.package_service_dimension_values || []) as any[])
+      .map((l) => l.dimension_value).filter(Boolean);
+    const inherited = ((row.service?.service_dimension_values || []) as any[])
+      .map((l) => l.dimension_value).filter(Boolean);
+    for (const v of (narrowed.length > 0 ? narrowed : inherited)) {
+      if (!v.dimension_id) continue;
+      if (!byDimension.has(v.dimension_id)) byDimension.set(v.dimension_id, new Map());
+      byDimension.get(v.dimension_id)!.set(v.id, { id: v.id, name: v.name, position: v.position ?? 0 });
+    }
+  }
+
+  const open = [...byDimension.entries()].filter(([, values]) => values.size > 1);
+  if (open.length === 0) return [];
+
+  const { data: dims } = await supabaseAdmin
+    .from('dimensions')
+    .select('id, name, question, position')
+    .eq('organization_id', orgId)
+    .in('id', open.map(([id]) => id));
+  const named = new Map(((dims || []) as any[]).map((d) => [d.id, d]));
+
+  return open
+    .map(([dimensionId, values]) => {
+      const d = named.get(dimensionId);
+      return {
+        dimensionId,
+        name: (d?.name ?? 'Which one?') as string,
+        // The dimension's own wording where it has one. A studio that wrote
+        // "What occasion is it for?" has already phrased this better than any
+        // label generated from a name.
+        question: (d?.question ?? null) as string | null,
+        position: (d?.position ?? 0) as number,
+        values: [...values.values()].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)),
+      };
+    })
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+}
+
+/**
+ * The client answered which one, so the booking's own package says so.
+ *
+ * NO NEW TABLE, because a booking already gets its own instance of the package
+ * precisely so it can differ from the catalogue. Narrowing that instance to the
+ * chosen value is the same act the studio performs when it narrows a catalogue
+ * package — one step further down the same chain, by a different hand.
+ *
+ * Only the dimensions answered are touched. A classification the client was not
+ * asked about is one the package had already settled, and rewriting it here
+ * would be this function inventing an answer nobody gave.
+ */
+export async function answerPackageClassifications(input: {
+  packageId: string;
+  organizationId: string;
+  valueIds: string[];
+}) {
+  const orgId = input.organizationId;
+  if (input.valueIds.length === 0) return { ok: true };
+
+  const { data: chosen } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id, dimension_id')
+    .eq('organization_id', orgId)
+    .in('id', input.valueIds);
+  const answered = (chosen || []) as any[];
+  if (answered.length === 0) return { ok: true };
+  const answeredDimensions = new Set(answered.map((v) => v.dimension_id));
+
+  const rows = await bundleRows(orgId, input.packageId);
+  if (rows.length === 0) return { ok: true };
+
+  // What the instance currently carries, so the untouched dimensions survive.
+  const { data: existing } = await supabaseAdmin
+    .from('package_service_dimension_values')
+    .select('package_service_id, dimension_value:dimension_values(id, dimension_id)')
+    .eq('organization_id', orgId)
+    .in('package_service_id', rows.map((r) => r.id));
+
+  const keep = ((existing || []) as any[])
+    .filter((l) => l.dimension_value && !answeredDimensions.has(l.dimension_value.dimension_id))
+    .map((l) => ({
+      organization_id: orgId,
+      package_service_id: l.package_service_id,
+      dimension_value_id: l.dimension_value.id,
+    }));
+
+  const settled = rows.flatMap((r) => answered.map((v) => ({
+    organization_id: orgId,
+    package_service_id: r.id,
+    dimension_value_id: v.id,
+  })));
+
+  await supabaseAdmin
+    .from('package_service_dimension_values').delete()
+    .eq('organization_id', orgId)
+    .in('package_service_id', rows.map((r) => r.id));
+
+  const { error } = await supabaseAdmin
+    .from('package_service_dimension_values')
+    .insert([...keep, ...settled]);
+  if (error) {
+    console.error('Failed to record which classification was chosen:', error);
+    throw new Error('Could not record what this booking is for');
+  }
+  return { ok: true };
+}
+
 export async function getOpenVariablesForPackagePublic(orgId: string, packageId: string) {
   const all = await getPackageVariablesPublic(orgId, packageId);
   return all.filter((v) => v.asked);

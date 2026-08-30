@@ -44,6 +44,7 @@ import { createService, declareDimensionVariable, listVariablesForDimensions } f
 import { createDimension, addDimensionValue } from '@/modules/services/dimensionsAdmin';
 import {
   createPackage, updatePackage, getOpenVariablesForPackagePublic, getPackageVariablesPublic,
+  getOpenClassificationsForPackagePublic, answerPackageClassifications, getPackage,
 } from '@/modules/packages/domain';
 import { PURGE_ORDER } from './purge';
 
@@ -167,6 +168,73 @@ describe('A dimension says what follows from its answers', () => {
     // Typed, which is the whole gain over a free-text question invented in a
     // package: the client gets a date picker and the answer comes back a date.
     expect(field!.kind).toBe('date');
+  });
+
+  /*
+   * NARROWING IS ANSWERING, PARTIALLY.
+   *
+   * The same movement as everything else here: a domain declares five
+   * occasions, a package narrows to some, a booking is for one. Which means
+   * "which occasion?" needs no flag of its own — the shape of the narrowing
+   * already carries it, and these three tests are the whole rule.
+   */
+  it('asks which one when the package narrowed to several', async () => {
+    await addDimensionValue({ dimensionId: occasionId, name: 'Anniversary' });
+    const { data: anniversary } = await supabaseAdmin
+      .from('dimension_values').select('id')
+      .eq('dimension_id', occasionId).eq('name', 'Anniversary').single();
+
+    const pkg = await createPackage({
+      name: 'Either Occasion', serviceIds: [serviceId],
+      narrowings: [
+        { serviceId, valueId: birthdayId },
+        { serviceId, valueId: anniversary!.id },
+      ],
+    });
+
+    const open = await getOpenClassificationsForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    const occasion = open.find((c: any) => c.dimensionId === occasionId);
+    expect(occasion, 'a package offering two occasions asked nobody which').toBeTruthy();
+    expect(occasion!.values.map((v: any) => v.name).sort()).toEqual(['Anniversary', 'Birthday']);
+  });
+
+  it('asks nothing when the package narrowed to one, because that IS the answer', async () => {
+    const pkg = await createPackage({
+      name: 'Birthdays Only', serviceIds: [serviceId],
+      narrowings: [{ serviceId, valueId: birthdayId }],
+    });
+    const open = await getOpenClassificationsForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    expect(
+      open.map((c: any) => c.dimensionId),
+      'a settled classification was put to the client as a question',
+    ).not.toContain(occasionId);
+  });
+
+  it('the answer narrows the booking own copy of the package', async () => {
+    await addDimensionValue({ dimensionId: occasionId, name: 'Convocation' });
+    const { data: convocation } = await supabaseAdmin
+      .from('dimension_values').select('id')
+      .eq('dimension_id', occasionId).eq('name', 'Convocation').single();
+
+    const pkg = await createPackage({
+      name: 'Booked Instance', serviceIds: [serviceId],
+      narrowings: [
+        { serviceId, valueId: birthdayId },
+        { serviceId, valueId: convocation!.id },
+      ],
+    });
+
+    await answerPackageClassifications({
+      packageId: pkg.packageId, organizationId: TEST_ORG_ID, valueIds: [convocation!.id],
+    });
+
+    const read: any = await getPackage(pkg.packageId);
+    const names = (read.services[0].narrowedTo || []).flatMap((d: any) => d.values.map((v: any) => v.name));
+    expect(names, 'the chosen occasion did not settle the package').toEqual(['Convocation']);
+
+    // And nothing is left to ask, because the range is now one.
+    const open = await getOpenClassificationsForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    expect(open.map((c: any) => c.dimensionId), 'still asking after it was answered').not.toContain(occasionId);
   });
 
   it('does not reach a package that is not classified by that question', async () => {

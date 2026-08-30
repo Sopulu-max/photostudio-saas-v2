@@ -1,7 +1,7 @@
 'use server';
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getIntakeQuestionsPublic, getPackagePublic, instantiatePackageForBooking } from '@/modules/packages/interface';
+import { answerPackageClassifications, getIntakeQuestionsPublic, getPackagePublic, instantiatePackageForBooking } from '@/modules/packages/interface';
 import { createBookingFromIntake } from '@/modules/bookings/interface';
 import { findOrCreateClientPublic } from '@/modules/clients/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
@@ -27,6 +27,16 @@ export async function submitBookingForm(
     customFields: Record<string, any>;
     /** Answers to variables the package left open — structured, unlike customFields. */
     variableAnswers?: { serviceVariableId: string; value: unknown }[];
+    /**
+     * One value per classification the package left open.
+     *
+     * Not stored beside the booking: they narrow the booking's own instance of
+     * the package, because "this booking is for a birthday" is a fact about
+     * what was booked rather than an annotation on it. Every later read — the
+     * booking page, the invoice, the work board — then sees a package for a
+     * birthday without knowing anything about how it got narrowed.
+     */
+    chosenClassifications?: string[];
     tierIndex?: number;
     scheduledFor?: string;
     fromCustomPath?: boolean;
@@ -86,6 +96,23 @@ export async function submitBookingForm(
     resolvedPackageId = instance.packageId;
     pkgName = instance.name;
     linePrice = instance.price;
+
+    /*
+     * The instance is narrowed to what the client chose.
+     *
+     * One step further down the same chain the studio walks: the domain
+     * declares five occasions, the package narrows to three, and this narrows
+     * to the one. Nothing else in the app has to learn a new idea for it —
+     * a booking classified Birthday looks exactly like a package classified
+     * Birthday, which it now is.
+     */
+    if (formData.chosenClassifications?.length) {
+      await answerPackageClassifications({
+        packageId: instance.packageId,
+        organizationId: orgId,
+        valueIds: formData.chosenClassifications,
+      });
+    }
   }
 
   // 4. The booking itself — asked of the Bookings module, not inserted here.
