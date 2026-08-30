@@ -75,6 +75,18 @@ export function PackagesClient({
    * the same service. The ones it leaves open are the client's answer, not the
    * package's, so they are counted rather than named.
    */
+  /**
+   * One value, and how many more there are.
+   *
+   * A dimension answering four values put the whole list inside a pill, which
+   * wrapped to two lines and became a grey block — and a stack of grey blocks is
+   * what buried the name and the price between them. A card is not the place a
+   * studio reads every classification; it is where it recognises which package
+   * this is. The page behind it has the list.
+   */
+  const few = (names: string[]) =>
+    names.length <= 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
@@ -96,7 +108,13 @@ export function PackagesClient({
           * number and where the card gets its second surface.
           */}
         <div>
-          <span className="q-eyebrow">{bundle || 'No services bundled'}</span>
+          {/* Only when it says something the name does not. A package built from
+              one service is usually named after it, and "STUDIO PORTRAIT
+              PHOTOGRAPHY" set immediately above "Studio Portrait Photography"
+              is a line of noise in the position of a label. */}
+          {bundle && bundle.toLowerCase() !== pkg.name.trim().toLowerCase() && (
+            <span className="q-eyebrow">{bundle}</span>
+          )}
           <h3 className="q-card-title">{pkg.name}</h3>
         </div>
 
@@ -110,9 +128,9 @@ export function PackagesClient({
         {(tags.length > 0 || fixed.length > 0 || openVars.length > 0) && (
           <div className="q-facts">
             {tags.map((d) => (
-              <span key={d.id} className="q-fact">
+              <span key={d.id} className="q-fact" title={d.values.map((v) => v.name).join(', ')}>
                 <span className="q-fact-key">{d.name}</span>
-                {d.values.map((v) => v.name).join(', ')}
+                {few(d.values.map((v) => v.name))}
               </span>
             ))}
             {fixed.map((v: any) => (

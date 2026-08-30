@@ -42,6 +42,18 @@ export function ServicesClient({
    * anchors are why the classifications had to be built out of spans with
    * hand-written commas and inherited colours.
    */
+  /**
+   * One value, and how many more there are.
+   *
+   * A dimension answering four values put the whole list inside a pill, which
+   * wrapped to two lines and became a grey block — and a stack of grey blocks is
+   * what buried the name and the price between them. A card is not the place a
+   * studio reads every classification; it is where it recognises which package
+   * this is. The page behind it has the list.
+   */
+  const few = (names: string[]) =>
+    names.length <= 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+
   const Card = ({ svc }: { svc: any }) => {
     const tags = (svc.dimensions || []) as ServiceDimensionTag[];
     const produces = (svc.deliverables || []).map((d: any) => d.name);
@@ -64,9 +76,9 @@ export function ServicesClient({
         {tags.length > 0 && (
           <div className="q-facts">
             {tags.map((d) => (
-              <span key={d.id} className="q-fact">
+              <span key={d.id} className="q-fact" title={d.values.map((v) => v.name).join(', ')}>
                 <span className="q-fact-key">{d.name}</span>
-                {d.values.map((v) => v.name).join(', ')}
+                {few(d.values.map((v) => v.name))}
               </span>
             ))}
           </div>

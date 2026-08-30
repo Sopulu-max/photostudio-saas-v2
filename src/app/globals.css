@@ -685,7 +685,9 @@ body {
  * clutter.
  */
 .q-lead {
-  font-size: 0.95rem;
+  font-size: 1.02rem;
+  font-weight: 500;
+  line-height: 1.4;
   color: var(--q-color-ink-900);
 }
 
@@ -711,24 +713,47 @@ body {
 .q-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
+/*
+ * A PILL HOLDS ONE SHORT THING, OR IT STOPS BEING A PILL.
+ *
+ * Rendered, these were not a strip at all. One dimension answering four values
+ * put "Birthday, Anniversary, Convocation, Maternity" inside a pill, which
+ * wrapped it to two lines, which made it a full-width grey block — and once one
+ * of them is a block they all sit on their own line and the card is three grey
+ * slabs stacked between the title and the price.
+ *
+ * That is what flattened the hierarchy. The shapes were right; their SIZE was
+ * competing with the two things that should win. Nowrap keeps a pill a pill,
+ * and the caller shows one value and a count of the rest rather than the list —
+ * a card says what kind of thing this is, the page it links to says all of it.
+ *
+ * Smaller and tighter than before, deliberately. These are the third thing you
+ * read, after the name and the price, and they should look like the third
+ * thing you read.
+ */
 .q-fact {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 4px 11px;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
   background: var(--q-color-ink-50);
   border: 1px solid var(--q-color-ink-100);
-  font-size: 0.78rem;
-  color: var(--q-color-ink-800);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--q-color-ink-700);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .q-fact-key {
   font-family: var(--q-font-mono);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--q-color-ink-400);
 }
