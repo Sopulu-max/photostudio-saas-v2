@@ -71,8 +71,12 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
       <Link href={`/bookings/${booking.id}`} className="q-back">&larr; Back to the booking</Link>
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Edit booking</h1>
-          <p className="q-page-subtitle">{booking.title}</p>
+          {/* Inverted before this: the generic word in the largest type and
+              the name of the actual booking in the quiet line beneath it, so
+              the page shouted what you were doing and murmured what you were
+              doing it to. */}
+          <span className="q-eyebrow">Editing</span>
+          <h1 className="q-page-title">{booking.title}</h1>
         </div>
       </header>
 

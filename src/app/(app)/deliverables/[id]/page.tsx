@@ -35,7 +35,11 @@ export default async function EditDeliverablePage(props: { params: Promise<{ id:
     <div className="q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Edit {type === 'output' ? 'Output' : 'Container'}</h1>
+          {/* It knew the name all along and titled itself with the category
+              instead, so two open tabs of two different outputs were both
+              called "Edit Output". */}
+          <span className="q-eyebrow">Editing {type === 'output' ? 'output' : 'container'}</span>
+          <h1 className="q-page-title">{initialName}</h1>
           <p className="q-page-subtitle">
             {type === 'output' ? `Belongs to ${domainName}` : 'Cross-domain delivery vessel'}
           </p>

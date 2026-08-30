@@ -32,6 +32,34 @@ import { randomUUID } from 'crypto';
 
 const BASE = (process.env.SMOKE_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
+/**
+ * One request, with one second chance.
+ *
+ * WHY THIS EXISTS. The suite talks to a dev server that compiles routes the
+ * first time they are asked for. Immediately after a batch of edits, the first
+ * request to a route can land inside that window and come back 404 or 500 —
+ * not because the page is broken but because it is not built yet. It has
+ * happened twice: once as a 500 on /analytics, once as 404s across every nested
+ * route right after five files were written.
+ *
+ * That is worse than a slow suite. Both times it read exactly like a real
+ * regression, and the second time it was diagnosed as one — stashed, seen to
+ * pass, unstashed, seen to fail — because stashing recompiles too, so the
+ * experiment reproduced the artefact rather than the cause.
+ *
+ * ONE RETRY, NOT A LOOP. A route that is compiling answers properly on the
+ * second ask a moment later. A route that is genuinely broken answers the same
+ * way twice, and the second answer is what the assertion sees — so a real 404
+ * still fails, and fails with its own status rather than a timeout.
+ */
+async function load(path: string, init?: RequestInit): Promise<Response> {
+  const ask = () => fetch(`${BASE}${path}`, { redirect: 'manual', ...init });
+  const first = await ask();
+  if (first.status !== 404 && first.status < 500) return first;
+  await new Promise((r) => setTimeout(r, 1500));
+  return ask();
+}
+
 /** Is anything answering? Decided once, before the suite is described. */
 const serverUp = await fetch(BASE, { redirect: 'manual' })
   .then(() => true)
@@ -237,14 +265,14 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
   });
 
   it('signs in and is not bounced to the login page', async () => {
-    const res = await fetch(`${BASE}/home`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
+    const res = await load('/home', { headers: { cookie: cookieHeader } });
     // A redirect here means the session was not accepted, and every page below
     // would then "pass" by quietly rendering the login screen.
     expect(res.status, `/home redirected to ${res.headers.get('location')}`).toBe(200);
   });
 
   it.each(PAGES)('$path renders', async ({ path, expect: marker }) => {
-    const res = await fetch(`${BASE}${path}`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
+    const res = await load(path, { headers: { cookie: cookieHeader } });
     /*
      * A 500 here used to report only "expected 500 to be 200", which says a page
      * is broken without saying how — and the session this suite builds is the
@@ -273,7 +301,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     { where: 'detail', path: () => `/packages/${packageId}`, marker: /Deliverables/i },
     { where: 'editor', path: () => `/packages/${packageId}/edit`, marker: /Smoke Package/i },
   ])('reads a bundled package on its $where page', async ({ path, marker }) => {
-    const res = await fetch(`${BASE}${path()}`, { headers: { cookie: cookieHeader }, redirect: 'manual' });
+    const res = await load(path(), { headers: { cookie: cookieHeader } });
     expect(res.status, `${path()} returned ${res.status}`).toBe(200);
 
     const html = await res.text();
@@ -298,9 +326,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
    * page is actually rendered and read — had been dying in beforeAll.
    */
   it('opens the package editor with the price already in the box', async () => {
-    const res = await fetch(`${BASE}/packages/${packageId}/edit`, {
-      headers: { cookie: cookieHeader }, redirect: 'manual',
-    });
+    const res = await load(`/packages/${packageId}/edit`, { headers: { cookie: cookieHeader } });
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html, 'the price box rendered without the price in it').toMatch(/value="42000"/);
@@ -315,9 +341,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
    * with no client, no date and no packages says so rather than throwing.
    */
   it('renders every section of a booking that holds almost nothing', async () => {
-    const res = await fetch(`${BASE}/bookings/${bookingId}`, {
-      headers: { cookie: cookieHeader }, redirect: 'manual',
-    });
+    const res = await load(`/bookings/${bookingId}`, { headers: { cookie: cookieHeader } });
     expect(res.status, `the booking page returned ${res.status}`).toBe(200);
     const html = await res.text();
     expect(html, 'the booking page rendered Next error page').not.toMatch(CRASHED);
@@ -332,7 +356,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
   it('serves the public storefront without a session at all', async () => {
     const { data: org } = await supabaseAdmin
       .from('organizations').select('slug').eq('id', orgId).single();
-    const res = await fetch(`${BASE}/storefront/${org!.slug}`, { redirect: 'manual' });
+    const res = await load(`/storefront/${org!.slug}`);
     // This is the one page whose whole purpose is to be seen by people with no
     // account, and it spent a while behind the login wall.
     expect(res.status, `the storefront redirected to ${res.headers.get('location')}`).toBe(200);

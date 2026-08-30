@@ -32,8 +32,8 @@ export default async function EditEmployeePage(props: { params: Promise<{ id: st
 
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Edit profile</h1>
-          <p className="q-page-subtitle">{employee.contact?.display_name}</p>
+          <span className="q-eyebrow">Editing</span>
+          <h1 className="q-page-title">{employee.contact?.display_name || 'This person'}</h1>
         </div>
       </header>
 

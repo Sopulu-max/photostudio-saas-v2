@@ -40,7 +40,21 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
       <Link className="q-back" href={`/packages/${pkg.id}`}>&larr; Back to Package</Link>
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Edit {pkg.name}</h1>
+          {/*
+            * The thing, then what you are doing to it — not the other way round.
+            *
+            * This read "Edit Studio Portrait Photography", which makes the
+            * largest text on the page a verb phrase about the operator rather
+            * than the name of what they opened. Every other page in the app
+            * titles itself with the thing it is about, and a long name turned
+            * this one into a sentence fragment that wrapped.
+            *
+            * The editing is said three times over already: by the back link,
+            * by the Save button, and by every field on the page being a field.
+            * It does not need to be said in the largest type as well.
+            */}
+          <span className="q-eyebrow">Editing</span>
+          <h1 className="q-page-title">{pkg.name}</h1>
         </div>
       </header>
 
