@@ -663,10 +663,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     return (
       <div className="q-field" key={dim.id}>
         <label className="q-label">{dim.name}</label>
-        <span className="q-meta-sm" style={{ display: 'block', opacity: 0.7 }}>
-          {dim.domainName}
-          {inherited && chosen.length > 0 && ' · as the service is classified'}
-        </span>
+        {/* The domain was restated under every dimension of the same service,
+            beneath a heading that already names the service. What is worth
+            saying here is the one thing that is not obvious: that these values
+            are the service own and this package has not narrowed them. */}
+        {inherited && chosen.length > 0 && (
+          <span className="q-meta-sm">As the service is classified — not narrowed by this package.</span>
+        )}
         {/*
           * Chips and a box that filters and will take a new word — which is
           * PickMany, and has been all along. This had three controls of its own
@@ -1298,7 +1301,24 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                                   : 'This service has no domain, so it carries no classifications.'}
                               </p>
                             ) : (
-                              <div className="q-grid-cards">
+                              /*
+                                * Stacked, not gridded.
+                                *
+                                * These sat in q-grid-cards — the grid built for
+                                * cards, at 250px minimum with a 24px gutter. Two
+                                * dimensions therefore became two columns, and
+                                * because one carries a row of chosen chips and
+                                * the next does not, their boxes came to rest at
+                                * different heights. Nothing was aligned with
+                                * anything, and there was no arrangement of a
+                                * card grid that would have aligned them: the
+                                * fields are different heights by nature.
+                                *
+                                * A field per row is what the rest of this form
+                                * does, and a dimension wants the width anyway —
+                                * its chosen values wrap along it.
+                                */
+                              <div className="q-stack q-stack-md">
                                 {domainDims.map((d: any) => renderDimension(
                                   { ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, s.id))}
                               </div>

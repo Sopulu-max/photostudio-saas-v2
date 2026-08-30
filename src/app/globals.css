@@ -246,6 +246,26 @@ body {
 }
 .q-fold > * { overflow: hidden; min-height: 0; }
 .q-fold-open { grid-template-rows: 1fr; opacity: 1; }
+/*
+ * ONCE OPEN, IT MUST STOP CLIPPING.
+ *
+ * The clipping is what makes the height animation look like an opening rather
+ * than a reveal, so it cannot simply go. But it also clips anything drawn
+ * outside the box, and the boxes inside a bundled service are comboboxes whose
+ * menus hang below them — so the list of classifications a studio was trying to
+ * pick from was cut off at the bottom of the service that contained it. The
+ * animation broke the control it was animating.
+ *
+ * Zero duration and a delay the length of the open: overflow is discrete, so it
+ * does not tween, it switches — and this switches it after the box has finished
+ * growing. Closing takes the rule above, which has no delay, so it clips again
+ * the instant it starts to shut.
+ */
+.q-fold-open > * {
+  overflow: visible;
+  transition: overflow 0s var(--q-dur-3);
+  transition-behavior: allow-discrete;
+}
 
 /*
  * The same row, folded by the browser rather than by React.
