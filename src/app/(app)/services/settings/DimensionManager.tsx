@@ -10,6 +10,9 @@ import {
 import type { StudioDimension, StudioQuestion, DimensionSuggestions } from '@/modules/services/interface';
 import { dimensionKey, narrowFor } from '@/modules/services/interface';
 import { PickOne, PickToAdd } from '@/components/Pick';
+// The one list of what a variable can be, rather than a subset written out
+// again here — which is how a dimension came to carry a date but not a choice.
+import { SERVICE_VARIABLE_KINDS, variableKindLabel, variableKindHint, variableNeedsOptions } from '@/modules/services/variableTypes';
 
 /**
  * How this domain classifies its own work.
@@ -53,7 +56,7 @@ export function DimensionManager({
    * every screen that only wants the vocabulary pay for them.
    */
   const [vars, setVars] = useState<Record<string, any[]>>({});
-  const [newVar, setNewVar] = useState<Record<string, { label: string; kind: string }>>({});
+  const [newVar, setNewVar] = useState<Record<string, { label: string; kind: string; options?: string }>>({});
   const [dims, setDims] = useState<StudioDimension[]>([]);
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -272,15 +275,16 @@ export function DimensionManager({
                 <span className="q-eyebrow">What you need to know</span>
                 {(vars[d.id] || []).length === 0 && (
                   <span className="q-meta-sm">
-                    Nothing yet. If knowing {d.name.toLowerCase()} means you also need something —
-                    a date, a place — say so here and every package classified this way will ask for it.
+                    Nothing yet. If knowing {d.name.toLowerCase()} means you also need something — an
+                    occasion has a date, a context has an address — say so here, once, and every
+                    package classified this way asks for it.
                   </span>
                 )}
                 {(vars[d.id] || []).map((v: any) => (
                   <div key={v.id} className="q-row q-row-between q-tile">
                     <span className="q-meta-plain">{v.label}</span>
                     <span className="q-row q-row-sm">
-                      <span className="q-meta-sm">{v.kind}</span>
+                      <span className="q-meta-sm">{variableKindLabel(v.kind)}</span>
                       <button className="q-btn-ghost q-btn-xs" disabled={isPending}
                         title={`Remove ${v.label}`}
                         onClick={() => run(() => removeDimensionVariable(v.id), () => loadVars(dims))}>
@@ -292,20 +296,43 @@ export function DimensionManager({
                 <div className="q-row q-row-sm">
                   <input
                     className="q-input q-input-sm"
-                    placeholder={`e.g. the date of the ${d.name.toLowerCase()}`}
+                    /* Named after the thing, not after an example of it. This
+                       said "e.g. the date of the context", which is what
+                       happens when a control built for one dimension is handed
+                       every dimension. */
+                    placeholder={`What else you need to know`}
                     value={newVar[d.id]?.label || ''}
-                    onChange={(e) => setNewVar((n) => ({ ...n, [d.id]: { ...(n[d.id] || { kind: 'date' }), label: e.target.value } }))}
+                    onChange={(e) => setNewVar((n) => ({ ...n, [d.id]: { ...(n[d.id] || { kind: 'text', options: '' }), label: e.target.value } }))}
                   />
+                  {/*
+                    * EVERY KIND, FROM THE LIST THAT DEFINES THEM.
+                    *
+                    * This offered four of the eight, hand-written here — so a
+                    * dimension could carry a date but not a choice, and an
+                    * address had to be a one-line text because Long text was
+                    * not on the menu. The model never had that limit; the
+                    * control invented it, and a hand-written subset of a list
+                    * that already exists is the same duplication in miniature.
+                    */}
                   <select
                     className="q-select q-input-sm"
-                    value={newVar[d.id]?.kind || 'date'}
-                    onChange={(e) => setNewVar((n) => ({ ...n, [d.id]: { ...(n[d.id] || { label: '' }), kind: e.target.value } }))}
+                    value={newVar[d.id]?.kind || 'text'}
+                    onChange={(e) => setNewVar((n) => ({ ...n, [d.id]: { ...(n[d.id] || { label: '', options: '' }), kind: e.target.value } }))}
+                    title={variableKindHint((newVar[d.id]?.kind || 'text') as any)}
                   >
-                    <option value="date">Date</option>
-                    <option value="text">Text</option>
-                    <option value="number">Number</option>
-                    <option value="boolean">Yes or no</option>
+                    {SERVICE_VARIABLE_KINDS.map((k) => (
+                      <option key={k} value={k}>{variableKindLabel(k)}</option>
+                    ))}
                   </select>
+                  {/* A choice with no options is a question with no answers. */}
+                  {variableNeedsOptions((newVar[d.id]?.kind || 'text') as any) && (
+                    <input
+                      className="q-input q-input-sm"
+                      placeholder="Answers, comma separated"
+                      value={newVar[d.id]?.options || ''}
+                      onChange={(e) => setNewVar((n) => ({ ...n, [d.id]: { ...(n[d.id] || { label: '', kind: 'choice' }), options: e.target.value } }))}
+                    />
+                  )}
                   <button
                     className="q-btn q-btn-secondary q-btn-xs"
                     disabled={isPending || !(newVar[d.id]?.label || '').trim()}
@@ -315,10 +342,12 @@ export function DimensionManager({
                         variable: {
                           key: newVar[d.id].label,
                           label: newVar[d.id].label,
-                          kind: (newVar[d.id].kind || 'date') as any,
+                          kind: (newVar[d.id].kind || 'text') as any,
+                          options: (newVar[d.id].options || '')
+                            .split(',').map((o: string) => o.trim()).filter(Boolean),
                         } as any,
                       }),
-                      () => { setNewVar((n) => ({ ...n, [d.id]: { label: '', kind: 'date' } })); loadVars(dims); },
+                      () => { setNewVar((n) => ({ ...n, [d.id]: { label: '', kind: 'text', options: '' } })); loadVars(dims); },
                     )}
                   >
                     Add

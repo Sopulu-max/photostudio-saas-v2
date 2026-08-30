@@ -3,7 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { randomUUID } from 'crypto';
 
 /**
- * An Occasion has a date.
+ * A question carries what follows from its answers.
+ *
+ * An Occasion has a date. A Context has an address. Those are two instances of
+ * one thing, and the file is named for the thing rather than for the instance
+ * that prompted it — a test file called occasion-date invites the next person
+ * to believe the mechanism is about occasions.
  *
  * THE IDEA BEING PINNED. A dimension is a question the studio asks about its
  * work — the schema says so in its own `question` column. Until now the only
@@ -235,6 +240,69 @@ describe('A dimension says what follows from its answers', () => {
     // And nothing is left to ask, because the range is now one.
     const open = await getOpenClassificationsForPackagePublic(TEST_ORG_ID, pkg.packageId);
     expect(open.map((c: any) => c.dimensionId), 'still asking after it was answered').not.toContain(occasionId);
+  });
+
+  /*
+   * THE SAME MACHINERY, A DIFFERENT QUESTION.
+   *
+   * Nothing here is about occasions. A Context has an address exactly as an
+   * Occasion has a date, and the only difference between the two is which
+   * dimension the variable hangs off — which is what "meta-structural" has to
+   * mean if it means anything. This test exists because a mechanism that only
+   * ever gets exercised by the example that prompted it quietly grows
+   * assumptions about that example.
+   *
+   * Worth noting what it makes possible: a booking has scheduled_for and
+   * duration_minutes, so the app knows WHEN a job is. It has no location column
+   * at all. Where a job happens has no home on a booking — and a column would
+   * be null for every studio portrait ever taken. Declared on Context, it
+   * exists exactly when the classification implies it.
+   */
+  it('does the same for a Context with an address, with nothing occasion-shaped in the way', async () => {
+    const context: any = await createDimension({
+      serviceDomainId: domainId, name: 'Context', question: 'Where, and under what conditions?',
+    });
+    const contextId = context?.dimensionId ?? context?.id;
+    await addDimensionValue({ dimensionId: contextId, name: 'Outdoor' });
+    const { data: outdoor } = await supabaseAdmin
+      .from('dimension_values').select('id')
+      .eq('dimension_id', contextId).eq('name', 'Outdoor').single();
+
+    const declared = await declareDimensionVariable({
+      dimensionId: contextId,
+      // Long text, which the settings control could not offer until it stopped
+      // hand-writing four of the eight kinds a variable can be.
+      variable: { key: 'address', label: 'Address', kind: 'textarea' } as any,
+    });
+    expect(declared?.id, 'a Context could not carry an address').toBeTruthy();
+
+    const outdoorService = await createService({
+      name: 'Outdoor Portrait', serviceDomain: DOMAIN, primaryDeliverable: 'Edited image',
+    });
+    const { error: classifyError } = await supabaseAdmin.from('service_dimension_values').insert({
+      organization_id: TEST_ORG_ID, service_id: outdoorService.serviceId, dimension_value_id: outdoor!.id,
+    });
+    if (classifyError) throw new Error(classifyError.message);
+
+    const pkg = await createPackage({ name: 'Outdoor Session', serviceIds: [outdoorService.serviceId] });
+    const all = await getPackageVariablesPublic(TEST_ORG_ID, pkg.packageId);
+    const field = all.find((v: any) => v.id === declared!.id);
+    expect(field, 'the address the Context declares did not reach a package classified Outdoor').toBeTruthy();
+    expect(field!.kind).toBe('textarea');
+
+    // And the same rule governs it: inherited, not yet asked.
+    const asked = await getOpenVariablesForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    expect(asked.map((v: any) => v.id)).not.toContain(declared!.id);
+
+    await updatePackage({
+      packageId: pkg.packageId,
+      variableValues: [{ serviceVariableId: declared!.id, answeredBy: 'client' }],
+    });
+    const nowAsked = await getOpenVariablesForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    expect(
+      nowAsked.map((v: any) => v.id),
+      'the client is not asked where an outdoor shoot happens',
+    ).toContain(declared!.id);
   });
 
   it('does not reach a package that is not classified by that question', async () => {
