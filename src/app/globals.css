@@ -210,64 +210,6 @@ body {
    the sidebar is simply part of the row and there is nothing to open. */
 .q-navbtn { display: none; }
 
-@media (max-width: 900px) {
-  .q-shell-main { padding: 20px 16px; }
-
-  /*
-   * Off the canvas and over the page. Transform rather than display, so it
-   * slides rather than appears, and so the drawer keeps its scroll position
-   * between openings.
-   */
-  .q-shell-nav {
-    position: fixed;
-    inset: 0 auto 0 0;
-    z-index: 60;
-    transform: translateX(-100%);
-    transition: transform var(--q-dur-3) var(--q-ease);
-  }
-  .q-shell-nav-open { transform: translateX(0); box-shadow: var(--q-shadow-md); }
-
-  .q-shell-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    border: 0;
-    padding: 0;
-    background: rgba(26, 26, 29, 0.45);
-    cursor: pointer;
-  }
-
-  .q-navbtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border: 1px solid var(--q-color-ink-100);
-    border-radius: 9px;
-    background: var(--q-color-paper-subtle);
-    color: var(--q-color-ink-700);
-    cursor: pointer;
-  }
-
-  /*
-   * A page header is a title and its actions side by side, which stops being
-   * possible somewhere around here: the buttons were being squeezed until each
-   * word of "Domains, deliverables & workflows" sat on its own line.
-   */
-  .q-page-header { flex-direction: column; align-items: stretch; gap: 16px; margin-bottom: 28px; }
-  .q-page-title  { font-size: 1.6rem; }
-  .q-card        { --q-card-pad: 20px; }
-  .q-section     { padding: 20px; }
-  .q-page-narrow { padding: 0; }
-
-  /* The fact rows give up their label column when there is not room for two.
-     A key above its own pills still reads; a key squeezed into 6.5rem beside
-     them does not. */
-  .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .q-fact-key { grid-column: 1; }
-}
-
 /* ---- Utilities ---- */
 .q-text-body { color: var(--q-color-ink-900); }
 /*
@@ -1817,3 +1759,74 @@ body {
 
 @media print { .hide-on-print { display: none !important; } }
 
+/* ---- Narrow screens ----
+ *
+ * LAST IN THE FILE ON PURPOSE. These override the rules above them and carry no
+ * more specificity than the rules they override, so placed anywhere earlier
+ * they simply lose — which is what happened on the first attempt: the header
+ * was told to stack and went on aligning to flex-end, because the base rule was
+ * written after it.
+ */
+@media (max-width: 900px) {
+  .q-shell-main { padding: 20px 16px; }
+
+  /*
+   * Off the canvas and over the page. Transform rather than display, so it
+   * slides rather than appears, and so the drawer keeps its scroll position
+   * between openings.
+   */
+  .q-shell-nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform var(--q-dur-3) var(--q-ease);
+  }
+  .q-shell-nav-open { transform: translateX(0); box-shadow: var(--q-shadow-md); }
+
+  .q-shell-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    border: 0;
+    padding: 0;
+    background: rgba(26, 26, 29, 0.45);
+    cursor: pointer;
+  }
+
+  .q-navbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--q-color-ink-100);
+    border-radius: 9px;
+    background: var(--q-color-paper-subtle);
+    color: var(--q-color-ink-700);
+    cursor: pointer;
+  }
+
+  /*
+   * A page header is a title and its actions side by side, which stops being
+   * possible somewhere around here: the buttons were being squeezed until each
+   * word of "Domains, deliverables & workflows" sat on its own line.
+   */
+  .q-page-header { flex-direction: column; align-items: stretch; gap: 16px; margin-bottom: 28px; }
+  /*
+   * flex-basis is a HEIGHT once the direction is column, so the rule that gives
+   * the title block room to breathe on a wide screen — flex: 1 1 20rem — was
+   * reserving 320px of vertical nothing between the title and its buttons.
+   */
+  .q-page-header > :first-child { flex: 0 1 auto; }
+  .q-page-title  { font-size: 1.6rem; }
+  .q-card        { --q-card-pad: 20px; }
+  .q-section     { padding: 20px; }
+  .q-page-narrow { padding: 0; }
+
+  /* The fact rows give up their label column when there is not room for two.
+     A key above its own pills still reads; a key squeezed into 6.5rem beside
+     them does not. */
+  .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .q-fact-key { grid-column: 1; }
+}
