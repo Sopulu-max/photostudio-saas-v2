@@ -48,27 +48,33 @@ export function PackagesClient({
   };
 
   /**
-   * One package, as a card.
+   * One package, as a card in a grid of them.
    *
-   * THE SAME THREE FAULTS THE SERVICE CARDS HAD, one module along.
+   * A GRID IS FOR COMPARING, and none of this was comparable. Every fact was
+   * drawn as a wrapping row of label-then-value, so the values began at a
+   * different x on every line and a different x again on the next card; the
+   * price and a missing price were the same grey at the same weight; and the
+   * description had no bound, so one package with a paragraph stretched every
+   * card beside it and left the short ones half empty. Cards in a row are
+   * stretched to the tallest of them — that is the whole reason a long
+   * description made a long card.
    *
-   * It ended in a full-width "View package" button — a second thing to aim at,
-   * on a card that was already the subject. The whole card is the link now, and
-   * nothing inside it links any more: the classification values were anchors
-   * nested inside that button's card, which is why they had to be built out of
-   * spans with hand-written commas and colours forced back to inherit.
+   * So: a fixed label column that every value starts at, a description clamped
+   * to two lines because it is the only part with no natural length, a footer
+   * pinned to the bottom so every card in a row ends on the same line, and
+   * absent facts drawn as absences rather than as values.
    *
-   * The status badge went. Retired packages sit under their own heading below,
-   * so a badge reading "active" on every card in the active list is noise
-   * standing exactly where information should be.
+   * CLASSIFICATIONS ARE NOT TAGS, and were being drawn as a row of them with
+   * the dimension hidden in a title attribute — so "Studio, Maternity" floated
+   * with nothing to say which question either answered. The dimension IS the
+   * label: Context / Studio, Occasion / Maternity. They read as answers now,
+   * and the same dimension lands on the same line of every card, which is what
+   * lets you read down a column.
    *
-   * AND IT LED WITH THE WRONG THING. A package IS its price and what that price
-   * buys; the card gave the price a blank string when unset, listed services
-   * behind a bolded "Services:" label, and put "3 internal tasks required" on
-   * the same footing as what the client receives. Now the name and the price
-   * share the top line, the services it is built from sit under the name the
-   * way a service's domain does, and the rest reads as three answers to three
-   * questions rather than a paragraph of labels.
+   * They are plain text here rather than the value chips the detail page uses.
+   * A chip lifts under the pointer because it is a link to everything
+   * classified that way, and inside a card that is itself one link it would be
+   * promising a click it cannot honour.
    */
   const Card = ({ pkg }: { pkg: any }) => {
     const tags = dimensionTags(pkg);
@@ -80,62 +86,58 @@ export function PackagesClient({
       return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
     });
     const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
+    const priced = pkg.price?.amount != null;
 
     return (
-      <Link href={`/packages/${pkg.id}`} className="q-card q-stack q-plain-link q-card-interactive">
+      <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack">
         <div className="q-row q-row-between">
-          <div>
+          <div className="q-fill">
             <h3 className="q-card-title">{pkg.name}</h3>
             <span className="q-eyebrow">{bundle || 'No services bundled'}</span>
           </div>
-          {/* Unpriced is a real state — a package can be built before it is
-              priced — and it has to say so. A blank space where the price goes
-              is indistinguishable from a price of nothing, which is the shape
-              of the bug that emptied these in the first place. */}
-          <span className="q-strong q-num">
-            {pkg.price?.amount != null
+          <span className={priced ? 'q-price' : 'q-price q-absent'}>
+            {priced
               ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
-              : <span className="q-meta">No price set</span>}
+              : 'No price set'}
           </span>
         </div>
 
-        {pkg.description && <p className="q-meta">{pkg.description}</p>}
+        {pkg.description && <p className="q-meta q-clamp-2">{pkg.description}</p>}
 
-        <div className="q-stack q-stack-sm">
-          <div className="q-row q-row-sm">
-            <span className="q-eyebrow">Deliverables</span>
-            <span className="q-meta">{promises.length > 0 ? promises.join(', ') : 'Nothing promised'}</span>
-          </div>
-          <div className="q-row q-row-sm">
-            <span className="q-eyebrow">Variables</span>
-            {/* What this package fixes is most of what makes it a different
-                offer from the next package of the same service, so it is the
-                value that belongs here — not the names of the ones it leaves
-                open, which are a question the client answers rather than
-                anything this package says. */}
-            <span className="q-meta">
-              {fixed.length > 0
-                ? fixed.map((v: any) => `${v.label} ${formatVariableValue(v)}`).join(', ')
-                : openVars.length > 0
-                  ? `None fixed — ${openVars.length === 1 ? 'one is' : `${openVars.length} are`} asked at booking`
-                  : 'None'}
-            </span>
-          </div>
-          <div className="q-row q-row-sm">
-            <span className="q-eyebrow">Tasks</span>
-            <span className="q-meta">
-              {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'None, so a booking of it produces no work'}
-            </span>
-          </div>
+        <dl className="q-defs">
+          <dt>Deliverables</dt>
+          <dd className={promises.length > 0 ? undefined : 'q-absent'}>
+            {promises.length > 0 ? promises.join(', ') : 'Nothing promised'}
+          </dd>
+
+          <dt>Variables</dt>
+          {/* What this package FIXES is most of what makes it a different offer
+              from the next package of the same service. The ones it leaves open
+              are a question the client answers, not something this package says
+              — so they are counted, not named. */}
+          <dd className={fixed.length > 0 ? undefined : 'q-absent'}>
+            {fixed.length > 0
+              ? fixed.map((v: any) => `${v.label} ${formatVariableValue(v)}`).join(', ')
+              : openVars.length > 0
+                ? `${openVars.length} asked at booking`
+                : 'None'}
+          </dd>
+
+          {tags.map((d) => (
+            <React.Fragment key={d.id}>
+              <dt>{d.name}</dt>
+              <dd>{d.values.map((v) => v.name).join(', ')}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+
+        <div className="q-card-foot">
+          <span className={taskCount > 0 ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
+            {taskCount > 0
+              ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`
+              : 'No tasks — a booking of it produces no work'}
+          </span>
         </div>
-
-        {tags.length > 0 && (
-          <div className="q-row q-row-sm">
-            {tags.flatMap((d) => d.values.map((v) => (
-              <span key={v.id} className="q-value q-value-sm" title={d.name}>{v.name}</span>
-            )))}
-          </div>
-        )}
       </Link>
     );
   };

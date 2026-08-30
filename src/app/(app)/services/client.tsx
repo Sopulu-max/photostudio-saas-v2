@@ -54,31 +54,39 @@ export function ServicesClient({
           <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
         </div>
 
-        {/* q-row already wraps and gaps, so the label and its value sit on one
-            line and break onto two when the card is narrow, rather than being
-            held apart by a fixed column that a 250px card cannot afford. */}
-        <div className="q-stack q-stack-sm">
-          <div className="q-row q-row-sm">
-            <span className="q-eyebrow">Produces</span>
-            <span className="q-meta">{produces.length > 0 ? produces.join(', ') : 'Nothing set'}</span>
-          </div>
-          <div className="q-row q-row-sm">
-            <span className="q-eyebrow">Workflow</span>
-            <span className="q-meta">
-              {svc.workflow?.name
-                ? `${svc.workflow.name} · ${steps} ${steps === 1 ? 'step' : 'steps'}`
-                : 'None, so it produces no tasks'}
-            </span>
-          </div>
-        </div>
+        {/*
+          * Label column and value column, so the values start at one edge on
+          * every row of every card. These were wrapping rows of label-then-
+          * value, which put each value at a different x and gave the eye
+          * nothing to run down — and a grid of cards exists to be read down.
+          *
+          * The classifications carry their dimension now. They were a row of
+          * chips with the question hidden in a title attribute, so Maternity
+          * and Studio floated with nothing to say what either was an answer to.
+          */}
+        <dl className="q-defs">
+          <dt>Produces</dt>
+          <dd className={produces.length > 0 ? undefined : 'q-absent'}>
+            {produces.length > 0 ? produces.join(', ') : 'Nothing set'}
+          </dd>
 
-        {tags.length > 0 && (
-          <div className="q-row q-row-sm">
-            {tags.flatMap((d) => d.values.map((v) => (
-              <span key={v.id} className="q-value q-value-sm" title={d.name}>{v.name}</span>
-            )))}
-          </div>
-        )}
+          {tags.map((d) => (
+            <React.Fragment key={d.id}>
+              <dt>{d.name}</dt>
+              <dd>{d.values.map((v) => v.name).join(', ')}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+
+        {/* How it gets done, pinned to the bottom — the same place a package
+            card keeps its tasks, and the same question. */}
+        <div className="q-card-foot">
+          <span className={svc.workflow?.name ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
+            {svc.workflow?.name
+              ? `${svc.workflow.name} · ${steps} ${steps === 1 ? 'step' : 'steps'}`
+              : 'No workflow, so it produces no tasks'}
+          </span>
+        </div>
       </Link>
     );
   };
