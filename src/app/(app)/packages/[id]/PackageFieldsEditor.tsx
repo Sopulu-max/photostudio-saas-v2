@@ -328,7 +328,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * immediately instead of after a reload.
    */
   const [createdValues, setCreatedValues] = useState<Record<string, { id: string; name: string }[]>>({});
-  const [newValue, setNewValue] = useState<Record<string, string>>({});
   const [declaredOutputs, setDeclaredOutputs] = useState<{ id: string; name: string; serviceId: string }[]>([]);
   /*
    * The tasks list, which was open in the database and shut in the form.
@@ -389,7 +388,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [openService, setOpenService] = useState<Record<string, boolean>>({});
 
   const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
-    const asked = (newValue[pendingKey] || '').trim();
+    const asked = (pendingValue[pendingKey] || '').trim();
     if (!asked || !dim.domainId) return;
     startTransition(async () => {
       try {
@@ -403,7 +402,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           return mine.some((v) => v.id === id) ? prev : { ...prev, [dim.id]: [...mine, { id, name: asked }] };
         });
         onCreated(id);
-        setNewValue((prev) => ({ ...prev, [pendingKey]: '' }));
+        setPendingValue((prev) => ({ ...prev, [pendingKey]: '' }));
       } catch (e: any) {
         alert(e?.message || 'Could not add that value.');
       }
@@ -666,55 +665,98 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {dim.domainName}
           {inherited && chosen.length > 0 && ' · as the service is classified'}
         </span>
-        <div className="q-row" style={{ flexWrap: 'wrap', margin: chosen.length > 0 ? '8px 0' : '0' }}>
+        {/*
+          * ONE FIELD, NOT THREE.
+          *
+          * This had a list of chosen values, a dropdown of the rest with an Add
+          * beside it, and then a second input with a Create beside that — so
+          * every dimension of every bundled service carried three controls, and
+          * a studio with four dimensions met twelve of them before it had said
+          * anything.
+          *
+          * The Create field was the worst of the three because it gave a rare
+          * act a permanent control. Inventing a value is not a thing a studio
+          * does most times it opens this form; it is what it does on the one
+          * occasion the value it wants is not there. Giving that its own
+          * standing field made it cost exactly as much room as picking an
+          * existing one, on every dimension, forever.
+          *
+          * So there is one field, and it is for finding. Type, and what matches
+          * appears; type something that matches nothing, and the offer to
+          * create it appears in the same place the matches would have. The rare
+          * act shows up precisely when the common one has failed, and takes no
+          * room at all until then.
+          */}
+        {chosen.length > 0 && (
+        <div className="q-row q-row-sm">
           {chosen.map((id) => {
             const name = values.find((v: any) => v.id === id)?.name || id;
             return (
-              <span key={id} className="q-badge q-badge-neutral">
-                {name} <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} onClick={() => setFor(forService.filter((x) => x !== id))}>×</button>
+              <span key={id} className="q-value q-value-sm q-value-on">
+                {name}
+                <button
+                  type="button" className="q-btn-ghost q-btn-xs"
+                  onClick={() => setFor(forService.filter((x) => x !== id))}
+                  title={`Remove ${name}`}
+                >&times;</button>
               </span>
             );
           })}
         </div>
-        <div className="q-row">
-          <select
-            className="q-select"
-            value={pendingValue[pendingKey] || ''}
-            onChange={(e) => setPendingValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
-            style={{ minWidth: '12rem' }}
-          >
-            <option value="">Select...</option>
-            {values.filter((v: any) => !forService.includes(v.id)).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-          <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => add(pendingValue[pendingKey] || '')} disabled={!pendingValue[pendingKey]}>+ Add</button>
-        </div>
-        {/*
-          * A list a service left open, opened.
-          *
-          * The value is created on the dimension, so it belongs to the domain
-          * from then on and any service or package classified that way can use
-          * it — which is what lets a studio's vocabulary grow by being used
-          * rather than by being fully imagined up front.
-          */}
-        {dim.domainId && (
-          <div className="q-row" style={{ marginTop: '6px' }}>
-            <input
-              className="q-input q-input-sm"
-              placeholder={`New ${String(dim.name).toLowerCase()}`}
-              value={newValue[pendingKey] || ''}
-              onChange={(e) => setNewValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createValue(dim, serviceId, pendingKey, (id) => add(id)); } }}
-              style={{ minWidth: '12rem' }}
-            />
-            <button
-              type="button" className="q-btn q-btn-ghost q-btn-xs"
-              disabled={isPending || !(newValue[pendingKey] || '').trim()}
-              onClick={() => createValue(dim, serviceId, pendingKey, (id) => add(id))}
-            >
-              Create
-            </button>
-          </div>
         )}
+
+        {(() => {
+          const typed = pendingValue[pendingKey] || '';
+          const needle = typed.trim().toLowerCase();
+          const available = values.filter((v: any) => !forService.includes(v.id));
+          const matches = needle
+            ? available.filter((v: any) => v.name.toLowerCase().includes(needle))
+            : available;
+          // Against every value in the dimension, not just the unchosen ones:
+          // typing a value this service already carries must not offer to make
+          // a second one with the same name.
+          const exists = values.some((v: any) => v.name.trim().toLowerCase() === needle);
+
+          return (
+            <>
+              <input
+                className="q-input q-input-sm"
+                placeholder={`Add a ${String(dim.name).toLowerCase()}`}
+                value={typed}
+                onChange={(e) => setPendingValue((prev) => ({ ...prev, [pendingKey]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  if (matches.length === 1) add(matches[0].id);
+                  else if (needle && !exists && dim.domainId) createValue(dim, serviceId, pendingKey, add);
+                }}
+              />
+              <div className="q-row q-row-sm">
+                {matches.map((v: any) => (
+                  <button key={v.id} type="button" className="q-value q-value-sm" onClick={() => add(v.id)}>
+                    {v.name}
+                  </button>
+                ))}
+                {needle && !exists && dim.domainId && (
+                  <button
+                    type="button" className="q-value q-value-sm"
+                    disabled={isPending}
+                    onClick={() => createValue(dim, serviceId, pendingKey, add)}
+                  >
+                    Add &ldquo;{typed.trim()}&rdquo; to {dim.name}
+                  </button>
+                )}
+                {!needle && available.length === 0 && (
+                  <span className="q-meta-sm">
+                    {values.length === 0
+                      ? `No ${String(dim.name).toLowerCase()} defined yet — type one to add it.`
+                      : 'All of them are on this package.'}
+                  </span>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
     );
   };
@@ -1141,44 +1183,70 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           );
         })}
 
-        {suggested.length > 0 && (
-          <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
-            <span className="q-meta-sm">Also produces:</span>
-            {suggested.map((d: any) => (
-              <button key={d.id} type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => addPromise(s.id, d.id)}>
-                + {d.name}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/*
-          * Promising something the service had not listed.
+          * One field here too, for the same reason.
           *
           * "All outputs produced by this service have been promised" was a dead
-          * end: it stated a limit and offered no way past it, when the package
-          * being built is exactly what discovers that the service also produces
-          * an album. The output is declared onto the SERVICE, so it joins the
-          * menu for every package of it — the same act as declaring a variable,
-          * and safe for the same reason: a menu promises nothing on its own.
+          * end that stated a limit and offered no way past it — but the answer
+          * was not a standing Create box beside the list. It is the same field:
+          * type to find what the service already produces, and if what you
+          * typed is not among them, the offer to add it appears where the
+          * matches would have been.
+          *
+          * The output is declared onto the SERVICE, so it joins the menu for
+          * every package of it — the same act as declaring a variable, and safe
+          * for the same reason: a menu promises nothing on its own. And because
+          * the server finds-or-creates by name within the domain, typing the
+          * name of an output the studio already has attaches that one rather
+          * than making a second with the same name.
           */}
-        <div className="q-row" style={{ alignItems: 'center', gap: '6px' }}>
-          <input
-            className="q-input q-input-sm"
-            placeholder="Something else it produces"
-            value={newOutput[s.id] || ''}
-            onChange={(e) => setNewOutput((prev) => ({ ...prev, [s.id]: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); declareOutput(s.id); } }}
-            style={{ minWidth: '14rem' }}
-          />
-          <button
-            type="button" className="q-btn q-btn-ghost q-btn-xs"
-            disabled={isPending || !(newOutput[s.id] || '').trim()}
-            onClick={() => declareOutput(s.id)}
-          >
-            Add to this service
-          </button>
-        </div>
+        {(() => {
+          const typed = newOutput[s.id] || '';
+          const needle = typed.trim().toLowerCase();
+          const matches = needle
+            ? suggested.filter((d: any) => d.name.toLowerCase().includes(needle))
+            : suggested;
+          const exists = produces.some((d: any) => d.name.trim().toLowerCase() === needle);
+
+          return (
+            <>
+              <input
+                className="q-input q-input-sm"
+                placeholder="Add an output"
+                value={typed}
+                onChange={(e) => setNewOutput((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  if (matches.length === 1) { addPromise(s.id, matches[0].id); setNewOutput((prev) => ({ ...prev, [s.id]: '' })); }
+                  else if (needle && !exists) declareOutput(s.id);
+                }}
+              />
+              <div className="q-row q-row-sm">
+                {matches.map((d: any) => (
+                  <button
+                    key={d.id} type="button" className="q-value q-value-sm"
+                    onClick={() => { addPromise(s.id, d.id); setNewOutput((prev) => ({ ...prev, [s.id]: '' })); }}
+                  >
+                    {d.name}
+                  </button>
+                ))}
+                {needle && !exists && (
+                  <button
+                    type="button" className="q-value q-value-sm"
+                    disabled={isPending}
+                    onClick={() => declareOutput(s.id)}
+                  >
+                    Add &ldquo;{typed.trim()}&rdquo; to {s.name}
+                  </button>
+                )}
+                {!needle && suggested.length === 0 && mine.length > 0 && (
+                  <span className="q-meta-sm">Everything it produces is promised — type to add another.</span>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </div>
     );
   };
