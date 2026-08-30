@@ -160,6 +160,114 @@ body {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
+/* ---- The frame ---- */
+/*
+ * WHAT WAS WRONG. The frame was two inline-styled boxes in a row: a 220px
+ * sidebar and everything else. That arithmetic does not change on a phone — the
+ * sidebar keeps its 220 out of 375 and the page is left with 155, so the word
+ * "Packages" was cut off and every sentence wrapped one word at a time. There
+ * were seven media queries in this entire file and none of them was about the
+ * shape of the app.
+ *
+ * Below the breakpoint the sidebar leaves the row and becomes a drawer over the
+ * page, which is the only arrangement that gives a narrow screen its whole
+ * width back. Above it, nothing changes.
+ */
+.q-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: row;
+}
+.q-shell-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.q-shell-main {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+}
+.q-shell-measure {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.q-sidebar {
+  width: 220px;
+  min-width: 220px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  border-right: 1px solid var(--q-color-ink-100);
+  background-color: var(--q-color-paper);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  z-index: 40;
+}
+/* The button that opens the drawer. Absent above the breakpoint, because there
+   the sidebar is simply part of the row and there is nothing to open. */
+.q-navbtn { display: none; }
+
+@media (max-width: 900px) {
+  .q-shell-main { padding: 20px 16px; }
+
+  /*
+   * Off the canvas and over the page. Transform rather than display, so it
+   * slides rather than appears, and so the drawer keeps its scroll position
+   * between openings.
+   */
+  .q-shell-nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform var(--q-dur-3) var(--q-ease);
+  }
+  .q-shell-nav-open { transform: translateX(0); box-shadow: var(--q-shadow-md); }
+
+  .q-shell-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    border: 0;
+    padding: 0;
+    background: rgba(26, 26, 29, 0.45);
+    cursor: pointer;
+  }
+
+  .q-navbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--q-color-ink-100);
+    border-radius: 9px;
+    background: var(--q-color-paper-subtle);
+    color: var(--q-color-ink-700);
+    cursor: pointer;
+  }
+
+  /*
+   * A page header is a title and its actions side by side, which stops being
+   * possible somewhere around here: the buttons were being squeezed until each
+   * word of "Domains, deliverables & workflows" sat on its own line.
+   */
+  .q-page-header { flex-direction: column; align-items: stretch; gap: 16px; margin-bottom: 28px; }
+  .q-page-title  { font-size: 1.6rem; }
+  .q-card        { --q-card-pad: 20px; }
+  .q-section     { padding: 20px; }
+  .q-page-narrow { padding: 0; }
+
+  /* The fact rows give up their label column when there is not room for two.
+     A key above its own pills still reads; a key squeezed into 6.5rem beside
+     them does not. */
+  .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .q-fact-key { grid-column: 1; }
+}
+
 /* ---- Utilities ---- */
 .q-text-body { color: var(--q-color-ink-900); }
 /*
@@ -729,6 +837,10 @@ body {
 /* The same picture on a page rather than a card: wider, and standing on its
    own rather than meeting a border. */
 .q-cover-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--q-color-ink-500);
   aspect-ratio: 3 / 1;
   background-size: cover;
   background-position: center;

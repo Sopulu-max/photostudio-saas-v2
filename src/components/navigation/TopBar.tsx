@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Menu } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import type { Notification } from '@/kernel/notificationKinds';
@@ -11,12 +12,16 @@ export default function TopBar({
   unreadCount = 0,
   organizationId,
   contactId,
+  onOpenNav,
 }: {
   studioName?: string;
   notifications?: Notification[];
   unreadCount?: number;
   organizationId?: string;
   contactId?: string | null;
+  /** Given by the shell. The button it opens is only drawn where the sidebar
+      has left the row, so on a wide screen there is nothing to open. */
+  onOpenNav?: () => void;
 }) {
   return (
     <header style={{
@@ -32,6 +37,12 @@ export default function TopBar({
       top: 0,
       zIndex: 30,
     }}>
+      {onOpenNav && (
+        <button type="button" className="q-navbtn" aria-label="Open the menu" onClick={onOpenNav}>
+          <Menu size={18} />
+        </button>
+      )}
+      <div className="q-spacer" />
       <div style={{
         padding: '6px 14px',
         background: 'var(--q-color-paper-subtle)',

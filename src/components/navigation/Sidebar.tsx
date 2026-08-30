@@ -65,19 +65,10 @@ export function Sidebar({ studioName, studioLogo }: { studioName?: string; orgSl
   const pathname = usePathname();
 
   return (
-    <aside style={{
-      width: '220px',
-      minWidth: '220px',
-      height: '100vh',
-      position: 'sticky',
-      top: 0,
-      borderRight: '1px solid var(--q-color-ink-100)',
-      backgroundColor: 'var(--q-color-paper)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflowY: 'auto',
-      zIndex: 40,
-    }}>
+    /* Its width, its stickiness and whether it is in the row at all are the
+       shell's business now — a column that decides for itself that it is 220px
+       of a 375px screen is how the app became unusable on a phone. */
+    <aside className="q-sidebar">
       {/* Studio Name / Logo */}
       <div style={{
         padding: '20px 16px 16px',

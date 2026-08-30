@@ -1,5 +1,4 @@
-import { Sidebar } from '@/components/navigation/Sidebar';
-import TopBar from '@/components/navigation/TopBar';
+import { AppShell } from '@/components/navigation/AppShell';
 import { getStudio } from '@/kernel/organizations';
 import { listNotifications } from '@/kernel/notifications';
 import type { Notification } from '@/kernel/notificationKinds';
@@ -31,22 +30,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const unreadCount = notifications.filter((n) => n.unread).length;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'row' }}>
-      <Sidebar studioName={studioName} orgSlug={orgSlug} studioLogo={studioLogo} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <TopBar
-          studioName={studioName}
-          notifications={notifications}
-          unreadCount={unreadCount}
-          organizationId={authOrg?.orgId}
-          contactId={authOrg?.contactId}
-        />
-        <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
+    /*
+     * The frame is a client component because a layout that reacts to its own
+     * width has to hold state, and a server component cannot. This page's job
+     * is to fetch the studio and hand it over.
+     */
+    <AppShell
+      studioName={studioName}
+      orgSlug={orgSlug}
+      studioLogo={studioLogo}
+      notifications={notifications}
+      unreadCount={unreadCount}
+      organizationId={authOrg?.orgId}
+      contactId={authOrg?.contactId}
+    >
+      {children}
+    </AppShell>
   );
 }
