@@ -20,6 +20,7 @@ import { PickMany, PickToAdd } from '@/components/Pick';
 // The same narrowing the catalogues do. A picker differs only in excluding
 // what is chosen and bounding what it draws, and both are arguments.
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { ImageUpload } from '@/components/ImageUpload';
 
 type ServiceOption = { 
   id: string; 
@@ -108,6 +109,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     name?: string;
     description?: string | null;
     durationMinutes?: number | null;
+    /** Public URL of the cover image, when this form is being shown it. */
+    coverUrl?: string | null;
     /**
      * What it sells for, in the module's normalised shape.
      *
@@ -242,6 +245,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * variables and the intake questions — undefined is "not mine to speak for".
    */
   const wasGivenPrice = initial.price != null;
+  /*
+   * The cover.
+   *
+   * `undefined` means this form was never shown one and must not speak for it —
+   * the same rule the price, the workflow, the variables and the intake
+   * questions all follow, and the one that has cost real data every time it was
+   * skipped. An empty string is a deliberate removal.
+   */
+  const [coverUrl, setCoverUrl] = useState<string | null | undefined>(initial.coverUrl);
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -557,6 +569,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       price: priceAmount
         ? { base_price: Number(priceAmount), currency: currencyCode }
         : (wasGivenPrice ? null : undefined),
+      coverUrl: coverUrl === undefined ? undefined : (coverUrl || null),
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -1167,6 +1180,21 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       <div className="q-card q-section">
         <h2 className="q-section-title">{heading(1, "Package Identity")}</h2>
         <div className="q-stack q-stack-md">
+          {/* First, because for a photography studio the picture is half of what
+              a package is — and because two packages of one service are told
+              apart on a card by almost nothing else. */}
+          {coverUrl !== undefined && (
+            <div className="q-field">
+              <label className="q-label">Cover</label>
+              <ImageUpload
+                url={coverUrl || null}
+                folder="packages"
+                label="cover"
+                onUploaded={(u) => setCoverUrl(u)}
+                onCleared={() => setCoverUrl('')}
+              />
+            </div>
+          )}
           <div className="q-field">
             <label className="q-label">Name</label>
             <input className="q-input" value={effectiveName}

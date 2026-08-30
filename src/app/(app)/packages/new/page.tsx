@@ -50,7 +50,10 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         // It cannot become a narrowing until a service is chosen to narrow, so it
         // is carried as intent and applied to the first service that speaks it.
         intendedValueIds={sp.value ? [String(sp.value)] : []}
-        initial={{ variableValues: [] }}
+        initial={{
+            // Shown from the start: undefined would mean this form is not
+            // allowed to speak for the cover at all.
+            coverUrl: null, variableValues: [] }}
       />
     </div>
   );

@@ -60,13 +60,17 @@ export function BookingsClient({
         </p>
 
         <div className="q-facts">
-          <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
+          <span className="q-fact-group">
             <span className="q-fact-key">Packages</span>
-            {b.lineCount > 0 ? b.lineCount : 'None'}
+            <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
+              {b.lineCount > 0 ? b.lineCount : 'None'}
+            </span>
           </span>
-          <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
+          <span className="q-fact-group">
             <span className="q-fact-key">Contract</span>
-            {b.hasContract ? 'Raised' : 'None'}
+            <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
+              {b.hasContract ? 'Raised' : 'None'}
+            </span>
           </span>
         </div>
 

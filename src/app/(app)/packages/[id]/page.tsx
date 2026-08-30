@@ -30,6 +30,16 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
     <div className="q-page-narrow">
       <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
 
+      {/* The work, before the words about it. Only when there is one: a blank
+          band at the top of a detail page is a hole, where on a card it is a
+          spacer keeping a row of titles level. */}
+      {(pkg as any).cover_url && (
+        <div
+          className="q-cover-banner"
+          style={{ backgroundImage: `url(${(pkg as any).cover_url})` }}
+        />
+      )}
+
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
           <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>

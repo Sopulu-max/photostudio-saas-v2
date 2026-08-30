@@ -76,18 +76,6 @@ export function PackagesClient({
    * package's, so they are counted rather than named.
    */
   /**
-   * One value, and how many more there are.
-   *
-   * A dimension answering four values put the whole list inside a pill, which
-   * wrapped to two lines and became a grey block — and a stack of grey blocks is
-   * what buried the name and the price between them. A card is not the place a
-   * studio reads every classification; it is where it recognises which package
-   * this is. The page behind it has the list.
-   */
-  const few = (names: string[]) =>
-    names.length <= 1 ? names[0] : `${names[0]} +${names.length - 1}`;
-
-  /**
    * The count, set apart from the thing being counted.
    *
    * formatDeliverable always puts the quantity first when there is one — "2
@@ -115,6 +103,22 @@ export function PackagesClient({
 
     return (
       <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack">
+        {/*
+          * Always drawn, cover or no cover. A card in a grid is stretched to the
+          * tallest in its row, so one package with a picture and one without
+          * would put their titles at different heights and undo the alignment
+          * everything else here was built for. Empty, it is a quiet wash
+          * carrying the initial — which is also a legible invitation.
+          */}
+        <div
+          className={pkg.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
+          style={pkg.cover_url ? { backgroundImage: `url(${pkg.cover_url})` } : undefined}
+        >
+          {!pkg.cover_url && (
+            <span className="q-cover-initial">{(pkg.name || '?').trim().charAt(0).toUpperCase()}</span>
+          )}
+        </div>
+
         {/*
           * The category above the name, the way a label sits above a title
           * rather than beside it. The price is not here at all any more — it
@@ -146,15 +150,17 @@ export function PackagesClient({
         {(tags.length > 0 || fixed.length > 0 || openVars.length > 0) && (
           <div className="q-facts">
             {tags.map((d) => (
-              <span key={d.id} className="q-fact" title={d.values.map((v) => v.name).join(', ')}>
+              <span key={d.id} className="q-fact-group">
                 <span className="q-fact-key">{d.name}</span>
-                {few(d.values.map((v) => v.name))}
+                {d.values.map((v) => (
+                  <span key={v.id} className="q-fact">{v.name}</span>
+                ))}
               </span>
             ))}
             {fixed.map((v: any) => (
-              <span key={v.serviceVariableId} className="q-fact">
+              <span key={v.serviceVariableId} className="q-fact-group">
                 <span className="q-fact-key">{v.label}</span>
-                {formatVariableValue(v)}
+                <span className="q-fact">{formatVariableValue(v)}</span>
               </span>
             ))}
             {fixed.length === 0 && openVars.length > 0 && (

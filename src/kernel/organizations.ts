@@ -262,15 +262,26 @@ export async function updateStudio(input: {
 
 import { randomUUID } from 'crypto';
 
-export async function getStudioLogoUploadTarget(fileName: string) {
+/**
+ * Where a studio's own images go.
+ *
+ * Named for studio assets rather than for logos, because it was never about
+ * logos — a cover for a package lands in the same bucket under the same rule,
+ * and a second copy of this function differing only in one path segment is how
+ * two upload paths drift apart.
+ *
+ * The 'avatars' bucket is public and shared by studio assets. Its storage
+ * policy expects the first path segment to be a valid organization id, which is
+ * what scopes one studio's uploads away from another's.
+ */
+export async function getStudioAssetUploadTarget(fileName: string, folder = 'studio') {
   const { orgId } = await getAuthOrgId();
   const safeName = fileName.replace(/[^\w.\-]/g, '_');
-  // We reuse the 'avatars' public bucket for studio assets as well.
-  // The storage RLS policy expects the first path segment to be a valid orgId UUID.
-  return { bucket: 'avatars', path: `${orgId}/studio/${randomUUID()}-${safeName}` };
+  const safeFolder = folder.replace(/[^\w\-]/g, '_');
+  return { bucket: 'avatars', path: `${orgId}/${safeFolder}/${randomUUID()}-${safeName}` };
 }
 
-export async function getPublicUrlForLogo(path: string) {
+export async function getPublicUrlForStudioAsset(path: string) {
   const { data: pub } = supabaseAdmin.storage.from('avatars').getPublicUrl(path);
   return pub.publicUrl;
 }

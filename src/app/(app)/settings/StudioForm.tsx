@@ -4,7 +4,9 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateStudio } from '@/kernel/organizations';
 
-import { LogoUpload } from '@/components/LogoUpload';
+// The one uploader. LogoUpload was the same five steps written out separately,
+// with its own size limit and its own wording when a file was refused.
+import { ImageUpload } from '@/components/ImageUpload';
 
 export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: initialLogo, coverUrl: initialCover }: { name: string; slug: string; logoUrl?: string; coverUrl?: string }) {
   const [name, setName] = useState(initialName);
@@ -35,13 +37,28 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
       
       <div className="q-field">
         <label className="q-label">Studio Logo</label>
-        <LogoUpload currentUrl={logoUrl} onUploadComplete={setLogoUrl} />
+        <ImageUpload
+          url={logoUrl || null}
+          label="logo"
+          aspect="1 / 1"
+          onUploaded={setLogoUrl}
+          onCleared={() => setLogoUrl('')}
+        />
         <span className="q-meta-sm" style={{ marginTop: '8px', display: 'block' }}>Shown on your storefront, dashboard, and invoices.</span>
       </div>
 
       <div className="q-field">
         <label className="q-label">Cover Image URL</label>
-        <input className="q-input" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://example.com/cover.jpg" />
+        {/* Was a box to paste a URL into, which asks a studio to host its own
+            cover somewhere and bring back an address. The same uploader that
+            takes the logo takes this. */}
+        <ImageUpload
+          url={coverUrl || null}
+          label="cover"
+          aspect="3 / 1"
+          onUploaded={setCoverUrl}
+          onCleared={() => setCoverUrl('')}
+        />
         <span className="q-meta-sm">URL of a banner image for your booking storefront.</span>
       </div>
 

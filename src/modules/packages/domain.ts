@@ -424,6 +424,8 @@ export async function createPackage(input: {
   description?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
+  /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
+  coverUrl?: string | null;
   serviceIds?: string[];
   /**
    * This package is a booking's own instance, not catalog.
@@ -506,6 +508,7 @@ export async function createPackage(input: {
       description: input.description || null,
       duration_minutes: input.durationMinutes ?? null,
       price: input.price || {},
+      cover_url: input.coverUrl ?? null,
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
       status: (input.instanceOf ? 'custom' : 'active') satisfies PackageStatus,
@@ -554,6 +557,8 @@ export async function updatePackage(input: {
   description?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
+  /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
+  coverUrl?: string | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
@@ -591,6 +596,10 @@ export async function updatePackage(input: {
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.price !== undefined) patch.price = input.price || {};
+  // Absent leaves the cover alone; null takes it off. The same distinction the
+  // price makes, and for the same reason: a form that was not shown the cover
+  // must not be able to erase it by saying nothing about it.
+  if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl;
   if (input.extraStages !== undefined) patch.extra_stages = await buildExtraStages(input.extraStages);
 
   if (Object.keys(patch).length > 0) {
@@ -882,7 +891,7 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, status, duration_minutes, extra_stages, price, instance_of, list_price,
+  id, name, description, status, duration_minutes, extra_stages, price, instance_of, list_price, cover_url,
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
@@ -1049,6 +1058,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id: p.id as string,
       name: p.name as string,
       description: (p.description ?? null) as string | null,
+      cover_url: (p.cover_url ?? null) as string | null,
       duration_minutes: (p.duration_minutes ?? null) as number | null,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
       deliverablesCount: (p.package_services || []).reduce((acc: number, ps: any) => acc + (ps.package_deliverables?.length || 0), 0),
@@ -1070,7 +1080,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, pricing_variant, duration_minutes, form_schema,
+      id, name, description, pricing_variant, duration_minutes, form_schema, cover_url,
       package_services(
         service:services(name),
         package_deliverables(
@@ -1102,6 +1112,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     name: p.name as string,
     description: (p.description ?? null) as string | null,
     durationMinutes: (p.duration_minutes ?? null) as number | null,
+    coverUrl: (p.cover_url ?? null) as string | null,
     formSchema: (p.form_schema || []) as any[],
     serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
     // Specified, so the storefront says "6 edited photographs" rather than

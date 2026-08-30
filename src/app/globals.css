@@ -670,6 +670,81 @@ body {
 .q-num      { font-variant-numeric: tabular-nums; }
 
 /*
+ * A picture, chosen by pressing the picture.
+ *
+ * The control for an image should be the image. A row of buttons beside a
+ * thumbnail asks somebody to read what to do; a framed empty space that says
+ * "Add a cover" does not.
+ *
+ * Dashed while empty and solid once filled, because those are two different
+ * states of the same box and the border is the cheapest way to say which.
+ */
+.q-imagepick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+  border: 1px dashed var(--q-color-ink-300);
+  border-radius: 12px;
+  background-color: var(--q-color-ink-50);
+  background-size: cover;
+  background-position: center;
+  color: var(--q-color-ink-500);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease);
+}
+.q-imagepick:hover:not(:disabled) { border-color: var(--q-color-accent); }
+.q-imagepick-filled { border-style: solid; border-color: var(--q-color-ink-200); }
+.q-imagepick:disabled { cursor: default; opacity: 0.6; }
+
+/*
+ * The cover of a card, edge to edge above everything else.
+ *
+ * It cancels the card padding the way the foot band does, so the picture meets
+ * the card border instead of floating inside a margin — a photograph inset on
+ * three sides reads as an attachment rather than as the face of the thing.
+ *
+ * ALWAYS DRAWN, WITH OR WITHOUT A PICTURE. A card in a grid is stretched to the
+ * tallest in its row, so one package with a cover and one without would put
+ * their titles at different heights and undo the alignment the rest of the card
+ * was built for. Without one it is a quiet wash carrying the package initial,
+ * which is also a legible invitation to add one.
+ */
+.q-cover {
+  margin: calc(var(--q-card-pad) * -1) calc(var(--q-card-pad) * -1) 4px;
+  aspect-ratio: 16 / 9;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--q-color-ink-50);
+  border-radius: calc(var(--q-card-radius) - 1px) calc(var(--q-card-radius) - 1px) 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.q-cover-empty {
+  background-image: linear-gradient(140deg, var(--q-color-accent-soft), var(--q-color-ink-50) 70%);
+}
+/* The same picture on a page rather than a card: wider, and standing on its
+   own rather than meeting a border. */
+.q-cover-banner {
+  aspect-ratio: 3 / 1;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--q-color-ink-50);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: var(--q-card-radius, 16px);
+  margin-bottom: 24px;
+}
+.q-cover-initial {
+  font-size: 2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--q-color-ink-300);
+}
+
+/*
  * The line a card is actually about.
  *
  * A card carrying seven facts at one rank is a wall however well the columns
@@ -732,6 +807,25 @@ body {
 .q-facts {
   display: flex;
   flex-wrap: wrap;
+  gap: 5px 14px;
+  align-items: baseline;
+}
+/*
+ * One dimension and every answer it holds.
+ *
+ * Truncating to "Birthday +3" kept the strip tidy by hiding three quarters of
+ * what the studio had said about the package — and those values are not
+ * decoration, they are the words a client picks to find this. A group keeps its
+ * key once and gives every value its own pill, so nothing is hidden and each
+ * answer is a countable object rather than an item in a comma list.
+ *
+ * The group is inline-flex so a dimension and its answers break as one unit:
+ * "Occasion" never ends a line with its values orphaned on the next.
+ */
+.q-fact-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   gap: 5px;
 }
 /*
