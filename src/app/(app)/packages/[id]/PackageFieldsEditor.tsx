@@ -369,6 +369,24 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [serviceSearch, setServiceSearch] = useState('');
   const [serviceDomain, setServiceDomain] = useState('');
   const [showAllServices, setShowAllServices] = useState(false);
+  /*
+   * Which bundled service is open.
+   *
+   * Everything a package says, it says about one of its services: what that
+   * service promises, how it is classified, what it fixes, what it involves.
+   * Those were four sections, each looping over the same bundle and heading
+   * every block "For Portrait Photography" — so three bundled services made
+   * twelve blocks in four places, and configuring one service meant four trips
+   * down the page finding its name each time.
+   *
+   * A service is the unit of the work, so a service is the unit on the page.
+   *
+   * `undefined` means never touched, and then the default decides: one bundled
+   * service opens, because there is nothing to scan past, and several stay shut
+   * because scanning is exactly what you are doing when there are several. A
+   * service just added always opens — you added it in order to configure it.
+   */
+  const [openService, setOpenService] = useState<Record<string, boolean>>({});
 
   const createValue = (dim: any, serviceId: string, pendingKey: string, onCreated: (id: string) => void) => {
     const asked = (newValue[pendingKey] || '').trim();
@@ -453,6 +471,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         });
         setPromises((prev) => prev.filter((p) => p.serviceId !== id));
       } else {
+        // Opened as it is added: you bundled it in order to say something about
+        // it, and the place to say that is inside it.
+        setOpenService((prev) => ({ ...prev, [id]: true }));
         // Adding a service: auto-promise what it produces, to save clicks.
         const addedService = allServices.find((s) => s.id === id);
         if (addedService) {
@@ -1175,7 +1196,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             <input className="q-input" value={effectiveName}
               onFocus={() => { if (!nameTouched) setName(composed); }}
               onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
-            <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled above — type here to give it a name of your own.'}</span>
+            <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled below — type here to give it a name of your own.'}</span>
           </div>
           <div className="q-field">
             <label className="q-label">Description</label>
@@ -1194,8 +1215,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       <div className="q-card q-section">
         <h2 className="q-section-title">{heading(2, "Services")}</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
-          The services this package is built from. What each one promises, is classified as, and
-          involves is set in the sections below.
+          The services this package is built from. Open one to set what it promises, how it is
+          classified, what this package fixes about it, and the work it involves.
         </p>
 
         {(() => {
@@ -1253,21 +1274,94 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                     Nothing bundled yet. A package is one or more services sold together, so pick at
                     least one below.
                   </p>
-                ) : chosen.map((s) => (
-                  <div key={s.id} className="q-row q-row-between q-tile">
-                    <div>
-                      <div className="q-strong">{s.name}</div>
-                      <span className="q-eyebrow">{s.domain?.name || 'No domain'}</span>
+                ) : chosen.map((s) => {
+                  const isOpen = openService[s.id] ?? (chosen.length === 1);
+                  const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
+                  /*
+                   * What this package already says about the service, said on
+                   * the shut row. Collapsing may hide the controls; it must not
+                   * hide the fact that there is something under them, or a
+                   * closed row reads as a service nothing has been set on.
+                   */
+                  const summary = [
+                    `${promisesFor(s.id).length} promised`,
+                    `${(narrowings[s.id] ?? offeredBy(s.id)).length} classified`,
+                    // Counted the way the save counts them: a variable cleared
+                    // back to empty is not fixed, and a summary that disagreed
+                    // with what gets written would be worse than none.
+                    `${allVariables.filter((v) =>
+                      v.serviceId === s.id && (variableValues[v.id] ?? '') !== '').length} fixed`,
+                  ].join(' · ');
+
+                  return (
+                    <div key={s.id} className="q-tile q-stack q-stack-sm">
+                      <div className="q-row q-row-between">
+                        <button
+                          type="button"
+                          className="q-disclosure"
+                          onClick={() => setOpenService((prev) => ({ ...prev, [s.id]: !isOpen }))}
+                          aria-expanded={isOpen}
+                        >
+                          <span className="q-disclosure-mark" aria-hidden="true">{isOpen ? '\u2212' : '+'}</span>
+                          <span>
+                            <span className="q-strong">{s.name}</span>{' '}
+                            <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
+                            {!isOpen && <span className="q-meta-sm"> — {summary}</span>}
+                          </span>
+                        </button>
+                        <button
+                          type="button" className="q-btn-ghost q-btn-xs"
+                          onClick={() => toggleService(s.id)}
+                          title={`Remove ${s.name} from this package`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {isOpen && (
+                        <div className="q-stack q-stack-lg q-tile-sub">
+                          <div className="q-stack q-stack-sm">
+                            <h4 className="q-strong">Deliverables</h4>
+                            {renderPromises(s)}
+                          </div>
+
+                          <div className="q-stack q-stack-sm">
+                            <h4 className="q-strong">Classifications</h4>
+                            {domainDims.length === 0 ? (
+                              <p className="q-meta-sm">
+                                {s.domain?.name
+                                  ? `${s.domain.name} defines no dimensions yet, so there is nothing to classify this by.`
+                                  : 'This service has no domain, so it carries no classifications.'}
+                              </p>
+                            ) : (
+                              <div className="q-grid-cards">
+                                {domainDims.map((d: any) => renderDimension(
+                                  { ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, s.id))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="q-stack q-stack-sm">
+                            <h4 className="q-strong">Variables</h4>
+                            {renderVariables(s)}
+                          </div>
+
+                          <div className="q-stack q-stack-sm">
+                            <h4 className="q-strong">Tasks</h4>
+                            {!s.workflow?.name && (
+                              <p className="q-meta-sm">
+                                No workflow defines how {s.name} is produced. Define one in Services to give
+                                every package of it the same steps, or add a step below that this package
+                                alone involves.
+                              </p>
+                            )}
+                            {renderTasks(s)}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button" className="q-btn-ghost q-btn-xs"
-                      onClick={() => toggleService(s.id)}
-                      title={`Remove ${s.name} from this package`}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/*
@@ -1338,97 +1432,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         })()}
       </div>
 
-      <div className="q-card q-section">
-        <h2 className="q-section-title">{heading(3, "Classifications")}</h2>
-        <div className="q-stack q-stack-md">
-          {(() => {
-            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
-            if (bundledServices.length === 0) return <p className="q-empty">Select services above to narrow their classifications.</p>;
-            const withDims = bundledServices.filter(s => (s.domain?.name && (dimensionsByDomain[s.domain.name] || []).length > 0));
-            if (withDims.length === 0) return <p className="q-meta-sm">None of the bundled services have classifications.</p>;
-            return withDims.map((s) => {
-              const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
-              return (
-                <div key={s.id} style={{ marginBottom: '16px' }}>
-                  <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
-                  <div className="q-grid-cards">
-                    {domainDims.map((d: any) => renderDimension({ ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, s.id))}
-                  </div>
-                </div>
-              );
-            });
-          })()}
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">{heading(4, "Variables")}</h2>
-        
-        <div className="q-stack q-stack-md">
-          {(() => {
-            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
-            if (bundledServices.length === 0) return <p className="q-empty">Select services above to see their variables.</p>;
-            const withVars = bundledServices.filter(s => allVariables.some(v => v.serviceId === s.id));
-            if (withVars.length === 0) return <p className="q-meta-sm">None of the bundled services have variables.</p>;
-            return withVars.map((s) => (
-              <div key={s.id} style={{ marginBottom: '16px' }}>
-                <h3 className="q-strong" style={{ marginBottom: '8px' }}>For {s.name}</h3>
-                {renderVariables(s)}
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">{heading(5, "Tasks")}</h2>
-        
-        <div className="q-stack q-stack-md">
-          {(() => {
-            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
-            if (bundledServices.length === 0) return <p className="q-empty">Select services above to see their production tasks.</p>;
-            /*
-              * Every bundled service, including one with no workflow at all.
-              *
-              * This used to drop those, and then told the operator to go and
-              * define a workflow in Services — which is right for work the
-              * service always involves and wrong for work only this package
-              * does. A service with no workflow was the one case where a
-              * package most needed a task of its own, and it was the one case
-              * with nowhere to put it.
-              */
-            return bundledServices.map((s) => (
-              <div key={s.id} style={{ marginBottom: '16px' }}>
-                <h3 className="q-strong" style={{ marginBottom: '2px' }}>For {s.name}</h3>
-                {!s.workflow?.name && (
-                  <p className="q-meta-sm" style={{ marginBottom: '4px' }}>
-                    No workflow defines how {s.name} is produced. Define one in Services to give every
-                    package of it the same steps, or add a step below that this package alone involves.
-                  </p>
-                )}
-                {renderTasks(s)}
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
-
-      <div className="q-card q-section">
-        <h2 className="q-section-title">{heading(6, "Deliverables")}</h2>
-        
-        <div className="q-stack q-stack-md">
-          {(() => {
-            const bundledServices = allServices.filter(s => serviceIds.includes(s.id));
-            if (bundledServices.length === 0) return <p className="q-empty">Select services above to configure what they deliver.</p>;
-            return bundledServices.map((s) => (
-              <div key={s.id} style={{ marginBottom: '16px' }}>
-                <h3 className="q-strong" style={{ marginBottom: '8px' }}>From {s.name}</h3>
-                {renderPromises(s)}
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
       {/*
         * Intake questions, inside the form that saves them.
         *
@@ -1438,7 +1441,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         */}
       {questions !== undefined && (
         <div className="q-card q-section">
-          <h2 className="q-section-title">{heading(7, 'Intake questions')}</h2>
+          <h2 className="q-section-title">{heading(3, 'Intake questions')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client is asked when booking this package, beyond what its services already vary by.
           </p>

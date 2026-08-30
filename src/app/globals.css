@@ -160,6 +160,37 @@ body {
 /* ---- Utilities ---- */
 .q-text-body { color: var(--q-color-ink-900); }
 /*
+ * A row that opens to reveal what it holds.
+ *
+ * The button is the whole heading rather than a chevron beside it: a target the
+ * width of the row cannot be missed, and the thing you are trying to press is
+ * the name, not the mark next to it. Reset to a plain block because it is a
+ * heading that happens to be pressable, and it must not read as a button.
+ */
+.q-disclosure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.q-disclosure-mark {
+  font-family: var(--q-font-mono);
+  color: var(--q-color-ink-500);
+  width: 1ch;
+  flex: none;
+}
+.q-disclosure:hover .q-disclosure-mark,
+.q-disclosure:focus-visible .q-disclosure-mark { color: var(--q-color-accent); }
+
+/*
  * One row in a list you are choosing from.
  *
  * A picker option is not a card. It carries only what is needed to tell this
