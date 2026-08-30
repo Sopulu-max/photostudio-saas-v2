@@ -1477,6 +1477,63 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       {/*
+        * WHAT THE PACKAGE PROMISES ALTOGETHER.
+        *
+        * Each deliverable is set inside the service that produces it, because
+        * that is where a quantity means anything — but a package bundling three
+        * services then has its whole promise spread across three folds, two of
+        * them shut, and the one question a studio most wants answered while
+        * building an offer is what the client ends up with.
+        *
+        * Read-only on purpose. Everything here is set a few inches above, and
+        * two places to change one number is how they come to disagree. This
+        * counts what is already there, and fills as the services above are
+        * filled in.
+        */}
+      <div className="q-card q-section">
+        <h2 className="q-section-title">{heading(3, 'Deliverables')}</h2>
+        {(() => {
+          const bundled = allServices.filter((x) => serviceIds.includes(x.id));
+          const promised = bundled.flatMap((x) =>
+            promisesFor(x.id).map((p) => ({ p, from: x.name })));
+
+          if (bundled.length === 0) {
+            return <p className="q-empty">Nothing bundled yet, so nothing is promised yet.</p>;
+          }
+          if (promised.length === 0) {
+            return (
+              <p className="q-empty">
+                Nothing promised yet. Open a service above and say what the client receives.
+              </p>
+            );
+          }
+
+          return (
+            <div className="q-stack q-stack-sm">
+              {promised.map(({ p, from }, i) => {
+                const def = (allDeliverables as any[]).find((d) => d.id === p.deliverableId);
+                const name = def?.name
+                  ?? declaredOutputs.find((d) => d.id === p.deliverableId)?.name
+                  ?? p.deliverableId;
+                return (
+                  <div key={`${from}-${p.deliverableId}-${i}`} className="q-row q-row-between q-tile">
+                    <span className="q-text-body">
+                      {formatDeliverable({
+                        name,
+                        quantity: p.quantity,
+                        spec_values: p.specValues || def?.spec_values,
+                      } as any)}
+                    </span>
+                    {bundled.length > 1 && <span className="q-meta-sm">{from}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/*
         * Intake questions, inside the form that saves them.
         *
         * Only when this form was given them — a caller that does not pass
@@ -1485,7 +1542,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         */}
       {questions !== undefined && (
         <div className="q-card q-section">
-          <h2 className="q-section-title">{heading(3, 'Intake questions')}</h2>
+          <h2 className="q-section-title">{heading(4, 'Intake questions')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client is asked when booking this package, beyond what its services already vary by.
           </p>

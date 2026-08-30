@@ -91,6 +91,52 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           </div>
         </div>
 
+        {/*
+          * EVERYTHING THIS PACKAGE PROMISES, IN ONE PLACE.
+          *
+          * Deliverables hang off each bundled service, so folding them into the
+          * services was structurally honest — and it left a package bundling
+          * three services with its promise scattered across three folds, two of
+          * them shut. Nobody buys a service; they buy the package, and what
+          * arrives is the whole of it.
+          *
+          * So the collated promise is a section of its own and the per-service
+          * lists stay where they are. They are two different questions: this
+          * one is what the client receives, the one inside each service is which
+          * part of the work produces it. The first belongs to the package, and
+          * it is what the invoice bills and the storefront advertises.
+          *
+          * Which service produced what is said only where there is more than
+          * one, for the same reason it always is here.
+          */}
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Deliverables</h2>
+          {(() => {
+            const promised = services.flatMap((s: any) =>
+              (s.deliverables || []).map((d: any) => ({ d, from: s.name })));
+
+            if (promised.length === 0) {
+              return (
+                <p className="q-text-meta">
+                  Nothing promised yet. A package with no deliverables is a price with nothing
+                  attached to it.
+                </p>
+              );
+            }
+
+            return (
+              <div className="q-stack q-stack-sm">
+                {promised.map(({ d, from }: any, i: number) => (
+                  <div key={`${from}-${d.id}-${i}`} className="q-row q-row-between q-tile">
+                    <span className="q-text-body">{formatDeliverable(d)}</span>
+                    {services.length > 1 && <span className="q-meta-sm">{from}</span>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+
         <div className="q-card q-section">
           <h2 className="q-section-title">Services</h2>
           {services.length === 0 ? (
