@@ -179,8 +179,19 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                    */
                   const promised = s.deliverables || [];
                   const fixed = s.variableValues || [];
-                  const fixedIds = new Set(fixed.map((v: any) => v.serviceVariableId));
-                  const open = (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
+                  /*
+                   * Three states, not two.
+                   *
+                   * Fixed is part of the offer. Left to the client is a question
+                   * asked at booking. Undecided is neither — and it used to be
+                   * lumped in with the second, which is how a variable nobody
+                   * had thought about became a question on a public booking form
+                   * without anyone choosing to ask it.
+                   */
+                  const decided = new Map((s.variableValues || []).map((v: any) => [v.serviceVariableId, v.answeredBy || 'studio']));
+                  const asked = (s.variables || []).filter((v: any) => decided.get(v.id) === 'client');
+                  const undecided = (s.variables || []).filter((v: any) => !decided.has(v.id));
+                  const open = [...asked, ...undecided];
                   const tasks = s.tasks || [];
 
                   return (
@@ -234,10 +245,19 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                                   <span className="q-strong">{formatVariableValue(v)}</span>
                                 </div>
                               ))}
-                              {open.map((v: any) => (
+                              {asked.map((v: any) => (
                                 <div key={v.id} className="q-row q-row-between q-tile">
                                   <span className="q-meta-plain">{v.label}</span>
-                                  <span className="q-meta">Asked at booking</span>
+                                  <span className="q-meta">The client chooses</span>
+                                </div>
+                              ))}
+                              {undecided.map((v: any) => (
+                                <div key={v.id} className="q-row q-row-between q-tile">
+                                  <span className="q-meta-plain">{v.label}</span>
+                                  {/* Not a question. Nobody has said what happens
+                                      to this one, so it is asked of no one and the
+                                      package is unfinished until somebody says. */}
+                                  <span className="q-meta q-absent">Not decided</span>
                                 </div>
                               ))}
                             </>

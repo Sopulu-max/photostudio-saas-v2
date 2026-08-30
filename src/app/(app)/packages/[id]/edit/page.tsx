@@ -94,7 +94,13 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
               ((s.narrowedTo || []) as { values: { id: string }[] }[])
                 .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
             extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
-            variableValues: ((pkg as any).variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),
+            variableValues: ((pkg as any).variableValues || []).map((v: any) => ({
+              serviceVariableId: v.serviceVariableId,
+              value: v.value,
+              // Which of the two classes it is in, so the form opens showing the
+              // decision rather than inferring one from an empty box.
+              answeredBy: v.answeredBy,
+            })),
             tasks: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.tasks || []) as any[]).map((t) => ({
                 serviceId: s.id as string,

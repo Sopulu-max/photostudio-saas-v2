@@ -129,7 +129,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     /** Each value paired with the bundled service this package narrows to it. */
     narrowings?: { serviceId: string; valueId: string }[];
     extraStages?: Stage[];
-    variableValues?: { serviceVariableId: string; value: unknown }[];
+    variableValues?: { serviceVariableId: string; value: unknown; answeredBy?: 'studio' | 'client' }[];
     tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
     services?: any[];
   };
@@ -505,6 +505,43 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [variableValues, setVariableValues] = useState<Record<string, string>>(initialVarsMap);
   const setVariable = (id: string, raw: string) => setVariableValues((v) => ({ ...v, [id]: raw }));
 
+  /*
+   * WHICH OF THE TWO CLASSES EACH VARIABLE IS IN.
+   *
+   * A package either fixes a value — and that is part of the offer — or it
+   * deliberately leaves the answer to the client and the question is asked at
+   * booking. Both are decisions a studio makes one variable at a time.
+   *
+   * Only the first used to be recorded. "Ask the client" was an empty box, so a
+   * question the studio meant to ask and a variable nobody had thought about
+   * looked identical — and every variable in the second heap was asked. Declare
+   * a variable on a service and every package built on it silently began asking
+   * strangers a new question on the storefront.
+   *
+   * Undecided is now its own state, and it is asked of nobody. A package with
+   * undecided variables is unfinished, which is a thing worth being able to see.
+   */
+  const [answeredBy, setAnsweredBy] = useState<Record<string, 'studio' | 'client'>>(() => {
+    const seed: Record<string, 'studio' | 'client'> = {};
+    for (const v of (initial.variableValues || [])) {
+      if (v.answeredBy) seed[v.serviceVariableId] = v.answeredBy;
+      else if (v.value !== null && v.value !== undefined && v.value !== '') seed[v.serviceVariableId] = 'studio';
+    }
+    return seed;
+  });
+
+  const decide = (id: string, next: 'studio' | 'client' | 'undecided') => {
+    setAnsweredBy((prev) => {
+      const copy = { ...prev };
+      if (next === 'undecided') delete copy[id];
+      else copy[id] = next;
+      return copy;
+    });
+    // A question asked of the client cannot also carry the studio's answer, and
+    // the table says so too.
+    if (next !== 'studio') setVariable(id, '');
+  };
+
   const [extraStages, setExtraStages] = useState<Stage[]>(initial.extraStages || []);
 
   const bundledNames = allServices.filter((s) => serviceIds.includes(s.id)).map((s) => s.name);
@@ -529,6 +566,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           allVariables.filter((v) => v.serviceId === id).forEach((v) => delete next[v.id]);
           return next;
         });
+
+
         setNarrowings((prev) => {
           const next = { ...prev };
           delete next[id];
@@ -594,16 +633,27 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const buildPayload = () => {
     // Only send values for variables belonging to currently selected services
     const activeVariables = allVariables.filter((v) => serviceIds.includes(v.serviceId));
-    const payloadVariableValues = activeVariables
-      .filter((v) => (variableValues[v.id] ?? '') !== '')
-      .map((v) => {
-        const raw = variableValues[v.id];
-        const value =
-          v.kind === 'number' ? Number(raw)
-          : v.kind === 'boolean' ? raw === 'true'
-          : raw;
-        return { serviceVariableId: v.id, value };
-      });
+    /*
+     * Both decisions travel, and silence travels as silence.
+     *
+     * A studio answer needs its value; a client answer is the absence of one on
+     * purpose. A variable in neither heap is simply not listed, which is what
+     * tells the module nobody has decided — and it is then asked of no one
+     * rather than of everyone.
+     */
+    type VariableDecision = { serviceVariableId: string; answeredBy: 'studio' | 'client'; value?: unknown };
+    const payloadVariableValues: VariableDecision[] =
+      activeVariables.flatMap<VariableDecision>((v) => {
+      const chosen = answeredBy[v.id];
+      if (chosen === 'client') return [{ serviceVariableId: v.id, answeredBy: 'client' as const }];
+      const raw = variableValues[v.id];
+      if ((raw ?? '') === '') return [];
+      const value =
+        v.kind === 'number' ? Number(raw)
+        : v.kind === 'boolean' ? raw === 'true'
+        : raw;
+      return [{ serviceVariableId: v.id, answeredBy: 'studio' as const, value }];
+    });
 
     return {
       name: effectiveName,
@@ -917,13 +967,31 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         )}
         {vars.map((v) => {
           const current = variableValues[v.id] ?? '';
+          const who = answeredBy[v.id];
           return (
             <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
               <div>
                 <strong className="q-strong">{v.label}</strong>
-                {current === '' && <span className="q-meta-sm"> &middot; asked at booking</span>}
+                {!who && <span className="q-meta-sm"> &middot; nobody has decided</span>}
               </div>
               <div className="q-row">
+                {/*
+                  * The decision first, because it governs whether the box beside
+                  * it means anything. An empty box used to carry this, which is
+                  * how "ask the client" and "not got to it yet" became the same
+                  * thing — and the second of those was being asked.
+                  */}
+                <select
+                  className="q-select" value={who ?? ''} disabled={isPending}
+                  onChange={(e) => decide(v.id, (e.target.value || 'undecided') as any)}
+                  style={{ minWidth: '9rem' }}
+                >
+                  <option value="">Not decided</option>
+                  <option value="studio">We set it</option>
+                  <option value="client">The client chooses</option>
+                </select>
+                {who === 'studio' && (
+                  <>
                 {v.kind === 'number' && (
                   <>
                     <input
@@ -982,9 +1050,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                     })}
                   </div>
                 )}
-                {current !== '' && (
-                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
+                    {current !== '' && (
+                      <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
+                    )}
+                  </>
                 )}
+                {who === 'client' && <span className="q-meta-sm">Asked when they book.</span>}
               </div>
             </div>
           );

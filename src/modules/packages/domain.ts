@@ -108,6 +108,20 @@ async function listPriceOf(orgId: string, packageId: string) {
  * `roleName` is offered alongside `roleId` so a task can name a role the studio
  * has not created yet, which is find-or-created like every other name here.
  */
+/**
+ * One variable, and what this package does with it.
+ *
+ * `studio` carries a value the package fixes. `client` carries none, because
+ * the whole content of that decision is that the answer is not the studio's to
+ * give. A variable this list does not mention at all is one nobody has decided
+ * about, and it is asked of no one.
+ */
+export type PackageVariableWrite = {
+  serviceVariableId: string;
+  answeredBy?: 'studio' | 'client';
+  value?: unknown;
+};
+
 export type PackageTaskWrite = {
   id?: string;
   serviceId?: string;
@@ -287,12 +301,37 @@ async function replaceBundleLinks(
  * A variable the package says nothing about is deliberately open — it stays a
  * question for the client rather than part of the offer.
  */
+/**
+ * What a package does with each variable its services declare.
+ *
+ * TWO CLASSES, AND SAYING WHICH. A package either fixes a value — two outfits,
+ * four hours, and that is part of the offer — or it deliberately leaves the
+ * answer to the client and the question is asked at booking. Both are
+ * decisions. Only the first used to be recorded; "open to the client" was
+ * inferred from the absence of a fixed value, so a deliberate question and a
+ * variable nobody had got round to were indistinguishable.
+ *
+ * That absence had teeth. Because every unfixed variable was asked, declaring a
+ * variable on a service instantly added a question to the public booking form
+ * of every package built on it — a studio adding "outfits" while building its
+ * Deluxe package changed what its Basic package asks strangers.
+ *
+ * So a row is written for either decision, and no row means no decision. An
+ * undecided variable is asked of nobody: an unfinished package rather than a
+ * question by default.
+ */
 async function writePackageVariableValues(
   orgId: string,
   rows: { id: string; service_id: string }[],
-  values?: { serviceVariableId: string; value: unknown }[]
+  values?: PackageVariableWrite[]
 ) {
-  const wanted = (values || []).filter((v) => v.serviceVariableId && v.value !== undefined && v.value !== null);
+  const wanted = (values || []).filter((v) => {
+    if (!v.serviceVariableId) return false;
+    // A studio answer needs a value; a client answer is the absence of one, on
+    // purpose, and the check constraint on the table says the same thing.
+    if (v.answeredBy === 'client') return true;
+    return v.value !== undefined && v.value !== null && v.value !== '';
+  });
 
   let links: Record<string, unknown>[] = [];
   if (wanted.length > 0) {
@@ -305,12 +344,14 @@ async function writePackageVariableValues(
     links = wanted.flatMap((v) => {
       const serviceId = serviceOfVariable.get(v.serviceVariableId);
       if (!serviceId) throw new Error('That option belongs to a service this package does not include.');
-      // Every bundle row of that service, so bundling it twice fixes both.
+      const asked = v.answeredBy === 'client';
+      // Every bundle row of that service, so bundling it twice decides both.
       return rows.filter((r) => r.service_id === serviceId).map((r) => ({
         organization_id: orgId,
         package_service_id: r.id,
         service_variable_id: v.serviceVariableId,
-        value: v.value,
+        value: asked ? null : v.value,
+        answered_by: asked ? 'client' : 'studio',
       }));
     });
   }
@@ -454,7 +495,7 @@ export async function createPackage(input: {
    */
   workflows?: { serviceId: string; workflowId: string }[];
   /** What this package fixes — 2 outfits, 5 edited images. Keyed by service_variable id. */
-  variableValues?: { serviceVariableId: string; value: unknown }[];
+  variableValues?: PackageVariableWrite[];
   /**
    * How this package narrows what it bundles — each value paired with the
    * bundled service it applies to.
@@ -568,7 +609,7 @@ export async function updatePackage(input: {
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
-  variableValues?: { serviceVariableId: string; value: unknown }[];
+  variableValues?: PackageVariableWrite[];
   /**
    * How this package narrows what it bundles — each value paired with the
    * bundled service it applies to.
@@ -907,7 +948,7 @@ const PACKAGE_SELECT = `
   ),
   package_service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
   package_deliverables(quantity, spec_values, deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)),
-  package_variable_values(value, variable:service_variables(id, service_id, key, label, unit, kind)),
+  package_variable_values(value, answered_by, variable:service_variables(id, service_id, key, label, unit, kind)),
   package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active))
 `;
 
@@ -971,6 +1012,7 @@ function shapePackage(p: any) {
           serviceVariableId: pv.variable.id, serviceId: pv.variable.service_id,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
+          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
         })),
       tasks: (ps.package_tasks || [])
         .sort((a: any, b: any) => a.position - b.position)
@@ -991,6 +1033,7 @@ function shapePackage(p: any) {
           serviceVariableId: pv.variable.id, serviceId: pv.variable.service_id,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
+          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
         }))
     ),
   };
@@ -1167,9 +1210,16 @@ export async function getPackage(packageId: string) {
  * Public-safe: takes an explicit org and never touches a session, because the
  * storefront calls it.
  */
+/**
+ * What this package asks the client, and nothing else.
+ *
+ * This used to be "everything not fixed", which quietly meant every variable
+ * the studio had not yet thought about. Now it is what the studio deliberately
+ * left to the client.
+ */
 export async function getOpenVariablesForPackagePublic(orgId: string, packageId: string) {
   const all = await getPackageVariablesPublic(orgId, packageId);
-  return all.filter((v) => !v.fixed);
+  return all.filter((v) => v.asked);
 }
 
 /**
@@ -1188,7 +1238,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     .from('package_services')
     .select(`
       service:services(id, name, service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position)),
-      package_variable_values(service_variable_id)
+      package_variable_values(service_variable_id, answered_by)
     `)
     .eq('package_id', packageId)
     .eq('organization_id', orgId)
@@ -1199,7 +1249,9 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
   for (const row of ((rows || []) as any[])) {
     const service = row.service;
     if (!service) continue;
-    const fixedIds = new Set(((row.package_variable_values || []) as any[]).map((f) => f.service_variable_id));
+    const decided = new Map(
+      ((row.package_variable_values || []) as any[]).map((f) => [f.service_variable_id, f.answered_by as string]),
+    );
     for (const v of (service.service_variables || [])) {
       all.push({
         id: v.id,
@@ -1214,7 +1266,11 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
         min: v.min_value ?? null,
         max: v.max_value ?? null,
         position: v.position ?? 0,
-        fixed: fixedIds.has(v.id),
+        fixed: decided.get(v.id) === 'studio',
+        // Asked only where the package said so. A variable nobody has decided
+        // about is not a question — that inference is what let a new variable
+        // appear on every live booking form the moment it was declared.
+        asked: decided.get(v.id) === 'client',
       });
     }
   }
