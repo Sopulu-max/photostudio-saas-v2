@@ -245,7 +245,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * That second case is not hypothetical: the edit page passed no price for
    * months, so opening any package and pressing Save wiped what it sold for
    * while showing the operator nothing at all. Same rule as the workflow, the
-   * variables and the intake questions — undefined is "not mine to speak for".
+   * variables and the booking form — undefined is "not mine to speak for".
    */
   const wasGivenPrice = initial.price != null;
   /*
@@ -1055,7 +1055,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                     )}
                   </>
                 )}
-                {who === 'client' && <span className="q-meta-sm">Asked when they book.</span>}
+                {/* Named for where it ends up, because that is the thing a
+                    studio is deciding: this variable becomes a field on the
+                    booking form. */}
+                {who === 'client' && <span className="q-meta-sm">A field on the booking form.</span>}
               </div>
             </div>
           );
@@ -1625,18 +1628,54 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       {/*
-        * Intake questions, inside the form that saves them.
+        * THE BOOKING FORM, WHICH IS WHAT THIS ALWAYS WAS.
         *
-        * Only when this form was given them — a caller that does not pass
-        * questions is not editing them, and a form that reports on what it was
+        * Called "Intake questions", it read as a small extra at the foot of a
+        * package. It is not: this is where a studio builds the form a client
+        * fills in, and half of that form was being built somewhere else
+        * entirely — every variable a package leaves to the client is a field on
+        * it, typed, with its own unit and options.
+        *
+        * Two mechanisms, one idea. They are not merged here — that is a
+        * structural change and this is not it — but the studio is shown the
+        * whole form in one place rather than being left to work out that the
+        * variables it set three sections up are half of what a client will see.
+        *
+        * The fields from variables are read-only here, and say where they are
+        * set. Two places to change one field is how they come to disagree.
+        *
+        * Only when this form was given the questions — a caller that does not
+        * pass them is not editing them, and a form that reports on what it was
         * never given deletes it.
         */}
       {questions !== undefined && (
         <div className="q-card q-section">
-          <h2 className="q-section-title">{heading(4, 'Intake questions')}</h2>
+          <h2 className="q-section-title">{heading(4, 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
-            What a client is asked when booking this package, beyond what its services already vary by.
+            What a client fills in when they book this package.
           </p>
+
+          {(() => {
+            const bundled = allServices.filter((x) => serviceIds.includes(x.id));
+            const asked = bundled.flatMap((x) =>
+              (allVariables.filter((v) => v.serviceId === x.id) as any[])
+                .filter((v) => answeredBy[v.id] === 'client')
+                .map((v) => ({ v, from: x.name })));
+
+            if (asked.length === 0) return null;
+            return (
+              <div className="q-stack q-stack-sm" style={{ marginBottom: '20px' }}>
+                <span className="q-eyebrow">From the services</span>
+                {asked.map(({ v, from }) => (
+                  <div key={v.id} className="q-row q-row-between q-tile">
+                    <span className="q-meta-plain">{v.label}</span>
+                    <span className="q-meta-sm">{bundled.length > 1 ? `${from} · ` : ''}set above</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           <QuestionEditor
             packageId={packageId || ''}
             questions={questions as any}

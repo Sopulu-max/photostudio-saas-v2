@@ -277,10 +277,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
         </Section>
 
-        {/* What the client told us — answers to the service's intake questions */}
+        {/* What the client filled in. Named after the form it came from, so the
+            thing a studio builds and the thing it reads back carry one name. */}
         {intake.length > 0 && (
           <Section
-            title="Intake answers"
+            title="Booking form answers"
             summary={`${intake.length} answered`}
           >
             <div className="q-stack q-stack-sm">
