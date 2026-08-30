@@ -866,6 +866,20 @@ body {
  * Not the accent, though. The price owns the one colour on the card, and two
  * things competing for it is how an accent stops meaning anything.
  */
+/*
+ * The same count, one level down the page.
+ *
+ * Still set apart from the words it counts — that is the whole point of it —
+ * but not competing with the headings above it or with the collated list it is
+ * a breakdown of.
+ */
+.q-count-sm {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--q-color-ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
 .q-lead-num {
   font-size: 1.3rem;
   font-weight: 650;

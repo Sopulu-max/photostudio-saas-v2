@@ -202,7 +202,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                             <div className="q-grid-cards">
                               {promised.map((d: any) => (
                                 <div key={d.id} className="q-tile">
-                                  <div><Counted text={formatDeliverable(d)} /></div>
+                                  <div><Counted text={formatDeliverable(d)} small /></div>
                                 </div>
                               ))}
                             </div>
