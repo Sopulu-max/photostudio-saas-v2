@@ -112,7 +112,11 @@ export function PackagesClient({
           */}
         <div
           className={pkg.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
-          style={pkg.cover_url ? { backgroundImage: `url(${pkg.cover_url})` } : undefined}
+          // The focal point is a fact about this picture, so it travels with it
+          // rather than living in a stylesheet that knows nothing about either.
+          style={pkg.cover_url
+            ? { backgroundImage: `url(${pkg.cover_url})`, backgroundPosition: pkg.cover_position || undefined }
+            : undefined}
         >
           {!pkg.cover_url && (
             <span className="q-cover-initial">{(pkg.name || '?').trim().charAt(0).toUpperCase()}</span>

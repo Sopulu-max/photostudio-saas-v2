@@ -41,7 +41,12 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       <Link
         href={`/packages/${pkg.id}/edit`}
         className={(pkg as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
-        style={(pkg as any).cover_url ? { backgroundImage: `url(${(pkg as any).cover_url})` } : undefined}
+        style={(pkg as any).cover_url
+          ? {
+              backgroundImage: `url(${(pkg as any).cover_url})`,
+              backgroundPosition: (pkg as any).cover_position || undefined,
+            }
+          : undefined}
         title={(pkg as any).cover_url ? 'Change the cover' : 'Add a cover'}
       >
         {!(pkg as any).cover_url && <span className="q-meta-sm">Add a cover</span>}

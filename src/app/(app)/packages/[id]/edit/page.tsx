@@ -81,6 +81,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             // opened every package with an empty price box.
             price: (pkg as any).price,
             coverUrl: (pkg as any).cover_url ?? null,
+            coverPosition: (pkg as any).cover_position ?? null,
             durationMinutes: (pkg as any).duration_minutes,
             serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
             // Read back off each bundled service, which is where they are held.

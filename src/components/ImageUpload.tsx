@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getStudioAssetUploadTarget, getPublicUrlForStudioAsset } from '@/kernel/organizations';
 import { prepareImage, readableBytes } from './prepareImage';
@@ -32,6 +32,20 @@ import { prepareImage, readableBytes } from './prepareImage';
  * browser and says nothing once dismissed; the message belongs under the
  * control it is about.
  *
+ * IT CAN BE DRAGGED INTO POSITION. A cover is drawn 16:9 on a card and 3:1
+ * across a page, and almost no photograph is either of those shapes — so
+ * something is always cropped away, and a centred crop is right only by
+ * accident. A portrait framed the way portraits are framed loses the face
+ * first, which is the one thing on it that mattered.
+ *
+ * The drag tracks the pointer exactly rather than approximately, which is the
+ * difference between placing a photograph and fighting one. That needs the
+ * image's real dimensions: under background-size: cover the picture is scaled
+ * to the larger of the two ratios, and what hangs outside the frame — the
+ * overflow — is the whole of what a drag can move. A pixel of pointer is a
+ * pixel of overflow, so an axis with nothing hanging over does not move at all,
+ * which is also correct.
+ *
  * NOTHING IS REFUSED FOR BEING LARGE. This used to turn away anything over 5MB
  * — a number nothing required, since the buckets carry no size limit at all,
  * invented in one component and copied into the next two. A studio exporting
@@ -48,6 +62,8 @@ export function ImageUpload({
   label = 'image',
   aspect = '16 / 9',
   maxEdge,
+  position,
+  onPositionChange,
   disabled,
 }: {
   url: string | null;
@@ -67,12 +83,83 @@ export function ImageUpload({
    * pixel past what a screen can resolve is bytes spent on detail nobody sees.
    */
   maxEdge?: number;
+  /** A CSS background-position. Absent or null means centred. */
+  position?: string | null;
+  /**
+   * Given when the picture may be dragged into place.
+   *
+   * Its presence is what turns the frame into a drag surface, so a caller with
+   * nowhere to store a position simply gets a picture that cannot be moved
+   * rather than one that moves and forgets.
+   */
+  onPositionChange?: (position: string) => void;
   disabled?: boolean;
 }) {
   const inputId = useId();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+
+  const frame = useRef<HTMLDivElement | null>(null);
+  const natural = useRef<{ w: number; h: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const [live, setLive] = useState<string | null>(null);
+  const movable = Boolean(url && onPositionChange && !disabled);
+
+  // The picture's own dimensions, which are what a cover crop is computed from.
+  useEffect(() => {
+    natural.current = null;
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => { natural.current = { w: img.naturalWidth, h: img.naturalHeight }; };
+    img.src = url;
+  }, [url]);
+
+  const shown = live ?? position ?? '50% 50%';
+  const parse = (p: string) => {
+    const [x, y] = p.split(/\s+/);
+    return { x: parseFloat(x) || 50, y: parseFloat(y ?? x) || 50 };
+  };
+
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!movable) return;
+    const at = parse(shown);
+    drag.current = { x: e.clientX, y: e.clientY, px: at.x, py: at.y };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const box = frame.current?.getBoundingClientRect();
+    const nat = natural.current;
+    if (!d || !box || !nat) return;
+
+    /*
+     * background-size: cover scales to the LARGER ratio, so exactly one axis
+     * usually overflows. What hangs outside is the whole of what a drag can
+     * move, and a percentage position is a fraction of precisely that — so
+     * dividing the pointer delta by the overflow makes the picture keep pace
+     * with the pointer instead of drifting behind or racing ahead.
+     */
+    const scale = Math.max(box.width / nat.w, box.height / nat.h);
+    const overX = nat.w * scale - box.width;
+    const overY = nat.h * scale - box.height;
+
+    // Dragging right shows more of the LEFT of the picture, which is a smaller
+    // percentage — hence the subtraction.
+    const x = overX > 0.5 ? d.px - ((e.clientX - d.x) / overX) * 100 : d.px;
+    const y = overY > 0.5 ? d.py - ((e.clientY - d.y) / overY) * 100 : d.py;
+    const clamp = (n: number) => Math.max(0, Math.min(100, n));
+    setLive(`${clamp(x).toFixed(1)}% ${clamp(y).toFixed(1)}%`);
+  };
+
+  // Told once, at the end. A position saved on every pointer move would be one
+  // write per frame of a drag.
+  const endDrag = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    if (live && onPositionChange) onPositionChange(live);
+  };
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -108,21 +195,51 @@ export function ImageUpload({
 
   return (
     <div className="q-stack q-stack-sm">
-      <label
-        htmlFor={inputId}
-        className={url ? 'q-imagepick q-imagepick-filled' : 'q-imagepick'}
-        style={{ aspectRatio: aspect, backgroundImage: url ? `url(${url})` : undefined }}
-      >
-        {!url && <span className="q-meta-sm">{busy ? 'Uploading…' : `Add a ${label}`}</span>}
-        <input
-          id={inputId}
-          type="file"
-          accept="image/*"
-          className="q-visually-hidden"
-          disabled={disabled || busy}
-          onChange={pick}
+      {/*
+        * A frame that is a label while empty and a drag surface once filled.
+        *
+        * They cannot be the same element: a label opens the file dialog on
+        * click, and a drag ends in a click. So once there is a picture to
+        * place, choosing a different one moves to the Replace control below and
+        * the frame's whole job is placing this one.
+        */}
+      {movable ? (
+        <div
+          ref={frame}
+          className="q-imagepick q-imagepick-filled q-imagepick-movable"
+          style={{ aspectRatio: aspect, backgroundImage: `url(${url})`, backgroundPosition: shown }}
+          onPointerDown={startDrag}
+          onPointerMove={onDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          title="Drag the picture to choose what shows"
         />
-      </label>
+      ) : (
+        <label
+          htmlFor={inputId}
+          className={url ? 'q-imagepick q-imagepick-filled' : 'q-imagepick'}
+          style={{
+            aspectRatio: aspect,
+            backgroundImage: url ? `url(${url})` : undefined,
+            backgroundPosition: url ? shown : undefined,
+          }}
+        >
+          {!url && <span className="q-meta-sm">{busy ? 'Uploading…' : `Add a ${label}`}</span>}
+        </label>
+      )}
+
+      {/* Outside both, so the control the label points at survives the frame
+          changing from one to the other. */}
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        className="q-visually-hidden"
+        disabled={disabled || busy}
+        onChange={pick}
+      />
+
+      {movable && <span className="q-meta-sm">Drag the picture to choose what shows.</span>}
 
       {url && onCleared && (
         <div className="q-row q-row-sm">

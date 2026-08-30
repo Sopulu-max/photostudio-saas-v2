@@ -111,6 +111,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     durationMinutes?: number | null;
     /** Public URL of the cover image, when this form is being shown it. */
     coverUrl?: string | null;
+    /** Where that cover is looking, as a CSS background-position. */
+    coverPosition?: string | null;
     /**
      * What it sells for, in the module's normalised shape.
      *
@@ -255,6 +257,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const [coverUrl, setCoverUrl] = useState<string | null | undefined>(initial.coverUrl);
   const [coverProblem, setCoverProblem] = useState<string | null>(null);
+  const [coverPosition, setCoverPosition] = useState<string | null | undefined>(initial.coverPosition);
 
   /*
    * A picture saves itself; a field waits for Save.
@@ -271,14 +274,27 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const applyCover = (next: string | null) => {
     setCoverUrl(next ?? '');
+    // A new picture is a new crop. Carrying the old one over would place the
+    // next photograph by where the last one happened to be looking.
+    setCoverPosition(next ? null : null);
     setCoverProblem(null);
+    saveCover({ coverUrl: next, coverPosition: null });
+  };
+
+  const applyCoverPosition = (next: string) => {
+    setCoverPosition(next);
+    setCoverProblem(null);
+    saveCover({ coverPosition: next });
+  };
+
+  const saveCover = (patch: { coverUrl?: string | null; coverPosition?: string | null }) => {
     if (mode !== 'edit' || !packageId) return;
     startTransition(async () => {
       try {
         const { updatePackage } = await import('@/modules/packages/interface');
-        // Only the cover. Every other field is absent, and absent means leave
+        // Only what changed. Every other field is absent, and absent means leave
         // it alone — the same rule that keeps this from erasing the price.
-        await updatePackage({ packageId, coverUrl: next });
+        await updatePackage({ packageId, ...patch });
       } catch (e: any) {
         setCoverProblem(e?.message || 'The cover could not be saved.');
       }
@@ -600,6 +616,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         ? { base_price: Number(priceAmount), currency: currencyCode }
         : (wasGivenPrice ? null : undefined),
       coverUrl: coverUrl === undefined ? undefined : (coverUrl || null),
+      coverPosition: coverPosition === undefined ? undefined : (coverPosition || null),
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -1225,6 +1242,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 maxEdge={2400}
                 onUploaded={(u) => applyCover(u)}
                 onCleared={() => applyCover(null)}
+                position={coverPosition}
+                onPositionChange={applyCoverPosition}
               />
               {coverProblem && <span className="q-meta-sm q-text-danger">{coverProblem}</span>}
               {mode === 'edit' && <span className="q-meta-sm">Saved as soon as it is chosen.</span>}

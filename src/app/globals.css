@@ -773,6 +773,15 @@ body {
 
 .q-text-danger { color: var(--q-color-danger); }
 .q-imagepick-filled { border-style: solid; border-color: var(--q-color-ink-200); }
+/*
+ * A frame you are placing a picture inside.
+ *
+ * grab rather than pointer, because this one does not go anywhere when pressed
+ * — and touch-action none so a drag on a phone moves the photograph instead of
+ * scrolling the page out from under it.
+ */
+.q-imagepick-movable { cursor: grab; touch-action: none; user-select: none; }
+.q-imagepick-movable:active { cursor: grabbing; }
 .q-imagepick:disabled { cursor: default; opacity: 0.6; }
 
 /*
