@@ -804,11 +804,35 @@ body {
  * inside a card that is itself one link it would promise a click it cannot
  * honour.
  */
+/*
+ * One row per question, and the answers lined up under one edge.
+ *
+ * As a wrapping strip these ran into each other: a group began wherever the
+ * last one ended, so the keys sat at a different x on every line, and when a
+ * dimension held four values the overflow hung under its own key with nothing
+ * to align to. Reading it meant finding each key first to know what the pills
+ * beside it were answering.
+ *
+ * A two column grid puts every key on one edge and every pill on another, so
+ * the questions can be read straight down and the answers straight across —
+ * and a dimension with four values simply wraps inside its own cell instead of
+ * spilling into the next question. The pills earned this: as plain text a
+ * fixed label column was still a wall, and it took making the values objects
+ * for the column to be worth drawing.
+ */
 .q-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+  gap: 7px 12px;
+  align-items: baseline;
+}
+/* The group is a grouping in the markup and nothing in the layout: its key and
+   its values are the two cells of the row. */
+.q-fact-group { display: contents; }
+.q-fact-values {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 14px;
-  align-items: baseline;
+  gap: 5px;
 }
 /*
  * One dimension and every answer it holds.
@@ -822,12 +846,7 @@ body {
  * The group is inline-flex so a dimension and its answers break as one unit:
  * "Occasion" never ends a line with its values orphaned on the next.
  */
-.q-fact-group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 5px;
-}
+
 /*
  * A PILL HOLDS ONE SHORT THING, OR IT STOPS BEING A PILL.
  *

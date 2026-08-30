@@ -62,14 +62,18 @@ export function BookingsClient({
         <div className="q-facts">
           <span className="q-fact-group">
             <span className="q-fact-key">Packages</span>
-            <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
-              {b.lineCount > 0 ? b.lineCount : 'None'}
+            <span className="q-fact-values">
+              <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
+                {b.lineCount > 0 ? b.lineCount : 'None'}
+              </span>
             </span>
           </span>
           <span className="q-fact-group">
             <span className="q-fact-key">Contract</span>
-            <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
-              {b.hasContract ? 'Raised' : 'None'}
+            <span className="q-fact-values">
+              <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
+                {b.hasContract ? 'Raised' : 'None'}
+              </span>
             </span>
           </span>
         </div>

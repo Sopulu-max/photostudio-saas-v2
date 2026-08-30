@@ -66,9 +66,11 @@ export function ServicesClient({
             {tags.map((d) => (
               <span key={d.id} className="q-fact-group">
                 <span className="q-fact-key">{d.name}</span>
-                {d.values.map((v) => (
-                  <span key={v.id} className="q-fact">{v.name}</span>
-                ))}
+                <span className="q-fact-values">
+                  {d.values.map((v) => (
+                    <span key={v.id} className="q-fact">{v.name}</span>
+                  ))}
+                </span>
               </span>
             ))}
           </div>

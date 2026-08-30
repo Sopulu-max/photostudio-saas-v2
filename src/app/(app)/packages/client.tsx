@@ -152,20 +152,29 @@ export function PackagesClient({
             {tags.map((d) => (
               <span key={d.id} className="q-fact-group">
                 <span className="q-fact-key">{d.name}</span>
-                {d.values.map((v) => (
-                  <span key={v.id} className="q-fact">{v.name}</span>
-                ))}
+                <span className="q-fact-values">
+                  {d.values.map((v) => (
+                    <span key={v.id} className="q-fact">{v.name}</span>
+                  ))}
+                </span>
               </span>
             ))}
             {fixed.map((v: any) => (
               <span key={v.serviceVariableId} className="q-fact-group">
                 <span className="q-fact-key">{v.label}</span>
-                <span className="q-fact">{formatVariableValue(v)}</span>
+                <span className="q-fact-values">
+                  <span className="q-fact">{formatVariableValue(v)}</span>
+                </span>
               </span>
             ))}
             {fixed.length === 0 && openVars.length > 0 && (
-              <span className="q-fact q-absent">
-                {openVars.length} {openVars.length === 1 ? 'variable' : 'variables'} asked at booking
+              <span className="q-fact-group">
+                <span className="q-fact-key">Variables</span>
+                <span className="q-fact-values">
+                  <span className="q-fact q-absent">
+                    {openVars.length} asked at booking
+                  </span>
+                </span>
               </span>
             )}
           </div>
