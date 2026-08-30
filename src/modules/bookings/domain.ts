@@ -885,14 +885,28 @@ export async function listBookings() {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, created_at,
-      stage:booking_stages(name, kind, color),
+      id, title, created_at, scheduled_for,
+      stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
       booking_lines(id),
       contracts(id, status),
       financial_transactions(id, amount, status, currency)
     `)
     .eq('organization_id', orgId)
+    /*
+     * WHEN THE WORK IS, NOT WHEN THE ROW WAS TYPED.
+     *
+     * This asked for created_at and did not ask for scheduled_for at all, so
+     * the bookings list could not show the date of a single booking and was
+     * ordered by the moment somebody opened the form. A studio scanning its
+     * bookings is asking what is coming up; the order answered a question
+     * nobody had.
+     *
+     * Nulls last, because a booking with no date yet is a real and ordinary
+     * state — that is what taking one with whatever you know means — and it
+     * belongs after the work that is actually scheduled rather than above it.
+     */
+    .order('scheduled_for', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -910,6 +924,7 @@ export async function listBookings() {
       id: b.id as string,
       title: b.title as string,
       createdAt: b.created_at as string,
+      scheduledFor: (b.scheduled_for ?? null) as string | null,
       stage: b.stage || null,
       clientName: b.contact?.display_name || null,
       lineCount: (b.booking_lines || []).length,

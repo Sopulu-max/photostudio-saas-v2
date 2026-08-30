@@ -1,13 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { stageBadgeClass } from '@/components/stageBadge';
-import { listClients } from '@/modules/clients/interface';
-import { listPackages } from '@/modules/packages/interface';
 import { listBookings } from '@/modules/bookings/interface';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
-import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from '../packages/StorefrontLink';
+import { BookingsClient } from './BookingsClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,19 +16,19 @@ export default async function BookingsPage() {
     redirect('/login');
   }
 
-  // Everything here comes through a module interface — this surface owns no queries.
-  const [bookings, clientRows, packageRows, currencyCode, org] = await Promise.all([
-    listBookings(), listClients(), listPackages(), getStudioCurrency(), getStudio(),
+  /*
+   * Everything here comes through a module interface — this surface owns no
+   * queries.
+   *
+   * It used to load every client and every package as well, shape both into
+   * option lists, and then render neither: a form that once stood on this page
+   * had gone, and its data went on being fetched. listPackages is the heavy
+   * nested read behind the whole packages catalogue, so every visit to
+   * Bookings was paying for the entire package graph in order to discard it.
+   */
+  const [bookings, currencyCode, org] = await Promise.all([
+    listBookings(), getStudioCurrency(), getStudio(),
   ]);
-  // Archived clients are not on offer for new work — same rule as retired packages below.
-  const clientOptions = clientRows
-    .filter((c: any) => c.status !== 'archived')
-    .map((c: any) => ({ id: c.contact?.id as string, name: c.contact?.display_name as string }))
-    .filter((c: { id: string }) => !!c.id);
-  // Retired packages are not on offer for new work.
-  const packageOptions = packageRows
-    .filter((p: any) => p.status !== 'retired')
-    .map((p: any) => ({ id: p.id as string, name: p.name as string }));
 
   return (
     <div>
@@ -41,11 +38,13 @@ export default async function BookingsPage() {
           <p className="q-page-subtitle">Every job, wherever it is. Start one with whatever you know — the rest fills in as you go.</p>
         </div>
         <div className="q-row">
-          <Link href="/bookings/settings" className="q-btn q-btn-secondary">Settings</Link>
-          <Link href="/bookings/new" className="q-btn q-btn-primary">+ New booking</Link>
+          {/* Named for what it holds, like every other header link. */}
+          <Link href="/bookings/settings" className="q-btn q-btn-secondary">Stages</Link>
+          <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       </header>
 
+      <div className="q-stack q-stack-lg">
       {/* Public booking link — always visible so the studio can share it */}
       {org?.slug && (
         <div className="q-card q-row q-row-between">
@@ -58,38 +57,15 @@ export default async function BookingsPage() {
       )}
 
       {(!bookings || bookings.length === 0) ? (
-        <div className="q-card" style={{ textAlign: 'center', padding: 'clamp(44px, 7vw, 76px) 24px', color: 'var(--q-color-ink-500)' }}>
-          No bookings yet. Start one from just a title — add the details as they come.
+        <div className="q-card q-empty-lg q-stack">
+          <h3 className="q-section-title">No bookings yet</h3>
+          <p className="q-meta">Start one from just a title — the details fill in as they come.</p>
+          <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-          {bookings.map((b) => (
-            <Link
-              key={b.id}
-              href={`/bookings/${b.id}`}
-              className="q-card q-card-interactive q-plain-link q-stack"
-              style={{ gap: '14px' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                <div>
-                  <h3 className="q-section-title">{b.title}</h3>
-                  <div className="q-meta">{b.clientName || 'No client yet'}</div>
-                </div>
-                <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage?.name}</span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 'auto' }}>
-                <span className="q-badge q-badge-neutral">{b.lineCount} {b.lineCount === 1 ? 'package' : 'packages'}</span>
-                {b.hasContract && <span className="q-badge q-badge-neutral">contract</span>}
-                {b.pendingTotal > 0 && (
-                  <span className="q-badge q-badge-warning">
-                    {formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)} due
-                  </span>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+        <BookingsClient bookings={bookings} currencyCode={currencyCode} />
       )}
+      </div>
     </div>
   );
 }

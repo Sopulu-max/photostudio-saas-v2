@@ -140,7 +140,7 @@ export function ServicesClient({
           read={(svc: any) => ({
             name: svc.name,
             description: svc.description,
-            domainName: svc.domain?.name ?? null,
+            facet: svc.domain?.name ?? null,
             tags: ((svc.dimensions || []) as ServiceDimensionTag[]).flatMap((d) =>
               d.values.map((v) => ({
                 dimensionId: d.id, dimensionName: d.name, valueId: v.id, valueName: v.name,

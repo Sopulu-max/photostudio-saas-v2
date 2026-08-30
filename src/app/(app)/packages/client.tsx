@@ -212,7 +212,7 @@ export function PackagesClient({
             description: pkg.description,
             // A package spanning two domains reads under both, which stays true
             // without anything having to decide which one it really belongs to.
-            domainName: (pkg.services || [])[0]?.domain?.name ?? null,
+            facet: (pkg.services || [])[0]?.domain?.name ?? null,
             tags: dimensionTags(pkg).flatMap((d) => d.values.map((v) => ({
               dimensionId: d.id, dimensionName: d.name, valueId: v.id, valueName: v.name,
             }))),

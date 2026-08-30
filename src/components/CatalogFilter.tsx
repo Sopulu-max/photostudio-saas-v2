@@ -5,7 +5,13 @@ import React, { useState } from 'react';
 export type CatalogFacets = {
   name: string;
   description?: string | null;
-  domainName?: string | null;
+  /**
+   * The one facet a thing has exactly one of — a service domain for a package,
+   * a stage for a booking. Named for what it does rather than for the first
+   * thing that used it, because the second caller narrows by something else
+   * entirely and the word domain would have lied there.
+   */
+  facet?: string | null;
   /** Flattened, because narrowing does not care which entity carried the value. */
   tags: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
 };
@@ -43,6 +49,7 @@ export function CatalogFilter<T>({
   items,
   read,
   noun,
+  facetLabel = 'domain',
   threshold = 8,
   children,
 }: {
@@ -50,17 +57,19 @@ export function CatalogFilter<T>({
   read: (item: T) => CatalogFacets;
   /** Singular; pluralised with an s for the count line. */
   noun: string;
+  /** What the single-select facet is called, for its own empty option. */
+  facetLabel?: string;
   threshold?: number;
   children: (shown: T[]) => React.ReactNode;
 }) {
   const [search, setSearch] = useState('');
-  const [domain, setDomain] = useState('');
+  const [facet, setFacet] = useState('');
   const [values, setValues] = useState<string[]>([]);
 
   if (items.length < threshold) return <>{children(items)}</>;
 
   const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
-  const domains = [...new Set([...facets.values()].map((f) => f.domainName).filter(Boolean))] as string[];
+  const facetValues = [...new Set([...facets.values()].map((f) => f.facet).filter(Boolean))] as string[];
 
   // Only dimensions this list actually carries, so the control describes the
   // catalogue in front of you rather than the studio's whole vocabulary.
@@ -81,16 +90,16 @@ export function CatalogFilter<T>({
   const needle = search.trim().toLowerCase();
   const shown = items.filter((item) => {
     const f = facets.get(item)!;
-    if (domain && f.domainName !== domain) return false;
+    if (facet && f.facet !== facet) return false;
     for (const [, chosen] of chosenByDimension) {
       if (!f.tags.some((t) => chosen.includes(t.valueId))) return false;
     }
     if (!needle) return true;
-    return [f.name, f.description, f.domainName, ...f.tags.map((t) => t.valueName)]
+    return [f.name, f.description, f.facet, ...f.tags.map((t) => t.valueName)]
       .some((field) => (field || '').toLowerCase().includes(needle));
   });
 
-  const narrowed = Boolean(needle) || Boolean(domain) || values.length > 0;
+  const narrowed = Boolean(needle) || Boolean(facet) || values.length > 0;
   const toggle = (valueId: string) =>
     setValues((prev) => prev.includes(valueId) ? prev.filter((v) => v !== valueId) : [...prev, valueId]);
 
@@ -100,15 +109,21 @@ export function CatalogFilter<T>({
         <div className="q-row q-row-sm">
           <input
             className="q-input"
-            placeholder={`Search ${noun}s by name, description or classification`}
+            /* Names only what is actually searchable here: bookings have no
+               classifications and a hint promising them would be a lie. */
+            placeholder={[
+              `Search ${noun}s by name`,
+              facetValues.length > 1 ? facetLabel : '',
+              dimensions.size > 0 ? 'classification' : '',
+            ].filter(Boolean).join(', ')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ flex: '1 1 18rem' }}
           />
-          {domains.length > 1 && (
-            <select className="q-select" value={domain} onChange={(e) => setDomain(e.target.value)}>
-              <option value="">Every domain</option>
-              {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+          {facetValues.length > 1 && (
+            <select className="q-select" value={facet} onChange={(e) => setFacet(e.target.value)}>
+              <option value="">Every {facetLabel}</option>
+              {facetValues.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           )}
         </div>
@@ -137,7 +152,7 @@ export function CatalogFilter<T>({
             </span>
             <button
               type="button" className="q-btn q-btn-secondary q-btn-xs"
-              onClick={() => { setSearch(''); setDomain(''); setValues([]); }}
+              onClick={() => { setSearch(''); setFacet(''); setValues([]); }}
             >
               Clear
             </button>
@@ -147,7 +162,7 @@ export function CatalogFilter<T>({
 
       {shown.length === 0 ? (
         <p className="q-empty">
-          No {noun} matches. Clear the filters, or the catalogue does not hold one like this yet.
+          No {noun} matches. Clear the filters, or nothing here is like this yet.
         </p>
       ) : children(shown)}
     </div>
