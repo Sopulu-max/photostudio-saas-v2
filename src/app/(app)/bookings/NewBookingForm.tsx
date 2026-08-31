@@ -430,7 +430,16 @@ export function NewBookingForm({
 
   return (
     <div className="q-stack q-stack-lg">
-      <div className="q-card q-section">
+      {/*
+        * The form assembles itself top to bottom.
+        *
+        * q-rise staggers by nth-child, so five sections arrive forty
+        * milliseconds apart — which is the difference between a page that
+        * appears and a page that leads. Lumen is described in this repo as
+        * motion-first; this vocabulary existed and one screen in the whole app
+        * used it.
+        */}
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">1. Date and client</h2>
         <div className="q-stack q-stack-md">
           {/*
@@ -447,12 +456,18 @@ export function NewBookingForm({
         </div>
       </div>
 
-      <div className="q-section">
+      <div className="q-section q-rise">
         <h2 className="q-section-title">2. Packages</h2>
         
         <div className="q-stack q-stack-lg">
           {lines.map((line, index) => (
-            <div key={line.id} className="q-card q-stack q-stack-md" style={{ position: 'relative' }}>
+            /*
+             * Keyed by the line's own id, so React animates the one that was
+             * added rather than replaying every card each time the list
+             * changes — an index key would restage the whole section on every
+             * keystroke that adds or removes a line.
+             */
+            <div key={line.id} className="q-card q-stack q-stack-md q-appear" style={{ position: 'relative' }}>
               {lines.length > 1 && (
                 <button
                   type="button"
@@ -474,7 +489,7 @@ export function NewBookingForm({
               
               {/* ── Step A: Choose a Domain ─────────────────── */}
               {!line.selectedDomain ? (
-                <div className="q-stack q-stack-sm">
+                <div key="domain" className="q-stack q-stack-sm q-swap">
                   <label className="q-label">Service domain</label>
                   {allDomains.length > 0 ? (
                     <div className="q-chip-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
@@ -508,7 +523,18 @@ export function NewBookingForm({
 
               /* ── Step B: Filter and Choose Package ── */
               ) : !line.packageId ? (
-                <div className="q-stack q-stack-sm">
+                /*
+                 * Each step replaces the last in the same box, so the eye needs
+                 * telling that the box changed rather than that the page did.
+                 * q-swap settles in from very slightly small — the truthful
+                 * animation for content BECOMING other content, where rising
+                 * would claim something new had arrived beneath it.
+                 *
+                 * Keyed by the step, so React remounts on the change and the
+                 * animation actually plays; without a changing key the same
+                 * element is reused and nothing moves.
+                 */
+                <div key="choose" className="q-stack q-stack-sm q-swap">
                   <div className="q-row q-row-between" style={{ alignItems: 'center', marginBottom: '8px' }}>
                     <span className="q-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <strong className="q-strong" style={{ color: 'var(--q-color-ink-900)' }}>{line.selectedDomain}</strong>
@@ -658,7 +684,7 @@ export function NewBookingForm({
 
               /* ── Step D: Configure the chosen Package ────────────── */
               ) : (
-                <div className="q-field">
+                <div key="configure" className="q-field q-swap">
                   <div className="q-row q-row-between" style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                     <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="q-badge q-badge-neutral">{line.selectedDomain}</span>
@@ -766,7 +792,7 @@ export function NewBookingForm({
         * package — a venue visit, an album collection — which previously had
         * nowhere to live at all.
         */}
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">3. Tasks</h2>
 
         {(() => {
@@ -889,7 +915,7 @@ export function NewBookingForm({
         * exists, because both are built FROM its packages — so both are raised
         * the moment it is saved, and both are editable on it afterwards.
         */}
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">4. Invoice</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
           Created as a draft with one line per package. Issue it when ready.
@@ -951,7 +977,7 @@ export function NewBookingForm({
         </div>
       </div>
 
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">5. Contract</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
           Uses your standard terms and the total for these packages. The wording can be edited on
@@ -974,7 +1000,7 @@ export function NewBookingForm({
         {/* Not clientId: a client typed in but not yet saved still becomes one
             on submit, and warning about that would be wrong. */}
         {!client && (
-          <p className="q-note q-note-warn q-meta">
+          <p className="q-note q-note-warn q-meta q-appear">
             A contract is an agreement with someone, so this needs a client. The booking will still
             be taken — add a client above, or raise the contract later from the booking itself.
           </p>

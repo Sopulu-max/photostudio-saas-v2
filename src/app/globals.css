@@ -1796,6 +1796,35 @@ body {
    inline delay per row, so the motion stays in the stylesheet with everything
    else. Past the eighth the remainder rise together — a board this long is
    being scrolled, not watched. Global prefers-reduced-motion cancels it. */
+/*
+ * ONE THING ARRIVING, RATHER THAN A LIST OF THEM.
+ *
+ * .q-rise below staggers a set — it reads as a page assembling itself, and its
+ * delays come from nth-child, so it only means anything among siblings that all
+ * arrive together. A note that appears because you left a field empty is not
+ * part of a set: it has arrived on its own, in the middle of something, and it
+ * needs to say so.
+ *
+ * Without this, conditional content in this app simply pops. The eye does not
+ * register a thing that was not there and now is, unless it moves — which is
+ * most of why a form full of appearing and disappearing sections reads as
+ * static and unguided even while it is changing constantly.
+ */
+.q-appear { animation: q-slide-up var(--q-dur-2) var(--q-ease) both; }
+
+/*
+ * The same, from where the pointer is rather than from below.
+ *
+ * For content that replaces content — a picker becoming the thing it picked.
+ * Rising would say "something new arrived below"; this says "this is what that
+ * became", which is the truthful animation for a swap.
+ */
+.q-swap { animation: q-swap-in var(--q-dur-2) var(--q-ease) both; }
+@keyframes q-swap-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
 .q-rise { animation: q-slide-up var(--q-dur-3) var(--q-ease) both; }
 .q-rise:nth-child(1) { animation-delay: 0ms; }
 .q-rise:nth-child(2) { animation-delay: 40ms; }
