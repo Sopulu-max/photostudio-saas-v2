@@ -732,9 +732,20 @@ export function NewBookingForm({
                   Remove
                 </button>
               )}
-              <h3 className="q-strong" style={{ marginBottom: '8px' }}>
-                {lines.length > 1 ? `Package ${index + 1}` : 'Package'}
-              </h3>
+              {/*
+                * ONLY WHEN IT DISTINGUISHES SOMETHING.
+                *
+                * A single-line booking read "2. Packages", then "Package", then
+                * "Package" again — three headings, the same word, with a
+                * collapsed filter between them. This one earns its place when
+                * there are several lines to tell apart and says nothing the
+                * section heading has not already said when there is one.
+                */}
+              {lines.length > 1 && (
+                <h3 className="q-strong" style={{ marginBottom: '8px' }}>
+                  Package {index + 1}
+                </h3>
+              )}
               
               {/*
                 * NO DOMAIN GATE. THE PACKAGES LEAD.
@@ -782,44 +793,8 @@ export function NewBookingForm({
                     * folded away with a count of what is active, and the packages
                     * themselves lead.
                     */}
-                  {allDimensions.length > 0 && (() => {
-                    const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
-                    return (
-                    <details className="q-stack q-stack-md" style={{ marginBottom: '24px' }} open={active > 0}>
-                      <summary className="q-strong" style={{ marginBottom: '4px', cursor: 'pointer' }}>
-                        Filter by classification{active > 0 ? ` · ${active} applied` : ''}
-                      </summary>
-                      <div className="q-grid-2" style={{ marginTop: '12px' }}>
-                        {allDimensions.map((d: any) => (
-                          <div key={d.id} className="q-field">
-                            <label className="q-label">{d.name}</label>
-                            <select
-                              className="q-select"
-                              value={line.selectedDimensionValues[d.id] || ''}
-                              onChange={(e) => {
-                                const newLines = [...lines];
-                                newLines[index].selectedDimensionValues = {
-                                  ...newLines[index].selectedDimensionValues,
-                                  [d.id]: e.target.value
-                                };
-                                setLines(newLines);
-                              }}
-                            >
-                              <option value="">Any</option>
-                              {d.values.map((v: any) => (
-                                <option key={v.id} value={v.id}>{v.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                    );
-                  })()}
-
                   {/* Matching Packages Stack */}
                   <div className="q-stack q-stack-md">
-                    <h4 className="q-strong" style={{ marginBottom: '8px' }}>Package</h4>
 
                     {/*
                       * THE SEARCH IS CatalogFilter'S; THE DIMENSIONS ABOVE ARE NOT.
@@ -849,6 +824,46 @@ export function NewBookingForm({
                       // spanning two is kept by either — the same shape the
                       // Packages catalogue reads.
                       facetLabel="domain"
+                      /*
+                        * Narrowing that belongs to this module, drawn inside
+                        * the filter's panel rather than as a second fold
+                        * stacked above it. See the note on CatalogFilter's
+                        * extra prop for why it cannot simply become tags.
+                        */
+                      extra={allDimensions.length > 0 && (() => {
+        const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
+        return (
+        <details className="q-stack q-stack-md" style={{ marginBottom: '24px' }} open={active > 0}>
+          <summary className="q-strong" style={{ marginBottom: '4px', cursor: 'pointer' }}>
+            Filter by classification{active > 0 ? ` · ${active} applied` : ''}
+          </summary>
+          <div className="q-grid-2" style={{ marginTop: '12px' }}>
+            {allDimensions.map((d: any) => (
+              <div key={d.id} className="q-field">
+                <label className="q-label">{d.name}</label>
+                <select
+                  className="q-select"
+                  value={line.selectedDimensionValues[d.id] || ''}
+                  onChange={(e) => {
+                    const newLines = [...lines];
+                    newLines[index].selectedDimensionValues = {
+                      ...newLines[index].selectedDimensionValues,
+                      [d.id]: e.target.value
+                    };
+                    setLines(newLines);
+                  }}
+                >
+                  <option value="">Any</option>
+                  {d.values.map((v: any) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </details>
+        );
+      })()}
                       read={(p: any) => ({
                         name: p.name,
                         description: p.description,

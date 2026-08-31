@@ -89,6 +89,7 @@ export function CatalogFilter<T>({
   threshold = 8,
   sorts,
   cap,
+  extra,
   children,
 }: {
   items: T[];
@@ -113,6 +114,21 @@ export function CatalogFilter<T>({
   sorts?: { key: string; label: string; compare: (a: T, b: T) => number }[];
   /** Most rows to draw at once. Unset means all of them, which is a catalogue. */
   cap?: number;
+  /*
+   * Narrowing this component cannot own, drawn inside its panel anyway.
+   *
+   * The booking form's classification selects are the case. They cannot be
+   * folded into this — they carry into the package that gets created, and they
+   * match by the open-narrowing rule where a package that never narrowed a
+   * dimension accepts any value of it, which is a statement about the ontology
+   * and not a set membership test. But being un-generalisable is not a reason
+   * to be somewhere else: they were rendered above the bar as a second fold, so
+   * the section had two separate narrowing instruments stacked on each other
+   * with a heading between them.
+   *
+   * So the caller keeps the logic and this keeps the surface.
+   */
+  extra?: React.ReactNode;
   children: (shown: T[], state: { query: string; narrowed: boolean; dense: boolean }) => React.ReactNode;
 }) {
   const [search, setSearch] = useState('');
@@ -305,6 +321,7 @@ export function CatalogFilter<T>({
             </div>
           );
         })}
+        {extra}
       </div>
 
       {/*
