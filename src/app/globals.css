@@ -2434,7 +2434,21 @@ body {
      "there is more that way" rather than as a card clipped inside a box. */
   margin-inline: calc(var(--q-card-pad) * -1);
   padding-inline: var(--q-card-pad);
-  padding-block-end: 10px;
+  /*
+   * ROOM FOR THE LIFT, above and below.
+   *
+   * overflow-x: auto does not leave overflow-y alone — CSS computes a visible
+   * axis to auto when the other one is not visible, so this is a scroll
+   * container in BOTH directions whether or not that was asked for. A card
+   * inside it lifts six pixels on hover with a shadow under it, and without
+   * this that lift is either clipped at the top edge or answered with a
+   * vertical scrollbar on a row that only scrolls sideways.
+   *
+   * The same failure as an entrance animation holding transform at animation
+   * priority: hover stops working, nothing looks broken, and there is nothing
+   * in the markup to say why.
+   */
+  padding-block: 8px 12px;
   scrollbar-width: thin;
 }
 .q-rail > * {
