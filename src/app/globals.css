@@ -70,7 +70,7 @@
   --q-shadow-glass: 0 20px 40px -12px rgba(26, 26, 29, 0.22), 0 6px 14px -8px rgba(26, 26, 29, 0.14);
   /* What an edge casts onto content passing beneath it. Deeper in the dark
      palette, where a wash of black is the only thing that reads as depth. */
-  --q-edge-shade:   rgba(26, 26, 29, 0.16);
+  --q-edge-shade:   rgba(26, 26, 29, 0.22);
 
   /* Jewel gradients (the app launcher) */
   --q-jewel-indigo:  linear-gradient(150deg, #4B57E6, #2A2F9E);
@@ -152,7 +152,7 @@
   --q-shadow-md:    0 6px 16px -6px rgba(0, 0, 0, 0.55), 0 2px 5px -3px rgba(0, 0, 0, 0.5);
   --q-shadow-lg:    0 16px 32px -10px rgba(0, 0, 0, 0.6), 0 4px 10px -6px rgba(0, 0, 0, 0.5);
   --q-shadow-glass: 0 20px 40px -12px rgba(0, 0, 0, 0.7), 0 6px 14px -8px rgba(0, 0, 0, 0.5);
-  --q-edge-shade:   rgba(0, 0, 0, 0.5);
+  --q-edge-shade:   rgba(0, 0, 0, 0.62);
 }
 
 body {
@@ -2552,14 +2552,34 @@ body {
      the rail scrolls inside it. */
   margin-inline: calc(var(--q-card-pad) * -1);
 }
+/*
+ * TWO STRIPS, NOT AN INSET SHADOW.
+ *
+ * The first attempt used inset box-shadow, whose visible result is the product
+ * of an offset, a blur and a negative spread interacting — arithmetic that is
+ * hard to predict and, at these values, produced a gradient so faint that
+ * neither edge read at all. Rendered on the real page it looked like nothing
+ * had been added.
+ *
+ * A gradient strip per side says the same thing and says it explicitly: this
+ * many pixels, this dark at the edge, fading to nothing inward. Both sides,
+ * always, because it is the FRAME casting — not a claim about how far the rail
+ * happens to be scrolled.
+ */
+.q-rail-frame::before,
 .q-rail-frame::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset-block: 0;
+  inline-size: 30px;
   pointer-events: none;
-  /* Spread pulled fully back so each side casts inward only, and neither
-     bleeds across a narrow rail to meet the other. */
-  box-shadow:
-    inset 16px 0 16px -16px var(--q-edge-shade),
-    inset -16px 0 16px -16px var(--q-edge-shade);
+  z-index: 2;
+}
+.q-rail-frame::before {
+  inset-inline-start: 0;
+  background: linear-gradient(to right, var(--q-edge-shade), transparent);
+}
+.q-rail-frame::after {
+  inset-inline-end: 0;
+  background: linear-gradient(to left, var(--q-edge-shade), transparent);
 }
