@@ -138,6 +138,52 @@ describe('A dimension says what follows from its answers', () => {
     expect(second?.dimensionId ?? second?.id).toBeTruthy();
   });
 
+  it('is one question the whole studio reuses, values and declarations included', async () => {
+    /*
+     * WHAT REUSE ACTUALLY CARRIES.
+     *
+     * A second domain asking Occasion does not get a second Occasion. It gets
+     * THE Occasion — the same row, so the same answers, and the same
+     * declarations of what follows from them. That is the whole difference
+     * between a question owned by the studio and one owned by a kind of work:
+     * a studio that starts filming birthdays does not retype the list of
+     * occasions, nor re-declare that an occasion has a date.
+     *
+     * It also keeps its wording. Adopting a question does not overwrite what
+     * the studio wrote when it first asked it.
+     */
+    const { data: videography } = await supabaseAdmin
+      .from('service_domains')
+      .insert({ organization_id: TEST_ORG_ID, name: 'Videography' })
+      .select('id').single();
+
+    const adopted: any = await createDimension({
+      serviceDomainId: videography!.id,
+      name: 'Occasion',
+      question: 'Something else entirely',
+    });
+    const adoptedId = adopted?.dimensionId ?? adopted?.id;
+
+    expect(adoptedId, 'adopting a question made a second one instead').toBe(occasionId);
+
+    const { data: row } = await supabaseAdmin
+      .from('dimensions').select('question').eq('id', occasionId).single();
+    expect(
+      row!.question,
+      'adopting a question overwrote the wording the studio gave it',
+    ).toBe('What occasion is it for?');
+
+    // Both domains ask it, and there is still exactly one of it.
+    const { data: asks } = await supabaseAdmin
+      .from('service_domain_dimensions').select('service_domain_id').eq('dimension_id', occasionId);
+    expect((asks || []).length).toBe(2);
+
+    const { count: copies } = await supabaseAdmin
+      .from('dimensions').select('id', { count: 'exact', head: true })
+      .eq('organization_id', TEST_ORG_ID).eq('name', 'Occasion');
+    expect(copies, 'the studio ended up with two questions of one name').toBe(1);
+  });
+
   it('declares the date on the question rather than on any one package', async () => {
     const declared = await declareDimensionVariable({
       dimensionId: occasionId,
