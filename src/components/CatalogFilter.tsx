@@ -86,6 +86,7 @@ export function CatalogFilter<T>({
   noun,
   facetLabel = 'domain',
   kind = 'picker',
+  views,
   threshold = 8,
   sorts,
   cap,
@@ -103,6 +104,19 @@ export function CatalogFilter<T>({
    * form, where the same bar is in the way, so it keeps the size threshold.
    */
   kind?: 'catalogue' | 'picker';
+  /*
+   * Whether to offer Cards or List.
+   *
+   * kind was deciding four things at once — the size threshold, the panel, the
+   * count, and this — and they do not always travel together. The booking
+   * form's package catalogue wants the first three: it is browsed, it says what
+   * it holds, and its controls are an instrument worth giving a surface to. But
+   * it draws its results as a rail, which spends the same width on every card
+   * whatever this says, so offering the switch would be offering a control that
+   * does nothing. Defaults to whatever kind implies; said explicitly when it
+   * differs.
+   */
+  views?: boolean;
   /** Pickers only: below this many, the bar is furniture and does not draw. */
   threshold?: number;
   /**
@@ -144,6 +158,7 @@ export function CatalogFilter<T>({
   const [dense, setDense] = useState(false);
 
   const catalogue = kind === 'catalogue';
+  const offerViews = views ?? catalogue;
   if (!catalogue && items.length < threshold) {
     return <>{children(items, { query: '', narrowed: false, dense: false })}</>;
   }
@@ -257,7 +272,7 @@ export function CatalogFilter<T>({
               {sorts.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           )}
-          {catalogue && (
+          {offerViews && (
             /* Two ways to look at the same list: recognise one thing, or
                compare many. The list does not change, only how much of each
                item it spends the width on. */

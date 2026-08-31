@@ -778,6 +778,24 @@ export function NewBookingForm({
                     <CatalogFilter
                       items={filteredPackages}
                       noun="package"
+                      /*
+                        * A CATALOGUE, NOW THAT IT IS ONE.
+                        *
+                        * It was a picker because it used to sit inside a booking
+                        * line, where a recessed panel around one control would
+                        * have read as a fieldset nobody asked for. It no longer
+                        * sits inside anything: it is the studio catalogue, under
+                        * the section heading, browsed. So it takes the panel the
+                        * other catalogues take — which is what separates the
+                        * instrument from the results, and what puts the filter in
+                        * its own block with the rail as a block below it.
+                        *
+                        * Without the view switch: the results are a rail, which
+                        * spends the same width on every card whatever Cards or
+                        * List says, so the control would do nothing.
+                        */
+                      kind="catalogue"
+                      views={false}
                       // Always drawn: this is the step, not an aid to it.
                       threshold={0}
                       // Every domain this package's services come from, so one
