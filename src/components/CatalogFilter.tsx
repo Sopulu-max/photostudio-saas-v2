@@ -6,12 +6,21 @@ export type CatalogFacets = {
   name: string;
   description?: string | null;
   /**
-   * The one facet a thing has exactly one of — a service domain for a package,
-   * a stage for a booking. Named for what it does rather than for the first
-   * thing that used it, because the second caller narrows by something else
-   * entirely and the word domain would have lied there.
+   * What this thing files under — a service domain for a package, a stage for
+   * a booking. Named for what it does rather than for the first thing that
+   * used it, because the second caller narrows by something else entirely and
+   * the word domain would have lied there.
+   *
+   * ONE OR SEVERAL, because some things genuinely are both. This said "the one
+   * facet a thing has exactly one of", and a package is the counter-example
+   * sitting in the same repository: it bundles services, and those services can
+   * come from different domains, so a package of Event Photography and Event
+   * Videography belongs to Photography AND Videography. The catalogue's own
+   * note claimed such a package "reads under both" while the line beneath it
+   * passed services[0].domain.name — the first one, whichever that happened to
+   * be — so filtering by Videography hid it.
    */
-  facet?: string | null;
+  facet?: string | string[] | null;
   /** Flattened, because narrowing does not care which entity carried the value. */
   tags: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
 };
@@ -124,7 +133,10 @@ export function CatalogFilter<T>({
   }
 
   const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
-  const facetValues = [...new Set([...facets.values()].map((f) => f.facet).filter(Boolean))] as string[];
+  /** One or several, flattened — a thing filing under two offers both. */
+  const facetsOf = (f: CatalogFacets): string[] =>
+    (Array.isArray(f.facet) ? f.facet : [f.facet]).filter(Boolean) as string[];
+  const facetValues = [...new Set([...facets.values()].flatMap(facetsOf))].sort();
 
   // Only dimensions this list actually carries, so the control describes the
   // catalogue in front of you rather than the studio's whole vocabulary.
@@ -154,12 +166,14 @@ export function CatalogFilter<T>({
   const needle = search.trim().toLowerCase();
   const shown = items.filter((item) => {
     const f = facets.get(item)!;
-    if (facet && f.facet !== facet) return false;
+    // Files under the chosen one, not IS the chosen one: a package spanning two
+    // domains is kept by either.
+    if (facet && !facetsOf(f).includes(facet)) return false;
     for (const [, chosen] of chosenByDimension) {
       if (!f.tags.some((t) => chosen.includes(t.valueId))) return false;
     }
     if (!needle) return true;
-    return [f.name, f.description, f.facet, ...f.tags.map((t) => t.valueName)]
+    return [f.name, f.description, ...facetsOf(f), ...f.tags.map((t) => t.valueName)]
       .some((field) => (field || '').toLowerCase().includes(needle));
   });
 

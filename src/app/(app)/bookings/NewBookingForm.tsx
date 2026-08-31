@@ -122,7 +122,6 @@ export function NewBookingForm({
   
   type LineState = {
     id: string;
-    selectedDomain: string;
     packageId: string;
     customName?: string;
     selectedPackageDeep: any;
@@ -146,7 +145,6 @@ export function NewBookingForm({
 
   const freshLine = (): LineState => ({
     id: Math.random().toString(36).substr(2, 9),
-    selectedDomain: '',
     packageId: '',
     customName: '',
     selectedPackageDeep: null,
@@ -160,13 +158,6 @@ export function NewBookingForm({
 
   const [lines, setLines] = useState<LineState[]>([freshLine()]);
 
-  // Domain names from the dimensionsByDomain keys + any domains on services
-  // that might not have dimensions yet
-  const allDomains = React.useMemo(() => {
-    const fromDimensions = Object.keys(dimensionsByDomain);
-    const fromServices = services.map(s => s.domainName).filter(Boolean);
-    return [...new Set([...fromDimensions, ...fromServices])].sort();
-  }, [dimensionsByDomain, services]);
 
   // For a given domain, which service ids belong to it?
   const serviceIdsForDomain = React.useCallback((domain: string) => {
@@ -174,24 +165,27 @@ export function NewBookingForm({
   }, [services]);
 
   // Filter packages: only those containing at least one service in the domain
-  const packagesForDomain = React.useCallback((domain: string) => {
-    return packages.filter(p => {
-      if (!p.services || !Array.isArray(p.services)) return false;
-      return p.services.some((s: any) => {
-        // If it already has domain populated from the DB
-        if (s.domain && s.domain.name === domain) return true;
-        if (s.domainName === domain) return true;
-        // Otherwise look it up in our services list
-        const sId = typeof s === 'string' ? s : s.id;
-        const matchingService = services.find(srv => srv.id === sId);
-        return matchingService && matchingService.domainName === domain;
-      });
-    });
-  }, [packages, services]);
+  /*
+   * Every classification this studio uses, deduplicated.
+   *
+   * It used to be dimensionsByDomain[the one domain the operator had picked],
+   * which meant a package classified by both Photography's and Videography's
+   * vocabulary could only ever be narrowed by half of it.
+   */
+  const allDimensions = React.useMemo(() => {
+    const byId = new Map<string, any>();
+    for (const list of Object.values(dimensionsByDomain || {})) {
+      for (const d of (list as any[])) if (!byId.has(d.id)) byId.set(d.id, d);
+    }
+    return [...byId.values()];
+  }, [dimensionsByDomain]);
+
 
   // Further filter packages by selected dimensions for a given line
   const filteredPackagesForLine = React.useCallback((line: LineState) => {
-    const pkgs = packagesForDomain(line.selectedDomain);
+    // Every package. Domain is a facet inside the filter below, not a gate in
+    // front of it — see the note at the picker.
+    const pkgs = packages;
     const selectedDims = Object.entries(line.selectedDimensionValues).filter(([_, val]) => val !== '');
     if (selectedDims.length === 0) return pkgs;
 
@@ -212,7 +206,7 @@ export function NewBookingForm({
       }
       return true;
     });
-  }, [packagesForDomain]);
+  }, [packages]);
 
   const editorRefs = useRef<any[]>([]);
 
@@ -653,7 +647,16 @@ export function NewBookingForm({
         </div>
       </div>
 
-      <div className="q-section q-rise">
+      {/*
+        * A CARD, LIKE ITS FOUR PEERS.
+        *
+        * Sections 1, 3, 4 and 5 are cards; this one was the only bare q-section,
+        * so it sat on the page ground directly beneath section 1's card and read
+        * as part of it — a heading inside the client section rather than the
+        * second step of five. The numbering said one thing and the surfaces said
+        * another, and the surfaces win.
+        */}
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">2. Packages</h2>
         
         <div className="q-stack q-stack-lg">
@@ -684,42 +687,28 @@ export function NewBookingForm({
                 {lines.length > 1 ? `Package ${index + 1}` : 'Package'}
               </h3>
               
-              {/* ── Step A: Choose a Domain ─────────────────── */}
-              {!line.selectedDomain ? (
-                <div key="domain" className="q-stack q-stack-sm q-swap">
-                  <label className="q-label">Service domain</label>
-                  {allDomains.length > 0 ? (
-                    <div className="q-chip-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                      {allDomains.map(domain => (
-                        <button
-                          key={domain}
-                          type="button"
-                          className="q-chip q-button-base"
-                          style={{
-                            padding: '10px 20px',
-                            fontSize: '0.95rem',
-                            border: '1px solid var(--q-color-ink-200)',
-                            borderRadius: 'var(--q-radius-md)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s var(--q-ease)',
-                          }}
-                          onClick={() => {
-                            const newLines = [...lines];
-                            newLines[index].selectedDomain = domain;
-                            setLines(newLines);
-                          }}
-                        >
-                          {domain}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="q-meta">No service domains defined yet. Create a service first.</p>
-                  )}
-                </div>
-
-              /* ── Step B: Filter and Choose Package ── */
-              ) : !line.packageId ? (
+              {/*
+                * NO DOMAIN GATE. THE PACKAGES LEAD.
+                *
+                * This asked "Service domain: Photography or Videography?" before
+                * it would show a single package, and a booking cannot answer
+                * that. A package BUNDLES services, and those services can come
+                * from different domains — Event Photography and Event
+                * Videography sold as one thing — so for that package the
+                * question has two right answers and picking either was
+                * arbitrary. Worse, having picked one, the operator was then
+                * offered only that domain's classifications, so half of what
+                * the package is classified by became unfilterable, and the line
+                * was badged with a single domain that was not the whole truth.
+                *
+                * A domain is a property of the SERVICES a package bundles. It is
+                * not a property of the booking, and it was never the booking's
+                * to be confined by. So it is a filter now, not a gate: the
+                * packages are on screen immediately, and domain is one facet
+                * beside search and classification — where a package spanning two
+                * domains is kept by either of them.
+                */}
+              {!line.packageId ? (
                 /*
                  * Each step replaces the last in the same box, so the eye needs
                  * telling that the box changed rather than that the page did.
@@ -732,24 +721,7 @@ export function NewBookingForm({
                  * element is reused and nothing moves.
                  */
                 <div key="choose" className="q-stack q-stack-sm q-swap">
-                  <div className="q-row q-row-between" style={{ alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="q-meta" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <strong className="q-strong" style={{ color: 'var(--q-color-ink-900)' }}>{line.selectedDomain}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      className="q-btn-ghost q-btn-xs"
-                      onClick={() => {
-                        const newLines = [...lines];
-                        newLines[index].selectedDomain = '';
-                        newLines[index].selectedDimensionValues = {};
-                        setLines(newLines);
-                      }}
-                    >
-                      Change domain
-                    </button>
-                  </div>
-                  
+
                   {/*
                     * Narrowing, offered rather than demanded.
                     *
@@ -761,7 +733,7 @@ export function NewBookingForm({
                     * folded away with a count of what is active, and the packages
                     * themselves lead.
                     */}
-                  {(dimensionsByDomain[line.selectedDomain] || []).length > 0 && (() => {
+                  {allDimensions.length > 0 && (() => {
                     const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
                     return (
                     <details className="q-stack q-stack-md" style={{ marginBottom: '24px' }} open={active > 0}>
@@ -769,7 +741,7 @@ export function NewBookingForm({
                         Filter by classification{active > 0 ? ` · ${active} applied` : ''}
                       </summary>
                       <div className="q-grid-2" style={{ marginTop: '12px' }}>
-                        {(dimensionsByDomain[line.selectedDomain] || []).map((d: any) => (
+                        {allDimensions.map((d: any) => (
                           <div key={d.id} className="q-field">
                             <label className="q-label">{d.name}</label>
                             <select
@@ -824,7 +796,18 @@ export function NewBookingForm({
                       noun="package"
                       // Always drawn: this is the step, not an aid to it.
                       threshold={0}
-                      read={(p: any) => ({ name: p.name, description: p.description, tags: [] })}
+                      // Every domain this package's services come from, so one
+                      // spanning two is kept by either — the same shape the
+                      // Packages catalogue reads.
+                      facetLabel="domain"
+                      read={(p: any) => ({
+                        name: p.name,
+                        description: p.description,
+                        facet: [...new Set(((p.services || []) as any[])
+                          .map((sv: any) => sv.domain?.name || sv.domainName)
+                          .filter(Boolean))] as string[],
+                        tags: [],
+                      })}
                     >
                       {(pkgs, { query }) => (
                         <div className="q-stack q-stack-sm">
@@ -884,9 +867,21 @@ export function NewBookingForm({
                 <div key="configure" className="q-field q-swap">
                   <div className="q-row q-row-between" style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                     <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="q-badge q-badge-neutral">{line.selectedDomain}</span>
+                      {/*
+                        * The domains this package actually spans, from the
+                        * package. It used to print the one domain the operator
+                        * had been made to pick on the way in, which for a
+                        * package bundling Event Photography and Event
+                        * Videography named one of the two and called it the
+                        * line's domain.
+                        */}
+                      {[...new Set((((line.selectedPackageDeep?.services) || []) as any[])
+                        .map((sv: any) => sv.domain?.name || sv.domainName)
+                        .filter(Boolean))].map((d) => (
+                        <span key={d as string} className="q-badge q-badge-neutral">{d as string}</span>
+                      ))}
                       {Object.entries(line.selectedDimensionValues).filter(([_, v]) => v).map(([dimId, valId]) => {
-                        const d = (dimensionsByDomain[line.selectedDomain] || []).find((x: any) => x.id === dimId);
+                        const d = allDimensions.find((x: any) => x.id === dimId);
                         const vName = d?.values.find((x: any) => x.id === valId)?.name;
                         return vName ? <span key={dimId} className="q-badge q-badge-neutral">{vName}</span> : null;
                       })}

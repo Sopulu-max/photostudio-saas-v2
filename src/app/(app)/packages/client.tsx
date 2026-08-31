@@ -331,9 +331,13 @@ export function PackagesClient({
           read={(pkg: any) => ({
             name: pkg.name,
             description: pkg.description,
-            // A package spanning two domains reads under both, which stays true
-            // without anything having to decide which one it really belongs to.
-            facet: (pkg.services || [])[0]?.domain?.name ?? null,
+            // A package spanning two domains reads under both — which is what
+            // this comment always claimed and the line beneath it never did. It
+            // passed services[0], so a package of Event Photography and Event
+            // Videography filed under whichever service happened to be first
+            // and vanished when the catalogue was filtered by the other.
+            facet: [...new Set(((pkg.services || []) as any[])
+              .map((s) => s.domain?.name).filter(Boolean))] as string[],
             tags: dimensionTags(pkg).flatMap((d) => d.values.map((v) => ({
               dimensionId: d.id, dimensionName: d.name, valueId: v.id, valueName: v.name,
             }))),
