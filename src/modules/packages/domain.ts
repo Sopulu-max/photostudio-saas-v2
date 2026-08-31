@@ -1327,10 +1327,19 @@ export async function getOpenClassificationsForPackagePublic(orgId: string, pack
  */
 export async function answerPackageClassifications(input: {
   packageId: string;
-  organizationId: string;
+  /*
+   * Passed only when there is no session to take it from.
+   *
+   * A visitor to the storefront has none, so the public path names the studio
+   * explicitly. An operator taking the same booking over the telephone does
+   * have one, and requiring the org there would mean either shipping it to the
+   * browser or standing up a second function that differs by one line. Same
+   * rule the readers beside this already follow.
+   */
+  organizationId?: string;
   valueIds: string[];
 }) {
-  const orgId = input.organizationId;
+  const orgId = input.organizationId ?? (await getAuthOrgId()).orgId;
   if (input.valueIds.length === 0) return { ok: true };
 
   const { data: chosen } = await supabaseAdmin
@@ -1510,6 +1519,43 @@ export async function getPackageVariables(packageId: string) {
 export async function getOpenVariablesForPackage(packageId: string) {
   const { orgId } = await getAuthOrgId();
   return getOpenVariablesForPackagePublic(orgId, packageId);
+}
+
+/**
+ * The same question, asked with a session instead of an org id.
+ *
+ * A visitor to the storefront has no session, so the reader takes the org
+ * explicitly; an operator has one. Same query, same shape — the only
+ * difference is how the studio is established, which is exactly what
+ * getOpenVariablesForPackage above already does for the other half.
+ */
+export async function getOpenClassificationsForPackage(packageId: string) {
+  const { orgId } = await getAuthOrgId();
+  return getOpenClassificationsForPackagePublic(orgId, packageId);
+}
+
+/**
+ * EVERYTHING A PACKAGE LEAVES OPEN, IN ONE ANSWER.
+ *
+ * What the client is asked on the storefront, asked of whoever is taking the
+ * booking. A studio that takes a booking over the telephone was asked none of
+ * it: the operator's form copied the package's FIXED values through and never
+ * saw the questions, so the two classes of variable — what the studio settles,
+ * what the client answers — worked on exactly one of the two ways into this
+ * system, and a phoned-in booking arrived with every deliberately deferred
+ * question still unanswered and nowhere to answer it.
+ *
+ * One call rather than two because the operator's form asks when a package is
+ * picked, mid-typing, and two round trips to draw one block is one more chance
+ * for the block to appear half-built.
+ */
+export async function getOpenQuestionsForPackage(packageId: string) {
+  const { orgId } = await getAuthOrgId();
+  const [variables, classifications] = await Promise.all([
+    getOpenVariablesForPackagePublic(orgId, packageId),
+    getOpenClassificationsForPackagePublic(orgId, packageId),
+  ]);
+  return { variables, classifications };
 }
 
 /**

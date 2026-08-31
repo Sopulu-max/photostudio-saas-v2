@@ -7,7 +7,17 @@ import { createInvoiceForBooking } from '@/modules/finances/interface';
 import { addBookingTask } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
-import { getPackage, createPackage } from '@/modules/packages/interface';
+import {
+  getPackage, createPackage,
+  // What the package left for the client to answer, and the call that settles
+  // a classification it narrowed to more than one.
+  getOpenQuestionsForPackage, answerPackageClassifications,
+} from '@/modules/packages/interface';
+// The one widget for one variable, and the one parser that turns what was typed
+// into what is meant. The storefront draws the same questions with the same two,
+// so a shape that works for a client works here.
+import { VariableField } from '@/components/VariableField';
+import { parseVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { toStored, hasPrice } from '@/kernel/money';
@@ -120,6 +130,18 @@ export function NewBookingForm({
     linePrice: string;
     selectedDimensionValues: Record<string, string>;
     /** What was typed while looking for a package — becomes its name if none exists. */
+    /*
+     * WHAT THIS PACKAGE LEAVES OPEN, AND WHAT THE CALLER SAID.
+     *
+     * The same two things the storefront asks a client, asked of whoever is
+     * taking the booking. Kept per line because they are answers about one
+     * package: two lines on a booking leave different things open.
+     */
+    openQuestions: { variables: any[]; classifications: any[] } | null;
+    /** Raw as typed; parsed once, on submit, by the one parser. */
+    variableAnswers: Record<string, string>;
+    /** One value per classification the package narrowed to more than one. */
+    chosenClassifications: Record<string, string>;
   };
 
   const freshLine = (): LineState => ({
@@ -131,6 +153,9 @@ export function NewBookingForm({
     isLoadingDeep: false,
     linePrice: '',
     selectedDimensionValues: {},
+    openQuestions: null,
+    variableAnswers: {},
+    chosenClassifications: {},
   });
 
   const [lines, setLines] = useState<LineState[]>([freshLine()]);
@@ -250,11 +275,28 @@ export function NewBookingForm({
     if (id && id !== 'custom') {
       newLines[index].isLoadingDeep = true;
       setLines(newLines);
-      getPackage(id).then(deep => {
+      /*
+       * Both at once. The package itself, and what it leaves for the client to
+       * answer — because an operator on the telephone IS the client answering,
+       * and until now this form never asked them.
+       *
+       * The questions are not fatal: a package whose open questions cannot be
+       * read is still a package that can be booked, so a failure here clears
+       * the block rather than the line.
+       */
+      Promise.all([
+        getPackage(id),
+        getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [] })),
+      ]).then(([deep, open]) => {
         setLines(prev => {
           const updated = [...prev];
           updated[index].selectedPackageDeep = deep;
           updated[index].isLoadingDeep = false;
+          updated[index].openQuestions = open;
+          // A different package asks different questions; answers to the last
+          // one are not answers to this one.
+          updated[index].variableAnswers = {};
+          updated[index].chosenClassifications = {};
           if (deep.price?.amount != null && !updated[index].linePrice) {
             updated[index].linePrice = String(deep.price.amount);
           }
@@ -270,6 +312,9 @@ export function NewBookingForm({
       });
     } else {
       newLines[index].selectedPackageDeep = null;
+      newLines[index].openQuestions = null;
+      newLines[index].variableAnswers = {};
+      newLines[index].chosenClassifications = {};
       setLines(newLines);
     }
   };
@@ -300,6 +345,10 @@ export function NewBookingForm({
         }
 
         const submitLines = [];
+
+        // Filled while the lines are built; reported after the booking exists.
+
+        const classificationProblems: string[] = [];
 
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
@@ -336,10 +385,49 @@ export function NewBookingForm({
           payload.price = agreedPrice;
           const { packageId: instanceId } = await createPackage(payload);
 
+          /*
+           * THE INSTANCE IS NARROWED TO WHAT THE CALLER SAID.
+           *
+           * The same step the storefront takes, through the same call: the
+           * domain declares five occasions, the package narrows to three, and
+           * this narrows to the one. Done on the instance rather than beside
+           * the booking, because "this booking is for a birthday" is a fact
+           * about what was booked and not an annotation on it — so every later
+           * read sees a booking classified Birthday exactly as it would see a
+           * package classified Birthday, which it now is.
+           *
+           * Not fatal. A classification that will not settle must not lose the
+           * booking that has already been priced and agreed; it is said, and
+           * the booking still lands.
+           */
+          const chosen = Object.values(line.chosenClassifications).filter(Boolean) as string[];
+          if (chosen.length > 0) {
+            try {
+              await answerPackageClassifications({ packageId: instanceId, valueIds: chosen });
+            } catch (e) {
+              // Reported with everything else that could not be raised, once
+              // the booking itself has landed.
+              classificationProblems.push(payload.name || 'a package');
+            }
+          }
+
+          /*
+           * What the package fixed, plus what the caller answered of what it
+           * left open. Parsed by the one parser, and only where something was
+           * actually said — an untouched field is a question still unanswered,
+           * which is not the same as an answer of empty.
+           */
+          const answered = (line.openQuestions?.variables || [])
+            .filter((v: any) => (line.variableAnswers[v.id] ?? '') !== '')
+            .map((v: any) => ({
+              serviceVariableId: v.id as string,
+              value: parseVariableValue(v.kind, line.variableAnswers[v.id]),
+            }));
+
           submitLines.push({
             packageId: instanceId,
             linePrice: agreedPrice,
-            variableAnswers: payload.variableValues || [],
+            variableAnswers: [...(payload.variableValues || []), ...answered],
           });
         }
 
@@ -387,6 +475,9 @@ export function NewBookingForm({
          * happened when a booking exists.
          */
         const failed: string[] = [];
+        if (classificationProblems.length > 0) {
+          failed.push(`the classification on ${classificationProblems.join(' and ')}`);
+        }
         // Kept apart from failures: a thing not attempted because the booking
         // is not ready for it is not the same as a thing that broke, and an
         // operator reading one sentence deserves to know which they are looking
@@ -861,6 +952,82 @@ export function NewBookingForm({
                           }
                         }
                       />
+                      {/*
+                        * WHAT THIS PACKAGE ASKS, ASKED HERE TOO.
+                        *
+                        * The storefront put these to the client and this form
+                        * put them to nobody. A studio taking the same booking
+                        * over the telephone got a package whose deliberately
+                        * open questions arrived unanswered, with no way to
+                        * answer them at intake — so the two classes of variable
+                        * worked on one of the two ways into this system.
+                        *
+                        * Which one it is comes first, because some of what
+                        * follows depends on it: the date of the occasion means
+                        * nothing until the occasion is settled. Same order as
+                        * the storefront, for the same reason.
+                        */}
+                      {(() => {
+                        const q = line.openQuestions;
+                        if (!q || (q.variables.length === 0 && q.classifications.length === 0)) return null;
+                        const setAnswer = (id: string, raw: string) => setLines((prev) => {
+                          const next = [...prev];
+                          next[index] = { ...next[index], variableAnswers: { ...next[index].variableAnswers, [id]: raw } };
+                          return next;
+                        });
+                        const setClassification = (dimensionId: string, valueId: string) => setLines((prev) => {
+                          const next = [...prev];
+                          next[index] = { ...next[index], chosenClassifications: { ...next[index].chosenClassifications, [dimensionId]: valueId } };
+                          return next;
+                        });
+                        return (
+                          <div className="q-narrow q-stack q-stack-md" style={{ marginTop: '24px' }}>
+                            <div>
+                              <h4 className="q-section-title" style={{ margin: 0 }}>What this package asks</h4>
+                              <p className="q-meta-sm" style={{ margin: '4px 0 0' }}>
+                                Left open for the client. Answer what they have said; the rest can be
+                                filled in on the booking.
+                              </p>
+                            </div>
+
+                            {q.classifications.map((c: any) => (
+                              <div className="q-field" key={c.dimensionId}>
+                                <label className="q-label">{c.question || c.name}</label>
+                                <select
+                                  className="q-select"
+                                  value={line.chosenClassifications[c.dimensionId] || ''}
+                                  onChange={(e) => setClassification(c.dimensionId, e.target.value)}
+                                >
+                                  <option value="">Not said yet</option>
+                                  {c.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                </select>
+                              </div>
+                            ))}
+
+                            {q.variables.map((v: any) => (
+                              <div className="q-field" key={v.id}>
+                                <label className="q-label">
+                                  {v.label}
+                                  {v.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({v.unit}s)</span>}
+                                  <span className="q-meta-sm" style={{ marginLeft: '8px' }}>{v.serviceName}</span>
+                                </label>
+                                <VariableField
+                                  kind={v.kind}
+                                  value={line.variableAnswers[v.id] ?? ''}
+                                  onChange={(next) => setAnswer(v.id, Array.isArray(next) ? next.join(', ') : next)}
+                                  options={v.options || []}
+                                  unit={v.unit}
+                                  min={v.min}
+                                  max={v.max}
+                                  emptyLabel="Not said yet"
+                                  width="100%"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
                       <div className="q-field" style={{ marginTop: '24px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
                         <label className="q-label">Line Price</label>
                         <input className="q-input" type="number" value={line.linePrice} onChange={e => {

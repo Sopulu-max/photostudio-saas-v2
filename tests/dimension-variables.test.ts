@@ -50,6 +50,7 @@ import { createDimension, addDimensionValue, moveDimension, listDimensionsForDom
 import {
   createPackage, updatePackage, getOpenVariablesForPackagePublic, getPackageVariablesPublic,
   getOpenClassificationsForPackagePublic, answerPackageClassifications, getPackage,
+  getOpenQuestionsForPackage,
 } from '@/modules/packages/domain';
 import { PURGE_ORDER } from './purge';
 
@@ -313,6 +314,85 @@ describe('A dimension says what follows from its answers', () => {
     expect(
       open.map((c: any) => c.dimensionId),
       'a settled classification was put to the client as a question',
+    ).not.toContain(occasionId);
+  });
+
+  /**
+   * The id of a value, creating it if this suite has not already.
+   *
+   * addDimensionValue answers { ok: true } and not the row, so the id is read
+   * back rather than assumed — a test that seeded with an undefined id once
+   * blamed the product for an insert that had silently done nothing.
+   *
+   * Written this way so these cases do not depend on an earlier case in the
+   * file having run and left Anniversary behind.
+   */
+  const valueIdNamed = async (name: string) => {
+    const { data: found } = await supabaseAdmin
+      .from('dimension_values').select('id')
+      .eq('dimension_id', occasionId).eq('name', name).maybeSingle();
+    if (found?.id) return found.id as string;
+    await addDimensionValue({ dimensionId: occasionId, name });
+    const { data: made } = await supabaseAdmin
+      .from('dimension_values').select('id')
+      .eq('dimension_id', occasionId).eq('name', name).maybeSingle();
+    expect(made?.id, `could not seed the value ${name}`).toBeTruthy();
+    return made!.id as string;
+  };
+
+  /*
+   * THE OPERATOR IS ASKED WHAT THE CLIENT IS ASKED.
+   *
+   * Everything above was reachable from the storefront and from nowhere else.
+   * getOpenVariablesForPackagePublic and getOpenClassificationsForPackagePublic
+   * had exactly one caller between them — the public booking page — so a studio
+   * taking the same booking over the telephone was asked none of it, and the
+   * booking arrived with every deliberately deferred question unanswered and
+   * nowhere to answer it.
+   *
+   * These pin the two contracts the operator's form now stands on: that one
+   * call returns both halves, and that settling a classification works from a
+   * session rather than only from an org id handed in by a page with no session.
+   */
+  it('answers both halves of what a package leaves open, in one call', async () => {
+    const pkg = await createPackage({
+      name: 'Asked Of Whoever Is Taking It', serviceIds: [serviceId],
+      narrowings: [{ serviceId, valueId: birthdayId }, { serviceId, valueId: await valueIdNamed('Anniversary') }],
+    });
+
+    const both: any = await getOpenQuestionsForPackage(pkg.packageId);
+    const viaPublic = await getOpenClassificationsForPackagePublic(TEST_ORG_ID, pkg.packageId);
+
+    expect(both.classifications.map((c: any) => c.dimensionId).sort())
+      .toEqual(viaPublic.map((c: any) => c.dimensionId).sort());
+    expect(
+      both.classifications.find((c: any) => c.dimensionId === occasionId),
+      'the operator was not asked which occasion, though the client would be',
+    ).toBeTruthy();
+    expect(Array.isArray(both.variables), 'the variables half is missing').toBe(true);
+  });
+
+  it('settles a classification from a session, with no org handed in', async () => {
+    // The operator path. The public page names the studio because a visitor has
+    // no session; requiring it here would mean shipping the org id to the
+    // browser, or a second function differing by one line.
+    const pkg = await createPackage({
+      name: 'Settled By An Operator', serviceIds: [serviceId],
+      narrowings: [{ serviceId, valueId: birthdayId }, { serviceId, valueId: await valueIdNamed('Anniversary') }],
+    });
+
+    await answerPackageClassifications({
+      packageId: pkg.packageId, valueIds: [await valueIdNamed('Anniversary')],
+    });
+
+    const read: any = await getPackage(pkg.packageId);
+    const names = (read.services[0].narrowedTo || []).flatMap((d: any) => d.values.map((v: any) => v.name));
+    expect(names, 'the operator answer did not settle the package').toEqual(['Anniversary']);
+
+    const still: any = await getOpenQuestionsForPackage(pkg.packageId);
+    expect(
+      still.classifications.map((c: any) => c.dimensionId),
+      'still asking after the operator answered',
     ).not.toContain(occasionId);
   });
 

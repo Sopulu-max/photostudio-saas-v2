@@ -33,7 +33,10 @@ export {
   getOpenVariablesForPackage, getOpenVariablesForPackagePublic,
   // A classification narrowed to several is still a question. These are the
   // ones a package has not settled, and the answer that settles them.
-  getOpenClassificationsForPackagePublic, answerPackageClassifications,
+  getOpenClassificationsForPackagePublic, getOpenClassificationsForPackage, answerPackageClassifications,
+  // Both halves at once, for the operator's form: it asks the moment a package
+  // is picked, and a block drawn from two round trips can appear half-built.
+  getOpenQuestionsForPackage,
   // Everything the bundle declares, fixed or not — what an operator edits against
   getPackageVariables, getPackageVariablesPublic,
   // Intake questions
