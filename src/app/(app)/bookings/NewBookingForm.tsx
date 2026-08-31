@@ -833,8 +833,18 @@ export function NewBookingForm({
                       extra={allDimensions.length > 0 && (() => {
         const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
         return (
-        <details className="q-stack q-stack-md" style={{ marginBottom: '24px' }} open={active > 0}>
-          <summary className="q-strong" style={{ marginBottom: '4px', cursor: 'pointer' }}>
+        {/*
+          * No margin of its own. It carried marginBottom: 24px from when it was
+          * a standalone block floating above the search bar, and inside the
+          * filter's stack that doubles with the 24px gap the stack already puts
+          * between the controls and the results — 48 measured pixels of nothing
+          * between the last control and the first card.
+          *
+          * Spacing between blocks belongs to the stack that holds them, which is
+          * also why it should never have been an inline style.
+          */}
+        <details className="q-stack q-stack-md" open={active > 0}>
+          <summary className="q-strong" style={{ cursor: 'pointer' }}>
             Filter by classification{active > 0 ? ` · ${active} applied` : ''}
           </summary>
           <div className="q-grid-2" style={{ marginTop: '12px' }}>
