@@ -48,7 +48,7 @@ export function ServicesClient({
     const steps = svc.workflow?.tasks?.length ?? 0;
 
     return (
-      <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive">
+      <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive q-rise">
         <div>
           <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
           <h3 className="q-card-title">{svc.name}</h3>

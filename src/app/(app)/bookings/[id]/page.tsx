@@ -215,7 +215,16 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     open?: boolean;
     children: React.ReactNode;
   }) => (
-    <details className="q-details q-card q-section" open={open}>
+    /*
+     * Nine sections arriving together is nine sections arriving nowhere.
+     *
+     * q-rise staggers by nth-child, so they come in down the page in the order
+     * they are read — client, date, packages, team, tasks, deliverables,
+     * invoices, contract — which is the order an operator scans them in anyway.
+     * One class on the shared Section, so every one of them obeys it and no
+     * future section can forget to.
+     */
+    <details className="q-details q-card q-section q-rise" open={open}>
       <summary className="q-disclosure">
         <span className="q-disclosure-mark" aria-hidden="true" />
         <span className="q-row q-row-between q-fill">

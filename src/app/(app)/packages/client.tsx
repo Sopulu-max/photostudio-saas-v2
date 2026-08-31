@@ -100,7 +100,7 @@ export function PackagesClient({
     const priced = pkg.price?.amount != null;
 
     return (
-      <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack">
+      <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack q-rise">
         {/*
           * Always drawn, cover or no cover. A card in a grid is stretched to the
           * tallest in its row, so one package with a picture and one without

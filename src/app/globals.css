@@ -1810,7 +1810,7 @@ body {
  * most of why a form full of appearing and disappearing sections reads as
  * static and unguided even while it is changing constantly.
  */
-.q-appear { animation: q-slide-up var(--q-dur-2) var(--q-ease) both; }
+.q-appear { animation: q-slide-up var(--q-dur-2) var(--q-ease) backwards; }
 
 /*
  * The same, from where the pointer is rather than from below.
@@ -1819,13 +1819,28 @@ body {
  * Rising would say "something new arrived below"; this says "this is what that
  * became", which is the truthful animation for a swap.
  */
-.q-swap { animation: q-swap-in var(--q-dur-2) var(--q-ease) both; }
+.q-swap { animation: q-swap-in var(--q-dur-2) var(--q-ease) backwards; }
 @keyframes q-swap-in {
   from { opacity: 0; transform: scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
 
-.q-rise { animation: q-slide-up var(--q-dur-3) var(--q-ease) both; }
+/*
+ * BACKWARDS, NOT BOTH — and this matters the moment an entrance lands on
+ * anything you can hover.
+ *
+ * `both` keeps the last keyframe applied after the animation finishes, and an
+ * animated value outranks an author rule. So a card carrying this would end
+ * holding `transform: none` at animation priority, and .q-card-interactive:hover
+ * — a six pixel lift, the main piece of feedback in the whole catalogue — would
+ * silently stop working. Not broken-looking: just inert, on every card, with
+ * nothing in the markup to suggest why.
+ *
+ * `backwards` applies the first keyframe during the delay, which is the whole
+ * point of a stagger, and then gets out of the way. The element goes back to
+ * its ordinary styles, and hover is one of them.
+ */
+.q-rise { animation: q-slide-up var(--q-dur-3) var(--q-ease) backwards; }
 .q-rise:nth-child(1) { animation-delay: 0ms; }
 .q-rise:nth-child(2) { animation-delay: 40ms; }
 .q-rise:nth-child(3) { animation-delay: 80ms; }

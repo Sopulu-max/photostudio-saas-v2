@@ -1302,7 +1302,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
   return (
     <div className="q-stack q-stack-lg">
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">{heading(1, "Package Identity")}</h2>
         <div className="q-stack q-stack-md">
           {/* First, because for a photography studio the picture is half of what
@@ -1348,7 +1348,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         </div>
       </div>
 
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">{heading(2, "Services")}</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
           The services this package is built from. Open one to set what it promises, how it is
@@ -1587,7 +1587,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * counts what is already there, and fills as the services above are
         * filled in.
         */}
-      <div className="q-card q-section">
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">{heading(3, 'Deliverables')}</h2>
         {(() => {
           const bundled = allServices.filter((x) => serviceIds.includes(x.id));
@@ -1652,7 +1652,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * never given deletes it.
         */}
       {questions !== undefined && (
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">{heading(4, 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client fills in when they book this package.

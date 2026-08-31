@@ -77,7 +77,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       )}
 
       <div className="q-stack q-stack-lg">
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Commercial terms</h2>
           <div className="q-grid-halves" style={{ marginTop: '16px' }}>
             <div>
@@ -115,7 +115,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           * Which service produced what is said only where there is more than
           * one, for the same reason it always is here.
           */}
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Deliverables</h2>
           {(() => {
             const promised = services.flatMap((s: any) =>
@@ -143,7 +143,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           })()}
         </div>
 
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Services</h2>
           {services.length === 0 ? (
             <p className="q-text-meta">No services bundled.</p>

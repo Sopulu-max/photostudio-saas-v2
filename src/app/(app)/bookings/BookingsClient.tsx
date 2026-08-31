@@ -42,7 +42,7 @@ export function BookingsClient({
   const Card = ({ b }: { b: any }) => {
     const date = when(b.scheduledFor);
     return (
-      <Link href={`/bookings/${b.id}`} className="q-card q-card-interactive q-plain-link q-stack">
+      <Link href={`/bookings/${b.id}`} className="q-card q-card-interactive q-plain-link q-stack q-rise">
         <div className="q-row q-row-between">
           <div className="q-fill">
             {/* The date leads the card, because the first thing anyone asks of

@@ -72,7 +72,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
       <div className="q-stack q-stack-lg">
         <Classifications tags={tags as any} />
 
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Deliverables</h2>
           <div className="q-grid-1">
             <div className="q-panel">
@@ -113,7 +113,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * varies in no way" is a fact worth seeing rather than a section that
           * silently is not there.
           */}
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Variables</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             The quantities a package can fix, or leave open for the client to answer when booking.
@@ -170,7 +170,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * copies those tasks in, and a booking of that package copies them
           * again. No workflow means no tasks means nobody can be assigned.
           */}
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Workflow</h2>
           {!workflow || (workflow.tasks || []).length === 0 ? (
             <>
@@ -219,7 +219,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           * answer anywhere. Nothing new is stored: the packages already say
           * what they bundle.
           */}
-        <div className="q-card q-section">
+        <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Packages</h2>
           {soldIn.length === 0 ? (
             <p className="q-empty">
