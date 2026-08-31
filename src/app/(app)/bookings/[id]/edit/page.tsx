@@ -87,6 +87,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           contactId={booking.contact?.id ?? null}
           scheduledFor={booking.scheduled_for}
           durationMinutes={booking.duration_minutes}
+          brief={booking.brief ?? null}
           suggestedMinutes={suggestedMinutes}
           clients={clientOptions}
         />

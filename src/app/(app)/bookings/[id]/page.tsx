@@ -22,7 +22,7 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
-import { amountOf, firstPriced } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { GenerateInvoiceButton } from './InvoiceForms';
 import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
 
@@ -266,6 +266,20 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
       </header>
 
       <div className="q-stack q-stack-lg">
+
+        {/*
+          * What the client asked for, before the studio answered it.
+          *
+          * First on the page, and open, because on a booking that is still only
+          * an enquiry this is frequently the only thing that says what it is
+          * for — everything below it is structure that may not be filled in
+          * yet. Shown exactly as typed; it is a person's sentence, not a field.
+          */}
+        {booking.brief && (
+          <Section title="What they asked for" summary="In their words" open>
+            <p className="q-text-body q-prewrap">{booking.brief}</p>
+          </Section>
+        )}
 
         {/* Client */}
         <Section
@@ -701,12 +715,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               {invoices.length === 0
                 ? billing.booked > 0
                   ? `Nothing billed yet. ${formatMoney(billing.booked, moneyCurrency)} to invoice.`
-                  : 'Nothing billed yet.'
+                  : 'Nothing billed yet — put a price on the packages and this can be invoiced.'
                 : leftToInvoice > 0
                   ? `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · ${formatMoney(leftToInvoice, moneyCurrency)} still to invoice.`
                   : `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · fully invoiced.`}
             </span>
-            <GenerateInvoiceButton bookingId={booking.id} hasLines={lines.length > 0} />
+            {/* Having lines was the old test, and it offered the button for a
+                booking nobody had quoted — which then raised an invoice for
+                nothing. What makes a booking billable is a price on it. */}
+            <GenerateInvoiceButton bookingId={booking.id} canBill={lines.some((l) => hasPrice(priceOfLine(l)))} />
           </div>
 
           {invoices.length > 0 && (
@@ -817,16 +834,31 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               ))}
             </div>
           )}
-          {!hasOpenContract && (
-            <div>
-              <div className="q-muted">
-                {contracts.length === 0
-                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
-                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
+          {!hasOpenContract && (() => {
+            // A contract states a scope and a price, so it is only offered once
+            // the booking can supply both. Offering it earlier meant clicking it
+            // and being told no — or worse, before the domain refused, getting an
+            // agreement to do nothing for nothing.
+            const blocker = !booking.contact?.id
+              ? 'Add a client to this booking and a contract can be drafted from it.'
+              : lines.length === 0
+                ? 'Add a package and a contract can be drafted from what was agreed.'
+                : !lines.every((l: any) => hasPrice(priceOfLine(l)))
+                  ? 'Price every package on this booking and a contract can be drafted from it.'
+                  : null;
+            return (
+              <div>
+                <div className="q-muted">
+                  {contracts.length === 0
+                    ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
+                    : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
+                </div>
+                {blocker
+                  ? <div className="q-meta-sm">{blocker}</div>
+                  : <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />}
               </div>
-              <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />
-            </div>
-          )}
+            );
+          })()}
         </Section>
 
       </div>

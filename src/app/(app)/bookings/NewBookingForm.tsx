@@ -10,6 +10,7 @@ import { ClientPicker, clientEdits, type ClientSelection } from '@/components/Cl
 import { getPackage, createPackage } from '@/modules/packages/interface';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { toStored, hasPrice } from '@/kernel/money';
 import { toast, readableError } from '@/components/Toast';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
@@ -70,6 +71,8 @@ export function NewBookingForm({
 
   const [client, setClient] = useState<ClientSelection | null>(null);
   const [when, setWhen] = useState('');
+  /** What the client asked for, in their words. See the field below. */
+  const [brief, setBrief] = useState('');
   /*
    * What else to draw up while booking.
    *
@@ -319,7 +322,17 @@ export function NewBookingForm({
           // The price the operator settled on goes onto the instance, because
           // the instance is what every later read — the invoice above all —
           // asks for the price.
-          const agreedPrice = { base_price: Number(line.linePrice) || 0, currency: currencyCode };
+          //
+          // An empty box is not zero. `Number('') || 0` wrote a real 0 onto the
+          // instance, and downstream that reads as "this shoot is free" rather
+          // than "nobody has quoted it yet" — the collapse src/kernel/money.ts
+          // was written to end. `{}` is the stored form for unpriced, and a 0
+          // the operator actually typed still means free.
+          const typed = line.linePrice.trim();
+          const agreedPrice: Record<string, unknown> =
+            typed === '' || !Number.isFinite(Number(typed))
+              ? {}
+              : toStored({ amount: Number(typed), currency: currencyCode });
           payload.price = agreedPrice;
           const { packageId: instanceId } = await createPackage(payload);
 
@@ -330,14 +343,25 @@ export function NewBookingForm({
           });
         }
 
-        if (submitLines.length === 0) {
-          throw new Error('You must add at least one package to the booking.');
-        }
-        
+        /*
+         * A booking used to be refused here unless it had a package on it.
+         *
+         * Nothing in the schema or the domain ever wanted that — bookings.title
+         * is the only required column, createBooking takes every other field as
+         * optional, and the stage a new booking lands on is the one whose kind
+         * means "interested, nothing committed". The form was the only thing
+         * insisting a studio must know what it is selling before it can write
+         * down that someone called. So an operator picked the nearest package,
+         * and a guess entered the record as a fact.
+         *
+         * What is left is on the button: a booking has to say something, and a
+         * client, a date, a brief or a package each count as something.
+         */
         const { bookingId } = await createBooking({
           contactId: finalContactId || null,
           lines: submitLines,
           scheduledFor: when || null,
+          brief: brief.trim() || null,
         });
 
         /*
@@ -378,16 +402,30 @@ export function NewBookingForm({
           }
         }
 
-        try {
-          const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;
-          await createInvoiceForBooking({
-            bookingId,
-            dueAt: invoiceDue ? new Date(invoiceDue).toISOString() : null,
-            notes: invoiceNotes.trim() || null,
-            percentage: pct,
-            label: pct ? `${pct}% deposit` : null,
-          });
-        } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
+        /*
+         * Also not attempted when it cannot work.
+         *
+         * The form already noticed this and carried on anyway: it printed "the
+         * packages above are not priced, so this invoice will have nothing on
+         * it" and then raised that invoice, giving every new enquiry a document
+         * demanding nothing. An unquoted booking is the normal state of an
+         * enquiry, not a fault, so it is checked here rather than discovered by
+         * a throw — and it is a skip, not a failure.
+         */
+        if (!submitLines.some((l) => hasPrice(l.linePrice))) {
+          skipped.push('an invoice (nothing is priced yet)');
+        } else {
+          try {
+            const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;
+            await createInvoiceForBooking({
+              bookingId,
+              dueAt: invoiceDue ? new Date(invoiceDue).toISOString() : null,
+              notes: invoiceNotes.trim() || null,
+              percentage: pct,
+              label: pct ? `${pct}% deposit` : null,
+            });
+          } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
+        }
 
         /*
          * NOT ATTEMPTED WHEN IT CANNOT WORK.
@@ -403,8 +441,15 @@ export function NewBookingForm({
          * A missing client is an expected state here, not a fault, so it is
          * checked before the call rather than discovered by one.
          */
-        if (!finalContactId) {
-          skipped.push('the contract, which needs a client');
+        const contractNeeds = !finalContactId
+          ? 'no client yet'
+          : submitLines.length === 0
+            ? 'nothing on it yet'
+            : !submitLines.every((l) => hasPrice(l.linePrice))
+              ? 'not every package is priced'
+              : null;
+        if (contractNeeds) {
+          skipped.push(`a contract (${contractNeeds})`);
         } else {
           try {
             await createContractForBooking(bookingId, {
@@ -447,6 +492,11 @@ export function NewBookingForm({
     });
   };
 
+  // One fact is enough. An empty record helps nobody, but which fact it is
+  // belongs to whoever picked up the phone, not to this form.
+  const hasSomethingToRecord =
+    lines.some((l) => l.packageId) || Boolean(client) || Boolean(when) || brief.trim() !== '';
+
   return (
     <div className="q-stack q-stack-lg">
       {/*
@@ -459,7 +509,7 @@ export function NewBookingForm({
         * used it.
         */}
       <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">1. Date and client</h2>
+        <h2 className="q-section-title">1. Date, client and request</h2>
         <div className="q-stack q-stack-md">
           {/*
             * The date comes first because it is the first thing asked on the
@@ -472,6 +522,43 @@ export function NewBookingForm({
             <input className="q-input" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} />
           </div>
           <ClientPicker clients={clients} value={client} onChange={setClient} />
+
+          {/*
+            * THE QUESTION, NOT THE ANSWER.
+            *
+            * Everything below this section is the studio's answer: which
+            * package, at what price, on what paper. There was nowhere to put
+            * what the client actually said, so an operator hearing "something
+            * for my mum's 70th, maybe thirty people, thinking June" had two
+            * options — force it into a package and a price nobody had agreed,
+            * or lose it. The only free text on the whole form was the invoice's
+            * notes, which are addressed to the client and printed on a
+            * document.
+            *
+            * A guessed package is not a harmless placeholder. It instantiates,
+            * cuts its services' tasks into real work someone gets assigned, and
+            * carries a price the invoice then bills. Uncertainty with nowhere
+            * to go does not stay uncertain; it gets written down as fact.
+            *
+            * Deliberately free text and staying that way. Occasion, headcount
+            * and subject are dimensions and belong there once they are known;
+            * this is for the moment before that, and for everything that never
+            * becomes a dimension. Structuring it would rebuild the problem it
+            * exists to solve.
+            */}
+          <div className="q-field">
+            <label className="q-label">What they asked for (optional)</label>
+            <textarea
+              className="q-textarea"
+              rows={3}
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              placeholder="Something for my mum's 70th, maybe thirty people, thinking a Saturday in June."
+            />
+            <span className="q-meta-sm">
+              Kept as written, on the booking. Use it when the packages below cannot say it yet.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -955,14 +1042,20 @@ export function NewBookingForm({
             {(() => {
               // What the packages come to, so the figure is not arithmetic the
               // operator has to do in their head while filling in a form.
-              const total = lines.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
-              if (total <= 0) {
+              //
+              // Priced at nothing and not priced at all are different questions,
+              // so they are asked separately: a booking every one of whose boxes
+              // is empty gets no invoice, while a booking deliberately priced at
+              // zero is a free job and gets one.
+              const priced = lines.filter((l) => l.linePrice.trim() !== '');
+              if (priced.length === 0) {
                 return (
                   <span className="q-meta-sm">
-                    The packages above are not priced, so this invoice will have nothing on it.
+                    Nothing above is priced yet, so no invoice is raised. Add one from the booking once you have quoted it.
                   </span>
                 );
               }
+              const total = priced.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
               const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : 100;
               const amount = Math.round(total * (pct / 100) * 100) / 100;
               return (
@@ -1047,10 +1140,24 @@ export function NewBookingForm({
         </div>
       </div>
 
+      {/*
+        * A package used to be the condition. It is now one of four, because a
+        * booking exists to record that someone asked — and a name, a date or
+        * their own words are each enough to be worth writing down. What is still
+        * refused is a booking that says nothing at all.
+        */}
       <div className="q-row">
-        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !lines.some(l => l.packageId)} onClick={submitBooking}>
+        <button
+          className="q-btn q-btn-primary"
+          aria-busy={isPending}
+          disabled={isPending || !hasSomethingToRecord}
+          onClick={submitBooking}
+        >
           {isPending ? 'Creating…' : 'Create booking'}
         </button>
+        {!hasSomethingToRecord && (
+          <span className="q-meta-sm">Add a client, a date, what they asked for, or a package.</span>
+        )}
       </div>
 
       {/*

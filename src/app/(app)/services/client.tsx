@@ -6,6 +6,7 @@ import { Package } from 'lucide-react';
 
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { Counted } from '@/components/Counted';
 
 /**
  * The ontology layer: what this studio actually knows how to do. Not what
@@ -18,8 +19,32 @@ export function ServicesClient({
   initialServices: any[];
   activeFilter: { label: string } | null;
 }) {
-  const active = initialServices.filter((s: any) => s.status !== 'retired');
-  const retired = initialServices.filter((s: any) => s.status === 'retired');
+  /*
+   * ONE LIST, GROUPED AT THE END — not two lists filtered at the start.
+   *
+   * Retired services used to be split off up here and rendered through a bare
+   * loop below the catalogue, outside everything: the search box could not see
+   * them, the classification chips could not narrow them, and the sort did not
+   * reach them. A studio looking for "Album Design" and finding nothing,
+   * because the service exists but is retired, is worse served than one told
+   * plainly that it is retired.
+   *
+   * So everything goes through the same narrowing, and the split into offered
+   * and retired happens on what comes out of it. Retired is a fact about a
+   * service, not a different kind of thing that lives somewhere else.
+   */
+  const HOW_TO_ORDER = [
+    { key: 'recent', label: 'Newest first',
+      compare: (a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')) },
+    { key: 'name', label: 'Name A–Z',
+      compare: (a: any, b: any) => a.name.localeCompare(b.name) },
+    { key: 'domain', label: 'By domain',
+      compare: (a: any, b: any) =>
+        (a.domain?.name || '').localeCompare(b.domain?.name || '') || a.name.localeCompare(b.name) },
+    { key: 'work', label: 'Most steps first',
+      compare: (a: any, b: any) =>
+        (b.workflow?.tasks?.length ?? 0) - (a.workflow?.tasks?.length ?? 0) || a.name.localeCompare(b.name) },
+  ];
 
   /**
    * One service, as a card.
@@ -57,8 +82,16 @@ export function ServicesClient({
         {/* What it produces leads, because that is what a service is for. The
             same three zones the package cards use, so the two catalogues read
             the same way. */}
+        {/* Counted, the way the package card counts what it promises. A
+            deliverable that carries a quantity — "50 Edited images" — said the
+            50 at the weight of the word beside it, which is the one part of the
+            line that differs between two services producing the same thing. */}
         <p className={produces.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
-          {produces.length > 0 ? produces.join(' · ') : 'Produces nothing yet'}
+          {produces.length > 0
+            ? produces.map((t: string, i: number) => (
+                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}<Counted text={t} /></React.Fragment>
+              ))
+            : 'Produces nothing yet'}
         </p>
 
         {tags.length > 0 && (
@@ -76,15 +109,27 @@ export function ServicesClient({
           </div>
         )}
 
-        {/* How it gets done — a service's equivalent of a price: the fact the
-            band exists to carry. */}
+        {/*
+          * How much work it is — a service's equivalent of a price, and now set
+          * like one. This band already existed and this comment already said
+          * that; both halves were q-meta-sm, so it carried two greys of equal
+          * weight and the eye had nothing to land on. In a catalogue where most
+          * services produce the same deliverables under the same workflow name,
+          * the step count is frequently the only thing that differs, and it was
+          * the smallest text on the card.
+          *
+          * The workflow's name takes the small grey opposite, where the package
+          * card puts its task count. No workflow at all is the absent state,
+          * and it is worth seeing: a service without one produces no tasks, so
+          * booking it puts nobody on the job.
+          */}
         <div className="q-card-foot">
-          <span className={svc.workflow?.name ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
-            {svc.workflow?.name || 'No workflow, so it produces no tasks'}
+          <span className={steps > 0 ? 'q-figure' : 'q-figure q-absent'}>
+            {steps > 0
+              ? <>{steps}<span className="q-figure-unit">{steps === 1 ? 'step' : 'steps'}</span></>
+              : 'No workflow, so it produces no tasks'}
           </span>
-          {svc.workflow?.name && (
-            <span className="q-meta-sm">{steps} {steps === 1 ? 'step' : 'steps'}</span>
-          )}
+          {svc.workflow?.name && <span className="q-meta-sm">{svc.workflow.name}</span>}
         </div>
       </Link>
     );
@@ -142,8 +187,10 @@ export function ServicesClient({
          * which is what its own dimensions say.
          */
         <CatalogFilter
-          items={active}
+          items={initialServices}
           noun="service"
+          kind="catalogue"
+          sorts={HOW_TO_ORDER}
           read={(svc: any) => ({
             name: svc.name,
             description: svc.description,
@@ -154,22 +201,33 @@ export function ServicesClient({
               }))),
           })}
         >
-          {(shown) => (
-            <div className="q-grid-cards">
-              {shown.map((svc: any) => <Card key={svc.id} svc={svc} />)}
-            </div>
-          )}
-        </CatalogFilter>
-      )}
+          {(shown, { dense }) => {
+            const offered = shown.filter((svc: any) => svc.status !== 'retired');
+            const retired = shown.filter((svc: any) => svc.status === 'retired');
+            const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
+            return (
+              <>
+                <div className={grid}>
+                  {offered.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                </div>
 
-      {retired.length > 0 && (
-        <section style={{ marginTop: '40px' }}>
-          <h2 className="q-section-title">Retired</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>Not offered for new Packages. Packages already built from these are untouched.</p>
-          <div className="q-grid-cards">
-            {retired.map((svc: any) => <Card key={svc.id} svc={svc} />)}
-          </div>
-        </section>
+                {/* Below what is offered, and only when the narrowing in force
+                    actually turned some up. */}
+                {retired.length > 0 && (
+                  <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
+                    <h2 className="q-section-title">Retired</h2>
+                    <p className="q-meta" style={{ marginBottom: '16px' }}>
+                      Not offered for new packages. Packages already built from these are untouched.
+                    </p>
+                    <div className={grid}>
+                      {retired.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                    </div>
+                  </section>
+                )}
+              </>
+            );
+          }}
+        </CatalogFilter>
       )}
     </div>
   );

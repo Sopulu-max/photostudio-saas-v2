@@ -6,7 +6,7 @@ import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
-import { amountOf, firstPriced } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { settlementOf } from './money';
 
@@ -292,6 +292,30 @@ export async function createInvoiceForBooking(input: {
   // price it rather than billing "Booking Line" for nothing.
   const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
   const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
+
+  /*
+   * An unpriced line cannot be billed.
+   *
+   * `amountOf` answers 0 for a price nobody has set, which is right for the
+   * totals that call it — nothing priced totals as nothing — and wrong here,
+   * because this writes that 0 onto a document that goes to a client. Never
+   * quoted and quoted at nothing came out identical on the page.
+   *
+   * Nothing priced at all is refused, the same rule as over-invoicing above:
+   * an invoice is a demand for payment and there is no honest amount to demand.
+   * A line among priced ones is dropped instead, because refusing there would
+   * fail a contract signature over a line the deposit never depended on, and
+   * issueDepositInvoice states outright that signing must not fail on a billing
+   * guard. What is billed is what was quoted, either way.
+   */
+  const priced = lines.filter((l) => hasPrice(priceOfLine(l)));
+  if (priced.length === 0) {
+    throw new Error(
+      'Nothing on this booking is priced yet, so there is no amount to invoice. ' +
+      'Price the packages on the booking first.',
+    );
+  }
+  lines = priced;
 
   const currency = (priceOfLine(lines[0]) as any)?.currency || (await getStudioCurrency());
 

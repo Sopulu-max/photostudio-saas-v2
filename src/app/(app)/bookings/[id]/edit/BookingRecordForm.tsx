@@ -33,6 +33,7 @@ export function BookingRecordForm({
   contactId,
   scheduledFor,
   durationMinutes,
+  brief,
   suggestedMinutes,
   clients,
 }: {
@@ -41,6 +42,8 @@ export function BookingRecordForm({
   contactId: string | null;
   scheduledFor: string | null;
   durationMinutes: number | null;
+  /** What the client asked for, in their words. */
+  brief: string | null;
   suggestedMinutes: number | null;
   clients: ClientOption[];
 }) {
@@ -49,6 +52,7 @@ export function BookingRecordForm({
     contactId: contactId || '',
     when: toLocalInput(scheduledFor),
     dur: durationMinutes ?? 0,
+    brief: brief || '',
   };
 
   const [t, setT] = useState(initial.title);
@@ -64,11 +68,13 @@ export function BookingRecordForm({
   const cid = client?.id || '';
   const [when, setWhen] = useState(initial.when);
   const [dur, setDur] = useState(initial.dur);
+  const [briefText, setBriefText] = useState(initial.brief);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const dirty =
     t !== initial.title || cid !== initial.contactId || when !== initial.when || dur !== initial.dur ||
+    briefText !== initial.brief ||
     Boolean(clientEdits(client, clients));
 
   const save = () => {
@@ -86,6 +92,7 @@ export function BookingRecordForm({
           contactId: cid || null,
           scheduledFor: when ? new Date(when).toISOString() : null,
           durationMinutes: dur > 0 ? dur : null,
+          brief: briefText,
         });
         router.push(`/bookings/${bookingId}`);
       } catch (e: any) {
@@ -124,6 +131,27 @@ export function BookingRecordForm({
         />
         <span className="q-meta-sm">
           A booking runs fine without one — attach whoever this turns out to be for.
+        </span>
+      </div>
+
+      {/*
+        * The one field here that is not a fact about the booking but a record of
+        * the conversation that started it. It stays editable because an ask
+        * changes as it is talked through, and because the packages that
+        * eventually answer it rarely say everything it did.
+        */}
+      <div className="q-stack q-stack-sm">
+        <label className="q-label" htmlFor="booking-brief">What they asked for</label>
+        <textarea
+          id="booking-brief"
+          className="q-textarea"
+          rows={3}
+          value={briefText}
+          onChange={(e) => setBriefText(e.target.value)}
+          placeholder="Something for my mum's 70th, maybe thirty people, thinking a Saturday in June."
+        />
+        <span className="q-meta-sm">
+          Their own words, kept as written. Emptying the box removes it.
         </span>
       </div>
 

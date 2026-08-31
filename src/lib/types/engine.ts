@@ -52,8 +52,12 @@ export interface Booking {
   organization_id: string;
   contact_id: string | null;
   title: string;
+  title_custom: boolean;
   stage_id: string;
   scheduled_for: string | null;
+  duration_minutes: number | null;
+  /** What the client asked for, in their words. Free text on purpose. */
+  brief: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;

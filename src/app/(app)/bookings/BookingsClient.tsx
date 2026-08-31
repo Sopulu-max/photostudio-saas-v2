@@ -18,6 +18,19 @@ import { CatalogFilter } from '@/components/CatalogFilter';
  * narrowed by where it has got to, which is the vocabulary the studio defines
  * for itself in Booking settings. Same control, same rule, different question.
  */
+/*
+ * A booking with no date is not the soonest one. It sorts last whichever way
+ * the list is pointed, for the same reason an unpriced package does: a job
+ * nobody has scheduled is not an answer to "what is next".
+ */
+function byDate(a: any, b: any, dir: 1 | -1) {
+  const ad = a.scheduledFor, bd = b.scheduledFor;
+  if (!ad && !bd) return 0;
+  if (!ad) return 1;
+  if (!bd) return -1;
+  return String(ad).localeCompare(String(bd)) * dir;
+}
+
 export function BookingsClient({
   bookings,
   currencyCode,
@@ -25,6 +38,21 @@ export function BookingsClient({
   bookings: any[];
   currencyCode: string;
 }) {
+  /*
+   * Soonest first is the default because it is what the query already did and
+   * what a working studio asks: what is next. The others exist because the same
+   * list answers other questions — everything for one client, or what has just
+   * been taken.
+   */
+  const HOW_TO_ORDER = [
+    { key: 'soon', label: 'Soonest first', compare: (a: any, b: any) => byDate(a, b, 1) },
+    { key: 'late', label: 'Latest first', compare: (a: any, b: any) => byDate(a, b, -1) },
+    { key: 'client', label: 'By client',
+      compare: (a: any, b: any) =>
+        (a.clientName || '￿').localeCompare(b.clientName || '￿') || byDate(a, b, 1) },
+    { key: 'title', label: 'By title',
+      compare: (a: any, b: any) => (a.title || '').localeCompare(b.title || '') },
+  ];
   /*
    * The date, said the way a person says it.
    *
@@ -101,6 +129,8 @@ export function BookingsClient({
     <CatalogFilter
       items={bookings}
       noun="booking"
+      kind="catalogue"
+      sorts={HOW_TO_ORDER}
       facetLabel="stage"
       read={(b: any) => ({
         name: b.title,
@@ -112,8 +142,8 @@ export function BookingsClient({
         tags: [],
       })}
     >
-      {(shown) => (
-        <div className="q-grid-cards">
+      {(shown, { dense }) => (
+        <div className={dense ? 'q-grid-rows' : 'q-grid-cards'}>
           {shown.map((b: any) => <Card key={b.id} b={b} />)}
         </div>
       )}

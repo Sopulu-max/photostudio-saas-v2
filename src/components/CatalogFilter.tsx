@@ -34,11 +34,30 @@ export type CatalogFacets = {
  * it the other way round would make every extra click return more rather than
  * less.
  *
- * IT APPEARS WHEN IT IS NEEDED. Below the threshold the whole catalogue is on
- * one screen and a filter bar above three cards is furniture, so the children
- * render alone. The count line is always shown once narrowing is on, because a
- * filtered list that does not say it is filtered is indistinguishable from a
- * studio that owns nine packages.
+ * A CONTROL THAT CANNOT CHANGE WHAT YOU SEE IS FURNITURE — and that, not the
+ * length of the list, is the test for whether one draws.
+ *
+ * This used to hide the entire bar below eight items, on the reasoning that a
+ * filter above three cards is clutter. The reasoning was fine and the rule was
+ * wrong, because it measured the wrong thing. The studio this was built for
+ * owns four services, four packages and five bookings, so every catalogue in
+ * the app fell under the threshold and NOT ONE OF THESE CONTROLS HAD EVER
+ * RENDERED. The search box, the facet, the classification chips: all written,
+ * all reachable only by a studio twice this size. The page looked like a loop
+ * over cards because, at this size, that is exactly what it was.
+ *
+ * So a catalogue always says what it holds and how it is arranged — that line
+ * is the list describing itself, not furniture on top of it. What varies is the
+ * narrowing offered, and each piece asks the same question of itself: could
+ * clicking me change what is on screen? A facet with one value cannot (that
+ * test was already here). A dimension whose every service answers "Portrait"
+ * cannot either, and this studio has one of those — Subject, one value across
+ * the whole catalogue, a row of chips that would filter nothing. Occasion has
+ * four and Context two, so those draw.
+ *
+ * A PICKER IS NOT A CATALOGUE. Inside a form you are choosing, not browsing,
+ * and a toolbar between two fields is genuinely in the way — so pickers keep
+ * the size threshold, and say so by their kind rather than by accident.
  *
  * A CATALOGUE IS NEVER CAPPED, and a picker always is. Browsing inventory is a
  * real thing to do, so hiding some of it behind a "show more" would be its own
@@ -57,7 +76,9 @@ export function CatalogFilter<T>({
   read,
   noun,
   facetLabel = 'domain',
+  kind = 'picker',
   threshold = 8,
+  sorts,
   cap,
   children,
 }: {
@@ -67,18 +88,38 @@ export function CatalogFilter<T>({
   noun: string;
   /** What the single-select facet is called, for its own empty option. */
   facetLabel?: string;
-  /** Below this many, the control is furniture and does not draw. 0 always draws. */
+  /**
+   * A catalogue is browsed and always describes itself. A picker sits inside a
+   * form, where the same bar is in the way, so it keeps the size threshold.
+   */
+  kind?: 'catalogue' | 'picker';
+  /** Pickers only: below this many, the bar is furniture and does not draw. */
   threshold?: number;
+  /**
+   * How this list can be ordered. The caller owns these because only it knows
+   * what its items are — a service sorts by name, a booking by date. The first
+   * is the default, so a catalogue is never in whatever order the query
+   * happened to return.
+   */
+  sorts?: { key: string; label: string; compare: (a: T, b: T) => number }[];
   /** Most rows to draw at once. Unset means all of them, which is a catalogue. */
   cap?: number;
-  children: (shown: T[], state: { query: string; narrowed: boolean }) => React.ReactNode;
+  children: (shown: T[], state: { query: string; narrowed: boolean; dense: boolean }) => React.ReactNode;
 }) {
   const [search, setSearch] = useState('');
   const [facet, setFacet] = useState('');
   const [values, setValues] = useState<string[]>([]);
   const [uncapped, setUncapped] = useState(false);
+  const [sortKey, setSortKey] = useState(sorts?.[0]?.key ?? '');
+  /* Cards by default; rows when a studio wants to see more of the list than of
+     each thing in it. Which of the two is right depends on whether you are
+     recognising something or comparing several, and only the operator knows. */
+  const [dense, setDense] = useState(false);
 
-  if (items.length < threshold) return <>{children(items, { query: '', narrowed: false })}</>;
+  const catalogue = kind === 'catalogue';
+  if (!catalogue && items.length < threshold) {
+    return <>{children(items, { query: '', narrowed: false, dense: false })}</>;
+  }
 
   const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
   const facetValues = [...new Set([...facets.values()].map((f) => f.facet).filter(Boolean))] as string[];
@@ -92,6 +133,15 @@ export function CatalogFilter<T>({
       dimensions.get(t.dimensionId)!.values.set(t.valueId, t.valueName);
     }
   }
+
+  /*
+   * The narrowing test, applied to each dimension in turn. A dimension every
+   * item answers the same way sorts nothing into anything: clicking its one
+   * chip returns the list you were already looking at. It is shown on the cards,
+   * where it is information; it is not offered here, where it would be a
+   * promise the control cannot keep.
+   */
+  const narrowing = [...dimensions.entries()].filter(([, d]) => d.values.size > 1);
 
   const chosenByDimension = new Map<string, string[]>();
   for (const [dimId, d] of dimensions) {
@@ -112,7 +162,12 @@ export function CatalogFilter<T>({
   });
 
   const narrowed = Boolean(needle) || Boolean(facet) || values.length > 0;
-  const drawn = cap && !uncapped ? shown.slice(0, cap) : shown;
+
+  // Ordered after narrowing and before capping: what is held back by a cap has
+  // to be the tail of the order the operator asked for, not of the query's.
+  const chosenSort = sorts?.find((o) => o.key === sortKey) ?? sorts?.[0];
+  const ordered = chosenSort ? [...shown].sort(chosenSort.compare) : shown;
+  const drawn = cap && !uncapped ? ordered.slice(0, cap) : ordered;
   const held = shown.length - drawn.length;
   const toggle = (valueId: string) =>
     setValues((prev) => prev.includes(valueId) ? prev.filter((v) => v !== valueId) : [...prev, valueId]);
@@ -120,7 +175,19 @@ export function CatalogFilter<T>({
   return (
     <div className="q-stack q-stack-lg">
       <div className="q-stack q-stack-sm">
-        <div className="q-row q-row-sm">
+        <div className="q-toolbar">
+          {/* The list, saying what it is. Present before anything is typed,
+              because "how many services do I have" is a question a studio has
+              without wanting to filter anything, and counting cards is not an
+              answer a tool should make someone give themselves. */}
+          {catalogue && (
+            <span className="q-toolbar-count">
+              {narrowed
+                ? `${shown.length} of ${items.length}`
+                : `${items.length}`}{' '}
+              {items.length === 1 ? noun : `${noun}s`}
+            </span>
+          )}
           <input
             className="q-input"
             /* Names only what is actually searchable here: bookings have no
@@ -132,7 +199,6 @@ export function CatalogFilter<T>({
             ].filter(Boolean).join(', ')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: '1 1 18rem' }}
           />
           {facetValues.length > 1 && (
             <select className="q-select" value={facet} onChange={(e) => setFacet(e.target.value)}>
@@ -140,9 +206,36 @@ export function CatalogFilter<T>({
               {facetValues.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           )}
+          {sorts && sorts.length > 1 && (
+            <select
+              className="q-select" value={chosenSort?.key ?? ''} aria-label={`Order these ${noun}s`}
+              onChange={(e) => setSortKey(e.target.value)}
+            >
+              {sorts.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          )}
+          {catalogue && (
+            /* Two ways to look at the same list: recognise one thing, or
+               compare many. The list does not change, only how much of each
+               item it spends the width on. */
+            <div className="q-seg" role="group" aria-label="How much to show">
+              <button
+                type="button" className={dense ? 'q-seg-btn' : 'q-seg-btn q-seg-on'}
+                aria-pressed={!dense} onClick={() => setDense(false)}
+              >
+                Cards
+              </button>
+              <button
+                type="button" className={dense ? 'q-seg-btn q-seg-on' : 'q-seg-btn'}
+                aria-pressed={dense} onClick={() => setDense(true)}
+              >
+                List
+              </button>
+            </div>
+          )}
         </div>
 
-        {[...dimensions.entries()].map(([dimId, d]) => (
+        {narrowing.map(([dimId, d]) => (
           <div key={dimId} className="q-row q-row-sm">
             <span className="q-eyebrow">{d.name}</span>
             {[...d.values.entries()].map(([valId, valName]) => (
@@ -161,9 +254,11 @@ export function CatalogFilter<T>({
 
         {narrowed && (
           <div className="q-row q-row-sm">
-            <span className="q-meta-sm">
-              {shown.length} of {items.length} {items.length === 1 ? noun : `${noun}s`}
-            </span>
+            {!catalogue && (
+              <span className="q-meta-sm">
+                {shown.length} of {items.length} {items.length === 1 ? noun : `${noun}s`}
+              </span>
+            )}
             <button
               type="button" className="q-btn q-btn-secondary q-btn-xs"
               onClick={() => { setSearch(''); setFacet(''); setValues([]); }}
@@ -180,10 +275,10 @@ export function CatalogFilter<T>({
         </p>
       ) : (
         <>
-          {children(drawn, { query: search.trim(), narrowed })}
+          {children(drawn, { query: search.trim(), narrowed, dense })}
           {held > 0 && (
             <div className="q-row q-row-sm">
-              <span className="q-meta-sm">{drawn.length} of {shown.length} shown.</span>
+              <span className="q-meta-sm">{drawn.length} of {ordered.length} shown.</span>
               <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => setUncapped(true)}>
                 Show the other {held}
               </button>

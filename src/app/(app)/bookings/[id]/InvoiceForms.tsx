@@ -15,15 +15,16 @@ import { toast, readableError } from '@/components/Toast';
  */
 export function GenerateInvoiceButton({
   bookingId,
-  hasLines,
+  canBill,
 }: {
   bookingId: string;
-  hasLines: boolean;
+  /** Something on the booking carries a price. Unpriced work has no amount to demand. */
+  canBill: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  if (!hasLines) return null;
+  if (!canBill) return null;
 
   return (
     <button

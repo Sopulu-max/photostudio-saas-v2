@@ -5,7 +5,8 @@ import { assertOurs } from '@/kernel/tenancy';
 import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { amountOf, firstPriced } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { getStudioCurrency } from '@/kernel/organizations';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/interface';
 import { revalidatePath } from 'next/cache';
@@ -91,6 +92,12 @@ export async function createBooking(input: {
   }[];
   scheduledFor?: string | null;
   title?: string;
+  /**
+   * What the client asked for, in their own words — the question this booking
+   * is an answer to. Recorded, never parsed: the moment any of it is worth
+   * structuring, it belongs in dimensions instead.
+   */
+  brief?: string | null;
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -141,6 +148,7 @@ export async function createBooking(input: {
       stage_id: defaultStage.id,
       contact_id: input.contactId ?? null,
       scheduled_for: scheduledFor,
+      brief: (input.brief || '').trim() || null,
     })
     .select()
     .single();
@@ -733,14 +741,43 @@ export async function createContractForBooking(
   const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
   const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
 
+  /*
+   * A contract states a scope and a price. Neither can be guessed.
+   *
+   * With nothing on the booking this drafted an agreement to do nothing for
+   * nothing, and with an unpriced line it listed that line in the scope while
+   * leaving it out of the total — a document a client could sign believing five
+   * things were covered by a figure that paid for four. `amountOf` answers 0 for
+   * an unset price, which is right for a total and wrong for an agreement.
+   *
+   * Refused in both cases rather than clamped, the rule the invoice follows too.
+   * An invoice may drop an unpriced line because a signature must not fail over
+   * one; a contract may not, because the scope IS the contract.
+   */
+  if ((lines || []).length === 0) {
+    throw new Error('There is nothing on this booking yet, so there is nothing to agree to. Add a package first.');
+  }
+  const unpriced = (lines || []).filter((l: any) => !hasPrice(priceOfLine(l)));
+  if (unpriced.length > 0) {
+    throw new Error(
+      `${unpriced.map((l: any) => `“${nameOf(l)}”`).join(' and ')} ` +
+      `${unpriced.length === 1 ? 'has no price' : 'have no price'} yet. ` +
+      'A contract has to state what is being agreed and what it costs, so price it on the booking first.',
+    );
+  }
+
   // price × quantity — a line for "3 hours" is not billed as one hour.
+  // The currency comes off the lines, which are now known to carry one; the
+  // studio's own is the fallback rather than a hardcoded 'USD' that quietly
+  // renamed a Nigerian studio's money.
   let total = 0;
-  let currency = 'USD';
+  let currency: string | null = null;
   for (const l of lines || []) {
     const p: any = priceOfLine(l);
     total += amountOf(p) * Number((l as any).quantity ?? 1);
-    if (p.currency) currency = p.currency;
+    if (!currency && p.currency) currency = p.currency;
   }
+  if (!currency) currency = await getStudioCurrency();
 
   // Snapshot what's actually being sold, not just the total — a contract
   // that only states a price with no scope reads as a payment slip, not an
@@ -841,7 +878,7 @@ export async function getBooking(bookingId: string) {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, scheduled_for, duration_minutes, created_at, stage_id,
+      id, title, brief, scheduled_for, duration_minutes, created_at, stage_id,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(
@@ -1251,6 +1288,9 @@ export async function renameBooking(input: { bookingId: string; title: string })
  * what actually differs is touched: re-saving an untouched form writes
  * nothing and logs nothing, so the activity feed doesn't fill with renames
  * that renamed nothing.
+ *
+ * The brief is the exception: no other operation owns that column, so it is
+ * written here — and it logs its own event like the rest.
  */
 export async function updateBookingRecord(input: {
   bookingId: string;
@@ -1258,12 +1298,13 @@ export async function updateBookingRecord(input: {
   contactId?: string | null;
   scheduledFor?: string | null;
   durationMinutes?: number | null;
+  brief?: string | null;
 }) {
-  const { orgId } = await getAuthOrgId();
+  const { orgId, personId } = await getAuthOrgId();
 
   const { data: current } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, contact_id, scheduled_for, duration_minutes')
+    .select('id, title, brief, contact_id, scheduled_for, duration_minutes')
     .eq('id', input.bookingId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -1295,6 +1336,31 @@ export async function updateBookingRecord(input: {
       durationMinutes: input.durationMinutes !== undefined ? input.durationMinutes : current.duration_minutes,
     });
     changed.push('schedule');
+  }
+
+  // Trimmed on both sides of the comparison, so emptying the box clears the
+  // column rather than storing whitespace that reads as a brief.
+  if (input.brief !== undefined) {
+    const brief = (input.brief || '').trim() || null;
+    if (brief !== (current.brief ?? null)) {
+      const { error } = await supabaseAdmin
+        .from('bookings')
+        .update({ brief })
+        .eq('id', input.bookingId)
+        .eq('organization_id', orgId);
+      if (error) throw new Error('Failed to save what the client asked for.');
+      // The text itself stays out of the payload — it is prose, and the log
+      // records that it changed, not a second copy of it.
+      await logEvent({
+        organizationId: orgId,
+        entityType: 'booking',
+        entityId: input.bookingId,
+        action: 'brief_updated',
+        actorId: personId ?? undefined,
+        payload: { cleared: brief === null },
+      });
+      changed.push('brief');
+    }
   }
 
   revalidatePath(`/bookings/${input.bookingId}`);

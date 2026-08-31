@@ -721,7 +721,7 @@ export async function listServices() {
   const { data, error } = await supabaseAdmin
     .from('services')
     .select(`
-      id, name, description, status, service_domain_id,
+      id, name, description, status, service_domain_id, created_at,
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),

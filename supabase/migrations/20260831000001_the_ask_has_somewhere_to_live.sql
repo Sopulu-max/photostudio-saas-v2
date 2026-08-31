@@ -1,0 +1,24 @@
+-- What the client asked for, in their words, before it is a package.
+--
+-- WHAT WAS MISSING. A booking could record who, when, and which packages — all
+-- of them answers. It could not record the question. An operator on the phone
+-- hearing "something for my mum's 70th, maybe thirty people, thinking June" had
+-- two choices: force it into a package and a price nobody had agreed, or lose
+-- it. The only free text anywhere near the intake was the invoice's notes,
+-- which are addressed to the client and printed on a document.
+--
+-- WHY THE GUESS IS WORSE THAN THE GAP. A nearest-fit package is not a harmless
+-- placeholder. It instantiates, cuts its services' tasks into real production
+-- work, and carries a price that an invoice then bills. Uncertainty with
+-- nowhere to go does not stay uncertain; it gets written down as fact.
+--
+-- WHY IT IS FREE TEXT AND STAYS THAT WAY. Occasion, headcount and subject are
+-- dimensions, and they belong there the moment they are known. This column is
+-- for the moment before that, and for everything that never becomes a
+-- dimension at all. Giving it structure would rebuild the problem it exists to
+-- solve, so nothing reads it but a person.
+--
+-- Nullable, because most bookings will never need one, and a booking that has a
+-- brief is not more valid than a booking that does not.
+
+alter table bookings add column if not exists brief text;

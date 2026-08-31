@@ -15,6 +15,14 @@ import { formatVariableValue } from '@/modules/services/variableTypes';
 
 type DimensionTagShape = { id: string; name: string; position?: number; values: { id: string; name: string }[] };
 
+function byPrice(a: any, b: any, dir: 1 | -1) {
+  const av = a.price?.amount, bv = b.price?.amount;
+  if (av == null && bv == null) return a.name.localeCompare(b.name);
+  if (av == null) return 1;
+  if (bv == null) return -1;
+  return (Number(av) - Number(bv)) * dir || a.name.localeCompare(b.name);
+}
+
 export function PackagesClient({
   initialPackages,
   currencyCode = 'USD',
@@ -26,8 +34,27 @@ export function PackagesClient({
   storefrontSlug?: string | null;
   activeFilter?: { label: string } | null;
 }) {
-  const active = initialPackages.filter((p: any) => p.status !== 'retired');
-  const retired = initialPackages.filter((p: any) => p.status === 'retired');
+  /*
+   * One list, grouped on the way out. Retired packages used to be filtered off
+   * before the catalogue and rendered underneath it, where the search box could
+   * not reach them — see the same note on the services page.
+   */
+  const HOW_TO_ORDER = [
+    { key: 'recent', label: 'Newest first',
+      compare: (a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')) },
+    { key: 'name', label: 'Name A–Z',
+      compare: (a: any, b: any) => a.name.localeCompare(b.name) },
+    /*
+     * A package with no price is not the cheapest one; it is the one nobody has
+     * priced. It sorts last whichever way the list is pointed, because putting
+     * it at the top of "low to high" would answer a question about price with a
+     * package that has none.
+     */
+    { key: 'dear', label: 'Price: high to low',
+      compare: (a: any, b: any) => byPrice(a, b, -1) },
+    { key: 'cheap', label: 'Price: low to high',
+      compare: (a: any, b: any) => byPrice(a, b, 1) },
+  ];
 
   /*
    * What a package is classified as: what it says about itself, plus what its
@@ -262,8 +289,10 @@ export function PackagesClient({
          * nothing had to be invented to make the list long-proof.
          */
         <CatalogFilter
-          items={active}
+          items={initialPackages}
           noun="package"
+          kind="catalogue"
+          sorts={HOW_TO_ORDER}
           read={(pkg: any) => ({
             name: pkg.name,
             description: pkg.description,
@@ -275,21 +304,32 @@ export function PackagesClient({
             }))),
           })}
         >
-          {(shown) => (
-            <div className="q-grid-cards">
-              {shown.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
-            </div>
-          )}
+          {(shown, { dense }) => {
+            const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
+            const retired = shown.filter((pkg: any) => pkg.status === 'retired');
+            const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
+            return (
+              <>
+                <div className={grid}>
+                  {offered.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
+                </div>
+                {retired.length > 0 && (
+                  <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
+                    <h2 className="q-section-title">Retired</h2>
+                    <p className="q-meta" style={{ marginBottom: '16px' }}>
+                      Not offered on new bookings. Past bookings keep their line and price.
+                    </p>
+                    <div className={grid}>
+                      {retired.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
+                    </div>
+                  </section>
+                )}
+              </>
+            );
+          }}
         </CatalogFilter>
       )}
 
-      {retired.length > 0 && (
-        <section style={{ marginTop: '40px' }}>
-          <h2 className="q-section-title">Retired</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>Not offered on new bookings. Past bookings keep their line and price.</p>
-          <div className="q-grid-cards">{retired.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}</div>
-        </section>
-      )}
     </div>
   );
 }

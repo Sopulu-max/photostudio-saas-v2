@@ -152,12 +152,31 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     if (orgError || !org) throw new Error(`Could not create the smoke studio: ${orgError?.message}`);
     orgId = org.id;
 
-    await supabaseAdmin.from('contacts').insert({
+    /*
+     * BOTH OF THESE ARE CHECKED, AND THE SECOND IS WHY.
+     *
+     * They were awaited and their results dropped. supabase-js reports a failed
+     * write by returning an error rather than throwing, so a dropped result is
+     * a write that can fail in total silence — and the proxy decides whether
+     * someone has a studio by reading organization_id out of exactly this
+     * metadata. Lose that one call and the smoke user is a real, signed-in
+     * person with no studio, so every signed-in page correctly redirects to
+     * /create-studio and twenty-two tests report that the app is broken.
+     *
+     * That is what a run of this suite did: one ECONNRESET against a remote
+     * Postgres, and the seeding said nothing while the assertions blamed the
+     * product. The suite exists to tell me whether the app works; it has to
+     * fail loudly when the answer is "I could not set it up".
+     */
+    const { error: contactError } = await supabaseAdmin.from('contacts').insert({
       organization_id: orgId, display_name: 'Smoke Tester', email, auth_user_id: userId,
     });
-    await supabaseAdmin.auth.admin.updateUserById(userId, {
+    if (contactError) throw new Error(`Could not link the smoke user to the studio: ${contactError.message}`);
+
+    const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       user_metadata: { organization_id: orgId },
     });
+    if (metaError) throw new Error(`Could not put the smoke user in the studio: ${metaError.message}`);
 
     // Sign in for real tokens.
     const anon = createClient(
