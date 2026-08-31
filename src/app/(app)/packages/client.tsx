@@ -195,7 +195,7 @@ export function PackagesClient({
             : 'Nothing promised yet'}
         </p>
 
-        {(tags.length > 0 || fixed.length > 0 || asked.length > 0) && (
+        {(tags.length > 0 || fixed.length > 0) && (
           <div className="q-facts">
             {tags.map((d) => (
               <span key={d.id} className="q-fact-group">
@@ -215,20 +215,33 @@ export function PackagesClient({
                 </span>
               </span>
             ))}
-            {/* Said alongside the fixed values, not only in place of them. A
-                package that fixes two things and asks three said nothing about
-                the three, because this only drew when nothing was fixed. */}
-            {asked.length > 0 && (
-              <span className="q-fact-group">
-                <span className="q-fact-key">Asked</span>
-                <span className="q-fact-values">
-                  <span className="q-fact q-absent">
-                    {asked.length} at booking
-                  </span>
-                </span>
-              </span>
-            )}
           </div>
+        )}
+
+        {/*
+          * NOT A ROW IN THAT TABLE.
+          *
+          * This was one — key "ASKED", value "4 at booking" — sitting under
+          * CONTEXT, OCCASION and DRONE COVERAGE in the same two columns and the
+          * same pill. But that table means one thing: here is a property of this
+          * package, and here is what it was set to. "Asked" is not a property
+          * and "4 at booking" is not a value of it; it is a count of the
+          * properties that have NO value, which is the opposite of what every
+          * other row in the grid is saying.
+          *
+          * It was drawn in q-absent grey as well, and on this card that grey is
+          * how absence reads — "No price set", "Produces nothing yet". So four
+          * questions the studio deliberately chose to ask the client came out
+          * looking like four things it had failed to fill in.
+          *
+          * Said as a sentence instead, below the settled facts rather than
+          * inside them, and in ordinary secondary text because deferring a
+          * decision to the client is a normal thing for a package to do.
+          */}
+        {asked.length > 0 && (
+          <p className="q-meta-sm">
+            {asked.length} {asked.length === 1 ? 'question' : 'questions'} asked at booking
+          </p>
         )}
 
         {/* What it costs, and what it takes: the commercial band. */}
