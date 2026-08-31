@@ -195,8 +195,31 @@ body {
   padding: 32px;
   overflow-y: auto;
 }
+/*
+ * HOW MUCH OF A WIDE SCREEN THE APP ACTUALLY USES.
+ *
+ * This was 1200px, applied in one place to every page in the app. On a 2000px
+ * display that left roughly 290px of nothing down each side of the content —
+ * more dead ground than a card is wide — while the catalogue inside squeezed
+ * four cards into a width that wrapped their titles onto two lines.
+ *
+ * A measure cap is right for TEXT and wrong for a grid, and almost everything
+ * governed by this number is a grid: bookings, packages, services, clients,
+ * contracts, finances, galleries, tasks, team, the dashboards. The pages that
+ * genuinely read as prose already opt into .q-page-narrow at 820px, which sits
+ * inside this and is untouched by widening it.
+ *
+ * So the grids get the room, and the two places where prose could stretch with
+ * them — the page subtitle here, and the card text, which is bounded by the
+ * card — are bounded on their own terms rather than by starving the whole app
+ * of width.
+ *
+ * Still a real bound rather than none: q-grid-cards uses auto-fit, so a
+ * catalogue of four stretches to fill whatever it is given, and unbounded that
+ * means four enormous cards on a 4K display instead of four small ones.
+ */
 .q-shell-measure {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 .q-sidebar {
@@ -404,6 +427,12 @@ body {
   color: var(--q-color-ink-500);
   font-size: 1.075rem;
   line-height: 1.5;
+  /* A measure of its own, so the header can take the width the grid below it
+     needs without this becoming a hundred-character line. It shares its row
+     with the page actions, which is what used to wrap it — an accident of the
+     buttons' width, not a decision, and it stopped holding the moment the row
+     got wider. */
+  max-width: 62ch;
 }
 
 /* ---- Glassmorphic shells ---- */
