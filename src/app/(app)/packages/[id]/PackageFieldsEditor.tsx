@@ -22,6 +22,12 @@ import { PickMany, PickToAdd } from '@/components/Pick';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { ImageUpload } from '@/components/ImageUpload';
 import { Counted } from '@/components/Counted';
+// The one widget for one variable. This form carried its own ten-branch
+// copy of it — the fifth — while the component built to end exactly that
+// sat one import away.
+import { VariableField } from '@/components/VariableField';
+// And the one parser that turns what was typed into what is meant.
+import { parseVariableValue } from '@/modules/services/variableTypes';
 
 type ServiceOption = { 
   id: string; 
@@ -650,10 +656,17 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       if (chosen === 'client') return [{ serviceVariableId: v.id, answeredBy: 'client' as const }];
       const raw = variableValues[v.id];
       if ((raw ?? '') === '') return [];
-      const value =
-        v.kind === 'number' ? Number(raw)
-        : v.kind === 'boolean' ? raw === 'true'
-        : raw;
+      /*
+       * One parser, like one widget.
+       *
+       * This read Number() for a number and raw === 'true' for a boolean, while
+       * the client's form and the line config both went through
+       * parseVariableValue — which accepts yes, included and 1 as true, and
+       * returns null rather than NaN for a number that is not one. Three places
+       * turning a typed string into a value is three chances to disagree about
+       * what the studio meant, and two of them already had.
+       */
+      const value = parseVariableValue(v.kind as any, raw);
       return [{ serviceVariableId: v.id, answeredBy: 'studio' as const, value }];
     });
 
@@ -1011,75 +1024,44 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                   <option value="studio">We set it</option>
                   <option value="client">The client chooses</option>
                 </select>
-                {who === 'studio' && (
-                  <>
-                {v.kind === 'number' && (
-                  <>
-                    <input
-                      className="q-input q-num" type="number" value={current} disabled={isPending}
-                      min={v.min ?? undefined} max={v.max ?? undefined}
-                      onChange={(e) => setVariable(v.id, e.target.value)}
-                      placeholder="&mdash;" style={{ width: '7rem' }}
-                    />
-                    {v.unit && <span className="q-meta-sm">{Number(current) === 1 ? v.unit : `${v.unit}s`}</span>}
-                  </>
+                {/*
+                  * THE FIELD ITSELF, EITHER WAY.
+                  *
+                  * Choosing "the client chooses" used to print the sentence "a
+                  * field on the booking form" — a description of a thing,
+                  * standing where the thing could have stood. A studio deciding
+                  * what to ask a stranger should see what the stranger sees, at
+                  * the moment it decides, not read a promise about it.
+                  *
+                  * So the control is drawn both ways: live when the studio is
+                  * setting the value, and inert when the client will. And it is
+                  * not a mock of the client's field — VariableField IS the
+                  * component the public booking page renders, so a shape that
+                  * looks right here cannot look different there.
+                  *
+                  * That component exists because four surfaces once carried
+                  * their own `kind === 'number' && …` ladder over the same
+                  * shapes, and two of them already disagreed about what a
+                  * boolean was. This form was quietly the fifth, ten branches
+                  * long, and I edited it all day without noticing.
+                  */}
+                <VariableField
+                  kind={v.kind}
+                  value={who === 'client' ? '' : current}
+                  onChange={(next) => setVariable(v.id, Array.isArray(next) ? next.join(',') : next)}
+                  options={v.options || []}
+                  unit={v.unit}
+                  min={v.min}
+                  max={v.max}
+                  // Inert, not absent: a client fills this in, so the studio
+                  // reads it rather than answers it.
+                  disabled={isPending || who !== 'studio'}
+                  emptyLabel={who === 'client' ? 'The client fills this in' : '—'}
+                />
+                {who === 'studio' && current !== '' && (
+                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
+                    onClick={() => setVariable(v.id, '')}>Clear</button>
                 )}
-                {v.kind === 'choice' && (
-                  <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                    <option value="">Ask the client</option>
-                    {v.options.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                )}
-                {v.kind === 'boolean' && (
-                  <select className="q-select" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }}>
-                    <option value="">Ask the client</option>
-                    <option value="true">Included</option>
-                    <option value="false">Not included</option>
-                  </select>
-                )}
-                {v.kind === 'text' && (
-                  <input className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem' }} />
-                )}
-                {v.kind === 'textarea' && (
-                  <textarea className="q-input" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="Ask the client" style={{ minWidth: '10rem', minHeight: '3rem' }} />
-                )}
-                {v.kind === 'date' && (
-                  <input className="q-input" type="date" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} style={{ minWidth: '10rem' }} />
-                )}
-                {v.kind === 'url' && (
-                  <input className="q-input" type="url" value={current} disabled={isPending} onChange={(e) => setVariable(v.id, e.target.value)} placeholder="https://..." style={{ minWidth: '10rem' }} />
-                )}
-                {v.kind === 'multichoice' && (
-                  <div className="q-stack q-stack-xs">
-                    {v.options.map((o: string) => {
-                      const selected = current.split(',').filter(Boolean);
-                      const isOn = selected.includes(o);
-                      return (
-                        <label key={o} className="q-row" style={{ gap: '6px', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={isOn}
-                            disabled={isPending}
-                            onChange={() => {
-                              const next = isOn ? selected.filter((x: string) => x !== o) : [...selected, o];
-                              setVariable(v.id, next.join(','));
-                            }}
-                          />
-                          <span>{o}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-                    {current !== '' && (
-                      <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setVariable(v.id, '')}>Clear</button>
-                    )}
-                  </>
-                )}
-                {/* Named for where it ends up, because that is the thing a
-                    studio is deciding: this variable becomes a field on the
-                    booking form. */}
-                {who === 'client' && <span className="q-meta-sm">A field on the booking form.</span>}
               </div>
             </div>
           );
