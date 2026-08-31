@@ -80,6 +80,14 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         initial={{
           name: service.name,
           description: (service as any).description,
+          /*
+           * Passed even when null, so the editor knows it HOLDS the cover and
+           * may speak for it. Omitting it leaves coverUrl undefined, which the
+           * editor reads as "not this form's to touch" — the same rule that
+           * kept a form which was never given the workflow from deleting it.
+           */
+          coverUrl: (service as any).cover_url ?? null,
+          coverPosition: (service as any).cover_position ?? null,
           serviceDomain: (service as any).domain?.name || '',
           primaryDeliverable: (service as any).primary_deliverable?.name || null,
           deliverables: ((service as any).deliverables || []).map((d: any) => d.name),

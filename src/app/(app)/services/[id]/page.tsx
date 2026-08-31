@@ -36,6 +36,29 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
   return (
     <div className="q-page-narrow">
       <Link className="q-back" href="/services">&larr; Back to Services</Link>
+
+      {/*
+        * The work, before the words about it — and present either way.
+        *
+        * Drawn only when a cover exists, this page would give no sign that a
+        * service could have one, so the only way to find out would be to open
+        * the editor and scroll. Empty it is the same wash the card uses, and it
+        * says what it is for. The whole band is the link to the editor, which
+        * is where a cover is set.
+        */}
+      <Link
+        href={`/services/${service.id}/edit`}
+        className={(service as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
+        style={(service as any).cover_url
+          ? {
+              backgroundImage: `url(${(service as any).cover_url})`,
+              backgroundPosition: (service as any).cover_position || undefined,
+            }
+          : undefined}
+        title={(service as any).cover_url ? 'Change the cover' : 'Add a cover'}
+      >
+        {!(service as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
+      </Link>
       
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>

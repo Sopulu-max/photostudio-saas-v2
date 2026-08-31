@@ -120,6 +120,10 @@ export function TemplatePicker({
           initial={{
             name: chosen.name,
             description: chosen.summary,
+            // None yet, but the form holds it — so a studio can attach one
+            // while creating rather than having to come back and edit.
+            coverUrl: null,
+            coverPosition: null,
             serviceDomain: chosen.domain,
             primaryDeliverable: chosen.deliverables?.[0] || null,
             deliverables: chosen.deliverables,

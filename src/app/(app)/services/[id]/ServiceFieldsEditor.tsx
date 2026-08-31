@@ -11,6 +11,7 @@ import { ServiceVariablesEditor } from './ServiceVariablesEditor';
 import { WorkflowEditor } from './WorkflowEditor';
 import type { WorkflowInput } from '@/modules/services/interface';
 import { toast, readableError } from '@/components/Toast';
+import { ImageUpload } from '@/components/ImageUpload';
 
 /**
  * Defining a service, in the vocabulary of its own domain.
@@ -60,6 +61,18 @@ export function ServiceFieldsEditor({
 
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
+  /*
+   * A picture of the work, and where in it to look.
+   *
+   * undefined, not '', when the page did not pass one: this form must be able
+   * to tell "the studio cleared the cover" from "this form was never given
+   * one", because the first is a null the domain should write and the second
+   * is a field it must leave alone. The same distinction that stops the
+   * workflow below being deleted by a form that never held it.
+   */
+  const [coverUrl, setCoverUrl] = useState<string | null | undefined>(initial.coverUrl);
+  const [coverPosition, setCoverPosition] = useState<string | null>(initial.coverPosition ?? null);
+  const [coverProblem, setCoverProblem] = useState<string | null>(null);
   const [domain, setDomain] = useState(initial.serviceDomain ?? '');
   const [primaryDeliverable, setPrimaryOutputType] = useState(initial.primaryDeliverable ?? '');
   const [deliverables, setDeliverables] = useState<string[]>(initial.deliverables || []);
@@ -177,6 +190,47 @@ export function ServiceFieldsEditor({
     setAdding(false);
   };
 
+  /*
+   * Saved on the spot rather than on Save, in edit mode.
+   *
+   * An upload has already happened by the time this runs — the file is in
+   * storage either way — so leaving the row unwritten until the form is
+   * submitted means a studio that uploads a cover and navigates away has a
+   * picture nothing points at. The package editor made the same call for the
+   * same reason.
+   *
+   * A new picture is a new crop: carrying the old focal point over would place
+   * the next photograph by where the last one happened to be looking.
+   */
+  const applyCover = (next: string | null) => {
+    setCoverUrl(next ?? '');
+    setCoverPosition(null);
+    setCoverProblem(null);
+    saveCover({ coverUrl: next, coverPosition: null });
+  };
+
+  const applyCoverPosition = (next: string) => {
+    setCoverPosition(next);
+    setCoverProblem(null);
+    saveCover({ coverPosition: next });
+  };
+
+  const saveCover = (patch: { coverUrl?: string | null; coverPosition?: string | null }) => {
+    // In create mode there is no row yet, so it rides along with the payload
+    // below instead.
+    if (mode !== 'edit' || !serviceId) return;
+    startTransition(async () => {
+      try {
+        // Only what changed. Every other field absent means leave it alone —
+        // the rule that keeps this from erasing the workflow or the variables.
+        await updateService({ serviceId, ...patch });
+        router.refresh();
+      } catch (e) {
+        setCoverProblem(readableError(e, 'The cover could not be saved.'));
+      }
+    });
+  };
+
   const handleSave = () => {
     if (!name.trim()) { toast.bad('Name is required.'); return; }
     if (!domainName) { toast.bad('Service Domain is required.'); return; }
@@ -198,6 +252,8 @@ export function ServiceFieldsEditor({
           variables,
           // Omitted when this form has nothing to say about it. See above.
           ...(speaksForWorkflow ? { workflow } : {}),
+          // Same rule: absent unless this form actually holds one.
+          ...(coverUrl === undefined ? {} : { coverUrl: coverUrl || null, coverPosition }),
         };
         if (mode === 'create') {
           // createService answers { serviceId }, not the id. Interpolating the
@@ -262,6 +318,26 @@ export function ServiceFieldsEditor({
           Description
           <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} disabled={isPending} />
         </label>
+
+        {coverUrl !== undefined && (
+          <div className="q-field">
+            <label className="q-label">Cover</label>
+            <ImageUpload
+              url={coverUrl || null}
+              folder="services"
+              label="cover"
+              // Twice the widest a cover is ever drawn, which is as much as the
+              // densest display can resolve.
+              maxEdge={2400}
+              onUploaded={(u) => applyCover(u)}
+              onCleared={() => applyCover(null)}
+              position={coverPosition}
+              onPositionChange={applyCoverPosition}
+            />
+            {coverProblem && <span className="q-meta-sm q-text-danger">{coverProblem}</span>}
+            {mode === 'edit' && <span className="q-meta-sm">Saved as soon as it is chosen.</span>}
+          </div>
+        )}
       </div>
 
       {/* 2. How this domain classifies its work */}

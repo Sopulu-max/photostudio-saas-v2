@@ -506,6 +506,15 @@ export async function createService(input: {
   serviceDomain?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
+  /*
+   * A picture of the work, and where in it to look.
+   *
+   * undefined leaves both alone, null clears them — the same rule every other
+   * field here follows, and the one that keeps a cover from being wiped by a
+   * form that was only editing a name.
+   */
+  coverUrl?: string | null;
+  coverPosition?: string | null;
   /** What may vary about this service — declared up front so a template's service arrives usable. */
   variables?: ServiceVariableInput[];
   /** Whatever this domain classifies by — not a fixed five. */
@@ -530,6 +539,8 @@ export async function createService(input: {
       organization_id: orgId,
       name,
       description: input.description || null,
+      cover_url: input.coverUrl || null,
+      cover_position: input.coverPosition || null,
       service_domain_id: domainId,
       primary_deliverable_id: primaryDeliverableId,
       status: 'active',
@@ -567,6 +578,15 @@ export async function updateService(input: {
   serviceDomain?: string | null;
   primaryDeliverable?: string | null;
   deliverables?: string[];
+  /*
+   * A picture of the work, and where in it to look.
+   *
+   * undefined leaves both alone, null clears them — the same rule every other
+   * field here follows, and the one that keeps a cover from being wiped by a
+   * form that was only editing a name.
+   */
+  coverUrl?: string | null;
+  coverPosition?: string | null;
   /** Whatever this domain classifies by — not a fixed five. */
   dimensions?: DimensionWrite[];
   workflow?: WorkflowInput | null;
@@ -597,6 +617,8 @@ export async function updateService(input: {
     patch.name = name;
   }
   if (input.description !== undefined) patch.description = input.description || null;
+  if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl || null;
+  if (input.coverPosition !== undefined) patch.cover_position = input.coverPosition || null;
   if (input.serviceDomain !== undefined) patch.service_domain_id = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
   const outputDomainId = (patch.service_domain_id as string | undefined) ?? existing.service_domain_id;
   if (input.primaryDeliverable !== undefined) {
@@ -722,6 +744,7 @@ export async function listServices() {
     .from('services')
     .select(`
       id, name, description, status, service_domain_id, created_at,
+      cover_url, cover_position,
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),
@@ -767,6 +790,7 @@ export async function getService(serviceId: string) {
     .from('services')
     .select(`
       id, name, description, status, service_domain_id,
+      cover_url, cover_position,
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       service_deliverables(deliverable:deliverables(id, name)),

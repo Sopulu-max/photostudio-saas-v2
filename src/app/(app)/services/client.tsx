@@ -67,13 +67,36 @@ export function ServicesClient({
    * anchors are why the classifications had to be built out of spans with
    * hand-written commas and inherited colours.
    */
-  const Card = ({ svc }: { svc: any }) => {
+  const Card = ({ svc, withCover }: { svc: any; withCover: boolean }) => {
     const tags = (svc.dimensions || []) as ServiceDimensionTag[];
     const produces = (svc.deliverables || []).map((d: any) => d.name);
     const steps = svc.workflow?.tasks?.length ?? 0;
 
     return (
       <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive q-rise">
+        {/*
+          * Drawn whenever ANY service in this grid has one, exactly as the
+          * package catalogue does it. A row is stretched to its tallest card,
+          * so a service with a picture beside one without would put their
+          * titles at different heights; but a grid where NOTHING has a cover
+          * needs no band to align against, and twelve identical washes in the
+          * position the eye goes first is what makes a catalogue read as a loop.
+          */}
+        {withCover && (
+          <div
+            className={svc.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
+            // The focal point is a fact about this picture, so it travels with
+            // it rather than living in a stylesheet that knows neither.
+            style={svc.cover_url
+              ? { backgroundImage: `url(${svc.cover_url})`, backgroundPosition: svc.cover_position || undefined }
+              : undefined}
+          >
+            {!svc.cover_url && (
+              <span className="q-cover-initial">{(svc.name || '?').trim().charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+        )}
+
         <div>
           <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
           <h3 className="q-card-title">{svc.name}</h3>
@@ -205,10 +228,13 @@ export function ServicesClient({
             const offered = shown.filter((svc: any) => svc.status !== 'retired');
             const retired = shown.filter((svc: any) => svc.status === 'retired');
             const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
+            // Per grid: a row is only stretched by its own siblings.
+            const offeredCovers = offered.some((svc: any) => svc.cover_url);
+            const retiredCovers = retired.some((svc: any) => svc.cover_url);
             return (
               <>
                 <div className={grid}>
-                  {offered.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                  {offered.map((svc: any) => <Card key={svc.id} svc={svc} withCover={offeredCovers} />)}
                 </div>
 
                 {/* Below what is offered, and only when the narrowing in force
@@ -220,7 +246,7 @@ export function ServicesClient({
                       Not offered for new packages. Packages already built from these are untouched.
                     </p>
                     <div className={grid}>
-                      {retired.map((svc: any) => <Card key={svc.id} svc={svc} />)}
+                      {retired.map((svc: any) => <Card key={svc.id} svc={svc} withCover={retiredCovers} />)}
                     </div>
                   </section>
                 )}
