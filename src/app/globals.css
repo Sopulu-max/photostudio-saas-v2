@@ -68,6 +68,9 @@
   --q-shadow-md:    0 6px 16px -6px rgba(26, 26, 29, 0.14), 0 2px 5px -3px rgba(26, 26, 29, 0.10);
   --q-shadow-lg:    0 16px 32px -10px rgba(26, 26, 29, 0.18), 0 4px 10px -6px rgba(26, 26, 29, 0.12);
   --q-shadow-glass: 0 20px 40px -12px rgba(26, 26, 29, 0.22), 0 6px 14px -8px rgba(26, 26, 29, 0.14);
+  /* What an edge casts onto content passing beneath it. Deeper in the dark
+     palette, where a wash of black is the only thing that reads as depth. */
+  --q-edge-shade:   rgba(26, 26, 29, 0.16);
 
   /* Jewel gradients (the app launcher) */
   --q-jewel-indigo:  linear-gradient(150deg, #4B57E6, #2A2F9E);
@@ -149,6 +152,7 @@
   --q-shadow-md:    0 6px 16px -6px rgba(0, 0, 0, 0.55), 0 2px 5px -3px rgba(0, 0, 0, 0.5);
   --q-shadow-lg:    0 16px 32px -10px rgba(0, 0, 0, 0.6), 0 4px 10px -6px rgba(0, 0, 0, 0.5);
   --q-shadow-glass: 0 20px 40px -12px rgba(0, 0, 0, 0.7), 0 6px 14px -8px rgba(0, 0, 0, 0.5);
+  --q-edge-shade:   rgba(0, 0, 0, 0.5);
 }
 
 body {
@@ -2453,9 +2457,6 @@ body {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  /* Bleeds to the section's edges, so a card cut off by the edge reads as
-     "there is more that way" rather than as a card clipped inside a box. */
-  margin-inline: calc(var(--q-card-pad) * -1);
   padding-inline: var(--q-card-pad);
   /*
    * ROOM FOR THE LIFT, above and below.
@@ -2524,3 +2525,41 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--q-color-ink-300); }
 ::-webkit-scrollbar-thumb:active { background-color: var(--q-color-ink-400); }
+
+
+/* ==========================================================================
+   THE RAIL'S EDGES
+
+   A card cut off by the section edge was simply cut off: it stopped, and
+   nothing said whether it had been clipped or had run out. What it needed was
+   the thing the eye already knows — content passing UNDER an edge, with the
+   edge casting onto it.
+
+   An inset shade rather than a fade, and the distinction matters. A fade says
+   "there is more content this way", which is a claim about the scroll position
+   and is therefore a lie at either end unless it is wired to react. An inset
+   shade says "this sits inside a frame and goes under its edge", which is true
+   wherever the rail happens to be scrolled to. The honest cue is also the
+   simpler one.
+
+   It lives on a frame rather than on the rail itself because a scroll
+   container's own box-shadow scrolls away with its content — the shade has to
+   belong to the opening, not to what is moving through it.
+   ========================================================================== */
+.q-rail-frame {
+  position: relative;
+  /* The bleed moves here: the frame is what meets the section's edges now, and
+     the rail scrolls inside it. */
+  margin-inline: calc(var(--q-card-pad) * -1);
+}
+.q-rail-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Spread pulled fully back so each side casts inward only, and neither
+     bleeds across a narrow rail to meet the other. */
+  box-shadow:
+    inset 16px 0 16px -16px var(--q-edge-shade),
+    inset -16px 0 16px -16px var(--q-edge-shade);
+}

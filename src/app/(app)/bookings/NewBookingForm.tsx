@@ -874,7 +874,7 @@ export function NewBookingForm({
                             * already the subject is what came off the service
                             * cards, for this reason.
                             */}
-                          <div className="q-rail">
+                          <div className="q-rail-frame"><div className="q-rail">
                             {pkgs.map((p: any) => {
                               const domains = [...new Set(((p.services || []) as any[])
                                 .map((sv: any) => sv.domain?.name || sv.domainName).filter(Boolean))];
@@ -931,7 +931,7 @@ export function NewBookingForm({
                                 </button>
                               );
                             })}
-                          </div>
+                          </div></div>
 
                           {/*
                             * Creating is always offered, not only when the list
