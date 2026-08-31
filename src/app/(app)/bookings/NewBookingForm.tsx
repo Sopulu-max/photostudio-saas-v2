@@ -78,8 +78,16 @@ export function NewBookingForm({
   const [isPending, startTransition] = useTransition();
 
   /** The studio's currency, for figures shown while the form is being filled in. */
-  const formatAmount = (n: number) =>
-    new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode || 'USD', maximumFractionDigits: 0 }).format(n);
+  /*
+   * How money reads is decided once, in kernel/currency, which calls itself
+   * the shared formatting home and holds the studio's own symbol table.
+   *
+   * This form had its own Intl.NumberFormat instead, and the two disagreed: the
+   * package cards in the rail said ₦200,000 while the figures at the foot of
+   * the sections below them said NGN 200,000 — the same amount, twice, on one
+   * screen, because a second formatter cannot help but drift from the first.
+   */
+  const formatAmount = (n: number) => formatMoney(n, currencyCode);
 
   const [client, setClient] = useState<ClientSelection | null>(null);
   const [when, setWhen] = useState('');
