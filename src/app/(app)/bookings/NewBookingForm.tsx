@@ -317,6 +317,45 @@ export function NewBookingForm({
 
 
 
+  /*
+   * The work these packages bring, computed where more than one thing can ask.
+   * It was built inside section 3's markup, so that section could list the
+   * tasks and nothing else could so much as count them.
+   */
+  const tasksFromPackages = React.useMemo(() => lines.flatMap((line, i) => {
+    const deep = line.selectedPackageDeep;
+    if (!deep) return [] as { key: string; name: string; role: string | null; pkg: string }[];
+    const pkgName = (deep.name as string) || line.customName || `Package ${i + 1}`;
+    return ((deep.services || []) as any[]).flatMap((svc: any) =>
+      ((svc.tasks || []) as any[])
+        .filter((t) => t.is_active !== false)
+        .map((t) => ({
+          key: `${line.id}:${svc.id}:${t.id}`,
+          name: t.name as string,
+          role: (t.role?.name ?? null) as string | null,
+          pkg: pkgName,
+        })));
+  }), [lines]);
+
+  /*
+   * WHAT THIS BOOKING COMES TO — computed once, for whichever section asks.
+   *
+   * It lived inside section 4's markup, so section 5 could say "uses the total
+   * for these packages" and not name it, and could take a deposit percentage
+   * without ever saying what that percentage was OF. An operator quoting on the
+   * telephone had to do the arithmetic themselves, from a form that had already
+   * done it and thrown it away.
+   *
+   * Priced at nothing and not priced at all stay different questions: a booking
+   * whose boxes are all empty is unquoted, while one deliberately priced at zero
+   * is a free job.
+   */
+  const pricedLines = lines.filter((l) => l.linePrice.trim() !== '');
+  const bookingTotal = pricedLines.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
+  const isQuoted = pricedLines.length > 0;
+  const depositPct = Number(deposit) || 0;
+  const depositAmount = Math.round(bookingTotal * (depositPct / 100) * 100) / 100;
+
   const submitBooking = () => {
     startTransition(async () => {
       try {
@@ -1130,20 +1169,7 @@ export function NewBookingForm({
         <h2 className="q-section-title">3. Tasks</h2>
 
         {(() => {
-          const fromPackages = lines.flatMap((line, i) => {
-            const deep = line.selectedPackageDeep;
-            if (!deep) return [] as { key: string; name: string; role: string | null; pkg: string }[];
-            const pkgName = (deep.name as string) || line.customName || `Package ${i + 1}`;
-            return ((deep.services || []) as any[]).flatMap((svc: any) =>
-              ((svc.tasks || []) as any[])
-                .filter((t) => t.is_active !== false)
-                .map((t) => ({
-                  key: `${line.id}:${svc.id}:${t.id}`,
-                  name: t.name as string,
-                  role: (t.role?.name ?? null) as string | null,
-                  pkg: pkgName,
-                })));
-          });
+          const fromPackages = tasksFromPackages;
 
           return (
             <div className="q-stack q-stack-md">
@@ -1240,6 +1266,36 @@ export function NewBookingForm({
             </div>
           );
         })()}
+
+        {/*
+          * THE SECTION'S OWN FIGURE, IN THE BAND A CARD USES FOR ITS PRICE.
+          *
+          * Section 2 was the only part of this page with anything to look at:
+          * covers, names, and a price in the accent at the foot of every card.
+          * The other four sections held the same KINDS of thing — a sum of
+          * money, a count of work — and drew every one of them as q-meta-sm,
+          * the smallest grey on the page. The difference was never that
+          * packages are prettier. It is that packages were shown and the rest
+          * were whispered.
+          *
+          * So: the same band, at the foot of each section, carrying that
+          * section's one figure. Nothing is invented — q-card-foot and q-price
+          * are what a package card already uses, and a section IS a card. What
+          * it buys is rhythm. Reading down the page, every section now resolves
+          * to one figure in the accent, the way every card in the rail does.
+          */}
+        <div className="q-card-foot">
+          <span className={tasksFromPackages.length > 0 ? 'q-figure' : 'q-figure q-absent'}>
+            {tasksFromPackages.length > 0
+              ? <>{tasksFromPackages.length}<span className="q-figure-unit">{tasksFromPackages.length === 1 ? 'task' : 'tasks'}</span></>
+              : 'No work defined yet'}
+          </span>
+          {tasksFromPackages.length > 0 && (
+            <span className="q-meta-sm">
+              {tasksFromPackages.filter((t) => t.role).length} of them with a role
+            </span>
+          )}
+        </div>
       </div>
 
       {/*
@@ -1268,29 +1324,20 @@ export function NewBookingForm({
               </option>
             </select>
             {(() => {
-              // What the packages come to, so the figure is not arithmetic the
-              // operator has to do in their head while filling in a form.
-              //
-              // Priced at nothing and not priced at all are different questions,
-              // so they are asked separately: a booking every one of whose boxes
-              // is empty gets no invoice, while a booking deliberately priced at
-              // zero is a free job and gets one.
-              const priced = lines.filter((l) => l.linePrice.trim() !== '');
-              if (priced.length === 0) {
+              if (!isQuoted) {
                 return (
                   <span className="q-meta-sm">
                     Nothing above is priced yet, so no invoice is raised. Add one from the booking once you have quoted it.
                   </span>
                 );
               }
-              const total = priced.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
-              const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : 100;
-              const amount = Math.round(total * (pct / 100) * 100) / 100;
+              const pct = invoicePortion === 'deposit' ? depositPct : 100;
+              const amount = Math.round(bookingTotal * (pct / 100) * 100) / 100;
               return (
                 <span className="q-meta-sm">
                   {invoicePortion === 'deposit' && pct > 0
-                    ? `${formatAmount(amount)} of ${formatAmount(total)}. The balance can be invoiced later from the booking.`
-                    : `${formatAmount(amount)}, the whole booking.`}
+                    ? `The balance can be invoiced later from the booking.`
+                    : `The whole booking.`}
                 </span>
               );
             })()}
@@ -1314,6 +1361,36 @@ export function NewBookingForm({
               placeholder="Bank details, payment reference, or other information for the client."
             />
           </div>
+        </div>
+
+        {/*
+          * THE SECTION'S OWN FIGURE, IN THE BAND A CARD USES FOR ITS PRICE.
+          *
+          * Section 2 was the only part of this page with anything to look at:
+          * covers, names, and a price in the accent at the foot of every card.
+          * The other four sections held the same KINDS of thing — a sum of
+          * money, a count of work — and drew every one of them as q-meta-sm,
+          * the smallest grey on the page. The difference was never that
+          * packages are prettier. It is that packages were shown and the rest
+          * were whispered.
+          *
+          * So: the same band, at the foot of each section, carrying that
+          * section's one figure. Nothing is invented — q-card-foot and q-price
+          * are what a package card already uses, and a section IS a card. What
+          * it buys is rhythm. Reading down the page, every section now resolves
+          * to one figure in the accent, the way every card in the rail does.
+          */}
+        <div className="q-card-foot">
+          <span className={isQuoted ? 'q-price' : 'q-price q-absent'}>
+            {isQuoted
+              ? formatAmount(invoicePortion === 'deposit' && depositPct > 0
+                  ? Math.round(bookingTotal * (depositPct / 100) * 100) / 100
+                  : bookingTotal)
+              : 'Not quoted yet'}
+          </span>
+          {isQuoted && invoicePortion === 'deposit' && depositPct > 0 && (
+            <span className="q-meta-sm">of {formatAmount(bookingTotal)}</span>
+          )}
         </div>
       </div>
 
@@ -1364,6 +1441,36 @@ export function NewBookingForm({
             {Number(deposit) === 0
               ? 'No deposit. The full amount is due on signing.'
               : `Studio default is ${depositDefault}%. A change here applies to this contract only.`}
+          </span>
+        </div>
+
+        {/*
+          * A PERCENTAGE OF WHAT.
+          *
+          * This section said it "uses your standard terms and the total for
+          * these packages", then took a deposit as a percentage — and named
+          * neither number. The one figure an operator is actually agreeing to
+          * on the telephone, the money due on confirmation, was the one thing
+          * the contract section would not say. It was not set small here; it
+          * did not exist.
+          *
+          * The same band as the sections above, so the page resolves the same
+          * way five times.
+          */}
+        <div className="q-card-foot">
+          <span className={isQuoted ? 'q-price' : 'q-price q-absent'}>
+            {!isQuoted
+              ? 'Not quoted yet'
+              : depositPct > 0
+                ? formatAmount(depositAmount)
+                : formatAmount(bookingTotal)}
+          </span>
+          <span className="q-meta-sm">
+            {!isQuoted
+              ? 'Price the packages above to see what is due'
+              : depositPct > 0
+                ? `on confirmation, ${formatAmount(bookingTotal - depositAmount)} on delivery`
+                : 'due on signing'}
           </span>
         </div>
       </div>

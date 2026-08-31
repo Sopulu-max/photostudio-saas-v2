@@ -722,7 +722,15 @@ body {
 .q-tile-sub { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--q-color-ink-100); }
 
 /* A titled block inside a page. */
-.q-section        { padding: 24px; }
+/*
+ * A section is roomier-or-tighter than a plain card, and the variable has to
+ * move with it. --q-card-pad exists so a band spanning the card edge to edge
+ * can cancel the padding, and its own note warns that two hard-coded copies
+ * "would go out of step the first time a card was made roomier". This is that:
+ * the padding was overridden to 24 and the variable left at 28, so any foot
+ * band in a section overhung it by four pixels a side.
+ */
+.q-section        { --q-card-pad: 24px; padding: var(--q-card-pad); }
 /*
  * A card's own name, as distinct from a section's heading.
  *
