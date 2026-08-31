@@ -114,7 +114,7 @@ export function PackagesClient({
    * the same service. The ones it leaves open are the client's answer, not the
    * package's, so they are counted rather than named.
    */
-  const Card = ({ pkg }: { pkg: any }) => {
+  const Card = ({ pkg, withCover }: { pkg: any; withCover: boolean }) => {
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
     const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
@@ -129,13 +129,26 @@ export function PackagesClient({
     return (
       <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack q-rise">
         {/*
-          * Always drawn, cover or no cover. A card in a grid is stretched to the
-          * tallest in its row, so one package with a picture and one without
-          * would put their titles at different heights and undo the alignment
-          * everything else here was built for. Empty, it is a quiet wash
-          * carrying the initial — which is also a legible invitation.
+          * Drawn whenever ANY package in this grid has one — not always.
+          *
+          * The reason it was unconditional is sound and still holds: a card in a
+          * grid is stretched to the tallest in its row, so one package with a
+          * picture beside one without would put their titles at different
+          * heights and undo the alignment everything else here was built for.
+          * Empty, the wash carries the initial and reads as an invitation.
+          *
+          * But that argument only needs the band when there is a picture in the
+          * grid to align against. A catalogue where NOTHING has a cover yet —
+          * which is every studio before it uploads its first one — was spending
+          * the most prominent zone of all twelve cards on twelve grey
+          * rectangles, each carrying one letter it already says in the title
+          * directly underneath. Identical blocks in the position the eye goes
+          * first is precisely what makes a catalogue read as a loop.
+          *
+          * Computed per grid rather than per catalogue, because offered and
+          * retired are two grids and rows only stretch within one.
           */}
-        <div
+        {withCover && <div
           className={pkg.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
           // The focal point is a fact about this picture, so it travels with it
           // rather than living in a stylesheet that knows nothing about either.
@@ -146,7 +159,7 @@ export function PackagesClient({
           {!pkg.cover_url && (
             <span className="q-cover-initial">{(pkg.name || '?').trim().charAt(0).toUpperCase()}</span>
           )}
-        </div>
+        </div>}
 
         {/*
           * The category above the name, the way a label sits above a title
@@ -308,10 +321,13 @@ export function PackagesClient({
             const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
             const retired = shown.filter((pkg: any) => pkg.status === 'retired');
             const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
+            // Per grid: a row is only stretched by its own siblings.
+            const offeredCovers = offered.some((pkg: any) => pkg.cover_url);
+            const retiredCovers = retired.some((pkg: any) => pkg.cover_url);
             return (
               <>
                 <div className={grid}>
-                  {offered.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
+                  {offered.map((pkg: any) => <Card key={pkg.id} pkg={pkg} withCover={offeredCovers} />)}
                 </div>
                 {retired.length > 0 && (
                   <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
@@ -320,7 +336,7 @@ export function PackagesClient({
                       Not offered on new bookings. Past bookings keep their line and price.
                     </p>
                     <div className={grid}>
-                      {retired.map((pkg: any) => <Card key={pkg.id} pkg={pkg} />)}
+                      {retired.map((pkg: any) => <Card key={pkg.id} pkg={pkg} withCover={retiredCovers} />)}
                     </div>
                   </section>
                 )}
