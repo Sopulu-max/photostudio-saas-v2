@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { CreateContractButton, ExtractPackageButton } from './BookingActions';
 
 import { listClients } from '@/modules/clients/interface';
-import { TaskProgression } from './ProductionUI';
 import { listEmployees, listRoles } from '@/modules/team/interface';
 import { getBookingTeam, getBookingTasks } from '@/modules/production/interface';
 import { BookingTasks } from './BookingTasks';
@@ -446,18 +445,28 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       </div>
                     )}
 
-                    <TaskProgression
-                      bookingId={booking.id}
-                      lineId={l.id}
-                      tasks={l.tasks || []}
-                      employees={employees || []}
-                      pkg={l.package}
-                    />
                   </div>
                 );
               })}
             </div>
           )}
+          {/*
+            * NO TASK LIST HERE, DELIBERATELY. The work is in the Tasks section
+            * below, as one list, with the package each step came from shown
+            * against it.
+            *
+            * It was in both. BookingTasks was written to replace the per-package
+            * lists — its own note says a booking with three packages showed
+            * three separate lists and no view of the job as one thing — and
+            * then the per-package list was never taken out. So every task a
+            * package brought was drawn twice on this page, in two different
+            * shapes, each with its own assign control writing to the same row.
+            *
+            * The unified list is a strict superset: getBookingTasks selects
+            * every booking_task with no line filter, and BookingTasks can also
+            * set a role, add a step and remove one, and narrows the assignee
+            * list to people who actually hold the role. Nothing was lost here.
+            */}
           {lines.length > 0 && (
             <div className="q-tile-sub q-row q-row-between">
               <span className="q-meta">Total</span>
