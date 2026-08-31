@@ -2409,3 +2409,47 @@ body {
    the markup — there is nothing to separate when nothing is offered — but the
    measurement itself belongs here like every other. */
 .q-section-gap { margin-block-start: 40px; }
+
+/* ==========================================================================
+   A RAIL — a bounded set, browsed sideways
+
+   For choosing from a list you want to RECOGNISE rather than read: the
+   packages on a booking line, where a picture says which one it is faster than
+   a name does. It runs sideways so a catalogue of thirty cannot push the rest
+   of the form off the screen, and it deliberately does not stand alone — the
+   narrowing above it is what makes a rail the right shape, because a rail is
+   good for browsing a dozen and bad for scanning forty.
+
+   The cards in it are ordinary .q-card, so the cover, the empty wash and the
+   initial are the same ones the catalogue draws and there is no second
+   definition of any of them.
+   ========================================================================== */
+.q-rail {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  /* Bleeds to the section's edges, so a card cut off by the edge reads as
+     "there is more that way" rather than as a card clipped inside a box. */
+  margin-inline: calc(var(--q-card-pad) * -1);
+  padding-inline: var(--q-card-pad);
+  padding-block-end: 10px;
+  scrollbar-width: thin;
+}
+.q-rail > * {
+  flex: 0 0 15.5rem;
+  scroll-snap-align: start;
+  /* A card in a row is stretched by its tallest sibling, which is what keeps
+     every cover on the same line. */
+  align-self: stretch;
+}
+/* One card is not a rail. It sits at its natural width rather than being the
+   lone thing in a scroller that cannot scroll. */
+.q-rail:has(> :only-child) > * { flex: 0 1 20rem; }
+
+@media (max-width: 640px) {
+  /* Nearly the whole width, with the next one showing past the edge — the only
+     thing that says a row scrolls on a device with no scrollbar to see. */
+  .q-rail > * { flex: 0 0 min(17rem, 82vw); }
+}

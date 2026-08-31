@@ -21,6 +21,8 @@ import { parseVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { toStored, hasPrice } from '@/kernel/money';
+// How money reads, from the one place that decides it.
+import { formatMoney } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
@@ -811,35 +813,99 @@ export function NewBookingForm({
                     >
                       {(pkgs, { query }) => (
                         <div className="q-stack q-stack-sm">
-                          {pkgs.map((p: any) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className="q-option"
-                              onClick={() => handlePackageSelect(index, p.id)}
-                            >
-                              <div className="q-row q-row-between">
-                                <div>
-                                  <div className="q-strong">{p.name}</div>
-                                  {p.description && <div className="q-meta-sm">{p.description}</div>}
-                                  <div className="q-row q-row-sm">
-                                    {p.durationMinutes ? <span className="q-meta-sm">{p.durationMinutes} minutes</span> : null}
-                                    {p.deliverables?.length ? (
-                                      <span className="q-meta-sm">
-                                        {p.deliverables.length} deliverable{p.deliverables.length === 1 ? '' : 's'}
+                          {/*
+                            * RECOGNISED, NOT READ.
+                            *
+                            * These were rows of text, stacked, so twenty
+                            * packages became twenty lines that pushed Tasks,
+                            * Invoice and Contract off the screen — and the
+                            * operator picking one had to read names to tell
+                            * them apart while somebody waited on the telephone.
+                            *
+                            * A picture says which package it is faster than a
+                            * name does, and now that packages carry covers
+                            * there is a picture to say it with. Sideways, so a
+                            * catalogue of thirty cannot grow the form
+                            * vertically without limit, and with the next card
+                            * showing past the edge so it is plain there is more
+                            * that way.
+                            *
+                            * IT DOES NOT STAND ALONE, and that is the point. A
+                            * rail is good for browsing a dozen and bad for
+                            * scanning forty — you cannot see them at once. The
+                            * search, the domain and the classifications above
+                            * are what narrow forty to a dozen; the rail is only
+                            * ever showing what came back.
+                            *
+                            * The card is the ordinary q-card the Packages
+                            * catalogue draws — same cover, same empty wash,
+                            * same initial, same price — so an operator chooses
+                            * from things they already recognise from that page,
+                            * and none of it is defined twice.
+                            *
+                            * Nothing inside it links or clicks. The card IS the
+                            * button; a second thing to aim at on a card that is
+                            * already the subject is what came off the service
+                            * cards, for this reason.
+                            */}
+                          <div className="q-rail">
+                            {pkgs.map((p: any) => {
+                              const domains = [...new Set(((p.services || []) as any[])
+                                .map((sv: any) => sv.domain?.name || sv.domainName).filter(Boolean))];
+                              const priced = hasPrice(p.price);
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  className="q-card q-card-interactive q-stack"
+                                  style={{ textAlign: 'left', cursor: 'pointer' }}
+                                  onClick={() => handlePackageSelect(index, p.id)}
+                                  title={p.description || p.name}
+                                >
+                                  <div
+                                    className={p.coverUrl ? 'q-cover' : 'q-cover q-cover-empty'}
+                                    style={p.coverUrl
+                                      ? { backgroundImage: `url(${p.coverUrl})`, backgroundPosition: p.coverPosition || undefined }
+                                      : undefined}
+                                  >
+                                    {!p.coverUrl && (
+                                      <span className="q-cover-initial">
+                                        {(p.name || '?').trim().charAt(0).toUpperCase()}
                                       </span>
-                                    ) : null}
-                                    {p.services?.length ? (
-                                      <span className="q-meta-sm">
-                                        {p.services.length} service{p.services.length === 1 ? '' : 's'}
-                                      </span>
-                                    ) : null}
+                                    )}
                                   </div>
-                                </div>
-                                <span className="q-meta-sm">Select &rarr;</span>
-                              </div>
-                            </button>
-                          ))}
+
+                                  <div>
+                                    {/* Every domain it draws on, so a package
+                                        bundling across two says so here too. */}
+                                    {domains.length > 0 && (
+                                      <span className="q-eyebrow">{domains.join(' + ')}</span>
+                                    )}
+                                    <h4 className="q-card-title">{p.name}</h4>
+                                  </div>
+
+                                  {/* What it is made of and what it promises —
+                                      the counts that tell one package from
+                                      another without reading a description. */}
+                                  <p className="q-meta-sm" style={{ margin: 0 }}>
+                                    {[
+                                      p.services?.length ? `${p.services.length} service${p.services.length === 1 ? '' : 's'}` : null,
+                                      p.deliverables?.length ? `${p.deliverables.length} deliverable${p.deliverables.length === 1 ? '' : 's'}` : null,
+                                      p.durationMinutes ? `${p.durationMinutes} minutes` : null,
+                                    ].filter(Boolean).join(' \u00b7 ')}
+                                  </p>
+
+                                  <div className="q-card-foot">
+                                    <span className={priced ? 'q-price' : 'q-price q-absent'}>
+                                      {priced
+                                        ? formatMoney(Number((p.price as any).amount), String((p.price as any).currency || currencyCode))
+                                        : 'No price set'}
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
 
                           {/*
                             * Creating is always offered, not only when the list

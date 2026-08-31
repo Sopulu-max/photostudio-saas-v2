@@ -56,6 +56,11 @@ export default async function NewBookingPage() {
       services: p.services || [],  
       deliverables: p.deliverables || [], 
       dimensions: p.dimensions || [],
+      // The picker shows the package as a card now, so it needs what a card
+      // shows: the picture, where to look in it, and the price.
+      coverUrl: (p.cover_url ?? null) as string | null,
+      coverPosition: (p.cover_position ?? null) as string | null,
+      price: p.price ?? null,
     }));
 
   const serviceOptions = activeServices.map((s: any) => ({
