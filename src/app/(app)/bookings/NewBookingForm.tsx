@@ -990,7 +990,7 @@ export function NewBookingForm({
                             */}
                           <button
                             type="button"
-                            className="q-btn q-btn-secondary q-fill q-center-text"
+                            className="q-btn q-btn-secondary"
                             onClick={() => handlePackageSelect(index, 'custom', query)}
                           >
                             {query ? `Create package: “${query}”` : 'Create a new package'}
