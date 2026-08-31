@@ -70,6 +70,8 @@ export type { Narrowed, DimensionSuggestions, VariableSuggestions } from './sugg
 export {
   listDimensionsForDomain, listStudioDimensions, createDimension, renameDimension,
   setDimensionActive, deleteDimension, addDimensionValue, removeDimensionValue,
+  // One order, the studio's, followed by every surface that shows them.
+  moveDimension,
   setValueParent,
 } from './dimensionsAdmin';
 export type { StudioDimension, StudioQuestion } from './dimensionsAdmin';

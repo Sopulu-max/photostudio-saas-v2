@@ -45,8 +45,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     .from('service_domain_dimensions')
     .select('position, is_active, dimension:dimensions(id, name, question, example, position, dimension_values(id, name, position, parent_id))')
     .eq('organization_id', orgId)
-    .eq('service_domain_id', serviceDomainId)
-    .order('position');
+    .eq('service_domain_id', serviceDomainId);
   if (error) {
     console.error('Failed to list dimensions:', error);
     return [];
@@ -60,11 +59,17 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     question: row.dimension.question,
     example: row.dimension.example,
     isActive: row.is_active,
-    position: row.position ?? 0,
+    // The DIMENSION's position, not the join's. Read off the join, this screen
+    // sorted by an order nothing writes any more — so reordering did nothing
+    // here, which is the fault this change exists to remove.
+    position: row.dimension.position ?? 0,
     values: (row.dimension.dimension_values || [])
       .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0, parentId: v.parent_id ?? null }))
       .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name)),
-  }));
+  }))
+  // Sorted here rather than by the query: the order lives on the dimension, and
+  // a parent cannot be ordered by an embedded column.
+  .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
 }
 
 /** A question the studio already has, and what adopting it would bring with it. */
@@ -216,6 +221,60 @@ export async function createDimension(input: {
  * through findByName and would have found the existing one, and renaming is the
  * same act arrived at differently.
  */
+/**
+ * Move a question up or down the studio's list.
+ *
+ * ONE ORDER, NOT TWO. There were two: the join carried how a domain arranged
+ * the questions it asks, and dimensions.position carried the studio's own —
+ * and three surfaces disagreed about which governed them. The settings screen
+ * and the package editor read the join; the package page read the studio
+ * order; the package card sorted by neither and showed whatever order the
+ * query happened to return.
+ *
+ * A domain asks a SUBSET, and a subset needs no order of its own: one list,
+ * filtered, renders every subset correctly. The only thing a second order buys
+ * is Photography and Videography disagreeing about the sequence, which nobody
+ * has asked for — and its cost is the drift above, where a studio arranging its
+ * questions in settings changed nothing on the pages it was arranging them for.
+ *
+ * So this moves the question for the studio, and every surface follows. The
+ * join keeps its position column, unread, rather than being dropped in the same
+ * breath as the code that stopped reading it.
+ *
+ * Swaps with its neighbour rather than renumbering the list: two rows change,
+ * the rest are untouched, and a list that was never renumbered cannot drift out
+ * of step with itself.
+ */
+export async function moveDimension(input: { dimensionId: string; direction: 'up' | 'down' }) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: all } = await supabaseAdmin
+    .from('dimensions').select('id, position')
+    .eq('organization_id', orgId)
+    .order('position');
+
+  const list = (all || []) as { id: string; position: number }[];
+  const at = list.findIndex((d) => d.id === input.dimensionId);
+  if (at === -1) throw new Error('That classification is not this studio\'s.');
+
+  const swapWith = input.direction === 'up' ? at - 1 : at + 1;
+  // Already at the end it is being asked to move towards: nothing to do, and
+  // nothing to report — an operator pressing up on the first row means "up".
+  if (swapWith < 0 || swapWith >= list.length) return { ok: true, moved: false };
+
+  const a = list[at];
+  const b = list[swapWith];
+  await Promise.all([
+    supabaseAdmin.from('dimensions').update({ position: b.position }).eq('id', a.id).eq('organization_id', orgId),
+    supabaseAdmin.from('dimensions').update({ position: a.position }).eq('id', b.id).eq('organization_id', orgId),
+  ]);
+
+  revalidatePath('/services/settings');
+  revalidatePath('/services');
+  revalidatePath('/packages');
+  return { ok: true, moved: true };
+}
+
 export async function renameDimension(input: { dimensionId: string; name?: string; question?: string | null; example?: string | null }) {
   const { orgId } = await getAuthOrgId();
   const patch: Record<string, unknown> = {};

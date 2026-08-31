@@ -46,7 +46,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createService, declareDimensionVariable, listVariablesForDimensions } from '@/modules/services/domain';
-import { createDimension, addDimensionValue } from '@/modules/services/dimensionsAdmin';
+import { createDimension, addDimensionValue, moveDimension, listDimensionsForDomain } from '@/modules/services/dimensionsAdmin';
 import {
   createPackage, updatePackage, getOpenVariablesForPackagePublic, getPackageVariablesPublic,
   getOpenClassificationsForPackagePublic, answerPackageClassifications, getPackage,
@@ -182,6 +182,36 @@ describe('A dimension says what follows from its answers', () => {
       .from('dimensions').select('id', { count: 'exact', head: true })
       .eq('organization_id', TEST_ORG_ID).eq('name', 'Occasion');
     expect(copies, 'the studio ended up with two questions of one name').toBe(1);
+  });
+
+  it('reorders for the studio, and the domain list follows', async () => {
+    /*
+     * ONE ORDER, WHICH IS THE POINT.
+     *
+     * There were two — a per-domain one the settings screen read, and the
+     * studio's own that the package page read — and a third surface, the card,
+     * read neither. A studio arranging its questions in settings changed only
+     * settings.
+     *
+     * A domain asks a subset, and a subset needs no order of its own: one list,
+     * filtered, renders every subset correctly.
+     */
+    const before = await listDimensionsForDomain(domainId);
+    expect(before.length, 'nothing to reorder').toBeGreaterThan(1);
+    const second = before[1];
+
+    await moveDimension({ dimensionId: second.id, direction: 'up' });
+
+    const after = await listDimensionsForDomain(domainId);
+    expect(
+      after[0].id,
+      'moving a question up did not move it in the list the studio reads',
+    ).toBe(second.id);
+
+    // And back, so the move is a swap rather than a one-way renumbering.
+    await moveDimension({ dimensionId: second.id, direction: 'down' });
+    const restored = await listDimensionsForDomain(domainId);
+    expect(restored.map((d) => d.id)).toEqual(before.map((d) => d.id));
   });
 
   it('declares the date on the question rather than on any one package', async () => {

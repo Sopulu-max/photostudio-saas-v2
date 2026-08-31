@@ -347,6 +347,12 @@ export async function listDimensionsByDomain(): Promise<Record<string, StudioDim
     });
   }
   for (const list of Object.values(out)) list.sort((a, b) => a.position - b.position);
+  // Each domain's questions in the studio's order. The order belongs to the
+  // question, so a studio that arranges its questions once sees that
+  // arrangement on every screen that shows them.
+  for (const key of Object.keys(out)) {
+    out[key].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name));
+  }
   return out;
 }
 

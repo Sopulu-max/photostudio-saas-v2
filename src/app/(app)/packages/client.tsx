@@ -13,7 +13,7 @@ import { Counted } from '@/components/Counted';
 import { formatVariableValue } from '@/modules/services/variableTypes';
 
 
-type DimensionTagShape = { id: string; name: string; values: { id: string; name: string }[] };
+type DimensionTagShape = { id: string; name: string; position?: number; values: { id: string; name: string }[] };
 
 export function PackagesClient({
   initialPackages,
@@ -38,14 +38,25 @@ export function PackagesClient({
     const byDimension = new Map<string, DimensionTagShape>();
     const absorb = (dims: DimensionTagShape[] | undefined) => {
       for (const d of (dims || [])) {
-        if (!byDimension.has(d.id)) byDimension.set(d.id, { id: d.id, name: d.name, values: [] });
+        if (!byDimension.has(d.id)) byDimension.set(d.id, { id: d.id, name: d.name, position: d.position ?? 0, values: [] });
         const target = byDimension.get(d.id)!;
         for (const v of d.values) if (!target.values.some((x) => x.id === v.id)) target.values.push(v);
       }
     };
     absorb(pkg.dimensions);
     (pkg.services || []).forEach((s: any) => absorb(s.dimensions));
-    return [...byDimension.values()];
+    /*
+     * In the studio's order, like everywhere else.
+     *
+     * This returned whatever order the merge happened to produce — each source
+     * arrives sorted, but a service introducing an earlier question later in
+     * the loop landed it at the end. So one card could read Context, Occasion
+     * and the next Occasion, Context, and neither matched the order the studio
+     * had arranged.
+     */
+    return [...byDimension.values()].sort(
+      (a, b) => (a.position ?? 0) - (b.position ?? 0) || a.name.localeCompare(b.name),
+    );
   };
 
   /**

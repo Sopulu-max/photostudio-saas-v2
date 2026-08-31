@@ -6,6 +6,7 @@ import {
   listDimensionsForDomain, createDimension, setDimensionActive,
   deleteDimension, addDimensionValue, removeDimensionValue, setValueParent,
   listVariablesForDimensions, declareDimensionVariable, removeDimensionVariable,
+  moveDimension,
 } from '@/modules/services/interface';
 import type { StudioDimension, StudioQuestion, DimensionSuggestions } from '@/modules/services/interface';
 import { dimensionKey, narrowFor } from '@/modules/services/interface';
@@ -144,7 +145,7 @@ export function DimensionManager({
         <p className="q-meta">Loading…</p>
       ) : (
         <div className="q-stack q-stack-sm">
-          {dims.map((d) => (
+          {dims.map((d, i) => (
             <div key={d.id} className="q-tile q-stack q-stack-sm">
               <div className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
                 <div>
@@ -153,6 +154,18 @@ export function DimensionManager({
                   {d.question && <div className="q-meta-sm">{d.question}</div>}
                 </div>
                 <div className="q-row">
+                  {/*
+                    * The order the studio reads its own questions in — the one
+                    * order there is now, followed by this screen, the package
+                    * editor, the package page and the cards. Arranging them
+                    * here used to change only here.
+                    */}
+                  <button className="q-btn-ghost q-btn-xs" disabled={isPending || i === 0}
+                    title={`Move ${d.name} up`}
+                    onClick={() => run(() => moveDimension({ dimensionId: d.id, direction: 'up' }))}>&uarr;</button>
+                  <button className="q-btn-ghost q-btn-xs" disabled={isPending || i === dims.length - 1}
+                    title={`Move ${d.name} down`}
+                    onClick={() => run(() => moveDimension({ dimensionId: d.id, direction: 'down' }))}>&darr;</button>
                   <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
                     onClick={() => run(() => setDimensionActive({ dimensionId: d.id, isActive: !d.isActive, serviceDomainId: domainId }))}>
                     {d.isActive ? 'Turn off' : 'Turn on'}
