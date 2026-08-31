@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { toast, readableError } from '@/components/Toast';
+import { useArrivals } from '@/components/useArrivals';
 import {
   setTaskRole, addBookingTask, removeBookingTask,
   assignToTask, unassignTask, advanceBookingLineTask,
@@ -56,6 +57,9 @@ export function BookingTasks({
   const [newName, setNewName] = useState('');
   const [newRoleId, setNewRoleId] = useState('');
   const [notice, setNotice] = useState('');
+  // A task added here lands in a list that may already be twenty long. This is
+  // what points at the one that just arrived.
+  const arrived = useArrivals(tasks.map((t) => t.id));
 
   const run = (fn: () => Promise<unknown>, whenFailed: string) =>
     startTransition(async () => {
@@ -89,7 +93,7 @@ export function BookingTasks({
             {tasks.map((t) => (
               <div
                 key={t.id}
-                className="q-row q-row-between"
+                className={`q-row q-row-between${arrived.has(t.id) ? ' q-flash' : ''}`}
                 style={{ alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '8px 10px', borderRadius: '8px', background: 'var(--q-color-ink-50)' }}
               >
                 <span className="q-row" style={{ gap: '10px', alignItems: 'center', minWidth: '200px', flex: 1 }}>
