@@ -362,6 +362,11 @@ export function NewBookingForm({
          * happened when a booking exists.
          */
         const failed: string[] = [];
+        // Kept apart from failures: a thing not attempted because the booking
+        // is not ready for it is not the same as a thing that broke, and an
+        // operator reading one sentence deserves to know which they are looking
+        // at.
+        const skipped: string[] = [];
 
         // The studio's own tasks, now that there is a booking to attach them to.
         for (const t of extraTasks) {
@@ -383,14 +388,37 @@ export function NewBookingForm({
           });
         } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
 
-        try {
-          await createContractForBooking(bookingId, {
-            depositPercentage: deposit.trim() === '' ? null : Number(deposit),
-          });
-        } catch (e: any) { failed.push(`contract (${e?.message || 'failed'})`); }
+        /*
+         * NOT ATTEMPTED WHEN IT CANNOT WORK.
+         *
+         * createContractForBooking refuses a booking with no client, and says
+         * so in plain words — but it is a server action, and Next redacts a
+         * thrown message in production. What reached the operator was "An error
+         * occurred in the Server Components render… the specific message is
+         * omitted", pasted into a sentence that promised to explain what went
+         * wrong. A deliberate, useful message replaced by a framework's apology
+         * for not showing it.
+         *
+         * A missing client is an expected state here, not a fault, so it is
+         * checked before the call rather than discovered by one.
+         */
+        if (!finalContactId) {
+          skipped.push('the contract, which needs a client');
+        } else {
+          try {
+            await createContractForBooking(bookingId, {
+              depositPercentage: deposit.trim() === '' ? null : Number(deposit),
+            });
+          } catch (e: any) { failed.push(`contract (${e?.message || 'failed'})`); }
+        }
 
-        if (failed.length > 0) {
-          alert(`The booking was created, but the ${failed.join(' and ')} could not be. You can raise ${failed.length === 1 ? 'it' : 'them'} on the booking.`);
+        if (failed.length > 0 || skipped.length > 0) {
+          const parts: string[] = [];
+          if (skipped.length > 0) parts.push(`It does not yet have ${skipped.join(' or ')}.`);
+          if (failed.length > 0) {
+            parts.push(`The ${failed.join(' and ')} could not be raised.`);
+          }
+          alert(`The booking is saved. ${parts.join(' ')} You can add what is missing on the booking itself.`);
         }
 
         router.push(`/bookings/${bookingId}`);
@@ -929,6 +957,28 @@ export function NewBookingForm({
           Uses your standard terms and the total for these packages. The wording can be edited on
           the contract before it is sent.
         </p>
+
+        {/*
+          * SAID HERE, BEFORE IT MATTERS.
+          *
+          * A contract is an agreement between the studio and somebody, so it
+          * cannot be raised without a client. That was already true and already
+          * checked — but the check lived at the far end of a save, so an
+          * operator filled this section in, submitted, and only then learned it
+          * had been for nothing.
+          *
+          * The booking itself is not blocked. Taking one with almost nothing
+          * known is the whole point of this form; a contract is simply the one
+          * thing on it that needs a name to be an agreement with.
+          */}
+        {/* Not clientId: a client typed in but not yet saved still becomes one
+            on submit, and warning about that would be wrong. */}
+        {!client && (
+          <p className="q-note q-note-warn q-meta">
+            A contract is an agreement with someone, so this needs a client. The booking will still
+            be taken — add a client above, or raise the contract later from the booking itself.
+          </p>
+        )}
         <div className="q-field" style={{ maxWidth: '320px' }}>
           <label className="q-label">Deposit</label>
           <div className="q-row" style={{ alignItems: 'center', gap: '8px' }}>
