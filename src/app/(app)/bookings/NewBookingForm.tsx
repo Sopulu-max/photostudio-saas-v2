@@ -17,6 +17,7 @@ import {
 // into what is meant. The storefront draws the same questions with the same two,
 // so a shape that works for a client works here.
 import { VariableField } from '@/components/VariableField';
+import { useArrivals } from '@/components/useArrivals';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
@@ -166,7 +167,23 @@ export function NewBookingForm({
     chosenClassifications: {},
   });
 
-  const [lines, setLines] = useState<LineState[]>([freshLine()]);
+  /*
+   * Empty, because a booking with no packages on it has no packages on it.
+   *
+   * It used to start with one blank line, since a blank line was the only way
+   * to reach the catalogue. That is no longer what a line is for: a line is a
+   * package this booking includes, and it comes into existence by choosing one.
+   */
+  const [lines, setLines] = useState<LineState[]>([]);
+  /*
+   * The catalogue's own narrowing, which belongs to the catalogue and not to
+   * any line. Each line still keeps the values it was found under — that is
+   * what a custom package built from a fruitless search is classified by — so
+   * they are copied onto the line at the moment it is added.
+   */
+  const [catalogueValues, setCatalogueValues] = useState<Record<string, string>>({});
+  /** Which package lines arrived since the last render. See useArrivals. */
+  const arrived = useArrivals(lines.map((l) => l.id));
 
 
   // For a given domain, which service ids belong to it?
@@ -192,11 +209,11 @@ export function NewBookingForm({
 
 
   // Further filter packages by selected dimensions for a given line
-  const filteredPackagesForLine = React.useCallback((line: LineState) => {
+  const filteredPackages = React.useMemo(() => {
     // Every package. Domain is a facet inside the filter below, not a gate in
     // front of it — see the note at the picker.
     const pkgs = packages;
-    const selectedDims = Object.entries(line.selectedDimensionValues).filter(([_, val]) => val !== '');
+    const selectedDims = Object.entries(catalogueValues).filter(([_, val]) => val !== '');
     if (selectedDims.length === 0) return pkgs;
 
     return pkgs.filter(pkg => {
@@ -216,7 +233,7 @@ export function NewBookingForm({
       }
       return true;
     });
-  }, [packages]);
+  }, [packages, catalogueValues]);
 
   const editorRefs = useRef<any[]>([]);
 
@@ -272,56 +289,46 @@ export function NewBookingForm({
     };
   };
 
-  const handlePackageSelect = (index: number, id: string, customName?: string) => {
-    const newLines = [...lines];
-    newLines[index].packageId = id;
-    newLines[index].customName = customName || '';
-    if (id && id !== 'custom') {
-      newLines[index].isLoadingDeep = true;
-      setLines(newLines);
-      /*
-       * Both at once. The package itself, and what it leaves for the client to
-       * answer — because an operator on the telephone IS the client answering,
-       * and until now this form never asked them.
-       *
-       * The questions are not fatal: a package whose open questions cannot be
-       * read is still a package that can be booked, so a failure here clears
-       * the block rather than the line.
-       */
-      Promise.all([
-        getPackage(id),
-        getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [] })),
-      ]).then(([deep, open]) => {
-        setLines(prev => {
-          const updated = [...prev];
-          updated[index].selectedPackageDeep = deep;
-          updated[index].isLoadingDeep = false;
-          updated[index].openQuestions = open;
-          // A different package asks different questions; answers to the last
-          // one are not answers to this one.
-          updated[index].variableAnswers = {};
-          updated[index].chosenClassifications = {};
-          if (deep.price?.amount != null && !updated[index].linePrice) {
-            updated[index].linePrice = String(deep.price.amount);
-          }
-          return updated;
-        });
-      }).catch(err => {
-        console.error(err);
-        setLines(prev => {
-          const updated = [...prev];
-          updated[index].isLoadingDeep = false;
-          return updated;
-        });
-      });
-    } else {
-      newLines[index].selectedPackageDeep = null;
-      newLines[index].openQuestions = null;
-      newLines[index].variableAnswers = {};
-      newLines[index].chosenClassifications = {};
-      setLines(newLines);
-    }
+  /*
+   * A PACKAGE IS ADDED BY CHOOSING IT.
+   *
+   * There is no slot to fill any more, so this makes the line rather than
+   * finding one — which also means picking the same package twice puts it on
+   * the booking twice, as a studio shooting two sessions would expect, without
+   * anything having to allow for it.
+   *
+   * The line is matched back by its own id when the load returns, not by its
+   * position: two of the same package added in quick succession are two
+   * different lines, and an index would have filled whichever one the array
+   * happened to hand back.
+   */
+  const addPackage = (id: string, customName?: string) => {
+    const line = freshLine();
+    line.packageId = id;
+    line.customName = customName || '';
+    // What it was found under travels with it. See catalogueValues.
+    line.selectedDimensionValues = { ...catalogueValues };
+    line.isLoadingDeep = Boolean(id) && id !== 'custom';
+    setLines((prev) => [...prev, line]);
+    if (!line.isLoadingDeep) return;
+
+    Promise.all([
+      getPackage(id),
+      getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [] })),
+    ]).then(([deep, open]) => {
+      setLines((prev) => prev.map((l) => l.id !== line.id ? l : {
+        ...l,
+        selectedPackageDeep: deep,
+        isLoadingDeep: false,
+        openQuestions: open,
+        linePrice: l.linePrice || (deep.price?.amount != null ? String(deep.price.amount) : ''),
+      }));
+    }).catch((err) => {
+      console.error(err);
+      setLines((prev) => prev.map((l) => l.id !== line.id ? l : { ...l, isLoadingDeep: false }));
+    });
   };
+
 
 
 
@@ -709,78 +716,31 @@ export function NewBookingForm({
         <h2 className="q-section-title">2. Packages</h2>
         
         <div className="q-stack q-stack-lg">
-          {lines.map((line, index) => (
-            /*
-             * Keyed by the line's own id, so React animates the one that was
-             * added rather than replaying every card each time the list
-             * changes — an index key would restage the whole section on every
-             * keystroke that adds or removes a line.
-             */
-            <div key={line.id} className="q-card q-stack q-stack-md q-appear" style={{ position: 'relative' }}>
-              {lines.length > 1 && (
-                <button
-                  type="button"
-                  className="q-btn-ghost q-btn-xs"
-                  style={{ position: 'absolute', top: '16px', right: '16px' }}
-                  onClick={() => {
-                    const newLines = [...lines];
-                    newLines.splice(index, 1);
-                    setLines(newLines);
-                    editorRefs.current.splice(index, 1);
-                  }}
-                >
-                  Remove
-                </button>
-              )}
-              {/*
-                * ONLY WHEN IT DISTINGUISHES SOMETHING.
-                *
-                * A single-line booking read "2. Packages", then "Package", then
-                * "Package" again — three headings, the same word, with a
-                * collapsed filter between them. This one earns its place when
-                * there are several lines to tell apart and says nothing the
-                * section heading has not already said when there is one.
-                */}
-              {lines.length > 1 && (
-                <h3 className="q-strong" style={{ marginBottom: '8px' }}>
-                  Package {index + 1}
-                </h3>
-              )}
-              
-              {/*
-                * NO DOMAIN GATE. THE PACKAGES LEAD.
-                *
-                * This asked "Service domain: Photography or Videography?" before
-                * it would show a single package, and a booking cannot answer
-                * that. A package BUNDLES services, and those services can come
-                * from different domains — Event Photography and Event
-                * Videography sold as one thing — so for that package the
-                * question has two right answers and picking either was
-                * arbitrary. Worse, having picked one, the operator was then
-                * offered only that domain's classifications, so half of what
-                * the package is classified by became unfilterable, and the line
-                * was badged with a single domain that was not the whole truth.
-                *
-                * A domain is a property of the SERVICES a package bundles. It is
-                * not a property of the booking, and it was never the booking's
-                * to be confined by. So it is a filter now, not a gate: the
-                * packages are on screen immediately, and domain is one facet
-                * beside search and classification — where a package spanning two
-                * domains is kept by either of them.
-                */}
-              {!line.packageId ? (
-                /*
-                 * Each step replaces the last in the same box, so the eye needs
-                 * telling that the box changed rather than that the page did.
-                 * q-swap settles in from very slightly small — the truthful
-                 * animation for content BECOMING other content, where rising
-                 * would claim something new had arrived beneath it.
-                 *
-                 * Keyed by the step, so React remounts on the change and the
-                 * animation actually plays; without a changing key the same
-                 * element is reused and nothing moves.
-                 */
-                <div key="choose" className="q-stack q-stack-sm q-swap">
+        {/*
+          * THE STUDIO'S CATALOGUE, ONCE.
+          *
+          * This lived inside a booking LINE, and an empty line was how you got
+          * one. Which meant the catalogue was a property of a slot: three empty
+          * lines drew three search boxes, three domain selects, three
+          * classification folds, three rails and three "create a new package"
+          * buttons — the whole catalogue three times over, with three
+          * independent filter states, showing the same two packages. Measured
+          * on the live page, not imagined.
+          *
+          * A catalogue is not a booking line. A booking line is a package the
+          * client is buying; an empty line is a SEARCH IN PROGRESS, and a search
+          * is not something a booking has. Modelling one as the other is what
+          * put the filter two cards deep, what made "Add another package"
+          * necessary — a button whose only job was to manufacture an empty slot
+          * to browse from — and what let the same catalogue exist three times
+          * at once.
+          *
+          * So: one catalogue, here, under the heading, for the whole section.
+          * Below it, the packages actually on this booking. Choosing adds one.
+          * There is no empty line to be in, so the state that produced all of
+          * the above is now unreachable rather than merely unlikely.
+          */}
+                <div className="q-stack q-stack-sm">
 
                   {/*
                     * Narrowing, offered rather than demanded.
@@ -816,7 +776,7 @@ export function NewBookingForm({
                       * this module's rules.
                       */}
                     <CatalogFilter
-                      items={filteredPackagesForLine(line)}
+                      items={filteredPackages}
                       noun="package"
                       // Always drawn: this is the step, not an aid to it.
                       threshold={0}
@@ -831,7 +791,7 @@ export function NewBookingForm({
                         * extra prop for why it cannot simply become tags.
                         */
                       extra={allDimensions.length > 0 && (() => {
-        const active = Object.values(line.selectedDimensionValues).filter(Boolean).length;
+        const active = Object.values(catalogueValues).filter(Boolean).length;
         /*
          * No margin of its own. It carried marginBottom: 24px from when it was a
          * standalone block floating above the search bar, and inside the filter's
@@ -854,15 +814,8 @@ export function NewBookingForm({
                 <label className="q-label">{d.name}</label>
                 <select
                   className="q-select"
-                  value={line.selectedDimensionValues[d.id] || ''}
-                  onChange={(e) => {
-                    const newLines = [...lines];
-                    newLines[index].selectedDimensionValues = {
-                      ...newLines[index].selectedDimensionValues,
-                      [d.id]: e.target.value
-                    };
-                    setLines(newLines);
-                  }}
+                  value={catalogueValues[d.id] || ''}
+                  onChange={(e) => setCatalogueValues((prev) => ({ ...prev, [d.id]: e.target.value }))}
                 >
                   <option value="">Any</option>
                   {d.values.map((v: any) => (
@@ -932,7 +885,7 @@ export function NewBookingForm({
                                   type="button"
                                   className="q-card q-card-interactive q-stack"
                                   style={{ textAlign: 'left', cursor: 'pointer' }}
-                                  onClick={() => handlePackageSelect(index, p.id)}
+                                  onClick={() => addPackage(p.id)}
                                   title={p.description || p.name}
                                 >
                                   <div
@@ -991,7 +944,7 @@ export function NewBookingForm({
                           <button
                             type="button"
                             className="q-btn q-btn-secondary"
-                            onClick={() => handlePackageSelect(index, 'custom', query)}
+                            onClick={() => addPackage('custom', query)}
                           >
                             {query ? `Create package: “${query}”` : 'Create a new package'}
                           </button>
@@ -1001,8 +954,77 @@ export function NewBookingForm({
                   </div>
                 </div>
 
-              /* ── Step D: Configure the chosen Package ────────────── */
-              ) : (
+          {lines.map((line, index) => (
+            /*
+             * Keyed by the line's own id, so React animates the one that was
+             * added rather than replaying every card each time the list
+             * changes — an index key would restage the whole section on every
+             * keystroke that adds or removes a line.
+             */
+            <div
+              key={line.id}
+              /*
+               * Flashed on arrival, because a package chosen from the catalogue
+               * ABOVE lands in the list BELOW, which is the one place in this
+               * form where the thing you just did happens somewhere other than
+               * where you did it. useArrivals answers exactly that question —
+               * which of these is new — and it already draws the same flash on
+               * a task added to a booking.
+               */
+              className={`q-card q-stack q-stack-md q-appear${arrived.has(line.id) ? ' q-flash' : ''}`}
+              style={{ position: 'relative' }}
+            >
+              {lines.length > 1 && (
+                <button
+                  type="button"
+                  className="q-btn-ghost q-btn-xs"
+                  style={{ position: 'absolute', top: '16px', right: '16px' }}
+                  onClick={() => {
+                    const newLines = [...lines];
+                    newLines.splice(index, 1);
+                    setLines(newLines);
+                    editorRefs.current.splice(index, 1);
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+              {/*
+                * ONLY WHEN IT DISTINGUISHES SOMETHING.
+                *
+                * A single-line booking read "2. Packages", then "Package", then
+                * "Package" again — three headings, the same word, with a
+                * collapsed filter between them. This one earns its place when
+                * there are several lines to tell apart and says nothing the
+                * section heading has not already said when there is one.
+                */}
+              {lines.length > 1 && (
+                <h3 className="q-strong" style={{ marginBottom: '8px' }}>
+                  Package {index + 1}
+                </h3>
+              )}
+              
+              {/*
+                * NO DOMAIN GATE. THE PACKAGES LEAD.
+                *
+                * This asked "Service domain: Photography or Videography?" before
+                * it would show a single package, and a booking cannot answer
+                * that. A package BUNDLES services, and those services can come
+                * from different domains — Event Photography and Event
+                * Videography sold as one thing — so for that package the
+                * question has two right answers and picking either was
+                * arbitrary. Worse, having picked one, the operator was then
+                * offered only that domain's classifications, so half of what
+                * the package is classified by became unfilterable, and the line
+                * was badged with a single domain that was not the whole truth.
+                *
+                * A domain is a property of the SERVICES a package bundles. It is
+                * not a property of the booking, and it was never the booking's
+                * to be confined by. So it is a filter now, not a gate: the
+                * packages are on screen immediately, and domain is one facet
+                * beside search and classification — where a package spanning two
+                * domains is kept by either of them.
+                */}
                 <div key="configure" className="q-field q-swap">
                   <div className="q-row q-row-between" style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                     <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1173,17 +1195,8 @@ export function NewBookingForm({
                     </>
                   ) : null}
                 </div>
-              )}
             </div>
           ))}
-
-          <button
-            type="button"
-            className="q-btn q-btn-secondary"
-            onClick={() => setLines([...lines, freshLine()])}
-          >
-            Add another package
-          </button>
         </div>
       </div>
 
