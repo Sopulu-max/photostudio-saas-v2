@@ -2160,6 +2160,78 @@ body {
 .q-toolbar > .q-select { flex: 0 1 auto; width: auto; min-inline-size: 8.5rem; }
 .q-toolbar > .q-input  { flex: 1 1 12rem; width: auto; min-inline-size: 0; }
 
+/*
+ * THE NARROWING PANEL — everything that changes what the list shows.
+ *
+ * The controls were right and invisible. They sat loose on the page ground in a
+ * flat run of equal weight above a grid of cards, and read as fields that
+ * happened to be there rather than as the instrument for the list below. An
+ * operator looking straight at a search box, a domain select, four sort orders,
+ * a Cards/List switch and seven classification chips reported the page had no
+ * search, display or filtering.
+ *
+ * A border and a quieter ground are the whole fix: instrument inside, result
+ * outside. Nothing here changes what any control does.
+ */
+.q-narrow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 14px;
+  background: var(--q-color-paper-subtle);
+}
+
+/* One classification per row, keys sharing a column so several of them read as
+   one instrument rather than three loose sentences. */
+.q-narrow-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.q-narrow-key {
+  flex: 0 0 auto;
+  min-inline-size: 6.5rem;
+  font-family: var(--q-font-mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-600, var(--q-color-ink-500));
+}
+.q-narrow-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+/* What came back. A fact about the list, so it sits with the list. */
+.q-result-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-block-end: -8px;
+}
+.q-result-count {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--q-color-ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* On a phone the key sits above its values rather than stealing 6.5rem of a
+   375px row — the same reason .q-facts stacks there. */
+@media (max-width: 640px) {
+  .q-narrow-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .q-narrow-key { min-inline-size: 0; }
+}
+
 /* The count leads and does not wrap away from the search it describes. */
 .q-toolbar-count {
   flex: none;

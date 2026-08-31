@@ -110,6 +110,8 @@ export function CatalogFilter<T>({
   const [facet, setFacet] = useState('');
   const [values, setValues] = useState<string[]>([]);
   const [uncapped, setUncapped] = useState(false);
+  /* Which classifications have been asked to show all of their values. */
+  const [openDims, setOpenDims] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState(sorts?.[0]?.key ?? '');
   /* Cards by default; rows when a studio wants to see more of the list than of
      each thing in it. Which of the two is right depends on whether you are
@@ -172,22 +174,33 @@ export function CatalogFilter<T>({
   const toggle = (valueId: string) =>
     setValues((prev) => prev.includes(valueId) ? prev.filter((v) => v !== valueId) : [...prev, valueId]);
 
+  const CHIPS_PER_ROW = 8;
+
   return (
     <div className="q-stack q-stack-lg">
-      <div className="q-stack q-stack-sm">
+      {/*
+        * ONE SURFACE, SO THE INSTRUMENT LOOKS LIKE ONE.
+        *
+        * Every control here already existed — search, domain, sort, cards or
+        * list, and a chip per classification. They sat loose on the page
+        * background in a flat run of equal weight, so the page read as a grid
+        * of cards with some form fields above it, and an operator told me it
+        * had no search, display or filtering at all. It had all three. Nothing
+        * said so.
+        *
+        * The panel is the whole fix in one move: everything that NARROWS the
+        * list is inside it, everything that IS the list is outside. A border
+        * and a quieter ground are enough to say instrument here, result there.
+        */}
+      {/*
+        * The panel is the catalogue's, not the picker's. A picker is a control
+        * inside a form that is already a stack of controls, and a second
+        * recessed box around one of them reads as a fieldset nobody asked for.
+        * The same distinction this component already draws for the count and
+        * the Cards/List switch.
+        */}
+      <div className={catalogue ? 'q-narrow' : 'q-stack q-stack-sm'}>
         <div className="q-toolbar">
-          {/* The list, saying what it is. Present before anything is typed,
-              because "how many services do I have" is a question a studio has
-              without wanting to filter anything, and counting cards is not an
-              answer a tool should make someone give themselves. */}
-          {catalogue && (
-            <span className="q-toolbar-count">
-              {narrowed
-                ? `${shown.length} of ${items.length}`
-                : `${items.length}`}{' '}
-              {items.length === 1 ? noun : `${noun}s`}
-            </span>
-          )}
           <input
             className="q-input"
             /* Names only what is actually searchable here: bookings have no
@@ -235,39 +248,74 @@ export function CatalogFilter<T>({
           )}
         </div>
 
-        {narrowing.map(([dimId, d]) => (
-          <div key={dimId} className="q-row q-row-sm">
-            <span className="q-eyebrow">{d.name}</span>
-            {[...d.values.entries()].map(([valId, valName]) => (
-              <button
-                key={valId}
-                type="button"
-                className={values.includes(valId) ? 'q-value q-value-sm q-value-on' : 'q-value q-value-sm'}
-                onClick={() => toggle(valId)}
-                aria-pressed={values.includes(valId)}
-              >
-                {valName}
-              </button>
-            ))}
-          </div>
-        ))}
-
-        {narrowed && (
-          <div className="q-row q-row-sm">
-            {!catalogue && (
-              <span className="q-meta-sm">
-                {shown.length} of {items.length} {items.length === 1 ? noun : `${noun}s`}
+        {/*
+          * The keys share a column so several classifications read as one
+          * instrument rather than three loose sentences, and the values line up
+          * under each other down the rows.
+          */}
+        {narrowing.map(([dimId, d]) => {
+          const all = [...d.values.entries()];
+          /* A studio's vocabulary has no ceiling, and neither did this: every
+             value of every classification was drawn, so enough of them pushed
+             the list they narrow off the screen. The ones already chosen are
+             always kept, so nothing in force can be hidden behind "more". */
+          const open = openDims.includes(dimId);
+          const drawnChips = open
+            ? all
+            : all.filter(([id], i) => i < CHIPS_PER_ROW || values.includes(id));
+          const hidden = all.length - drawnChips.length;
+          return (
+            <div key={dimId} className="q-narrow-row">
+              <span className="q-narrow-key">{d.name}</span>
+              <span className="q-narrow-values">
+                {drawnChips.map(([valId, valName]) => (
+                  <button
+                    key={valId}
+                    type="button"
+                    className={values.includes(valId) ? 'q-value q-value-sm q-value-on' : 'q-value q-value-sm'}
+                    onClick={() => toggle(valId)}
+                    aria-pressed={values.includes(valId)}
+                  >
+                    {valName}
+                  </button>
+                ))}
+                {hidden > 0 && (
+                  <button
+                    type="button" className="q-btn q-btn-ghost q-btn-xs"
+                    onClick={() => setOpenDims((prev) => [...prev, dimId])}
+                  >
+                    {hidden} more
+                  </button>
+                )}
               </span>
-            )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/*
+        * WHAT CAME BACK — outside the panel, because it is a fact about the
+        * list and not another control. It used to be a mono caption wedged in
+        * at the far left of the toolbar, where it read as a label belonging to
+        * the search box beside it rather than as the answer to "how many of
+        * these do I have".
+        */}
+      {(catalogue || narrowed) && (
+        <div className="q-result-line">
+          <span className="q-result-count">
+            {narrowed ? `${shown.length} of ${items.length}` : `${items.length}`}{' '}
+            {items.length === 1 ? noun : `${noun}s`}
+          </span>
+          {narrowed && (
             <button
               type="button" className="q-btn q-btn-secondary q-btn-xs"
-              onClick={() => { setSearch(''); setFacet(''); setValues([]); }}
+              onClick={() => { setSearch(''); setFacet(''); setValues([]); setOpenDims([]); }}
             >
               Clear
             </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {shown.length === 0 ? (
         <p className="q-empty">
