@@ -10,6 +10,7 @@ import { ClientPicker, clientEdits, type ClientSelection } from '@/components/Cl
 import { getPackage, createPackage } from '@/modules/packages/interface';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { toast, readableError } from '@/components/Toast';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
 
@@ -409,21 +410,39 @@ export function NewBookingForm({
             await createContractForBooking(bookingId, {
               depositPercentage: deposit.trim() === '' ? null : Number(deposit),
             });
-          } catch (e: any) { failed.push(`contract (${e?.message || 'failed'})`); }
+          } catch (e: any) { failed.push(`contract (${readableError(e, 'failed')})`); }
         }
 
-        if (failed.length > 0 || skipped.length > 0) {
-          const parts: string[] = [];
-          if (skipped.length > 0) parts.push(`It does not yet have ${skipped.join(' or ')}.`);
-          if (failed.length > 0) {
-            parts.push(`The ${failed.join(' and ')} could not be raised.`);
-          }
-          alert(`The booking is saved. ${parts.join(' ')} You can add what is missing on the booking itself.`);
+        /*
+         * THE GOOD NEWS AND THE CAVEAT ARE TWO DIFFERENT MESSAGES.
+         *
+         * This was one alert reading "The booking is saved. It does not yet
+         * have a contract…" — a success and a shortfall in the same grey modal,
+         * wearing the same face, and costing a click before the operator could
+         * reach the booking they had just made.
+         *
+         * The booking landing is the answer to what was asked and is always
+         * said. Anything outstanding is said separately and in its own tone: an
+         * expected gap is information, a failure is not. They stack, so an
+         * operator sees both at once and can tell which is which by colour
+         * alone.
+         *
+         * Both survive the router.push below — the Toaster lives in the root
+         * layout, so a message raised here is still on screen when the booking
+         * page arrives. An alert could not do that; it had to be dismissed
+         * before the navigation it was describing could even happen.
+         */
+        toast.ok('The booking is saved.');
+        if (skipped.length > 0) {
+          toast.info(`It does not yet have ${skipped.join(' or ')}. You can add that on the booking.`);
+        }
+        if (failed.length > 0) {
+          toast.bad(`The ${failed.join(' and ')} could not be raised. You can do it on the booking.`);
         }
 
         router.push(`/bookings/${bookingId}`);
       } catch (err: any) {
-        alert(err.message || 'Failed to book');
+        toast.bad(readableError(err, 'Failed to book'));
       }
     });
   };
@@ -1029,7 +1048,7 @@ export function NewBookingForm({
       </div>
 
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !lines.some(l => l.packageId)} onClick={submitBooking}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !lines.some(l => l.packageId)} onClick={submitBooking}>
           {isPending ? 'Creating…' : 'Create booking'}
         </button>
       </div>

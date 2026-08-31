@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setContractTermsTemplate } from '@/modules/contracts/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The studio's own standard contract language — payment schedule,
@@ -21,9 +22,10 @@ export function TermsTemplateForm({ initialText }: { initialText: string }) {
     startTransition(async () => {
       try {
         await setContractTermsTemplate(text);
+        toast.ok('The standard terms are saved.');
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Could not save.');
+        toast.bad(readableError(e, 'Could not save.'));
       }
     });
 
@@ -38,7 +40,7 @@ export function TermsTemplateForm({ initialText }: { initialText: string }) {
       />
       {dirty && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setText(initialText)}>

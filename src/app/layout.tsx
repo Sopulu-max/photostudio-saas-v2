@@ -1,5 +1,9 @@
 import './globals.css';
 import type { Metadata } from 'next';
+// Mounted at the true root so it covers the dashboard, the client portal and
+// the public booking page alike — an action reports itself the same way
+// wherever it was taken from.
+import { Toaster } from '@/components/Toast';
 
 export const metadata: Metadata = {
   title: 'Weave',
@@ -49,6 +53,7 @@ export default function RootLayout({
       </head>
       <body className="q-bg-surface-base q-text-body">
         {children}
+        <Toaster />
       </body>
     </html>
   );

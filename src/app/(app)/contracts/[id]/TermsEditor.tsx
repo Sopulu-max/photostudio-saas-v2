@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reviseContractTerms } from '@/modules/contracts/interface';
 import { formatMoney } from '@/kernel/currency';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The actual agreement — terms text, price, and deposit — editable in place.
@@ -47,7 +48,7 @@ export function TermsEditor({
         });
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Could not save the terms.');
+        toast.bad(readableError(e, 'Could not save the terms.'));
       }
     });
 
@@ -87,7 +88,7 @@ export function TermsEditor({
 
       {dirty && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save terms'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={reset}>

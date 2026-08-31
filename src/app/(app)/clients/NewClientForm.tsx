@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/modules/clients/interface';
+import { toast, readableError } from '@/components/Toast';
 
 export function NewClientForm() {
   const [open, setOpen] = useState(false);
@@ -20,7 +21,7 @@ export function NewClientForm() {
         setName(''); setEmail(''); setPhone(''); setOpen(false);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to create client.');
+        toast.bad(readableError(e, 'Failed to create client.'));
       }
     });
   };
@@ -34,7 +35,7 @@ export function NewClientForm() {
       <input autoFocus className="q-input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" type="email" placeholder="email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} style={{ minWidth: '12rem' }} />
       <input className="q-input" placeholder="phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ minWidth: '9rem' }} />
-      <button className="q-btn q-btn-primary" onClick={submit} disabled={isPending}>{isPending ? 'Creating…' : 'Create'}</button>
+      <button className="q-btn q-btn-primary" onClick={submit} aria-busy={isPending} disabled={isPending}>{isPending ? 'Creating…' : 'Create'}</button>
       <button className="q-btn q-btn-secondary" onClick={() => setOpen(false)} disabled={isPending}>Cancel</button>
     </div>
   );

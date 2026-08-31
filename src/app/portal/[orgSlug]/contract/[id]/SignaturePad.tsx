@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast, readableError } from '@/components/Toast';
 
 type Point = { x: number; y: number };
 
@@ -120,7 +121,7 @@ export function SignaturePad({
       try {
         await onSign(name.trim(), dataUrl);
       } catch (err: any) {
-        alert(err?.message || 'Could not save signature. Please try again.');
+        toast.bad(readableError(err, 'Could not save signature. Please try again.'));
       }
     });
   };

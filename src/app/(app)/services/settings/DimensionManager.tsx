@@ -14,6 +14,7 @@ import { PickOne, PickToAdd } from '@/components/Pick';
 // The one list of what a variable can be, rather than a subset written out
 // again here — which is how a dimension came to carry a date but not a choice.
 import { SERVICE_VARIABLE_KINDS, variableKindLabel, variableKindHint, variableNeedsOptions } from '@/modules/services/variableTypes';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * How this domain classifies its own work.
@@ -117,7 +118,7 @@ export function DimensionManager({
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); await load(domainId); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'The change could not be saved.'); }
+      catch (e: any) { toast.bad(readableError(e, 'The change could not be saved.')); }
     });
 
   if (domains.length === 0) {
@@ -435,7 +436,7 @@ export function DimensionManager({
           )}
 
           <div className="q-row">
-            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending || !name.trim() || alreadyHere}
+            <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending || !name.trim() || alreadyHere}
               onClick={() => run(
                 () => createDimension({ serviceDomainId: domainId, name, question: matched ? '' : question }),
                 () => { setName(''); setQuestion(''); setAdding(false); }

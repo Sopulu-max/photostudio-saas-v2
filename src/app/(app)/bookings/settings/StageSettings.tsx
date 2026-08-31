@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createStage, deleteStage, updateStage, setDefaultStage } from '@/modules/bookings/interface';
 import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
+import { toast, readableError } from '@/components/Toast';
 
 type Stage = { id: string; name: string; kind: string; color: string | null; position: number; is_default: boolean };
 
@@ -19,8 +20,13 @@ function useAction() {
   const router = useRouter();
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
-      try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      try {
+        await fn();
+        after?.();
+        toast.ok('The stages are saved.');
+        router.refresh();
+      }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -45,7 +51,7 @@ function StageRow({ stage }: { stage: Stage }) {
             <input autoFocus className="q-input" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: '12rem' }} />
             <span className={`q-badge ${stageBadgeClass(preview)}`}>{name.trim() || stage.name}</span>
             <span className="q-spacer" />
-            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending || !dirty}
+            <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending || !dirty}
               onClick={() => name.trim() && run(
                 () => updateStage({ stageId: stage.id, name, color }),
                 () => setEditing(false))}>
@@ -112,7 +118,7 @@ export function StageSettings({ stages }: { stages: Stage[] }) {
           <select className="q-select" value={kind} onChange={(e) => setKind(e.target.value)} style={{ minWidth: '11rem' }}>
             {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
           </select>
-          <button className="q-btn q-btn-primary" disabled={isPending}
+          <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending}
             onClick={() => name.trim() && run(() => createStage({ name: name.trim(), kind: kind as any }), () => { setName(''); setOpen(false); })}>
             Add stage
           </button>

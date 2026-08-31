@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { Plus, CheckCircle2, Trash2 } from 'lucide-react';
 import { WorkflowEditor, WorkflowInput } from '../[id]/WorkflowEditor';
+import { toast, readableError } from '@/components/Toast';
 
 export function WorkflowManager({
   domains,
@@ -46,7 +47,7 @@ export function WorkflowManager({
         setEditingDomainId(null);
         setEditingWorkflow(null);
       } catch (e: any) {
-        alert(e.message || 'Failed to save workflow');
+        toast.bad(readableError(e, 'Failed to save workflow'));
       }
     });
   };
@@ -57,7 +58,7 @@ export function WorkflowManager({
       try {
         await onDelete(id);
       } catch (e: any) {
-        alert(e.message || 'Failed to delete workflow');
+        toast.bad(readableError(e, 'Failed to delete workflow'));
       }
     });
   };
@@ -68,7 +69,7 @@ export function WorkflowManager({
         <h3 className="q-section-title">Edit Workflow</h3>
         <WorkflowEditor workflow={editingWorkflow} onChange={setEditingWorkflow} roleOptions={roleOptions} />
         <div className="q-row" style={{ marginTop: '16px' }}>
-          <button className="q-btn q-btn-primary" onClick={handleSave} disabled={isPending || !editingWorkflow.name.trim()}>
+          <button className="q-btn q-btn-primary" onClick={handleSave} aria-busy={isPending} disabled={isPending || !editingWorkflow.name.trim()}>
             <CheckCircle2 size={16} style={{ marginRight: '8px' }} />
             {isPending ? 'Saving...' : 'Save Workflow'}
           </button>

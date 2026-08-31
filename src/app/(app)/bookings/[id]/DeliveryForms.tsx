@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { toast, readableError } from '@/components/Toast';
 import {
   createDelivery,
   updateDelivery,
@@ -24,7 +25,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -53,6 +54,7 @@ export function NewDeliveryForm({ bookingId }: { bookingId: string }) {
       />
       <button
         className="q-btn q-btn-primary"
+        aria-busy={isPending}
         disabled={isPending}
         onClick={() => title.trim() && run(() => createDelivery({ bookingId, title: title.trim() }).then(() => { setTitle(''); setOpen(false); }))}
       >
@@ -88,7 +90,7 @@ export function DeliveryActions({
         <input autoFocus className="q-input" value={value} onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(false); setValue(title); } }}
           style={{ minWidth: '12rem' }} />
-        <button className="q-btn q-btn-primary q-btn-xs" disabled={isPending}
+        <button className="q-btn q-btn-primary q-btn-xs" aria-busy={isPending} disabled={isPending}
           onClick={() => value.trim() && run(() => updateDelivery({ deliveryId, bookingId, title: value }).then(() => setEditing(false)))}>
           Save
         </button>
@@ -105,7 +107,7 @@ export function DeliveryActions({
           Its files go with it{status === 'shared' ? ", and the client's link stops working immediately" : ''}.
         </span>
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => deleteDelivery({ deliveryId, bookingId }))}>
             Delete
           </button>
@@ -155,7 +157,7 @@ export function UploadFilesButton({ deliveryId, bookingId }: { deliveryId: strin
       }
       router.refresh();
     } catch (err: any) {
-      alert(err?.message || 'Upload failed.');
+      toast.bad(readableError(err, 'Upload failed.'));
     } finally {
       setBusy(false);
       setProgress('');
@@ -215,6 +217,7 @@ export function CoverButton({
   return (
     <button
       className={`q-btn q-btn-xs ${isCover ? 'q-btn-primary' : 'q-btn-secondary'}`}
+      aria-busy={isPending}
       disabled={isPending}
       title={isCover ? 'This opens the gallery. Click to clear it.' : 'Open the gallery with this image'}
       onClick={() =>
@@ -279,7 +282,7 @@ export function FulfilsControl({
         ))}
       </div>
       <div className="q-row">
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
           onClick={() => run(() => setDeliveryFulfils({ deliveryId, bookingId, deliverableIds: picked }).then(() => setOpen(false)))}>
           Save
         </button>
@@ -339,6 +342,7 @@ export function ShareControl({
     <button
       className="q-btn q-btn-primary"
       style={{ fontSize: '0.8rem' }}
+      aria-busy={isPending}
       disabled={isPending}
       onClick={() => run(() => shareDelivery({ deliveryId, bookingId }))}
     >

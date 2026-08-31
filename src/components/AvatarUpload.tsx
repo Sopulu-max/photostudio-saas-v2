@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { prepareImage } from './prepareImage';
 import { getAvatarUploadTarget, setContactAvatar, removeContactAvatar } from '@/kernel/contacts';
 import { ContactAvatar } from './ContactAvatar';
+import { toast, readableError } from '@/components/Toast';
 
 
 /** Photo + upload/remove controls, shared by the Client and Employee detail pages. */
@@ -37,7 +38,7 @@ export function AvatarUpload({ contactId, name, url }: { contactId: string; name
       await setContactAvatar({ contactId, storagePath: path });
       router.refresh();
     } catch (err: any) {
-      alert(err?.message || 'Upload failed.');
+      toast.bad(readableError(err, 'Upload failed.'));
     } finally {
       setBusy(false);
       input.value = '';
@@ -50,7 +51,7 @@ export function AvatarUpload({ contactId, name, url }: { contactId: string; name
       await removeContactAvatar(contactId);
       router.refresh();
     } catch (err: any) {
-      alert(err?.message || 'Could not remove the photo.');
+      toast.bad(readableError(err, 'Could not remove the photo.'));
     } finally {
       setBusy(false);
     }

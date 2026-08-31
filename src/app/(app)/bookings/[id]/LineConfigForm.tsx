@@ -6,6 +6,7 @@ import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { setLineConfiguration } from '@/modules/bookings/interface';
 import { formatVariableValue } from '@/modules/services/variableTypes';
+import { toast, readableError } from '@/components/Toast';
 
 export type LineConfigField = {
   serviceVariableId: string;
@@ -72,9 +73,9 @@ export function LineConfigForm({
         // because only this surface can tell the operator what went wrong.
         const value = parseVariableValue(f.kind as any, raw);
         if (f.kind === 'number') {
-          if (typeof value !== 'number') { alert(`${f.label} has to be a number.`); return; }
-          if (f.min != null && value < f.min) { alert(`${f.label} can't be below ${f.min}.`); return; }
-          if (f.max != null && value > f.max) { alert(`${f.label} can't be above ${f.max}.`); return; }
+          if (typeof value !== 'number') { toast.bad(`${f.label} has to be a number.`); return; }
+          if (f.min != null && value < f.min) { toast.bad(`${f.label} can't be below ${f.min}.`); return; }
+          if (f.max != null && value > f.max) { toast.bad(`${f.label} can't be above ${f.max}.`); return; }
         }
         answers.push({ serviceVariableId: f.serviceVariableId, value });
       }
@@ -84,7 +85,7 @@ export function LineConfigForm({
         setEditing(false);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Something went wrong.');
+        toast.bad(readableError(e, 'Something went wrong.'));
       }
     });
 
@@ -185,7 +186,7 @@ export function LineConfigForm({
       </div>
       
       <div className="q-row" style={{ paddingTop: '8px', borderTop: '1px solid var(--q-color-ink-100)' }}>
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>Save</button>
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>Save</button>
         <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setDraft(initial()); }}>Cancel</button>
       </div>
     </div>

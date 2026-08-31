@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setWorkingDays } from '@/modules/team/interface';
 import { WEEKDAYS } from '@/modules/team/weekdays';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The days of the week this employee normally works.
@@ -36,7 +37,7 @@ export function WorkingDaysForm({
   const save = () =>
     startTransition(async () => {
       try { await setWorkingDays({ employeeId, days }); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Could not save their week.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Could not save their week.')); }
     });
 
   const offDays = WEEKDAYS.filter((d) => !days.includes(d.iso));
@@ -73,7 +74,7 @@ export function WorkingDaysForm({
 
       {!same && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save schedule'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setDays(initial)}>

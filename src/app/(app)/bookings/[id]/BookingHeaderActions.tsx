@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast, readableError } from '@/components/Toast';
 import {
   setBookingStage,
   reviewCascadeForCancel,
@@ -16,7 +17,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run, router };
 }
@@ -56,7 +57,7 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
           </ul>
         )}
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => setBookingStage({ bookingId, stageId: pendingCancel.stage.id }), () => setPendingCancel(null))}>
             Move it
           </button>
@@ -98,7 +99,7 @@ export function DeleteBookingButton({ bookingId }: { bookingId: string }) {
         <strong>Delete this booking for good?</strong>
         <span className="q-meta-plain">Everything on it — packages, charges, work, contracts, invoices and deliveries — goes too. If the job simply isn’t happening, move it to a cancelled stage instead — that keeps the record.</span>
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(async () => { await deleteBooking(bookingId); router.push('/bookings'); })}>
             Delete
           </button>

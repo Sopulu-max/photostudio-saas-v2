@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from '@/components/Toast';
 
 
 export function TaskProgression({
@@ -35,7 +36,7 @@ export function TaskProgression({
       setAssigningTask(null);
       setSelectedEmp('');
     } catch (err) {
-      alert('Failed to assign staff');
+      toast.bad('Failed to assign staff');
     } finally {
       setIsUpdating(false);
     }
@@ -47,7 +48,7 @@ export function TaskProgression({
       const { unassignTask } = await import('@/modules/production/interface');
       await unassignTask({ bookingId, taskId });
     } catch (err) {
-      alert('Failed to remove assignment');
+      toast.bad('Failed to remove assignment');
     } finally {
       setIsUpdating(false);
     }
@@ -59,7 +60,7 @@ export function TaskProgression({
       const { advanceBookingLineTask } = await import('@/modules/production/interface');
       await advanceBookingLineTask({ bookingId, lineId, taskId });
     } catch (err) {
-      alert('Failed to update task');
+      toast.bad('Failed to update task');
     } finally {
       setIsUpdating(false);
     }

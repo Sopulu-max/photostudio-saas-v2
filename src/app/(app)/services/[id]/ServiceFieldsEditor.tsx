@@ -10,6 +10,7 @@ import { PickOne, PickMany } from '@/components/Pick';
 import { ServiceVariablesEditor } from './ServiceVariablesEditor';
 import { WorkflowEditor } from './WorkflowEditor';
 import type { WorkflowInput } from '@/modules/services/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Defining a service, in the vocabulary of its own domain.
@@ -177,8 +178,8 @@ export function ServiceFieldsEditor({
   };
 
   const handleSave = () => {
-    if (!name.trim()) return alert('Name is required.');
-    if (!domainName) return alert('Service Domain is required.');
+    if (!name.trim()) { toast.bad('Name is required.'); return; }
+    if (!domainName) { toast.bad('Service Domain is required.'); return; }
 
     startTransition(async () => {
       try {
@@ -209,7 +210,7 @@ export function ServiceFieldsEditor({
           await updateService({ serviceId: serviceId!, ...payload });
           router.push(`/services/${serviceId}`);
         }
-      } catch (err: any) { alert(err?.message || 'Failed to save service.'); }
+      } catch (err: any) { toast.bad(readableError(err, 'Failed to save service.')); }
     });
   };
 
@@ -442,7 +443,7 @@ export function ServiceFieldsEditor({
       {/* 4. Actions */}
       <div className="q-row q-row-between" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--q-color-border)' }}>
         <div className="q-row">
-          <button className="q-btn q-btn-primary" onClick={handleSave} disabled={isPending}>
+          <button className="q-btn q-btn-primary" onClick={handleSave} aria-busy={isPending} disabled={isPending}>
             <CheckCircle2 size={16} style={{ marginRight: '8px' }} />
             {isPending ? 'Saving…' : 'Save service'}
           </button>

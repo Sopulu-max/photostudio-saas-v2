@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
+import { toast, readableError } from '@/components/Toast';
 import {
   setTaskRole, addBookingTask, removeBookingTask,
   assignToTask, unassignTask, advanceBookingLineTask,
@@ -58,7 +59,7 @@ export function BookingTasks({
 
   const run = (fn: () => Promise<unknown>, whenFailed: string) =>
     startTransition(async () => {
-      try { await fn(); } catch (e: any) { alert(e?.message || whenFailed); }
+      try { await fn(); } catch (e: any) { toast.bad(readableError(e, whenFailed)); }
     });
 
   /** Only people who hold what this task needs. No role set means anyone. */
@@ -210,6 +211,7 @@ export function BookingTasks({
           <button
             type="button"
             className="q-btn q-btn-primary q-btn-sm"
+            aria-busy={isPending}
             disabled={isPending || !newName.trim()}
             onClick={() => run(async () => {
               await addBookingTask({ bookingId, name: newName, roleId: newRoleId || null });

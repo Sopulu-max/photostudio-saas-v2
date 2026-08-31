@@ -3,6 +3,7 @@
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createContractForBooking, extractPackageFromEnquiry } from '@/modules/bookings/interface';
+import { toast, readableError } from '@/components/Toast';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -10,7 +11,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }

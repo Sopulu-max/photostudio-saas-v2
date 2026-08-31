@@ -7,6 +7,7 @@ import { updateStudio } from '@/kernel/organizations';
 // The one uploader. LogoUpload was the same five steps written out separately,
 // with its own size limit and its own wording when a file was refused.
 import { ImageUpload } from '@/components/ImageUpload';
+import { toast, readableError } from '@/components/Toast';
 
 export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: initialLogo, coverUrl: initialCover }: { name: string; slug: string; logoUrl?: string; coverUrl?: string }) {
   const [name, setName] = useState(initialName);
@@ -78,13 +79,15 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
         <div className="q-row">
           <button
             className="q-btn q-btn-primary"
+            aria-busy={isPending}
             disabled={isPending}
             onClick={() => startTransition(async () => {
               try { 
-                await updateStudio({ name, slug, logoUrl, coverUrl }); 
-                router.refresh(); 
+                await updateStudio({ name, slug, logoUrl, coverUrl });
+                toast.ok('The studio details are saved.');
+                router.refresh();
               }
-              catch (e: any) { alert(e?.message || 'Could not save.'); }
+              catch (e: any) { toast.bad(readableError(e, 'Could not save.')); }
             })}
           >
             {isPending ? 'Saving…' : 'Save'}

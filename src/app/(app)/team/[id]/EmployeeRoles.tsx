@@ -3,6 +3,7 @@
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { assignRole, removeRoleAssignment } from '@/modules/team/interface';
+import { toast, readableError } from '@/components/Toast';
 
 export function EmployeeRoles({
   employeeId,
@@ -19,7 +20,7 @@ export function EmployeeRoles({
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
 
   return (

@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updatePackageQuestions } from '@/modules/packages/interface';
 import { FIELD_TYPE_LIST, fieldType, type IntakeQuestion } from '@/modules/services/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What a client is asked when booking this Package. Edited locally and
@@ -63,7 +64,7 @@ export function QuestionEditor({
   const save = () =>
     startTransition(async () => {
       try { await updatePackageQuestions({ packageId, questions }); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Could not save the questions.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Could not save the questions.')); }
     });
 
   return (
@@ -116,7 +117,7 @@ export function QuestionEditor({
         {dirty && (
           <>
             {!controlled && (
-          <button type="button" className="q-btn q-btn-primary" onClick={save} disabled={isPending}>
+          <button type="button" className="q-btn q-btn-primary" onClick={save} aria-busy={isPending} disabled={isPending}>
             {isPending ? 'Saving…' : 'Save questions'}
           </button>
         )}

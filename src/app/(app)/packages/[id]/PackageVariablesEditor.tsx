@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { VariableField } from '@/components/VariableField';
 import { updatePackage } from '@/modules/packages/interface';
 import type { ServiceVariable } from '@/modules/services/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What this package includes.
@@ -56,7 +57,7 @@ export function PackageVariablesEditor({ packageId, variables, initial }: Props)
         setTimeout(() => setSaved(false), 2500);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to save.');
+        toast.bad(readableError(e, 'Failed to save.'));
       }
     });
 
@@ -129,7 +130,7 @@ export function PackageVariablesEditor({ packageId, variables, initial }: Props)
 
       {dirty && (
         <div className="q-row" style={{ marginTop: '16px' }}>
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setValues(initialMap)}>

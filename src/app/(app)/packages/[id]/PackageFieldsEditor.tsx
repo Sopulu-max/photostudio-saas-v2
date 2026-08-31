@@ -66,6 +66,7 @@ type Stage = { name: string; roleName: string; frontStage: boolean };
 type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null; specValues?: Record<string, unknown> | null };
 
 import type { ServiceVariable } from '@/modules/services/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * A Package is a commercial construct — it bundles one or more real
@@ -221,7 +222,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         setNewVar({ label: '', kind: 'number', unit: '', options: '' });
         setDeclaringFor(null);
       } catch (e: any) {
-        alert(e?.message || 'Could not add that variable.');
+        toast.bad(readableError(e, 'Could not add that variable.'));
       }
     });
   };
@@ -477,7 +478,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         });
         onCreated(id);
       } catch (e: any) {
-        alert(e?.message || 'Could not add that value.');
+        toast.bad(readableError(e, 'Could not add that value.'));
       }
     });
   };
@@ -496,7 +497,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             : [...prev, { ...created, serviceId }]);
         addPromise(serviceId, created.id);
       } catch (e: any) {
-        alert(e?.message || 'Could not add that output.');
+        toast.bad(readableError(e, 'Could not add that output.'));
       }
     });
   };
@@ -740,7 +741,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         router.refresh(); 
         router.push(`/packages/${packageId}`);
       }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   };
   const submitCreate = () => startTransition(async () => {
@@ -749,7 +750,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       const { packageId: newId } = await createPackage({ ...buildPayload(), formSchema: questions ?? [] }); 
       router.push(`/packages/${newId}`); 
     }
-    catch (e: any) { alert(e?.message || 'Failed to create the package.'); }
+    catch (e: any) { toast.bad(readableError(e, 'Failed to create the package.')); }
   });
 
   const retired = status === 'retired';
@@ -1136,6 +1137,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               <button
                 type="button"
                 className="q-btn q-btn-primary q-btn-sm"
+                aria-busy={isPending}
                 disabled={isPending || !newVar.label.trim()}
                 onClick={() => declare(s.id)}
               >
@@ -1693,15 +1695,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         <>
           <div className="q-row">
             {mode === 'create' ? (
-              <button className="q-btn q-btn-primary" disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create package'}</button>
+              <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create package'}</button>
             ) : (
               <>
-                <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
+                <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
                 <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => router.push(`/packages/${packageId}`)}>Cancel</button>
                 <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
                   onClick={() => startTransition(async () => {
                     try { const { packageId: copyId } = await duplicatePackage(packageId!); router.push(`/packages/${copyId}`); }
-                    catch (e: any) { alert(e?.message || 'Failed to duplicate the package.'); }
+                    catch (e: any) { toast.bad(readableError(e, 'Failed to duplicate the package.')); }
                   })}>
                   Duplicate
                 </button>
@@ -1709,7 +1711,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 <button type="button" className="q-btn q-btn-secondary" disabled={isPending}
                   onClick={() => startTransition(async () => {
                     try { await setPackageStatus({ packageId: packageId!, status: retired ? 'active' : 'retired' }); router.refresh(); }
-                    catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+                    catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
                   })}>
                   {retired ? 'Make sellable again' : 'Retire this package'}
                 </button>

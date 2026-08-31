@@ -6,6 +6,7 @@ import { checkIn, checkOut } from '@/modules/team/interface';
 import type { AttendanceToday } from '@/modules/team/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { WEEKDAYS } from '@/modules/team/weekdays';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The attendance register.
@@ -167,7 +168,7 @@ export function AttendanceBoard({
       startTransition(() => { router.refresh(); });
     } catch (e: any) {
       setConfirmation(null);
-      alert(e?.message || 'The change could not be saved.');
+      toast.bad(readableError(e, 'The change could not be saved.'));
     } finally {
       setBusy(null);
     }

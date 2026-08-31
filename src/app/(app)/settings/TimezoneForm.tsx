@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setStudioTimezone } from '@/modules/team/interface';
 import { PickOne } from '@/components/Pick';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Where one working day ends and the next begins.
@@ -69,10 +70,15 @@ export function TimezoneForm({ current }: { current: string }) {
           <>
             <button
               className="q-btn q-btn-primary"
+              aria-busy={isPending}
               disabled={isPending || !zone.trim()}
               onClick={() => startTransition(async () => {
-                try { await setStudioTimezone(zone); router.refresh(); }
-                catch (e: any) { alert(e?.message || 'Could not set the timezone.'); }
+                try {
+                    await setStudioTimezone(zone);
+                    toast.ok(`The studio timezone is now ${zone}.`);
+                    router.refresh();
+                  }
+                catch (e: any) { toast.bad(readableError(e, 'Could not set the timezone.')); }
               })}
             >
               {isPending ? 'Saving…' : 'Save'}

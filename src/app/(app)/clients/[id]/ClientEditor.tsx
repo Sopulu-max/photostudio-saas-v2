@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateClient, setClientStatus } from '@/modules/clients/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * A client was write-once until now. Edits are held locally and committed
@@ -47,7 +48,7 @@ export function ClientEditor({
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
 
   const save = () =>
@@ -102,7 +103,7 @@ export function ClientEditor({
       </div>
 
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !dirty} onClick={save}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}
         </button>
         <span className="q-spacer" />

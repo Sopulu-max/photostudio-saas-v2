@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { adjustAttendance } from '@/modules/team/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * One employee's recorded days, each correctable.
@@ -61,7 +62,7 @@ export function AttendanceHistory({
         setEditing(null);
         startTransition(() => { router.refresh(); });
       } catch (e: any) {
-        alert(e?.message || 'The change could not be saved.');
+        toast.bad(readableError(e, 'The change could not be saved.'));
       } finally {
         setSaving(false);
       }

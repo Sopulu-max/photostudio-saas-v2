@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Fetches the real PDF and hands it to the browser as a file.
@@ -38,7 +39,7 @@ export function DownloadDocumentButton({
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(e?.message || 'Could not build that PDF.');
+      toast.bad(readableError(e, 'Could not build that PDF.'));
     } finally {
       setBusy(false);
     }

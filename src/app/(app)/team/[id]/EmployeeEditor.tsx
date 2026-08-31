@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateEmployee, setEmployeeStatus } from '@/modules/team/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * An employee was write-once until now. Edits are held locally and committed
@@ -46,7 +47,7 @@ export function EmployeeEditor({
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
 
   const save = () =>
@@ -82,7 +83,7 @@ export function EmployeeEditor({
         * free-text list looked like capability and staffed nobody.
         */}
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !dirty || !reachable} onClick={save}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty || !reachable} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}
         </button>
         {!reachable && (

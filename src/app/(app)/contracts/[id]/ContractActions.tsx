@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { activateContract, cancelContract } from '@/modules/contracts/interface';
 import { Zap } from 'lucide-react';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Activating a proposed contract marks it active and signed. It does not spawn
@@ -20,13 +21,13 @@ export function ActivateContractButton({ contractId }: { contractId: string }) {
         router.refresh();
       } catch (e) {
         console.error('Failed to activate contract', e);
-        alert('Failed to activate contract.');
+        toast.bad('Failed to activate contract.');
       }
     });
   };
 
   return (
-    <button className="q-btn q-btn-primary" onClick={handleActivate} disabled={isPending}>
+    <button className="q-btn q-btn-primary" onClick={handleActivate} aria-busy={isPending} disabled={isPending}>
       <Zap size={16} style={{ marginRight: '8px' }} />
       {isPending ? 'Activating…' : 'Activate contract'}
     </button>
@@ -45,7 +46,7 @@ export function CancelContractButton({ contractId }: { contractId: string }) {
         await cancelContract({ contractId });
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to cancel the contract.');
+        toast.bad(readableError(e, 'Failed to cancel the contract.'));
       }
     });
   };
@@ -54,7 +55,7 @@ export function CancelContractButton({ contractId }: { contractId: string }) {
     return (
       <div className="q-note q-note-bad q-row" style={{ gap: '8px' }}>
         <span className="q-meta-plain">Cancel this contract? The booking and any invoices already raised are untouched.</span>
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={handleCancel}>
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={handleCancel}>
           {isPending ? 'Cancelling…' : 'Yes, cancel'}
         </button>
         <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setConfirming(false)}>Keep it</button>

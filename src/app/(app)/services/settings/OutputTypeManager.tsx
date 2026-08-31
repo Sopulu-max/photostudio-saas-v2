@@ -6,6 +6,7 @@ import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDe
 import { narrowFor } from '@/modules/services/interface';
 import type { Narrowed } from '@/modules/services/interface';
 import { PickToAdd } from '@/components/Pick';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What each domain can produce.
@@ -42,7 +43,7 @@ export function OutputTypeManager({
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); await load(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'The change could not be saved.'); }
+      catch (e: any) { toast.bad(readableError(e, 'The change could not be saved.')); }
     });
 
   if (domains.length === 0) {

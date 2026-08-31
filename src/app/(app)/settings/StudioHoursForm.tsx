@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setWeeklyHours, addHoursException, removeHoursException } from '@/modules/team/interface';
 import { WEEKDAYS } from '@/modules/team/weekdays';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The hours this studio keeps.
@@ -83,8 +84,13 @@ export function StudioHoursForm({
 
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
-      try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'That could not be saved.'); }
+      try {
+        await fn();
+        after?.();
+        toast.ok('The opening hours are saved.');
+        router.refresh();
+      }
+      catch (e: any) { toast.bad(readableError(e, 'That could not be saved.')); }
     });
 
   const patch = (weekday: number, next: Partial<Day>) =>
@@ -171,7 +177,7 @@ export function StudioHoursForm({
 
         {dirty && (
           <div className="q-row">
-            <button className="q-btn q-btn-primary" disabled={isPending} onClick={saveWeek}>
+            <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={saveWeek}>
               {isPending ? 'Saving…' : 'Save the week'}
             </button>
             <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => setWeek(initialWeek)}>
@@ -283,6 +289,7 @@ export function StudioHoursForm({
             <div className="q-row">
               <button
                 className="q-btn q-btn-primary"
+                aria-busy={isPending}
                 disabled={isPending || !label.trim() || (scope === 'date' && !onDate)}
                 onClick={addException}
               >

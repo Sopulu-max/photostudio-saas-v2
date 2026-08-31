@@ -4,10 +4,19 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setStudioCurrency } from '@/kernel/organizations';
 import { CURRENCIES } from '@/kernel/currency';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Currency is genuinely studio-wide — it shapes services, contracts and
  * invoices alike — so it lives in global Settings rather than inside a module.
+ */
+/*
+ * SAID BECAUSE IT CANNOT BE SEEN.
+ *
+ * The rule this follows: confirm what you cannot see, flash what you can. A row
+ * appearing in a list is its own confirmation and needs no sentence. A setting
+ * that saves and leaves the page looking identical has nothing to show for
+ * itself, and silence there reads exactly like a click that did not register.
  */
 export function CurrencyForm({ current }: { current: string }) {
   const [code, setCode] = useState(current);
@@ -28,10 +37,15 @@ export function CurrencyForm({ current }: { current: string }) {
           <>
             <button
               className="q-btn q-btn-primary"
+              aria-busy={isPending}
               disabled={isPending}
               onClick={() => startTransition(async () => {
-                try { await setStudioCurrency(code); router.refresh(); }
-                catch (e: any) { alert(e?.message || 'Could not change the currency.'); }
+                try {
+                  await setStudioCurrency(code);
+                  toast.ok(`The studio currency is now ${code}.`);
+                  router.refresh();
+                }
+                catch (e: any) { toast.bad(readableError(e, 'Could not change the currency.')); }
               })}
             >
               {isPending ? 'Saving…' : 'Save'}

@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { addToBookingTeam, removeFromBookingTeam } from '@/modules/production/interface';
+import { toast, readableError } from '@/components/Toast';
 
 type Employee = {
   id: string;
@@ -59,7 +60,7 @@ export function AddToTeam({
         setRoleId('');
         setOpen(false);
       } catch (e: any) {
-        alert(e?.message || 'Could not put that person on this booking.');
+        toast.bad(readableError(e, 'Could not put that person on this booking.'));
       }
     });
   };
@@ -113,6 +114,7 @@ export function AddToTeam({
         <button
           type="button"
           className="q-btn q-btn-primary q-btn-sm"
+          aria-busy={isPending}
           disabled={isPending || !employeeId}
           onClick={add}
         >
@@ -156,7 +158,7 @@ export function RemoveFromTeam({
       try {
         await removeFromBookingTeam({ bookingId, assignmentId });
       } catch (e: any) {
-        alert(e?.message || 'Could not take that person off this booking.');
+        toast.bad(readableError(e, 'Could not take that person off this booking.'));
       }
     });
   };

@@ -9,6 +9,7 @@ import {
 } from '@/modules/services/interface';
 import type { ServiceVariable, ServiceVariableKind, VariableSuggestions } from '@/modules/services/interface';
 import { PickOne, PickMany } from '@/components/Pick';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What may vary about this service — the other half of its configuration
@@ -165,7 +166,7 @@ export function ServiceVariablesEditor({
         setTimeout(() => setSaved(false), 2500);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to save.');
+        toast.bad(readableError(e, 'Failed to save.'));
       }
     });
 
@@ -278,7 +279,7 @@ export function ServiceVariablesEditor({
             <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setRows(initial.map(toRow))}>
               Cancel
             </button>
-            <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending || !serviceId} onClick={save}>
+            <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending || !serviceId} onClick={save}>
               {isPending ? 'Saving…' : 'Save'}
             </button>
           </>

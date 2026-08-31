@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setStudioDefaultHours } from '@/modules/team/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The studio's usual hours — the answer for any day the week does not cover.
@@ -37,8 +38,9 @@ export function DefaultHoursForm({
     startTransition(async () => {
       try {
         await setStudioDefaultHours({ opensAt: opens || null, closesAt: closes || null });
+        toast.ok('The default hours are saved.');
         router.refresh();
-      } catch (e: any) { alert(e?.message || 'Could not save the hours.'); }
+      } catch (e: any) { toast.bad(readableError(e, 'Could not save the hours.')); }
     });
 
   return (
@@ -56,7 +58,7 @@ export function DefaultHoursForm({
         />
         {dirty && (
           <>
-            <button className="q-btn q-btn-primary" disabled={isPending} onClick={() => save(opensAt, closesAt)}>
+            <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={() => save(opensAt, closesAt)}>
               {isPending ? 'Saving…' : 'Save'}
             </button>
             <button

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createTransaction } from '@/modules/finances/interface';
 import { TRANSACTION_KINDS, KINDS } from '@/modules/finances/money';
 import type { TransactionKind } from '@/modules/finances/money';
+import { toast, readableError } from '@/components/Toast';
 
 /** Suggestions per kind — the studio's own words, not a fixed list. */
 const SUGGESTIONS: Record<TransactionKind, string[]> = {
@@ -33,8 +34,8 @@ export function CreateTransactionForm({ currencyCode }: { currencyCode: string }
 
   const submit = () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { alert('Enter an amount.'); return; }
-    if (!type.trim()) { alert('Give it a label, so the books read like sentences later.'); return; }
+    if (!amt || amt <= 0) { toast.bad('Enter an amount.'); return; }
+    if (!type.trim()) { toast.bad('Give it a label, so the books read like sentences later.'); return; }
     startTransition(async () => {
       try {
         await createTransaction({ kind, type: type.trim(), amount: amt, currency: currencyCode });
@@ -42,7 +43,7 @@ export function CreateTransactionForm({ currencyCode }: { currencyCode: string }
         reset();
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Failed to log that.');
+        toast.bad(readableError(e, 'Failed to log that.'));
       }
     });
   };
@@ -88,7 +89,7 @@ export function CreateTransactionForm({ currencyCode }: { currencyCode: string }
           onChange={(e) => setAmount(e.target.value)}
           style={{ width: '10rem' }}
         />
-        <button className="q-btn q-btn-primary" disabled={isPending} onClick={submit}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submit}>
           {isPending ? 'Logging…' : 'Log it'}
         </button>
         <button className="q-btn q-btn-secondary" disabled={isPending} onClick={() => { setOpen(false); reset(); }}>

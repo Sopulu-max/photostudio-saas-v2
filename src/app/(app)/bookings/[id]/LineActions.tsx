@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateBookingLine, removeBookingLine } from '@/modules/bookings/interface';
+import { toast, readableError } from '@/components/Toast';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -10,7 +11,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -49,7 +50,7 @@ export function LineActions({
         <input className="q-input" type="number" min="0" step="0.5" value={qty} onChange={(e) => setQty(e.target.value)}
           placeholder="qty" title={unit ? `How many ${unit}s` : 'How many'} style={{ width: '6rem' }} />
         {unit && <span className="q-meta-sm">{unit}s</span>}
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
           onClick={() => t.trim() && run(
             () => updateBookingLine({ lineId, bookingId, title: t, basePrice: p === '' ? null : parseFloat(p), currency, quantity: parseFloat(qty) || 1 }),
             () => setEditing(false))}>
@@ -69,7 +70,7 @@ export function LineActions({
           Remove “{title}”?{hasWork ? ' The work started on it goes too.' : ''}
         </span>
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => removeBookingLine({ lineId, bookingId }))}>
             Remove
           </button>

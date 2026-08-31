@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setDepositDefault } from '@/modules/contracts/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What the studio asks for up front, as a share of the total.
@@ -24,9 +25,10 @@ export function DepositDefaultForm({ initialPercentage }: { initialPercentage: n
     startTransition(async () => {
       try {
         await setDepositDefault(parsed);
+        toast.ok('The default deposit is saved.');
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Could not save.');
+        toast.bad(readableError(e, 'Could not save.'));
       }
     });
 
@@ -53,7 +55,7 @@ export function DepositDefaultForm({ initialPercentage }: { initialPercentage: n
 
       {dirty && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save'}
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setValue(String(initialPercentage))}>

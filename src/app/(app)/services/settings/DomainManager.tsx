@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast, readableError } from '@/components/Toast';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -9,7 +10,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -53,7 +54,7 @@ export function DomainManager({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) run(() => onCreate(name.trim()), () => { setName(''); setOpen(false); }); }}
             style={{ minWidth: '12rem' }} />
-          <button className="q-btn q-btn-primary" disabled={isPending}
+          <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending}
             onClick={() => name.trim() && run(() => onCreate(name.trim()), () => { setName(''); setOpen(false); })}>
             Add
           </button>

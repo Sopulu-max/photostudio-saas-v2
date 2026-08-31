@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addBookingLine } from '@/modules/bookings/interface';
 import { formatMoney } from '@/kernel/currency';
+import { toast } from '@/components/Toast';
 
 type Variant = { axis_label: string; tiers: { label: string; price: number }[] };
 
@@ -41,7 +42,7 @@ export function AddLineForm({
         router.refresh();
       } catch (e) {
         console.error(e);
-        alert('Failed to add it.');
+        toast.bad('Failed to add it.');
       }
     });
   };
@@ -62,7 +63,7 @@ export function AddLineForm({
         router.refresh();
       } catch (e) {
         console.error(e);
-        alert('Failed to add it.');
+        toast.bad('Failed to add it.');
       } finally {
         setAddingTier(null);
       }

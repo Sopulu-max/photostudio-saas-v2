@@ -6,6 +6,7 @@ import { updateBookingRecord } from '@/modules/bookings/interface';
 import { updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientOption, type ClientSelection } from '@/components/ClientPicker';
 import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
+import { toast, readableError } from '@/components/Toast';
 
 const toLocalInput = (iso: string | null) => {
   if (!iso) return '';
@@ -71,7 +72,7 @@ export function BookingRecordForm({
     Boolean(clientEdits(client, clients));
 
   const save = () => {
-    if (!t.trim()) { alert('A booking needs a title.'); return; }
+    if (!t.trim()) { toast.bad('A booking needs a title.'); return; }
     startTransition(async () => {
       try {
         // Corrections to the client's own details are saved to the client, not
@@ -88,7 +89,7 @@ export function BookingRecordForm({
         });
         router.push(`/bookings/${bookingId}`);
       } catch (e: any) {
-        alert(e?.message || 'Could not save this booking.');
+        toast.bad(readableError(e, 'Could not save this booking.'));
       }
     });
   };
@@ -155,7 +156,7 @@ export function BookingRecordForm({
       </div>
 
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !dirty} onClick={save}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}
         </button>
         <button

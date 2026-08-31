@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateStudio } from '@/kernel/organizations';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * What appears on every document that leaves the studio.
@@ -60,7 +61,7 @@ export function DocumentDetailsForm({
         setTimeout(() => setSaved(false), 2000);
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Could not save that.');
+        toast.bad(readableError(e, 'Could not save that.'));
       }
     });
 
@@ -102,7 +103,7 @@ export function DocumentDetailsForm({
       </div>
 
       <div className="q-row">
-        <button className="q-btn q-btn-primary" disabled={isPending || !dirty} onClick={save}>
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty} onClick={save}>
           {isPending ? 'Saving…' : 'Save'}
         </button>
         {saved && <span className="q-meta-sm">Saved</span>}

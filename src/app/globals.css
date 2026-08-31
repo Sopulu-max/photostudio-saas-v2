@@ -90,6 +90,12 @@
      which is what makes a disclosure open to its own size. */
   interpolate-size: allow-keywords;
   --q-ease:   cubic-bezier(0.22, 0.8, 0.28, 1);
+  /* The mirror of --q-ease, for things leaving rather than arriving. An
+     entrance is fast then settles, so the eye catches it early and the end is
+     calm; run that same curve backwards on an exit and the thing is 93% gone by
+     the halfway point, which reads as a disappearance rather than a departure.
+     An exit starts slow and accelerates away. */
+  --q-ease-exit: cubic-bezier(0.5, 0, 0.9, 0.4);
   --q-spring: cubic-bezier(0.34, 1.42, 0.5, 1);
   --q-dur-1: 130ms;
   --q-dur-2: 240ms;
@@ -1922,4 +1928,181 @@ body {
      them does not. */
   .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .q-fact-key { grid-column: 1; }
+}
+
+/* ==========================================================================
+   ACTIONS THAT SHOW THEIR WORK
+
+   Motion here is not decoration. An action has three moments an operator needs
+   to see — that it started, that it is running, that it landed — and this app
+   showed none of them. A button was pressed, went inert with no visible change
+   (there was no :disabled rule at all, in a file where 140 controls set
+   disabled={isPending}), and some time later the page was simply different.
+   ========================================================================== */
+
+/* ---- 1. A control that cannot be used says so ---- */
+/* One rule, and all 140 of those disabled controls stop looking identical to
+   live ones. Dimmed and inert: unavailable, not broken. */
+.q-btn:disabled,
+.q-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+/* Out-specifies .q-btn-primary:hover and friends, which would otherwise keep
+   lifting and brightening a button that will not respond to the click. */
+.q-btn:disabled:hover,
+.q-btn[aria-disabled="true"]:hover {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+.q-btn:disabled:active { transform: none; }
+
+/* ---- 2. A control that IS working says something different ---- */
+/*
+ * Busy is not the same state as unavailable and must not look like it. The
+ * button stays nearly full strength — it is doing the thing you asked — and
+ * carries a spinner that borrows currentColor, so one rule serves the primary,
+ * secondary, danger and ghost variants without knowing about any of them.
+ */
+.q-btn[aria-busy="true"]:disabled,
+.q-btn[aria-busy="true"] {
+  opacity: 0.85;
+  cursor: progress;
+}
+.q-btn[aria-busy="true"]::before {
+  content: '';
+  flex: none;
+  inline-size: 0.85em;
+  block-size: 0.85em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-block-start-color: transparent;
+  animation: q-spin 620ms linear infinite;
+}
+@keyframes q-spin { to { transform: rotate(360deg); } }
+
+/* ---- 3. The result announces itself ---- */
+/*
+ * Replaces window.alert. Bottom-anchored and out of the way, because the
+ * ordinary case is success and success should not cost a click to dismiss.
+ * The stack itself ignores the pointer so the page underneath stays usable;
+ * each toast takes it back, because each is dismissible.
+ */
+.q-toast-stack {
+  position: fixed;
+  z-index: 100;
+  inset-block-end: 20px;
+  inset-inline-end: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  inline-size: min(26rem, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.q-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--q-color-ink-100);
+  background: var(--q-color-paper);
+  box-shadow: var(--q-shadow-md), 0 18px 40px -20px rgb(0 0 0 / 0.35);
+  animation: q-toast-in var(--q-dur-2) var(--q-spring) backwards;
+}
+
+/* Tone as a stripe rather than an icon: read at a glance, no glyph to
+   translate, and it survives at any text size. */
+.q-toast-mark {
+  flex: none;
+  align-self: stretch;
+  inline-size: 4px;
+  border-start-start-radius: 12px;
+  border-end-start-radius: 12px;
+  background: var(--q-color-ink-300);
+}
+.q-toast-ok   .q-toast-mark { background: var(--q-color-success); }
+.q-toast-bad  .q-toast-mark { background: var(--q-color-danger); }
+.q-toast-info .q-toast-mark { background: var(--q-color-accent); }
+
+.q-toast-ok   { background: color-mix(in srgb, var(--q-color-success) 7%, var(--q-color-paper)); }
+.q-toast-bad  { background: color-mix(in srgb, var(--q-color-danger) 7%, var(--q-color-paper)); }
+
+.q-toast-text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--q-color-ink-900);
+}
+
+.q-toast-x {
+  flex: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--q-color-ink-500);
+  transition: color var(--q-dur-1) var(--q-ease), transform var(--q-dur-1) var(--q-ease);
+}
+.q-toast-x:hover { color: var(--q-color-ink-900); transform: scale(1.15); }
+
+@keyframes q-toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/*
+ * THE ONE PLACE AN EXIT IS WORTH ITS MACHINERY.
+ *
+ * A toast is the only thing in this app that leaves on its own, without being
+ * asked — so it is the only thing whose disappearance is news. Everything else
+ * that goes away goes because someone clicked Remove, and already knows.
+ *
+ * It collapses as well as fades: max-height to zero and a negative end margin
+ * to swallow the stack's own gap, so the toasts below it slide up into the
+ * space instead of jumping into it. Without that the fade is smooth and the
+ * relayout underneath it is not, which is worse than no animation at all.
+ */
+.q-toast-leaving {
+  animation: q-toast-out var(--q-dur-2) var(--q-ease-exit) forwards;
+  pointer-events: none;
+}
+@keyframes q-toast-out {
+  from { opacity: 1; transform: none; max-height: 12rem; margin-block-end: 0; }
+  to   { opacity: 0; transform: translateX(12px) scale(0.97); max-height: 0; margin-block-end: -10px; }
+}
+
+/* On a phone it spans the width, above the thumb rather than under it. */
+@media (max-width: 640px) {
+  .q-toast-stack {
+    inset-inline: 12px;
+    inset-block-end: 12px;
+    inline-size: auto;
+  }
+}
+
+/* ---- 4. The thing that changed shows that it changed ---- */
+/*
+ * A row that was just added or just saved lights briefly and settles. This is
+ * the answer to "where did my change go" on a list long enough to scroll: the
+ * eye is taken to the row rather than left to find it.
+ *
+ * No fill-mode: it must hand the element back to its own styles afterwards.
+ * .q-rise once carried fill-mode: both and that alone would have killed the
+ * hover lift on every card in the app.
+ */
+.q-flash { animation: q-flash-in 1200ms var(--q-ease); }
+@keyframes q-flash-in {
+  0%   { background-color: color-mix(in srgb, var(--q-color-accent) 26%, transparent); }
+  30%  { background-color: color-mix(in srgb, var(--q-color-accent) 20%, transparent); }
+  100% { background-color: transparent; }
 }

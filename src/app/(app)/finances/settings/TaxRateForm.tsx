@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setTaxRate } from '@/modules/finances/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The tax the studio charges.
@@ -24,9 +25,10 @@ export function TaxRateForm({ initialRate }: { initialRate: number }) {
     startTransition(async () => {
       try {
         await setTaxRate(parsed);
+        toast.ok('The tax rate is saved.');
         router.refresh();
       } catch (e: any) {
-        alert(e?.message || 'Could not save.');
+        toast.bad(readableError(e, 'Could not save.'));
       }
     });
 
@@ -53,7 +55,7 @@ export function TaxRateForm({ initialRate }: { initialRate: number }) {
 
       {dirty && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={save}>
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={save}>
             {isPending ? 'Saving…' : 'Save'}
           </button>
           <button

@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addEmployee, createRole, assignRole } from '@/modules/team/interface';
 import { PickOne } from '@/components/Pick';
+import { toast, readableError } from '@/components/Toast';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -11,7 +12,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -69,6 +70,7 @@ export function AddEmployeeForm({ roles }: { roles: { id: string; name: string }
       <div className="q-row">
         <button
           className="q-btn q-btn-primary"
+          aria-busy={isPending}
           disabled={isPending || !ready}
           onClick={() => run(
             () => addEmployee({

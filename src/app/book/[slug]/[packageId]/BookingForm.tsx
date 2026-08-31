@@ -7,6 +7,7 @@ import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { submitBookingForm } from './actions';
 import { createPortal } from 'react-dom';
+import { toast } from '@/components/Toast';
 
 /**
  * A question this studio asks about its own work — whatever its domains
@@ -234,7 +235,7 @@ export function BookingForm({
       setIsSuccess(true);
     } catch (error) {
       console.error(error);
-      alert('Failed to submit booking. Please try again.');
+      toast.bad('Failed to submit booking. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { settleTransaction, voidTransaction } from '@/modules/finances/interface';
 import { Check } from 'lucide-react';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * The two things you can do to money that hasn't moved yet: say it arrived, or
@@ -24,7 +25,7 @@ export function TransactionActions({
   const run = (fn: () => Promise<unknown>) =>
     startTransition(async () => {
       try { await fn(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'The action could not be completed.'); }
+      catch (e: any) { toast.bad(readableError(e, 'The action could not be completed.')); }
     });
 
   if (confirming) {
@@ -35,7 +36,7 @@ export function TransactionActions({
           record shows it was raised and taken back.
         </span>
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => voidTransaction({ transactionId }))}>
             Void it
           </button>
@@ -47,7 +48,7 @@ export function TransactionActions({
 
   return (
     <div className="q-row">
-      <button className="q-btn q-btn-primary" disabled={isPending}
+      <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending}
         onClick={() => run(() => settleTransaction({ transactionId }))}>
         <Check size={16} style={{ marginRight: '8px' }} />
         {isPending ? 'Saving…' : 'Mark as received'}

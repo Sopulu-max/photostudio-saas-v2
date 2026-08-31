@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast, readableError } from '@/components/Toast';
 import {
   issueInvoice, voidInvoice, updateDraftInvoice, createTransaction, settleTransaction,
 } from '@/modules/finances/interface';
@@ -12,7 +13,7 @@ function useRun() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'The action could not be completed.'); }
+      catch (e: any) { toast.bad(readableError(e, 'The action could not be completed.')); }
     });
   return { isPending, run, router };
 }
@@ -90,7 +91,7 @@ export function InvoiceLineEditor({
 
       {dirty && (
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => updateDraftInvoice({ invoiceId, lines }))}>
             Save lines
           </button>
@@ -125,7 +126,7 @@ export function InvoiceActions({
           cancelled document is part of the record, and a missing number is harder to explain.
         </span>
         <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(() => voidInvoice({ invoiceId }), () => setConfirming(false))}>
             Withdraw it
           </button>
@@ -138,7 +139,7 @@ export function InvoiceActions({
   return (
     <div className="q-row">
       {status === 'draft' && (
-        <button className="q-btn q-btn-primary" disabled={isPending || !hasLines}
+        <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !hasLines}
           title={hasLines ? undefined : 'Add a line first'}
           onClick={() => run(() => issueInvoice({ invoiceId }))}>
           {isPending ? 'Sending…' : 'Issue invoice'}
@@ -195,7 +196,7 @@ export function RecordPaymentForm({
 
   const submit = () => {
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { alert('Enter an amount.'); return; }
+    if (!amt || amt <= 0) { toast.bad('Enter an amount.'); return; }
     run(async () => {
       const tx: any = await createTransaction({
         kind, type: label.trim() || (kind === 'refund' ? 'Refund' : 'Payment'),
@@ -216,7 +217,7 @@ export function RecordPaymentForm({
         placeholder="Deposit, balance…" style={{ width: '10rem' }} />
       <input className="q-input" type="number" min="0" step="0.01" value={amount}
         onChange={(e) => setAmount(e.target.value)} style={{ width: '9rem' }} />
-      <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={submit}>
+      <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={submit}>
         {isPending ? 'Saving…' : 'Record it'}
       </button>
       <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setOpen(false)}>Cancel</button>

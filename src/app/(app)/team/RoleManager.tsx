@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateRole, deleteRole } from '@/modules/team/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Rename or remove a role, in place. Deleting a role just removes the badge
@@ -19,14 +20,14 @@ export function RoleManager({ role }: { role: { id: string; name: string; descri
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
 
   if (confirming) {
     return (
       <div className="q-note q-note-bad q-row" style={{ gap: '8px' }}>
         <span className="q-meta-plain">Remove &ldquo;{role.name}&rdquo;?</span>
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending} onClick={() => run(() => deleteRole(role.id))}>
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending} onClick={() => run(() => deleteRole(role.id))}>
           Remove
         </button>
         <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setConfirming(false)}>Keep</button>
@@ -42,6 +43,7 @@ export function RoleManager({ role }: { role: { id: string; name: string; descri
           placeholder="description (optional)" style={{ width: '12rem' }} />
         <button
           className="q-btn q-btn-primary q-btn-xs"
+          aria-busy={isPending}
           disabled={isPending || !name.trim()}
           onClick={() => run(
             () => updateRole({ roleId: role.id, name: name.trim(), description: description.trim() || null }),

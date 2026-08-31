@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast, readableError } from '@/components/Toast';
 
 type Facet = { id: string; name: string; position: number };
 
@@ -12,7 +13,7 @@ function useAction() {
   const run = (fn: () => Promise<unknown>, after?: () => void) =>
     startTransition(async () => {
       try { await fn(); after?.(); router.refresh(); }
-      catch (e: any) { alert(e?.message || 'Something went wrong.'); }
+      catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
     });
   return { isPending, run };
 }
@@ -36,7 +37,7 @@ function FacetRow({
     return (
       <div className="q-tile q-row">
         <input autoFocus className="q-input q-fill" value={name} onChange={(e) => setName(e.target.value)} />
-        <button className="q-btn q-btn-primary q-btn-sm" disabled={isPending}
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
           onClick={() => name.trim() && run(() => onRename(facet.id, name), () => setEditing(false))}>
           Save
         </button>
@@ -106,7 +107,7 @@ export function FacetManager({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) run(() => onCreate(name.trim()), () => { setName(''); setOpen(false); }); }}
             style={{ minWidth: '12rem' }} />
-          <button className="q-btn q-btn-primary" disabled={isPending}
+          <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending}
             onClick={() => name.trim() && run(() => onCreate(name.trim()), () => { setName(''); setOpen(false); })}>
             Add
           </button>

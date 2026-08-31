@@ -3,6 +3,7 @@
 import React, { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createInvoiceForBooking } from '@/modules/finances/interface';
+import { toast, readableError } from '@/components/Toast';
 
 /**
  * Bill this booking for what's on it.
@@ -27,6 +28,7 @@ export function GenerateInvoiceButton({
   return (
     <button
       className="q-btn q-btn-primary q-btn-sm"
+      aria-busy={isPending}
       disabled={isPending}
       onClick={() =>
         startTransition(async () => {
@@ -34,7 +36,7 @@ export function GenerateInvoiceButton({
             const { invoiceId } = await createInvoiceForBooking({ bookingId });
             router.push(`/finances/invoices/${invoiceId}`);
           } catch (e: any) {
-            alert(e?.message || 'Could not start that invoice.');
+            toast.bad(readableError(e, 'Could not start that invoice.'));
           }
         })
       }
