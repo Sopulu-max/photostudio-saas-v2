@@ -48,9 +48,13 @@ export type { StudioDimensionShape, ServiceDimensionTag, DimensionWrite, PublicI
 
 export {
   SERVICE_VARIABLE_KINDS, formatVariableValue, parseVariableValue,
+  // The three states a package's variables are actually in. One place,
+  // because every surface was deriving two of them and getting it wrong.
+  splitVariables,
   variableKindLabel, variableKindHint, variableNeedsOptions, variableIsNumeric,
 } from './variableTypes';
-export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue } from './variableTypes';
+export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue,
+  VariableAnswer, VariableQuestion } from './variableTypes';
 
 export {
   // Intake question field-type registry — shared vocabulary, used wherever a

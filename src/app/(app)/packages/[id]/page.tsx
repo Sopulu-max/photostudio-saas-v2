@@ -4,7 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { formatDeliverable, getPackage } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
-import { formatVariableValue } from '@/modules/services/interface';
+import { formatVariableValue, splitVariables } from '@/modules/services/interface';
 import { ClassificationsFor } from './Classifications';
 import { Counted } from '@/components/Counted';
 
@@ -178,7 +178,11 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                    * with no JavaScript at all.
                    */
                   const promised = s.deliverables || [];
-                  const fixed = s.variableValues || [];
+                  /* fixed was every row here too, so a variable left to the
+                     client came out twice: blank in the offer above, and again
+                     as a question below. */
+                  const { fixed, asked, undecided } = splitVariables(
+                    s.variableValues || [], s.variables || []);
                   /*
                    * Three states, not two.
                    *
@@ -188,9 +192,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                    * had thought about became a question on a public booking form
                    * without anyone choosing to ask it.
                    */
-                  const decided = new Map((s.variableValues || []).map((v: any) => [v.serviceVariableId, v.answeredBy || 'studio']));
-                  const asked = (s.variables || []).filter((v: any) => decided.get(v.id) === 'client');
-                  const undecided = (s.variables || []).filter((v: any) => !decided.has(v.id));
                   const open = [...asked, ...undecided];
                   const tasks = s.tasks || [];
 

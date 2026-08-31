@@ -10,7 +10,7 @@ import { CatalogFilter } from '@/components/CatalogFilter';
 import { Counted } from '@/components/Counted';
 // Reached at its source rather than through the module door: the interface is
 // a server-actions file, and this is a pure formatter a client card can hold.
-import { formatVariableValue } from '@/modules/services/variableTypes';
+import { formatVariableValue, splitVariables } from '@/modules/services/variableTypes';
 
 
 type DimensionTagShape = { id: string; name: string; position?: number; values: { id: string; name: string }[] };
@@ -118,11 +118,17 @@ export function PackagesClient({
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
     const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
-    const fixed = (pkg.services || []).flatMap((s: any) => s.variableValues || []);
-    const openVars = (pkg.services || []).flatMap((s: any) => {
-      const fixedIds = new Set((s.variableValues || []).map((v: any) => v.serviceVariableId));
-      return (s.variables || []).filter((v: any) => !fixedIds.has(v.id));
-    });
+    /*
+     * Fixed is what the package SAYS; asked and undecided are what it leaves.
+     * This read every package_variable_values row as a fixed value, so one the
+     * package had deliberately left to the client — which still has a row,
+     * because that is where the decision is recorded — printed its label with
+     * nothing beside it. "Location address" and then blank, on the card.
+     */
+    const { fixed, asked } = splitVariables(
+      (pkg.services || []).flatMap((s: any) => s.variableValues || []),
+      (pkg.services || []).flatMap((s: any) => s.variables || []),
+    );
     const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
     const priced = pkg.price?.amount != null;
 
@@ -189,7 +195,7 @@ export function PackagesClient({
             : 'Nothing promised yet'}
         </p>
 
-        {(tags.length > 0 || fixed.length > 0 || openVars.length > 0) && (
+        {(tags.length > 0 || fixed.length > 0 || asked.length > 0) && (
           <div className="q-facts">
             {tags.map((d) => (
               <span key={d.id} className="q-fact-group">
@@ -209,12 +215,15 @@ export function PackagesClient({
                 </span>
               </span>
             ))}
-            {fixed.length === 0 && openVars.length > 0 && (
+            {/* Said alongside the fixed values, not only in place of them. A
+                package that fixes two things and asks three said nothing about
+                the three, because this only drew when nothing was fixed. */}
+            {asked.length > 0 && (
               <span className="q-fact-group">
-                <span className="q-fact-key">Variables</span>
+                <span className="q-fact-key">Asked</span>
                 <span className="q-fact-values">
                   <span className="q-fact q-absent">
-                    {openVars.length} asked at booking
+                    {asked.length} at booking
                   </span>
                 </span>
               </span>

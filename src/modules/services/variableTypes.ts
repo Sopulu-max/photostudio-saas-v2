@@ -131,3 +131,68 @@ export function formatVariableValue(v: { value: unknown; unit: string | null }):
   const plural = Number(v.value) === 1 ? v.unit : `${v.unit}s`;
   return `${body} ${plural}`;
 }
+
+/**
+ * WHAT A PACKAGE HAS ACTUALLY SAID ABOUT A VARIABLE.
+ *
+ * Three states, and a row in package_variable_values only distinguishes two of
+ * them by itself:
+ *
+ *   FIXED     the studio gave it a value; part of the offer, a fact about the
+ *             package.
+ *   ASKED     the package decided the CLIENT answers it. There is a row — that
+ *             is how the decision is recorded — but it deliberately has no
+ *             value in it.
+ *   UNDECIDED no row at all. Nobody has thought about it yet, which is not the
+ *             same as choosing to ask.
+ *
+ * WHY THIS EXISTS. Every surface computed `fixed = variableValues` — every row,
+ * regardless. That was true before a package could record WHO answers a
+ * variable, and silently wrong afterwards. An asked variable rendered as a fact
+ * with an empty value beside its label: "Location address" and then nothing.
+ *
+ * It also could not be recovered downstream, because the surfaces rescued open
+ * variables by filtering the SERVICE's declared list — and a dimension-owned
+ * variable ("Location address" belongs to Context, not to a service) is not in
+ * that list. So it showed as a fact it was not, and was missing from the count
+ * of questions it belonged to. On the package page, one that WAS service-owned
+ * came out twice: blank in the offer, and again as a question.
+ *
+ * Asked is therefore read from the ANSWERS, never from the declared list, so a
+ * variable owned by a dimension is found the same way as one owned by a
+ * service. Undecided is the only state the declared list can speak to, because
+ * it is the only one with nothing recorded about it.
+ *
+ * An empty value counts as asked whatever answered_by says: a row claiming the
+ * studio fixed this while holding no value is not a fact, whatever it claims.
+ */
+export type VariableAnswer = {
+  serviceVariableId: string;
+  label: string;
+  unit: string | null;
+  kind?: string;
+  value: unknown;
+  answeredBy?: 'studio' | 'client';
+};
+
+export type VariableQuestion = { id: string; label: string };
+
+export function splitVariables(
+  answers: VariableAnswer[],
+  declared: { id: string; label: string }[] = [],
+): { fixed: VariableAnswer[]; asked: VariableQuestion[]; undecided: VariableQuestion[] } {
+  const isFact = (a: VariableAnswer) =>
+    a.answeredBy !== 'client' && formatVariableValue(a) !== '';
+
+  const fixed = answers.filter(isFact);
+  const asked = answers
+    .filter((a) => !isFact(a))
+    .map((a) => ({ id: a.serviceVariableId, label: a.label }));
+
+  const spokenFor = new Set(answers.map((a) => a.serviceVariableId));
+  const undecided = declared
+    .filter((d) => !spokenFor.has(d.id))
+    .map((d) => ({ id: d.id, label: d.label }));
+
+  return { fixed, asked, undecided };
+}
