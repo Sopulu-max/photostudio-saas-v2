@@ -92,6 +92,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   onSubmitOverride,
   hideControls,
   derivedFrom,
+  derivedServiceIds,
 }: {
   mode: 'create' | 'edit';
   packageId?: string;
@@ -162,6 +163,17 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * is the booking's job and the whole of it.
    */
   derivedFrom?: string | null;
+  /*
+   * What the catalogue package bundles, as the baseline this one departs from.
+   *
+   * Nothing is stored to record a departure. The instance already points at its
+   * parent through instance_of, and list_price already holds what the parent
+   * cost when it was taken — so the difference is READABLE whenever anyone asks,
+   * for as long as both rows exist. Deriving it is also the only version that
+   * cannot go stale, which is the same reason relatedness is derived everywhere
+   * else in this system rather than declared.
+   */
+  derivedServiceIds?: string[];
 }, ref) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -180,6 +192,20 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   /* An instance of a catalogue package, as opposed to something bespoke being
      written here for the first time. */
   const derived = Boolean(derivedFrom);
+  /*
+   * A DEPARTURE IS A DECISION, SO IT IS MADE ON PURPOSE.
+   *
+   * Dropping a service or adding one is a real thing a studio does — "no video
+   * this time", "throw in the drone" — and refusing it outright would send the
+   * operator off to author a whole bespoke package for one change. But it is
+   * not the same act as answering what a package left open, and it must not
+   * look like one: a booking that quietly bundles something its package never
+   * bundled is an agreement nobody can read back.
+   *
+   * So it is behind an explicit act, it says what it has changed, and it can be
+   * put back.
+   */
+  const [adjusting, setAdjusting] = useState(false);
   const heading = (n: number, title: string) => (embedded ? title : `${n}. ${title}`);
 
   /*
@@ -572,6 +598,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [extraStages, setExtraStages] = useState<Stage[]>(initial.extraStages || []);
 
   const bundledNames = allServices.filter((s) => serviceIds.includes(s.id)).map((s) => s.name);
+  /* What this bundle is, against what the catalogue package bundles. Read, not
+     stored: see derivedServiceIds. */
+  const baseline = derivedServiceIds ?? [];
+  const bundleLocked = derived && !adjusting;
+  const droppedFromCatalogue = baseline.filter((id) => !serviceIds.includes(id));
+  const addedBeyondCatalogue = serviceIds.filter((id) => !baseline.includes(id));
+  const departs = droppedFromCatalogue.length > 0 || addedBeyondCatalogue.length > 0;
+  const nameOf = (id: string) => allServices.find((x) => x.id === id)?.name ?? 'a service';
+
   const composed = bundledNames.join(' + ') || 'Untitled package';
 
   /*
@@ -1423,6 +1458,37 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           classified, what this package fixes about it, and the work it involves.
         </p>
 
+        {derived && (
+          <div className={departs ? 'q-note q-note-warn q-stack q-stack-sm' : 'q-row q-row-between'} style={{ marginBottom: '16px' }}>
+            {!adjusting ? (
+              <>
+                <span className="q-meta">
+                  Bundled as {derivedFrom} bundles it.
+                </span>
+                <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                  onClick={() => setAdjusting(true)}>
+                  Adjust what is included
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="q-meta">
+                  {departs
+                    ? <>This booking departs from {derivedFrom}: {[
+                        droppedFromCatalogue.length > 0 ? `${droppedFromCatalogue.map(nameOf).join(', ')} removed` : null,
+                        addedBeyondCatalogue.length > 0 ? `${addedBeyondCatalogue.map(nameOf).join(', ')} added` : null,
+                      ].filter(Boolean).join('; ')}.</>
+                    : <>Adjusting. Nothing differs from {derivedFrom} yet.</>}
+                </span>
+                <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                  onClick={() => { setServiceIds(baseline); setAdjusting(false); }}>
+                  {departs ? `Put it back as ${derivedFrom}` : 'Stop adjusting'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {(() => {
           /*
            * CHOSEN FIRST, SEPARATELY FROM THE CHOOSING.
@@ -1497,9 +1563,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                           </span>
                         </button>
                         {/* Dropping a service is changing WHAT THE PACKAGE IS,
-                            not answering what it left open, so a booking taking
-                            one off the shelf is not offered it. See derivedFrom. */}
-                        {!derived && (
+                            not answering what it left open — so it is offered
+                            only once the operator has said they are adjusting.
+                            See `adjusting`. */}
+                        {!bundleLocked && (
                           <button
                             type="button" className="q-btn-ghost q-btn-xs"
                             onClick={() => toggleService(s.id)}
@@ -1587,10 +1654,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 * services and every one of them is bundled, so a search box
                 * there searches an empty set.
                 */}
-              {/* And neither is adding one. A package that can gain a service
-                  at booking time is a package being defined by a booking, which
-                  is the one direction 02-ONTOLOGY says the layers never run. */}
-              {!derived && allServices.length > chosen.length && (
+              {/* And neither is adding one, until the same decision has
+                  been made. Unasked, a package that gains a service at booking
+                  time is a package being defined by a booking, which is the one
+                  direction 02-ONTOLOGY says the layers never run. */}
+              {!bundleLocked && allServices.length > chosen.length && (
                 <CatalogFilter
                   items={allServices.filter((s) => !serviceIds.includes(s.id))}
                   noun="service"

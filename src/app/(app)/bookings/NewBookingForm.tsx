@@ -1154,6 +1154,11 @@ export function NewBookingForm({
                           * be an instance of, so the whole editor is the point.
                           */
                         derivedFrom={line.packageId === 'custom' ? null : (line.selectedPackageDeep?.name ?? null)}
+                        /* The baseline a departure is measured against. The
+                           instance records instance_of anyway, so this is what
+                           lets the operator SEE the difference while making it,
+                           rather than only being able to read it back later. */
+                        derivedServiceIds={((line.selectedPackageDeep?.services || []) as any[]).map((sv: any) => sv.id)}
                         initial={line.packageId === 'custom' 
                           ? { variableValues: [], name: line.customName || '' } 
                           : {
