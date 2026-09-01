@@ -13,6 +13,8 @@ import {
   describeInvoiceLine, invoiceLineAmount, billingShare, taxOn,
   // What comes off a price, and the one descent from what was sold to what is owed.
   discountOn, invoiceTotals,
+  // Money received, and the one transition that moves it to settled.
+  createTransaction, settleTransaction,
 } from '@/modules/finances/interface';
 import { addBookingTask } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
@@ -156,6 +158,29 @@ export function NewBookingForm({
    */
   const [discountKind, setDiscountKind] = useState<'none' | 'percentage' | 'amount'>('none');
   const [discountValue, setDiscountValue] = useState('');
+  /*
+   * WHAT CHANGED HANDS, WHICH IS NOT THE SAME QUESTION AS WHAT TO BILL.
+   *
+   * An invoice is a demand — you owe this. A payment is money received. The
+   * form only ever asked the first, and offered "the deposit only" as the way
+   * to express a deposit, which is the wrong half of the fact: a client paying
+   * ₦54,000 at the moment of booking has not been BILLED less, they have PAID
+   * some.
+   *
+   * The difference shows the instant anyone looks. Bill only the deposit and
+   * the invoice is settled the moment it is paid, and the balance exists
+   * nowhere — the studio is owed ₦126,000 and every screen says it is owed
+   * nothing. Bill the job and record the payment, and outstanding falls out of
+   * settlementOf on its own, which is what the invoice list means when it
+   * offers to sort by most owed first.
+   *
+   * Nothing here could record a payment at all. Taking a deposit meant creating
+   * the booking, opening it, opening the invoice, and recording it there —
+   * four steps for one act that happens while the client is still on the
+   * telephone.
+   */
+  const [paidNow, setPaidNow] = useState('');
+  const [paidLabel, setPaidLabel] = useState('Deposit');
   const [deposit, setDeposit] = useState(String(depositDefault));
   
   type LineState = {
@@ -750,7 +775,7 @@ export function NewBookingForm({
         } else {
           try {
             const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;
-            await createInvoiceForBooking({
+            const { invoiceId } = await createInvoiceForBooking({
               bookingId,
               dueAt: invoiceDue ? new Date(invoiceDue).toISOString() : null,
               notes: invoiceNotes.trim() || null,
@@ -760,6 +785,34 @@ export function NewBookingForm({
                 ? { kind: discountKind, value: Number(discountValue) }
                 : null,
             });
+            /*
+             * Recorded against the invoice it pays, so outstanding is derived
+             * rather than declared — settlementOf already answers "how much is
+             * left" from the payments themselves, and a second number saying so
+             * would be a second number to disagree.
+             *
+             * Its own try, and its own report. A payment that will not record
+             * must not lose the invoice that was raised a line above it, and an
+             * operator who has taken money needs to know it was not written
+             * down far more urgently than they need to know anything else here.
+             */
+            const took = Number(paidNow) || 0;
+            if (took > 0) {
+              try {
+                const tx: any = await createTransaction({
+                  kind: 'charge',
+                  type: paidLabel.trim() || 'Deposit',
+                  amount: took,
+                  currency: currencyCode,
+                  invoiceId,
+                  contactId: finalContactId || undefined,
+                  bookingId,
+                });
+                await settleTransaction({ transactionId: tx.id });
+              } catch (e: any) {
+                failed.push(`the ${formatAmount(took)} payment (${readableError(e, 'it was not recorded')})`);
+              }
+            }
           } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
         }
 
@@ -1960,6 +2013,42 @@ export function NewBookingForm({
             )}
           </div>
 
+          {/*
+            * Asked after what is being billed, because it is a payment AGAINST
+            * that — and it is optional, since plenty of bookings are taken on a
+            * promise.
+            */}
+          <div className="q-row" style={{ alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="q-field" style={{ minWidth: '180px' }}>
+              <label className="q-label">Paid now (optional)</label>
+              <div className="q-row" style={{ alignItems: 'center', gap: '8px' }}>
+                <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
+                <input
+                  className="q-input q-num"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={paidNow}
+                  onChange={(e) => setPaidNow(e.target.value)}
+                  placeholder="0.00"
+                  style={{ maxWidth: '140px' }}
+                />
+              </div>
+            </div>
+            {Number(paidNow) > 0 && (
+              <div className="q-field" style={{ minWidth: '160px' }}>
+                <label className="q-label">Recorded as</label>
+                <input
+                  className="q-input"
+                  value={paidLabel}
+                  onChange={(e) => setPaidLabel(e.target.value)}
+                  placeholder="Deposit"
+                  style={{ maxWidth: '180px' }}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="q-field" style={{ maxWidth: '420px' }}>
             <label className="q-label">Amount to invoice</label>
             {/*
@@ -2045,6 +2134,41 @@ export function NewBookingForm({
                       <span className="q-meta">Tax ({taxRate}%){draftInvoice.discount > 0 ? ' on the discounted amount' : ''}</span>
                       <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/*
+                * WHAT IS LEFT, ONCE WHAT WAS PAID IS TAKEN OFF.
+                *
+                * The figure in the band is what is being INVOICED. When money
+                * has changed hands there is a second, different number — what
+                * the client still owes — and it is the one a studio actually
+                * carries around in its head.
+                *
+                * Shown only when something was paid, because a booking nobody
+                * has paid for owes the whole invoice and the band already says
+                * so.
+                */}
+              {Number(paidNow) > 0 && draftInvoice.rows.length > 0 && (
+                <div className="q-stack q-stack-sm q-appear">
+                  <div className="q-row q-row-between">
+                    <span className="q-meta">Paid now</span>
+                    <span className="q-num q-success">&minus;{formatAmount(Number(paidNow))}</span>
+                  </div>
+                  <div className="q-row q-row-between">
+                    <span className="q-meta">
+                      {Number(paidNow) >= draftInvoice.total ? 'Settled in full' : 'Still owed'}
+                    </span>
+                    <strong className="q-num">
+                      {formatAmount(Math.max(draftInvoice.total - Number(paidNow), 0))}
+                    </strong>
+                  </div>
+                  {Number(paidNow) > draftInvoice.total && (
+                    <span className="q-meta-sm q-text-danger">
+                      That is more than this invoice asks for. It will be recorded in full and leave
+                      the invoice overpaid.
+                    </span>
                   )}
                 </div>
               )}
