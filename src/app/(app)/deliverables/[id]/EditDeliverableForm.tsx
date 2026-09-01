@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateDeliverable, deleteOutputOrContainer, updateDeliverableConfig } from './actions';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 export function EditDeliverableForm({ id, type, initialName, initialOutput }: { 
   id: string; 
@@ -55,7 +56,6 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this?')) return;
     setSaving(true);
     try {
       await deleteOutputOrContainer(id, type);
@@ -122,9 +122,14 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
       )}
 
       <div className="q-form-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button type="button" className="q-btn-ghost q-text-danger" onClick={handleDelete} disabled={saving}>
+        <ConfirmButton
+          className="q-btn-ghost q-text-danger"
+          onConfirm={handleDelete}
+          confirmLabel="Delete it?"
+          disabled={saving}
+        >
           Delete
-        </button>
+        </ConfirmButton>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button type="button" className="q-btn q-btn-secondary" onClick={() => router.push('/deliverables')} disabled={saving}>
             Cancel

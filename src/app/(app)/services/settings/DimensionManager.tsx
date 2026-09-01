@@ -15,6 +15,7 @@ import { PickOne, PickToAdd } from '@/components/Pick';
 // again here — which is how a dimension came to carry a date but not a choice.
 import { SERVICE_VARIABLE_KINDS, variableKindLabel, variableKindHint, variableNeedsOptions } from '@/modules/services/variableTypes';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 /**
  * How this domain classifies its own work.
@@ -171,17 +172,20 @@ export function DimensionManager({
                     onClick={() => run(() => setDimensionActive({ dimensionId: d.id, isActive: !d.isActive, serviceDomainId: domainId }))}>
                     {d.isActive ? 'Turn off' : 'Turn on'}
                   </button>
-                  <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
-                    onClick={() => {
-                      // Says what it does: this domain stops asking. The
-                      // question survives wherever else it is asked, and goes
-                      // altogether only when nobody asks it and nothing is
-                      // filed under it.
-                      if (!confirm(`Stop ${domainName} classifying by ${d.name}? Other kinds of work that ask it keep it.`)) return;
-                      run(() => deleteDimension(d.id, domainId));
-                    }}>
+                  {/* Says what it does: this domain stops asking. The question
+                      survives wherever else it is asked, and goes altogether
+                      only when nobody asks it and nothing is filed under it —
+                      which is why the armed label names the domain rather than
+                      threatening the question itself. */}
+                  <ConfirmButton
+                    className="q-btn q-btn-secondary q-btn-xs"
+                    disabled={isPending}
+                    confirmLabel={`Stop ${domainName} asking it?`}
+                    title={`Stop ${domainName} classifying by ${d.name}. Other kinds of work that ask it keep it.`}
+                    onConfirm={() => run(() => deleteDimension(d.id, domainId))}
+                  >
                     Remove
-                  </button>
+                  </ConfirmButton>
                 </div>
               </div>
 

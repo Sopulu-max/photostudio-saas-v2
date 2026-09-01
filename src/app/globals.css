@@ -1277,7 +1277,24 @@ body {
 .q-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap, 16px); }
 .q-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap, 16px); }
 .q-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap, 16px); }
-@media (max-width: 720px) {
+/*
+ * BREAKPOINTS IN EM, NOT PX.
+ *
+ * A media query in px answers to browser ZOOM but not to the reader's own font
+ * size. Someone who has set their default to 20px gets text a quarter larger
+ * and the identical breakpoints, so their words outgrow a layout that never
+ * hears about it — and they are exactly the people who cannot afford that.
+ *
+ * em in a media query is resolved against the INITIAL font size, not the root
+ * element's, so it tracks that setting precisely and is immune to anything the
+ * page does to :root. 16px is therefore a fixed conversion here rather than an
+ * assumption: 640px is 40em, and stays 40em whatever this stylesheet says about
+ * html.
+ *
+ * Every value is the same number of pixels at the default. Nothing moves for a
+ * reader who has changed nothing.
+ */
+@media (max-width: 45em) {
   .q-grid-2, .q-grid-3, .q-grid-4 { grid-template-columns: 1fr; }
 }
 
@@ -1406,7 +1423,7 @@ body {
 .q-lb-next     { right: 10px; }
 .q-lb-nav:disabled { opacity: 0.25; cursor: default; }
 
-@media (max-width: 620px) {
+@media (max-width: 38.75em) {
   .q-gal-cover-inner, .q-gal-bar, .q-gal-main { padding-left: 18px; padding-right: 18px; }
   .q-gal-grid { grid-template-columns: repeat(auto-fill, minmax(min(146px, 100%), 1fr)); gap: 8px; }
   .q-gal-cover { min-height: min(52vh, 400px); }
@@ -1415,7 +1432,7 @@ body {
 /* ---- Calendar view ------------------------------------------------------- */
 .q-cal-layout   { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
 .q-cal-layout-split { grid-template-columns: minmax(0, 1fr) 320px; }
-@media (max-width: 860px) { .q-cal-layout-split { grid-template-columns: 1fr; } }
+@media (max-width: 53.75em) { .q-cal-layout-split { grid-template-columns: 1fr; } }
 .q-cal-grid     { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .q-cal-head     { margin-bottom: 8px; }
 .q-cal-dow      { font-family: var(--q-font-mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--q-color-ink-400); text-align: center; }
@@ -1744,7 +1761,7 @@ body {
   gap: 24px;
   align-items: start;
 }
-@media (max-width: 860px) { .q-cc-layout { grid-template-columns: 1fr; } }
+@media (max-width: 53.75em) { .q-cc-layout { grid-template-columns: 1fr; } }
 
 /* A sticky sidebar panel (activity feed). */
 .q-cc-sidebar { position: sticky; top: 24px; }
@@ -1968,7 +1985,7 @@ body {
  * was told to stack and went on aligning to flex-end, because the base rule was
  * written after it.
  */
-@media (max-width: 900px) {
+@media (max-width: 56.25em) {
   .q-shell-main { padding: 20px 16px; }
 
   /*
@@ -2184,7 +2201,7 @@ body {
 }
 
 /* On a phone it spans the width, above the thumb rather than under it. */
-@media (max-width: 640px) {
+@media (max-width: 40em) {
   .q-toast-stack {
     inset-inline: 12px;
     inset-block-end: 12px;
@@ -2302,7 +2319,7 @@ body {
 
 /* On a phone the key sits above its values rather than stealing 6.5rem of a
    375px row — the same reason .q-facts stacks there. */
-@media (max-width: 640px) {
+@media (max-width: 40em) {
   .q-narrow-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .q-narrow-key { min-inline-size: 0; }
 }
@@ -2439,7 +2456,7 @@ body {
 }
 
 /* A row of eight columns is a card again on a phone. */
-@media (max-width: 760px) {
+@media (max-width: 47.5em) {
   .q-grid-rows > .q-card {
     flex-direction: column;
     align-items: stretch;
@@ -2504,7 +2521,7 @@ body {
    lone thing in a scroller that cannot scroll. */
 .q-rail:has(> :only-child) > * { flex: 0 1 20rem; }
 
-@media (max-width: 640px) {
+@media (max-width: 40em) {
   /* Nearly the whole width, with the next one showing past the edge — the only
      thing that says a row scrolls on a device with no scrollbar to see. */
   .q-rail > * { flex: 0 0 min(17rem, 82vw); }
@@ -2622,4 +2639,14 @@ body {
 .q-rail-frame::after {
   inset-inline-end: 0;
   background: linear-gradient(to left, var(--q-edge-shade), transparent);
+}
+
+/* An armed destructive button, waiting for the second press. It takes the
+   danger colour rather than a new one: the app already says danger this way,
+   and a confirmation is the last moment before the thing it warns about. */
+.q-confirming {
+  color: var(--q-color-danger);
+  border-color: color-mix(in srgb, var(--q-color-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--q-color-danger) 10%, transparent);
+  font-weight: 600;
 }

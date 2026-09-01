@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { addToBookingTeam, removeFromBookingTeam } from '@/modules/production/interface';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 type Employee = {
   id: string;
@@ -153,7 +154,6 @@ export function RemoveFromTeam({
   const [isPending, startTransition] = useTransition();
 
   const remove = () => {
-    if (!confirm(`Remove ${name} from this booking?`)) return;
     startTransition(async () => {
       try {
         await removeFromBookingTeam({ bookingId, assignmentId });
@@ -164,14 +164,14 @@ export function RemoveFromTeam({
   };
 
   return (
-    <button
-      type="button"
+    <ConfirmButton
       className="q-btn-ghost q-btn-xs"
       disabled={isPending}
-      onClick={remove}
+      onConfirm={remove}
+      confirmLabel="Remove?"
       title={`Remove ${name} from this booking`}
     >
       {isPending ? '…' : '×'}
-    </button>
+    </ConfirmButton>
   );
 }

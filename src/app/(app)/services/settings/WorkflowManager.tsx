@@ -4,6 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { Plus, CheckCircle2, Trash2 } from 'lucide-react';
 import { WorkflowEditor, WorkflowInput } from '../[id]/WorkflowEditor';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 export function WorkflowManager({
   domains,
@@ -53,7 +54,6 @@ export function WorkflowManager({
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('Are you sure you want to delete this workflow?')) return;
     startTransition(async () => {
       try {
         await onDelete(id);
@@ -108,9 +108,18 @@ export function WorkflowManager({
                       <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => handleEdit(d.id, wf)} disabled={isPending}>
                         Edit
                       </button>
-                      <button className="q-btn-icon" onClick={() => handleDelete(wf.id)} disabled={isPending} style={{ color: 'var(--q-color-danger)', marginLeft: '8px' }}>
+                      {/* The bin becomes words when armed: an icon cannot
+                          ask a question, and "press the bin again" is not
+                          something a studio should have to infer. */}
+                      <ConfirmButton
+                        className="q-btn-icon"
+                        onConfirm={() => handleDelete(wf.id)}
+                        confirmLabel="Delete workflow?"
+                        disabled={isPending}
+                        title={`Delete ${wf.name}`}
+                      >
                         <Trash2 size={16} />
-                      </button>
+                      </ConfirmButton>
                     </div>
                   </div>
                 ))}

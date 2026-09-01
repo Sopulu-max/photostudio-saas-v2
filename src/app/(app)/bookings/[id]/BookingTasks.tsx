@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { toast, readableError } from '@/components/Toast';
 import { useArrivals } from '@/components/useArrivals';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import {
   setTaskRole, addBookingTask, removeBookingTask,
   assignToTask, unassignTask, advanceBookingLineTask,
@@ -175,18 +176,17 @@ export function BookingTasks({
                   {/* Only work the studio added can be removed here; a package's
                       task is switched off on the package, where it is visible. */}
                   {!t.lineId && (
-                    <button
-                      type="button"
+                    <ConfirmButton
                       className="q-btn-ghost q-btn-xs"
                       disabled={isPending}
                       title={`Remove “${t.name}”`}
-                      onClick={() => {
-                        if (!confirm(`Remove “${t.name}” from this booking?`)) return;
-                        run(() => removeBookingTask({ bookingId, taskId: t.id }), 'Could not remove that task.');
-                      }}
+                      confirmLabel="Remove?"
+                      onConfirm={() => run(
+                        () => removeBookingTask({ bookingId, taskId: t.id }),
+                        'Could not remove that task.')}
                     >
                       ×
-                    </button>
+                    </ConfirmButton>
                   )}
                 </span>
               </div>

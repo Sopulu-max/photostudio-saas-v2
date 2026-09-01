@@ -7,6 +7,7 @@ import { narrowFor } from '@/modules/services/interface';
 import type { Narrowed } from '@/modules/services/interface';
 import { PickToAdd } from '@/components/Pick';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 /**
  * What each domain can produce.
@@ -29,6 +30,8 @@ export function OutputTypeManager({
   const [domainId, setDomainId] = useState(domains[0]?.id || '');
   const [byDomain, setByDomain] = useState<Record<string, { id: string; name: string }[]>>({});
   const [loading, setLoading] = useState(false);
+  /** Which type is being renamed in place, if any. */
+  const [editing, setEditing] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -70,19 +73,63 @@ export function OutputTypeManager({
         <p className="q-meta">Loading…</p>
       ) : (
         <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+        {/*
+          * RENAMED IN PLACE, REMOVED ON PURPOSE.
+          *
+          * This was a <span> with cursor: pointer that opened window.prompt to
+          * rename — and CLEARING THE TEXT was how you deleted, which then
+          * opened window.confirm. Two operating-system dialogs in one gesture,
+          * and the destructive half hidden behind an empty string nobody would
+          * ever guess at.
+          *
+          * It was also not a control. A span has no role, takes no focus and
+          * answers no key, so the only way to reach any of this was a mouse.
+          *
+          * Now: a button that becomes its own text field, Enter to keep and
+          * Escape to abandon, with removing as its own visible act beside it.
+          */}
           {types.map((t) => (
-            <span key={t.id} className="q-badge q-badge-neutral" style={{ cursor: 'pointer' }}
-              title="Rename, or remove"
-              onClick={() => {
-                const next = prompt(`Rename “${t.name}” — or clear it to remove.`, t.name);
-                if (next === null) return;
-                if (!next.trim()) {
-                  if (!confirm(`Remove ${t.name} from ${domainName}?`)) return;
-                  return run(() => deleteDeliverable(t.id));
-                }
-                run(() => renameDeliverable(t.id, next));
-              }}>
-              {t.name}
+            <span key={t.id} className="q-row" style={{ gap: '4px', alignItems: 'center' }}>
+              {editing === t.id ? (
+                <input
+                  className="q-input q-input-sm"
+                  autoFocus
+                  defaultValue={t.name}
+                  style={{ maxWidth: '12rem' }}
+                  disabled={isPending}
+                  onBlur={(e) => {
+                    const next = e.target.value.trim();
+                    setEditing(null);
+                    // An empty box is an abandoned edit, not a deletion. That
+                    // is what removing is for, and it is a button.
+                    if (next && next !== t.name) run(() => renameDeliverable(t.id, next));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    if (e.key === 'Escape') { setEditing(null); }
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="q-badge q-badge-neutral"
+                  style={{ cursor: 'pointer' }}
+                  disabled={isPending}
+                  title={`Rename ${t.name}`}
+                  onClick={() => setEditing(t.id)}
+                >
+                  {t.name}
+                </button>
+              )}
+              <ConfirmButton
+                className="q-btn-ghost q-btn-xs"
+                disabled={isPending}
+                confirmLabel={`Remove from ${domainName}?`}
+                title={`Remove ${t.name} from ${domainName}`}
+                onConfirm={() => run(() => deleteDeliverable(t.id))}
+              >
+                &times;
+              </ConfirmButton>
             </span>
           ))}
           {types.length === 0 && <span className="q-meta-sm">None yet. Defining one on a service also creates it here.</span>}
