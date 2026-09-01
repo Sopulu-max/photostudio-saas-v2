@@ -28,4 +28,8 @@ export {
 // What kinds of money exist, and how to total them. A plain module rather than
 // a server one, so the pages can read the vocabulary without a round trip.
 export { TRANSACTION_KINDS, KINDS, kindOf, totalsByCurrency, settlementOf } from './money';
+// How an invoice line reads and what it bills. Shared so the New Booking form
+// can show the document it is about to raise, rather than drawing its own
+// version of it beside the one the server writes.
+export { describeInvoiceLine, invoiceLineAmount, billingShare, taxOn } from './money';
 export type { TransactionKind, KindSpec, MoneyTotals } from './money';

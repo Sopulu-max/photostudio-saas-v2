@@ -145,3 +145,61 @@ export function totalsByCurrency(
 
   return [...by.values()].sort((a, b) => b.earned - a.earned);
 }
+
+/**
+ * How an invoice line reads: what was sold, what it was configured as, and what
+ * portion of it is being billed.
+ *
+ * HERE BECAUSE TWO PLACES COMPOSE IT. createInvoiceForBooking writes the real
+ * line, and the New Booking form shows the operator what that line will say
+ * before the booking is saved. A form that draws its own version of a string the
+ * server writes is the same setup that let the package editor store `amount`
+ * while everything downstream read `base_price` — they agree until one of them
+ * is edited.
+ *
+ * The two legitimately differ in what they can SEE: the server reads the values
+ * recorded against the line, the form knows only what has been typed into it so
+ * far. That is a difference of inputs, which is honest. The joining is one
+ * function, so it cannot become a difference of format.
+ */
+export function describeInvoiceLine(input: {
+  /** What was sold — the package's name. */
+  title: string;
+  /** What it was configured as, already formatted. Empties are dropped. */
+  details: string[];
+  /** What the client sees when this bills part of the work, e.g. "50% deposit". */
+  label?: string | null;
+}): string {
+  const detail = input.details.filter((d) => (d ?? '').trim() !== '').join(' · ');
+  const described = detail ? `${input.title} · ${detail}` : input.title;
+  return input.label ? `${described} — ${input.label}` : described;
+}
+
+/**
+ * What a line bills, and what the client sees as its unit price.
+ *
+ * THE SHARE APPLIES TO THE LINE TOTAL, NOT THE UNIT PRICE, so a part invoice for
+ * "3 hours" still reads as three hours rather than as a fractional hour nobody
+ * agreed to. That is why the unit price is the amount itself on a part invoice:
+ * quantity is what was sold, and restating it as a fraction would misdescribe
+ * the work.
+ */
+export function invoiceLineAmount(input: { unitAmount: number; quantity: number; share: number }) {
+  const full = input.unitAmount * input.quantity;
+  const amount = Math.round(full * input.share * 100) / 100;
+  return {
+    amount,
+    unitPrice: input.share === 1 ? input.unitAmount : amount,
+  };
+}
+
+/** A percentage as a multiplier. Omitted means all of it. */
+export function billingShare(percentage?: number | null): number {
+  return percentage == null ? 1 : Math.max(0, Math.min(100, Number(percentage))) / 100;
+}
+
+/** Tax on a net figure, at the rate the document was raised under. */
+export function taxOn(net: number, taxRate: number): number {
+  if (!taxRate || taxRate <= 0) return 0;
+  return Math.round(net * (taxRate / 100) * 100) / 100;
+}

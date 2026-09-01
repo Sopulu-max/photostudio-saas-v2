@@ -70,7 +70,19 @@ export default async function FinancesPage() {
       <div className="q-card q-section" style={{ marginBottom: '24px' }}>
         <div className="q-row q-row-between" style={{ marginBottom: '14px' }}>
           <h2 className="q-section-title" style={{ margin: 0 }}>Invoices</h2>
-          <span className="q-meta-sm">Raised from a booking — open one to bill it</span>
+          {/*
+            * A CAP THAT SAYS SO.
+            *
+            * This drew slice(0, 8) and went straight on to the transaction
+            * table — no count, no link, nothing to say the ninth existed.
+            * listInvoices has no limit, so every invoice a studio has was
+            * fetched, eight were drawn and the rest were dropped on the floor.
+            * A silent cap reads as completeness, which is the one thing it must
+            * never do with money.
+            */}
+          <Link href="/finances/invoices" className="q-btn q-btn-secondary q-btn-xs">
+            {invoices.length > 8 ? `All ${invoices.length} invoices` : 'All invoices'}
+          </Link>
         </div>
         {invoices.length === 0 ? (
           <p className="q-empty">
@@ -102,6 +114,11 @@ export default async function FinancesPage() {
                 </div>
               </Link>
             ))}
+            {invoices.length > 8 && (
+              <Link href="/finances/invoices" className="q-meta-sm q-plain-link">
+                {invoices.length - 8} more &rarr;
+              </Link>
+            )}
           </div>
         )}
       </div>

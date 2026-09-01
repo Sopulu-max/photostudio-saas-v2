@@ -8,7 +8,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
-import { settlementOf } from './money';
+import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn } from './money';
 
 /**
  * Invoices — the document between what was booked and what was paid.
@@ -271,7 +271,7 @@ export async function createInvoiceForBooking(input: {
    * document the operator did not ask for, and they may genuinely mean to bill
    * again after withdrawing one.
    */
-  const share = input.percentage == null ? 1 : Math.max(0, Math.min(100, Number(input.percentage))) / 100;
+  const share = billingShare(input.percentage);
   if (!input.allowOverInvoicing) {
     const billing = await getBookingBilling(input.bookingId);
     if (billing.leftToInvoice <= 0 && billing.booked > 0) {
@@ -359,19 +359,16 @@ export async function createInvoiceForBooking(input: {
       .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit }))
       .join(' · ');
     const quantity = Number(l.quantity ?? 1);
-    // The share applies to the line total, not the unit price, so a part
-    // invoice for "3 hours" still reads as three hours rather than as a
-    // fractional hour nobody agreed to.
-    const full = amountOf(price) * quantity;
-    const amount = Math.round(full * share * 100) / 100;
-    const described = detail ? `${title} · ${detail}` : title;
+    const { amount, unitPrice } = invoiceLineAmount({
+      unitAmount: amountOf(price), quantity, share,
+    });
     rows.push({
       organization_id: orgId,
       invoice_id: invoice.id,
       booking_line_id: l.id,
-      description: input.label ? `${described} — ${input.label}` : described,
+      description: describeInvoiceLine({ title, details: [detail], label: input.label }),
       quantity,
-      unit_price: share === 1 ? amountOf(price) : amount,
+      unit_price: unitPrice,
       amount,
       position: position++,
     });
@@ -396,7 +393,7 @@ export async function createInvoiceForBooking(input: {
     const net = rows.reduce((n, r) => n + Number(r.amount || 0), 0);
     await supabaseAdmin
       .from('invoices')
-      .update({ tax_amount: Math.round(net * (taxRate / 100) * 100) / 100 })
+      .update({ tax_amount: taxOn(net, taxRate) })
       .eq('id', invoice.id)
       .eq('organization_id', orgId);
   }

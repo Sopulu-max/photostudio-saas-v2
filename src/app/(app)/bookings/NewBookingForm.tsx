@@ -6,7 +6,12 @@ import { createBooking, addBookingLine, setLineConfiguration, createContractForB
   // What the studio's day is like, and what is already on it.
   studioDay, whatElseIsOn,
 } from '@/modules/bookings/interface';
-import { createInvoiceForBooking } from '@/modules/finances/interface';
+import {
+  createInvoiceForBooking,
+  // The same composition the server uses when it writes the lines, so what is
+  // shown here and what is raised cannot describe the work differently.
+  describeInvoiceLine, invoiceLineAmount, billingShare, taxOn,
+} from '@/modules/finances/interface';
 import { addBookingTask } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
@@ -21,7 +26,7 @@ import {
 // so a shape that works for a client works here.
 import { VariableField } from '@/components/VariableField';
 import { useArrivals } from '@/components/useArrivals';
-import { parseVariableValue } from '@/modules/services/variableTypes';
+import { parseVariableValue, formatVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { toStored, hasPrice } from '@/kernel/money';
@@ -63,7 +68,8 @@ export function NewBookingForm({
   roleChoices = [],
   currencyCode,
   depositDefault,
-}: { 
+  taxRate,
+}: {
   clients: Option[]; 
   packages: PackageOption[];
   services: ServiceOption[];
@@ -77,6 +83,8 @@ export function NewBookingForm({
   currencyCode: string;
   /** What the studio asks for up front, from Contracts settings. */
   depositDefault: number;
+  /** What the studio charges on top, frozen onto the invoice as it is raised. */
+  taxRate: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -413,6 +421,77 @@ export function NewBookingForm({
   const isQuoted = pricedLines.length > 0;
   const depositPct = Number(deposit) || 0;
   const depositAmount = Math.round(bookingTotal * (depositPct / 100) * 100) / 100;
+
+  /*
+   * THE DOCUMENT THIS FORM IS ABOUT TO RAISE.
+   *
+   * Section 4 was three settings — how much, when, what to say — and no invoice.
+   * The operator configured a document they never saw, quoted the client from
+   * the sum at the foot of section 2, and found out what the invoice actually
+   * said after the booking was saved. An invoice is lines and a total; this is
+   * those, before it exists.
+   *
+   * Built the way createInvoiceForBooking builds it, through the same helpers:
+   * unpriced lines are left off (it refuses to write a 0 nobody quoted onto a
+   * document that goes to a client), the share applies to the line total rather
+   * than the unit price, and tax goes on the net at the studio's frozen rate.
+   *
+   * WHAT IT CANNOT SEE. The server describes each line with every value recorded
+   * against it, the package's own fixed ones included. Those live inside the
+   * package editor until it is asked for them on submit, so what is named here
+   * is the package and the answers given on this form. Less specific than the
+   * finished line, never contradicting it — describeInvoiceLine does the joining
+   * on both sides, so the two can differ in what they know and not in how it
+   * reads.
+   */
+  const invoiceShare = billingShare(invoicePortion === 'deposit' ? depositPct : null);
+  const invoiceLabel = invoicePortion === 'deposit' && depositPct > 0 ? `${depositPct}% deposit` : null;
+
+  const draftInvoice = (() => {
+    const rows = lines
+      .filter((l) => l.packageId && l.linePrice.trim() !== '')
+      .map((line) => {
+        const title = line.selectedPackageDeep?.name || line.customName?.trim() || 'Booking line';
+        const details = (line.openQuestions?.variables || [])
+          .filter((v: any) => (line.variableAnswers[v.id] ?? '') !== '')
+          .map((v: any) => formatVariableValue({
+            // Parsed before it is formatted, exactly as the value that reaches
+            // the server is parsed on the way in — "2" formats as "2 outfits"
+            // only once it is a number.
+            value: parseVariableValue(v.kind, line.variableAnswers[v.id]),
+            unit: v.unit ?? null,
+          }));
+
+        // Every line this form writes is one of a package, so nothing here
+        // carries a quantity other than one.
+        const quantity = 1;
+        const { amount, unitPrice } = invoiceLineAmount({
+          unitAmount: Number(line.linePrice) || 0, quantity, share: invoiceShare,
+        });
+
+        return {
+          id: line.id,
+          description: describeInvoiceLine({ title, details, label: invoiceLabel }),
+          quantity, unitPrice, amount,
+        };
+      });
+
+    const subtotal = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+    const tax = taxOn(subtotal, taxRate);
+    return { rows, subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 };
+  })();
+
+  /*
+   * On the booking, off the invoice.
+   *
+   * createInvoiceForBooking drops these silently — right, because an unpriced
+   * line has no honest amount to demand, and wrong to do without saying so. An
+   * operator who priced three of four packages should see which one is missing
+   * here, not discover it on the document.
+   */
+  const unpricedLines = lines
+    .filter((l) => l.packageId && l.linePrice.trim() === '')
+    .map((l) => l.selectedPackageDeep?.name || l.customName?.trim() || 'A package');
 
   const submitBooking = () => {
     startTransition(async () => {
@@ -1638,6 +1717,82 @@ export function NewBookingForm({
           Created as a draft with one line per package. Issue it when ready.
         </p>
         <div className="q-stack q-stack-md">
+          {/*
+            * THE DOCUMENT, NOT THE SETTINGS FOR ONE.
+            *
+            * Drawn the way the invoice itself is drawn — the same four columns
+            * the finished document uses — because it is the same document, one
+            * step earlier. An operator quoting on the telephone reads the total
+            * off this rather than adding the package cards up themselves.
+            */}
+          {draftInvoice.rows.length === 0 ? (
+            <p className="q-empty">
+              Nothing above is priced yet, so no invoice is raised with this booking. Price a package
+              in section 2, or raise one from the booking once you have quoted it.
+            </p>
+          ) : (
+            <>
+              <div className="q-table-container">
+                <table className="q-table">
+                  <thead>
+                    <tr>
+                      <th className="q-table-th">Description</th>
+                      <th className="q-table-th">Qty</th>
+                      <th className="q-table-th">Each</th>
+                      <th className="q-table-th">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draftInvoice.rows.map((r) => (
+                      <tr key={r.id} className="q-table-tr">
+                        <td className="q-table-td q-strong">{r.description}</td>
+                        <td className="q-table-td q-num">{r.quantity}</td>
+                        <td className="q-table-td q-num">{formatAmount(r.unitPrice)}</td>
+                        <td className="q-table-td q-num q-strong">{formatAmount(r.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/*
+                * Subtotal, tax, total — the three the client sees.
+                *
+                * Tax showed nowhere on this form while createInvoiceForBooking
+                * snapshotted the studio's rate onto every document it raised. A
+                * studio on 7.5% quoted ₦200,000 here and billed ₦215,000, and
+                * the gap first became visible to whoever opened the invoice.
+                * Shown only when the studio charges any: a zero rate is a real
+                * position, and a row reading "Tax 0%" is noise on every line of
+                * every booking a studio that charges none will ever take.
+                */}
+              <div className="q-stack q-stack-sm">
+                <div className="q-row q-row-between">
+                  <span className="q-meta">Subtotal</span>
+                  <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
+                </div>
+                {taxRate > 0 && (
+                  <div className="q-row q-row-between">
+                    <span className="q-meta">Tax ({taxRate}%)</span>
+                    <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
+                  </div>
+                )}
+                <div className="q-tile-sub q-row q-row-between">
+                  <span className="q-meta">Total</span>
+                  <strong className="q-stat-value q-num">{formatAmount(draftInvoice.total)}</strong>
+                </div>
+              </div>
+            </>
+          )}
+
+          {unpricedLines.length > 0 && (
+            <p className="q-meta-sm">
+              {unpricedLines.join(', ')} {unpricedLines.length === 1 ? 'is' : 'are'} on the booking
+              but not on this invoice, because nothing has been quoted for
+              {unpricedLines.length === 1 ? ' it' : ' them'} yet.
+            </p>
+          )}
+
           <div className="q-field" style={{ maxWidth: '420px' }}>
             <label className="q-label">Amount to invoice</label>
             <select
@@ -1647,27 +1802,28 @@ export function NewBookingForm({
             >
               <option value="full">The full amount</option>
               <option value="deposit">
-                {depositDefault > 0 ? `The deposit only (${depositDefault}%)` : 'The deposit only'}
+                {/*
+                  * The percentage this actually bills, which is the one in
+                  * section 5. This read depositDefault — the studio's standing
+                  * setting — while every calculation beneath it used the
+                  * contract field, so changing the deposit to 30% left the
+                  * option still offering "the deposit only (20%)" and billing
+                  * thirty. One deposit, named wherever it is shown.
+                  */}
+                {depositPct > 0 ? `The deposit only (${depositPct}%)` : 'The deposit only'}
               </option>
             </select>
-            {(() => {
-              if (!isQuoted) {
-                return (
-                  <span className="q-meta-sm">
-                    Nothing above is priced yet, so no invoice is raised. Add one from the booking once you have quoted it.
-                  </span>
-                );
-              }
-              const pct = invoicePortion === 'deposit' ? depositPct : 100;
-              const amount = Math.round(bookingTotal * (pct / 100) * 100) / 100;
-              return (
-                <span className="q-meta-sm">
-                  {invoicePortion === 'deposit' && pct > 0
-                    ? `The balance can be invoiced later from the booking.`
-                    : `The whole booking.`}
-                </span>
-              );
-            })()}
+            {invoicePortion === 'deposit' && depositPct === 0 && draftInvoice.rows.length > 0 && (
+              <span className="q-meta-sm">
+                The deposit in section 5 is 0%, so this would ask the client for nothing. Set one
+                there, or invoice the full amount.
+              </span>
+            )}
+            {invoicePortion === 'deposit' && depositPct > 0 && (
+              <span className="q-meta-sm">
+                The balance can be invoiced later from the booking.
+              </span>
+            )}
           </div>
           <div className="q-field" style={{ maxWidth: '260px' }}>
             <label className="q-label">Due date (optional)</label>
@@ -1708,15 +1864,18 @@ export function NewBookingForm({
           * to one figure in the accent, the way every card in the rail does.
           */}
         <div className="q-card-foot">
-          <span className={isQuoted ? 'q-price' : 'q-price q-absent'}>
-            {isQuoted
-              ? formatAmount(invoicePortion === 'deposit' && depositPct > 0
-                  ? Math.round(bookingTotal * (depositPct / 100) * 100) / 100
-                  : bookingTotal)
-              : 'Not quoted yet'}
+          {/*
+            * What the client is asked for, tax included — the same figure the
+            * document above resolves to, rather than a second arithmetic on the
+            * same numbers. This band used to compute its own deposit from
+            * bookingTotal and reach a different answer from the invoice whenever
+            * the studio charged tax.
+            */}
+          <span className={draftInvoice.rows.length > 0 ? 'q-price' : 'q-price q-absent'}>
+            {draftInvoice.rows.length > 0 ? formatAmount(draftInvoice.total) : 'Not quoted yet'}
           </span>
-          {isQuoted && invoicePortion === 'deposit' && depositPct > 0 && (
-            <span className="q-meta-sm">of {formatAmount(bookingTotal)}</span>
+          {draftInvoice.rows.length > 0 && invoicePortion === 'deposit' && depositPct > 0 && (
+            <span className="q-meta-sm">of {formatAmount(bookingTotal)} booked</span>
           )}
         </div>
       </div>

@@ -9,6 +9,9 @@ import { listDeliverables } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { getDepositDefault } from '@/modules/contracts/interface';
+// The studio's tax position. The invoice raised below is snapshotted with it,
+// so the form has to know it to show what the client will actually be asked for.
+import { getTaxRate } from '@/modules/finances/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +32,17 @@ export default async function NewBookingPage() {
   // What the studio asks for up front, so the contract field opens on it rather
   // than on nothing.
   const depositDefault = await getDepositDefault();
+
+  /*
+   * What the studio charges on top.
+   *
+   * The form used to show the sum of its package prices and call that the
+   * invoice. createInvoiceForBooking snapshots this rate onto the document and
+   * writes tax_amount, so a studio on 7.5% read ₦200,000 here and sent the
+   * client ₦215,000 — the form quoting one figure and the invoice demanding
+   * another, with nothing anywhere saying so.
+   */
+  const taxRate = await getTaxRate();
 
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
     .map((v: any) => {
@@ -91,6 +105,7 @@ export default async function NewBookingPage() {
         roleChoices={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
         currencyCode={currencyCode}
         depositDefault={depositDefault}
+        taxRate={taxRate}
       />
     </div>
   );
