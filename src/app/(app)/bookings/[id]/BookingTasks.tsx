@@ -93,8 +93,11 @@ export function BookingTasks({
             {tasks.map((t) => (
               <div
                 key={t.id}
-                className={`q-row q-row-between${arrived.has(t.id) ? ' q-flash' : ''}`}
-                style={{ alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '8px 10px', borderRadius: '8px', background: 'var(--q-color-ink-50)' }}
+                // The row treatment is q-line's now — the same one the new
+                // booking form draws, defined once rather than written inline
+                // in both.
+                className={`q-line q-row q-row-between${arrived.has(t.id) ? ' q-flash' : ''}`}
+                style={{ gap: '10px', flexWrap: 'wrap' }}
               >
                 <span className="q-row" style={{ gap: '10px', alignItems: 'center', minWidth: '200px', flex: 1 }}>
                   <button

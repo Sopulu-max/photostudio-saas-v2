@@ -1706,68 +1706,75 @@ export function NewBookingForm({
         <h2 className="q-section-title">3. Tasks</h2>
 
         {(() => {
-          const fromPackages = tasksFromPackages;
+          /*
+           * THE WORK, AS ONE LIST.
+           *
+           * It was two: what the packages bring, and what the studio adds,
+           * drawn one after the other in two blocks with the same markup
+           * written twice. That is the arrangement BookingTasks was rewritten to
+           * end on the booking page itself — a studio does not work package by
+           * package, the shoot is on Saturday and the editing happens after,
+           * whichever package each step was sold under — and this form went on
+           * splitting the same job by where each step came from.
+           *
+           * Where it came from is still shown against every row, because
+           * knowing a step is the studio's own and not the package's is what
+           * tells you whether removing it is yours to do. It just no longer
+           * decides the layout.
+           */
+          const work = [
+            ...tasksFromPackages.map((t) => ({
+              key: t.key, name: t.name, role: t.role, from: t.pkg, removeAt: null as number | null,
+            })),
+            ...extraTasks.map((t, i) => ({
+              key: `extra-${t.name}-${i}`,
+              name: t.name,
+              role: roleChoices.find((r) => r.id === t.roleId)?.name ?? null,
+              from: 'Added to this booking',
+              removeAt: i,
+            })),
+          ];
 
           return (
             <div className="q-stack q-stack-md">
-              {fromPackages.length === 0 ? (
+              {work.length === 0 ? (
                 <p className="q-meta">
-                  The packages selected above define no tasks. Tasks come from a service&rsquo;s
-                  workflow, which is set in Services settings.
+                  Nothing to do yet. Work arrives from a service&rsquo;s workflow, set in Services
+                  settings — or add a step below that belongs to this booking alone.
                 </p>
               ) : (
                 <>
                   <p className="q-meta">
-                    {fromPackages.length} {fromPackages.length === 1 ? 'task' : 'tasks'} will be
-                    created from the packages above. Roles and assignments can be changed on the
-                    booking.
+                    {work.length} {work.length === 1 ? 'step' : 'steps'} will be created with this
+                    booking. Roles and who does them can be changed on the booking afterwards.
                   </p>
                   <div className="q-stack" style={{ gap: '4px' }}>
-                    {fromPackages.map((t) => (
-                      <div
-                        key={t.key}
-                        className="q-row q-row-between"
-                        style={{ alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: 'var(--q-color-ink-50)' }}
-                      >
+                    {work.map((t) => (
+                      <div key={t.key} className="q-line q-row q-row-between">
                         <span>
                           <span className="q-strong">{t.name}</span>
-                          <span className="q-meta-sm" style={{ display: 'block' }}>{t.pkg}</span>
+                          <span className="q-meta-sm q-block">{t.from}</span>
                         </span>
-                        <span className="q-meta-sm">{t.role || 'No role'}</span>
+                        <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                          <span className="q-meta-sm">{t.role || 'No role'}</span>
+                          {/* Only the studio's own comes off here. A package's
+                              step is switched off on the package, where what it
+                              belongs to is visible. */}
+                          {t.removeAt !== null && (
+                            <button
+                              type="button"
+                              className="q-btn-ghost q-btn-xs"
+                              onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== t.removeAt))}
+                              title={`Remove ${t.name}`}
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </>
-              )}
-
-              {extraTasks.length > 0 && (
-                <div className="q-stack" style={{ gap: '4px' }}>
-                  {extraTasks.map((t, i) => (
-                    <div
-                      key={`${t.name}-${i}`}
-                      className="q-row q-row-between"
-                      style={{ alignItems: 'center', padding: '6px 10px', borderRadius: '6px', background: 'var(--q-color-ink-50)' }}
-                    >
-                      <span>
-                        <span className="q-strong">{t.name}</span>
-                        <span className="q-meta-sm" style={{ display: 'block' }}>Added to this booking</span>
-                      </span>
-                      <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-                        <span className="q-meta-sm">
-                          {roleChoices.find((r) => r.id === t.roleId)?.name || 'No role'}
-                        </span>
-                        <button
-                          type="button"
-                          className="q-btn-ghost q-btn-xs"
-                          onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== i))}
-                          title={`Remove ${t.name}`}
-                        >
-                          &times;
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
               )}
 
               <div className="q-row" style={{ gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -1821,17 +1828,32 @@ export function NewBookingForm({
           * it buys is rhythm. Reading down the page, every section now resolves
           * to one figure in the accent, the way every card in the rail does.
           */}
+        {/*
+          * ALL THE WORK, NOT ONE SOURCE OF IT.
+          *
+          * This counted only what the packages bring, so a studio that added
+          * three steps of its own read "No work defined yet" in the band while
+          * those three steps were listed directly above it. A section's figure
+          * contradicting the section is worse than no figure.
+          */}
         <div className="q-card-foot">
-          <span className={tasksFromPackages.length > 0 ? 'q-figure' : 'q-figure q-absent'}>
-            {tasksFromPackages.length > 0
-              ? <>{tasksFromPackages.length}<span className="q-figure-unit">{tasksFromPackages.length === 1 ? 'task' : 'tasks'}</span></>
-              : 'No work defined yet'}
-          </span>
-          {tasksFromPackages.length > 0 && (
-            <span className="q-meta-sm">
-              {tasksFromPackages.filter((t) => t.role).length} of them with a role
-            </span>
-          )}
+          {(() => {
+            const total = tasksFromPackages.length + extraTasks.length;
+            const withRole = tasksFromPackages.filter((t) => t.role).length
+              + extraTasks.filter((t) => t.roleId).length;
+            return (
+              <>
+                <span className={total > 0 ? 'q-figure' : 'q-figure q-absent'}>
+                  {total > 0
+                    ? <>{total}<span className="q-figure-unit">{total === 1 ? 'step' : 'steps'}</span></>
+                    : 'No work defined yet'}
+                </span>
+                {total > 0 && (
+                  <span className="q-meta-sm">{withRole} of them with a role</span>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 

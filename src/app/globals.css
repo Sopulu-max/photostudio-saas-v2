@@ -740,6 +740,25 @@ body {
 }
 .q-tile-sub { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--q-color-ink-100); }
 
+/*
+ * A DENSE ROW IN A LIST OF THEM.
+ *
+ * Lighter than .q-tile, which is a bordered box on paper: this is one line
+ * among many — a task, an assignment, a step of work — where the list is the
+ * object and the row is a member of it.
+ *
+ * It exists because the same three declarations were being written inline, in
+ * three places, for the same row. The Absolute Law of Centralization is exactly
+ * about this: the third copy is the one that gets fixed and leaves the other
+ * two behind.
+ */
+.q-line {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--q-color-ink-50);
+  align-items: center;
+}
+
 /* A titled block inside a page. */
 /*
  * A section is roomier-or-tighter than a plain card, and the variable has to
