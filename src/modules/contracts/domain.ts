@@ -149,8 +149,24 @@ export async function draftContractForBooking(input: {
     { table: 'contacts', id: input.contactId, label: 'client' },
   ]);
 
+  /*
+   * THE WORDS THIS DOCUMENT IS MADE OF.
+   *
+   * The studio's standard terms are the FALLBACK, not the rule. A contract is
+   * the wording that describes what was agreed, and what was agreed on one
+   * booking is not always what is agreed on every booking — a job with an
+   * unusual cancellation window, a client who negotiated something, a shoot
+   * with conditions the standard text does not cover.
+   *
+   * So a caller may hand over the wording for this one agreement, and only
+   * where it says nothing does the studio's standing text stand in. Passing an
+   * empty string is a decision too, and is respected: an operator who cleared
+   * the box meant to clear it.
+   */
   const { data: org } = await supabaseAdmin.from('organizations').select('metadata').eq('id', input.organizationId).maybeSingle();
-  const agreementText = ((org?.metadata as any)?.contracts?.terms_template as string) || '';
+  const standing = ((org?.metadata as any)?.contracts?.terms_template as string) || '';
+  const given = (input.terms as any)?.agreement_text;
+  const agreementText = typeof given === 'string' ? given : standing;
 
   const { data: contract, error } = await supabaseAdmin
     .from('contracts')

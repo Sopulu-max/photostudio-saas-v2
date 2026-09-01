@@ -794,6 +794,15 @@ export async function createContractForBooking(
   options?: {
     /** What to ask for up front on THIS contract, when it differs from the studio's default. */
     depositPercentage?: number | null;
+    /**
+     * The wording of THIS agreement.
+     *
+     * A contract is a document of terms, and the terms are the words. The
+     * studio's standing text is what a booking starts from, not what it is
+     * stuck with: this is the place a studio says what was actually agreed for
+     * this job. Omitted means use the standing text.
+     */
+    agreementText?: string | null;
   },
 ) {
   const { orgId, personId } = await getAuthOrgId();
@@ -885,7 +894,18 @@ export async function createContractForBooking(
     ? await getDepositDefault()
     : Math.min(100, Math.max(0, Number(override)));
 
-  const terms = { base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems };
+  /*
+   * The words, and the figures they are about.
+   *
+   * agreement_text is the contract; base_price and line_items are the booking's
+   * own numbers snapshotted beside it, so the document cannot drift when the
+   * booking changes afterwards. Only included when this booking said something,
+   * so an untouched form still gets the studio's standing terms.
+   */
+  const terms: Record<string, unknown> = {
+    base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems,
+  };
+  if (typeof options?.agreementText === 'string') terms.agreement_text = options.agreementText;
 
   // Ask the Contracts module to draft it — Bookings never writes that table.
   const { contractId } = await draftContractForBooking({

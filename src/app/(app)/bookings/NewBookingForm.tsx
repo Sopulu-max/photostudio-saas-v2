@@ -75,7 +75,7 @@ export function NewBookingForm({
   employees = [],
   currencyCode,
   depositDefault = 0,
-  hasTerms = false,
+  termsTemplate = '',
   taxRate,
 }: {
   clients: Option[]; 
@@ -99,8 +99,8 @@ export function NewBookingForm({
   currencyCode: string;
   /** What the studio asks for up front, from Contracts settings. */
   depositDefault: number;
-  /** Whether the studio has written the wording a contract is made of. */
-  hasTerms?: boolean;
+  /** The studio's standing terms — the wording a contract opens on. */
+  termsTemplate?: string;
   /** What the studio charges on top, frozen onto the invoice as it is raised. */
   taxRate: number;
 }) {
@@ -205,6 +205,18 @@ export function NewBookingForm({
   const [paidNow, setPaidNow] = useState('');
   const [paidLabel, setPaidLabel] = useState('Deposit');
   const [deposit, setDeposit] = useState(String(depositDefault));
+  /*
+   * THE WORDING OF THIS AGREEMENT.
+   *
+   * Opens on the studio's standing terms and can be changed for this booking
+   * alone. That is what makes a contract a document rather than a setting: what
+   * was agreed on this job is not always what is agreed on every job, and a
+   * studio should not have to alter its standard text to say so once.
+   *
+   * Cleared deliberately is respected as cleared. draftContractForBooking falls
+   * back to the standing text only when nothing was said at all.
+   */
+  const [agreementText, setAgreementText] = useState(termsTemplate);
   
   type LineState = {
     id: string;
@@ -929,6 +941,7 @@ export function NewBookingForm({
           try {
             await createContractForBooking(bookingId, {
               depositPercentage: deposit.trim() === '' ? null : Number(deposit),
+              agreementText,
             });
           } catch (e: any) { failed.push(`contract (${readableError(e, 'failed')})`); }
         }
@@ -2367,14 +2380,47 @@ export function NewBookingForm({
           the terms the client is signing up to.
         </p>
 
-        {!hasTerms && (
-          <p className="q-note q-note-warn q-meta q-appear" style={{ marginBottom: '16px' }}>
-            Your standard terms are empty, so this contract would go out with the figures and no
-            wording — nothing saying what either side is agreeing to.{' '}
-            <a href="/contracts/settings" className="q-plain-link q-strong">Write them once</a>{' '}
-            and every contract after this one carries them.
+        {/* Not clientId: a client typed in but not yet saved still becomes one
+            on submit, and warning about that would be wrong. */}
+        {!client && (
+          <p className="q-note q-note-warn q-meta q-appear">
+            A contract is an agreement with someone, so this needs a client. The booking will still
+            be taken — add a client above, or raise the contract later from the booking itself.
           </p>
         )}
+
+        {/*
+          * THE DOCUMENT ITSELF, TYPED HERE.
+          *
+          * A contract is the wording that describes what was agreed, so this is
+          * the wording — not a switch, not a percentage, not a promise that
+          * standard terms exist somewhere. It opens on the studio's standing
+          * text and is edited for this booking alone.
+          *
+          * Empty is worth saying out loud rather than leaving as a blank box:
+          * a contract with figures and no words is a price list with a
+          * signature line, and a studio that writes its terms once never has to
+          * think about this again.
+          */}
+        <div className="q-field">
+          <label className="q-label">Terms of this agreement</label>
+          <textarea
+            className="q-textarea"
+            rows={8}
+            value={agreementText}
+            onChange={(e) => setAgreementText(e.target.value)}
+            placeholder="What the studio will do, what the client agrees to, cancellation, rescheduling, usage of the images, anything else this booking depends on."
+          />
+          <span className="q-meta-sm">
+            {termsTemplate.trim() === ''
+              ? <>You have no standard terms yet, so this starts blank. <a href="/contracts/settings" className="q-plain-link q-strong">Write them once</a> and every booking after this one opens on them.</>
+              : agreementText.trim() === ''
+                ? 'Empty, so this contract would go out with the figures and no wording.'
+                : agreementText === termsTemplate
+                  ? 'Your standard terms. Edit them here to change this contract only.'
+                  : 'Changed for this booking. Your standard terms are untouched.'}
+          </span>
+        </div>
 
         {/*
           * SAID HERE, BEFORE IT MATTERS.
@@ -2389,14 +2435,6 @@ export function NewBookingForm({
           * known is the whole point of this form; a contract is simply the one
           * thing on it that needs a name to be an agreement with.
           */}
-        {/* Not clientId: a client typed in but not yet saved still becomes one
-            on submit, and warning about that would be wrong. */}
-        {!client && (
-          <p className="q-note q-note-warn q-meta q-appear">
-            A contract is an agreement with someone, so this needs a client. The booking will still
-            be taken — add a client above, or raise the contract later from the booking itself.
-          </p>
-        )}
         <div className="q-field" style={{ maxWidth: '320px' }}>
           <label className="q-label">Deposit</label>
           <div className="q-row" style={{ alignItems: 'center', gap: '8px' }}>

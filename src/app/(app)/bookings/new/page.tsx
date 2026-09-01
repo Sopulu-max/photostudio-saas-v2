@@ -115,10 +115,11 @@ export default async function NewBookingPage() {
         }))}
         currencyCode={currencyCode}
         depositDefault={depositDefault}
-        // Whether this studio has written its terms. Not the terms themselves:
-        // the form only needs to know if a contract raised here would go out
-        // with any wording on it.
-        hasTerms={termsTemplate.trim().length > 0}
+        // The studio's standing terms, as the wording this booking starts
+        // from. Not a flag: the form opens on these and lets them be edited for
+        // this one agreement, which is the whole point of a contract being a
+        // document rather than a setting.
+        termsTemplate={termsTemplate}
         taxRate={taxRate}
       />
     </div>
