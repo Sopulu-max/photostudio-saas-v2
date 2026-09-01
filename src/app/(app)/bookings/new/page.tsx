@@ -11,7 +11,6 @@ import { listRoles, listEmployees } from '@/modules/team/interface';
 // this is where the terms live.
 import { getContractTermsTemplate } from '@/modules/contracts/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
-import { getDepositDefault } from '@/modules/contracts/interface';
 // The studio's tax position. The invoice raised below is snapshotted with it,
 // so the form has to know it to show what the client will actually be asked for.
 import { getTaxRate } from '@/modules/finances/interface';
@@ -36,7 +35,6 @@ export default async function NewBookingPage() {
 
   // What the studio asks for up front, so the contract field opens on it rather
   // than on nothing.
-  const depositDefault = await getDepositDefault();
 
   /*
    * What the studio charges on top.
@@ -114,7 +112,6 @@ export default async function NewBookingPage() {
           roleIds: ((e.employee_roles || []) as any[]).map((er) => er.role?.id).filter(Boolean),
         }))}
         currencyCode={currencyCode}
-        depositDefault={depositDefault}
         // The studio's standing terms, as the wording this booking starts
         // from. Not a flag: the form opens on these and lets them be edited for
         // this one agreement, which is the whole point of a contract being a

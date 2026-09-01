@@ -74,7 +74,6 @@ export function NewBookingForm({
   roleChoices = [],
   employees = [],
   currencyCode,
-  depositDefault = 0,
   termsTemplate = '',
   taxRate,
 }: {
@@ -98,7 +97,6 @@ export function NewBookingForm({
   employees: { id: string; name: string; roleIds: string[] }[];
   currencyCode: string;
   /** What the studio asks for up front, from Contracts settings. */
-  depositDefault: number;
   /** The studio's standing terms — the wording a contract opens on. */
   termsTemplate?: string;
   /** What the studio charges on top, frozen onto the invoice as it is raised. */
@@ -204,7 +202,7 @@ export function NewBookingForm({
    */
   const [paidNow, setPaidNow] = useState('');
   const [paidLabel, setPaidLabel] = useState('Deposit');
-  const [deposit, setDeposit] = useState(String(depositDefault));
+
   /*
    * THE WORDING OF THIS AGREEMENT.
    *
@@ -557,7 +555,6 @@ export function NewBookingForm({
    * confirmation. What that comes to is the invoice's business, worked out from
    * the invoice's own arithmetic, in the section that owns it.
    */
-  const depositPct = Number(deposit) || 0;
 
   /*
    * THE DOCUMENT THIS FORM IS ABOUT TO RAISE.
@@ -940,7 +937,18 @@ export function NewBookingForm({
         } else {
           try {
             await createContractForBooking(bookingId, {
-              depositPercentage: deposit.trim() === '' ? null : Number(deposit),
+              /*
+               * Not asked here any more, so the studio's standing answer
+               * stands. A deposit is a TERM, and the terms are now words in the
+               * box above: a studio wanting thirty per cent up front writes
+               * that, in a sentence a client can read, rather than setting a
+               * number that appeared nowhere in the document it governs.
+               *
+               * createContractForBooking already falls back to
+               * getDepositDefault() when this is null, which is what an
+               * untouched form always did.
+               */
+              depositPercentage: null,
               agreementText,
             });
           } catch (e: any) { failed.push(`contract (${readableError(e, 'failed')})`); }
@@ -2435,27 +2443,6 @@ export function NewBookingForm({
           * known is the whole point of this form; a contract is simply the one
           * thing on it that needs a name to be an agreement with.
           */}
-        <div className="q-field" style={{ maxWidth: '320px' }}>
-          <label className="q-label">Deposit</label>
-          <div className="q-row" style={{ alignItems: 'center', gap: '8px' }}>
-            <input
-              className="q-input"
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              style={{ maxWidth: '100px' }}
-              value={deposit}
-              onChange={(e) => setDeposit(e.target.value)}
-            />
-            <span className="q-meta">% due on confirmation</span>
-          </div>
-          <span className="q-meta-sm">
-            {Number(deposit) === 0
-              ? 'No deposit. The full amount is due on signing.'
-              : `Studio default is ${depositDefault}%. A change here applies to this contract only.`}
-          </span>
-        </div>
 
       </div>
 
