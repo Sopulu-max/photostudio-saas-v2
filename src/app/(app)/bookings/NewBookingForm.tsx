@@ -678,12 +678,30 @@ export function NewBookingForm({
           if (!name) throw new Error('Give the new client a name, or pick an existing one.');
           // Phone and email go on at creation, so a booking never exists with a
           // client nobody can contact.
-          const { clientId } = await createClient({
+          /*
+           * THE CONTACT ID, NOT THE CLIENT ID.
+           *
+           * createClient writes two rows and hands back both keys —
+           * { clientId, contactId }. A contact is the person; a client is that
+           * person in the role of buying something. This took clientId and gave
+           * it to createBooking as its contactId, which then asserts it against
+           * the CONTACTS table, does not find it, and throws.
+           *
+           * So a booking for a NEW client never saved. One for an existing
+           * client always did, because the picker hands over a contact id — and
+           * that is why it looked intermittent rather than broken.
+           *
+           * Worse than a failure: the client and the package instance are both
+           * already written by the time this throws, so every attempt left a
+           * contact and an orphan package behind and told the operator nothing
+           * had happened.
+           */
+          const { contactId } = await createClient({
             name,
             email: client.email.trim() || undefined,
             phone: client.phone.trim() || undefined,
           });
-          finalContactId = clientId;
+          finalContactId = contactId;
         } else {
           // The picker shows an existing client's details and lets them be
           // corrected in place. A wrong number is noticed while booking, and
