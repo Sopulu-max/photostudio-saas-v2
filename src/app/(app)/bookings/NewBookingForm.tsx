@@ -74,7 +74,8 @@ export function NewBookingForm({
   roleChoices = [],
   employees = [],
   currencyCode,
-  depositDefault,
+  depositDefault = 0,
+  hasTerms = false,
   taxRate,
 }: {
   clients: Option[]; 
@@ -98,6 +99,8 @@ export function NewBookingForm({
   currencyCode: string;
   /** What the studio asks for up front, from Contracts settings. */
   depositDefault: number;
+  /** Whether the studio has written the wording a contract is made of. */
+  hasTerms?: boolean;
   /** What the studio charges on top, frozen onto the invoice as it is raised. */
   taxRate: number;
 }) {
@@ -2339,10 +2342,39 @@ export function NewBookingForm({
 
       <div className="q-card q-section q-rise">
         <h2 className="q-section-title">5. Contract</h2>
+        {/*
+          * WHAT A CONTRACT IS, AND WHETHER THIS STUDIO HAS ONE.
+          *
+          * This said "uses your standard terms", which is only true of a studio
+          * that has written any. A contract's wording comes from one place —
+          * organizations.metadata.contracts.terms_template — and
+          * draftContractForBooking copies it onto the document as
+          * agreement_text. Empty template, empty agreement_text: a contract
+          * with a scope, a price, a signature line and NOT ONE WORD of what
+          * either party is agreeing to.
+          *
+          * The figures beside it are not terms. base_price and line_items are
+          * the booking's own numbers, snapshotted onto the document so it
+          * cannot drift when the booking changes. They are the evidence; the
+          * terms are the words, and a studio that has not written them is about
+          * to send a client a price list to sign.
+          *
+          * So the section says which of the two it is about to produce, and
+          * points at where the words are written.
+          */}
         <p className="q-meta" style={{ marginBottom: '16px' }}>
-          Uses your standard terms and the total for these packages. The wording can be edited on
-          the contract before it is sent.
+          A record of what was agreed: the packages on this booking, what they come to, and
+          the terms the client is signing up to.
         </p>
+
+        {!hasTerms && (
+          <p className="q-note q-note-warn q-meta q-appear" style={{ marginBottom: '16px' }}>
+            Your standard terms are empty, so this contract would go out with the figures and no
+            wording — nothing saying what either side is agreeing to.{' '}
+            <a href="/contracts/settings" className="q-plain-link q-strong">Write them once</a>{' '}
+            and every contract after this one carries them.
+          </p>
+        )}
 
         {/*
           * SAID HERE, BEFORE IT MATTERS.

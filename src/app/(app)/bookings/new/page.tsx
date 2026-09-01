@@ -7,6 +7,9 @@ import { listPackages } from '@/modules/packages/interface';
 import { listActiveServices, listDimensionsByDomain, listVariablesForServices } from '@/modules/services/interface';
 import { listDeliverables } from '@/modules/deliverables/interface';
 import { listRoles, listEmployees } from '@/modules/team/interface';
+// The words a contract is made of. A contract is a document of agreed terms;
+// this is where the terms live.
+import { getContractTermsTemplate } from '@/modules/contracts/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { getDepositDefault } from '@/modules/contracts/interface';
 // The studio's tax position. The invoice raised below is snapshotted with it,
@@ -22,12 +25,13 @@ export default async function NewBookingPage() {
     redirect('/login');
   }
 
-  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, employees] = await Promise.all([
+  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, employees, termsTemplate] = await Promise.all([
     listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
     listRoles(), getStudioCurrency(), listDeliverables(),
     // Who the studio has, so a booking can be staffed while it is being taken
     // rather than only afterwards.
     listEmployees(),
+    getContractTermsTemplate(),
   ]);
 
   // What the studio asks for up front, so the contract field opens on it rather
@@ -111,6 +115,10 @@ export default async function NewBookingPage() {
         }))}
         currencyCode={currencyCode}
         depositDefault={depositDefault}
+        // Whether this studio has written its terms. Not the terms themselves:
+        // the form only needs to know if a contract raised here would go out
+        // with any wording on it.
+        hasTerms={termsTemplate.trim().length > 0}
         taxRate={taxRate}
       />
     </div>
