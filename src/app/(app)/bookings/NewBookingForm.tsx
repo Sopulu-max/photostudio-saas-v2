@@ -659,8 +659,21 @@ export function NewBookingForm({
             * the form ask its questions in an order nobody works in.
             */}
           <div className="q-field">
-            <label className="q-label">Date and time (optional)</label>
+            {/*
+              * NAMED FOR THE ONE THING IT MEANS.
+              *
+              * "Date and time" never said WHICH date, on a record that has
+              * three: the day it was written down (created_at), the day the
+              * studio works, and the day of the occasion itself. This is the
+              * second — it is the only thing listBookingsInRange filters on, so
+              * it is the only thing that puts a booking on a calendar, and it
+              * pairs with duration_minutes to make a block with a length.
+              */}
+            <label className="q-label">When the session happens (optional)</label>
             <input className="q-input" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} />
+            <span className="q-meta-sm">
+              This is what puts the booking on the calendar. Leave it empty while it is unsettled.
+            </span>
           </div>
           <ClientPicker clients={clients} value={client} onChange={setClient} />
 

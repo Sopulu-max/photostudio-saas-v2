@@ -522,10 +522,19 @@ export function BookingForm({
 
                     <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '32px' }}>
                       <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                        When were you thinking?
+                        When would you like it?
                         <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
                       </label>
-                      <p className="q-meta" style={{ marginBottom: '16px' }}>Let us know your preferred date and time.</p>
+                      {/* This writes to the same column the studio's own
+                          calendar reads, because a client choosing a date and
+                          time IS the booking getting its date. What is not yet
+                          settled is whether the studio has agreed to it, and
+                          that is what the booking's stage says — not a second
+                          column holding a wish. So it asks plainly, and says
+                          who confirms. */}
+                      <p className="q-meta" style={{ marginBottom: '16px' }}>
+                        Choose the date and time you want the session to happen. The studio will confirm it.
+                      </p>
                       <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
                     </div>
                   </div>
