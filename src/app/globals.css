@@ -2551,6 +2551,15 @@ body {
   /* The bleed moves here: the frame is what meets the section's edges now, and
      the rail scrolls inside it. */
   margin-inline: calc(var(--q-card-pad) * -1);
+  /*
+   * The line between the instrument and what it returns.
+   *
+   * It reaches the section's edges because the frame does, so it reads as a
+   * rule dividing the section rather than as a border drawn around something —
+   * the results begin below this, and the panel above it is what narrows them.
+   */
+  border-block-start: 1px solid var(--q-color-ink-100);
+  padding-block-start: 18px;
 }
 /*
  * TWO STRIPS, NOT AN INSET SHADOW.

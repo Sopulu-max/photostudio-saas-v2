@@ -87,6 +87,7 @@ export function CatalogFilter<T>({
   facetLabel = 'domain',
   kind = 'picker',
   views,
+  count,
   threshold = 8,
   sorts,
   cap,
@@ -117,6 +118,19 @@ export function CatalogFilter<T>({
    * differs.
    */
   views?: boolean;
+  /*
+   * Whether to announce the total when nothing is narrowing it.
+   *
+   * The second thing to come apart from kind, and for a real reason rather than
+   * a suspected one: under a heading that already reads "2. Packages", a line
+   * reading "3 packages" is two numbers about the same subject stacked on each
+   * other, and they read as a sequence rather than as a step and a count.
+   *
+   * It only silences the RESTING state. Once something is actually narrowing,
+   * the line comes back — because "2 of 3" is news, and because Clear lives
+   * there and is the only way out of a filter.
+   */
+  count?: boolean;
   /** Pickers only: below this many, the bar is furniture and does not draw. */
   threshold?: number;
   /**
@@ -159,6 +173,7 @@ export function CatalogFilter<T>({
 
   const catalogue = kind === 'catalogue';
   const offerViews = views ?? catalogue;
+  const announceTotal = count ?? catalogue;
   if (!catalogue && items.length < threshold) {
     return <>{children(items, { query: '', narrowed: false, dense: false })}</>;
   }
@@ -346,7 +361,7 @@ export function CatalogFilter<T>({
         * the search box beside it rather than as the answer to "how many of
         * these do I have".
         */}
-      {(catalogue || narrowed) && (
+      {(announceTotal || narrowed) && (
         <div className="q-result-line">
           <span className="q-result-count">
             {narrowed ? `${shown.length} of ${items.length}` : `${items.length}`}{' '}

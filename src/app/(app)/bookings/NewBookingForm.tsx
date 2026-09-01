@@ -796,6 +796,12 @@ export function NewBookingForm({
                         */
                       kind="catalogue"
                       views={false}
+                      // Under a heading already reading "2. Packages", a line
+                      // reading "3 packages" is two numbers about one subject,
+                      // and they read as a sequence. It returns the moment
+                      // something is narrowing, when the count is news and Clear
+                      // needs somewhere to live.
+                      count={false}
                       // Always drawn: this is the step, not an aid to it.
                       threshold={0}
                       // Every domain this package's services come from, so one
