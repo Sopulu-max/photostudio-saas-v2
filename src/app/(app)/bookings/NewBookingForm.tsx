@@ -141,9 +141,7 @@ export function NewBookingForm({
    * it — what the lines are, what they cost — is already settled by the
    * packages above, so asking again would be asking twice.
    */
-  const [invoicePortion, setInvoicePortion] = useState<'full' | 'deposit'>('full');
   const [invoiceDue, setInvoiceDue] = useState('');
-  const [invoiceNotes, setInvoiceNotes] = useState('');
   /*
    * WHAT THE STUDIO GAVE AWAY, AS IT WAS SAID.
    *
@@ -485,8 +483,21 @@ export function NewBookingForm({
    * on both sides, so the two can differ in what they know and not in how it
    * reads.
    */
-  const invoiceShare = billingShare(invoicePortion === 'deposit' ? depositPct : null);
-  const invoiceLabel = invoicePortion === 'deposit' && depositPct > 0 ? `${depositPct}% deposit` : null;
+  /*
+   * THE INVOICE IS FOR THE JOB. ALWAYS.
+   *
+   * There was a choice here — the full amount, or the deposit share — and it
+   * was a second way of saying what "Paid now" already says, disagreeing with
+   * it about the only thing that matters. Bill only the deposit and the invoice
+   * is settled the moment it is paid: the studio is owed the balance and every
+   * screen says it is owed nothing.
+   *
+   * So the document asks for the whole of the work, a payment is recorded
+   * against it, and what is outstanding falls out of settlementOf. One fact,
+   * one place, and the sort by most-owed on the invoices list means something.
+   */
+  const invoiceShare = 1;
+  const invoiceLabel = null;
 
   const draftInvoice = (() => {
     const rows = lines
@@ -549,18 +560,7 @@ export function NewBookingForm({
    *
    * Same descent as the draft, so the option and the table cannot disagree.
    */
-  const fullInvoiceTotal = invoiceTotals({
-    subtotal: draftInvoice.fullSubtotal,
-    discountAmount: draftInvoice.fullDiscount,
-    taxRate,
-  }).total;
 
-  const depositInvoiceTotal = (() => {
-    const share = billingShare(depositPct > 0 ? depositPct : null);
-    const subtotal = Math.round(draftInvoice.fullSubtotal * share * 100) / 100;
-    const off = Math.round(draftInvoice.fullDiscount * share * 100) / 100;
-    return invoiceTotals({ subtotal, discountAmount: off, taxRate }).total;
-  })();
 
   /*
    * On the booking, off the invoice.
@@ -758,29 +758,14 @@ export function NewBookingForm({
          */
         if (!submitLines.some((l) => hasPrice(l.linePrice))) {
           skipped.push('an invoice (nothing is priced yet)');
-        } else if (invoicePortion === 'deposit' && depositPct <= 0) {
-          /*
-           * A DEPOSIT OF NOTHING IS NOT A DOCUMENT.
-           *
-           * billingShare(0) is 0, so this billed every line at zero and raised a
-           * real invoice for nothing — lines, number, and all — which then has
-           * to be withdrawn. The form said so beneath the select and submitted
-           * it anyway, which is a warning doing the work of a decision.
-           *
-           * Skipped rather than refused, like the contract that has no client:
-           * the booking is still worth taking, and the invoice can be raised
-           * from it the moment a deposit is set.
-           */
-          skipped.push('an invoice (the deposit is 0%)');
         } else {
           try {
-            const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;
             const { invoiceId } = await createInvoiceForBooking({
               bookingId,
               dueAt: invoiceDue ? new Date(invoiceDue).toISOString() : null,
-              notes: invoiceNotes.trim() || null,
-              percentage: pct,
-              label: pct ? `${pct}% deposit` : null,
+              // The whole of the work. See invoiceShare.
+              percentage: null,
+              label: null,
               discount: discountKind !== 'none' && Number(discountValue) > 0
                 ? { kind: discountKind, value: Number(discountValue) }
                 : null,
@@ -1952,16 +1937,6 @@ export function NewBookingForm({
               onChange={(e) => setInvoiceDue(e.target.value)}
             />
           </div>
-          <div className="q-field">
-            <label className="q-label">Invoice notes (optional)</label>
-            <textarea
-              className="q-textarea"
-              rows={3}
-              value={invoiceNotes}
-              onChange={(e) => setInvoiceNotes(e.target.value)}
-              placeholder="Bank details, payment reference, or other information for the client."
-            />
-          </div>
           {unpricedLines.length > 0 && (
             <p className="q-meta-sm">
               {unpricedLines.join(', ')} {unpricedLines.length === 1 ? 'is' : 'are'} on the booking
@@ -2049,54 +2024,6 @@ export function NewBookingForm({
             )}
           </div>
 
-          <div className="q-field" style={{ maxWidth: '420px' }}>
-            <label className="q-label">Amount to invoice</label>
-            {/*
-              * THE FIGURE, NOT THE WORD.
-              *
-              * These read "The full amount" and "The deposit only (30%)", which
-              * name a policy and leave the operator to work out what it comes
-              * to — while quoting somebody on the telephone, from a form that
-              * has already worked it out.
-              */}
-            <select
-              className="q-select"
-              value={invoicePortion}
-              onChange={(e) => setInvoicePortion(e.target.value as 'full' | 'deposit')}
-            >
-              <option value="full">
-                {draftInvoice.rows.length > 0
-                  ? `The full amount — ${formatAmount(fullInvoiceTotal)}`
-                  : 'The full amount'}
-              </option>
-              <option value="deposit">
-                {/*
-                  * The percentage this actually bills, which is the one in
-                  * section 5. This read depositDefault — the studio's standing
-                  * setting — while every calculation beneath it used the
-                  * contract field, so changing the deposit to 30% left the
-                  * option still offering "the deposit only (20%)" and billing
-                  * thirty. One deposit, named wherever it is shown.
-                  */}
-                {depositPct > 0
-                  ? (draftInvoice.rows.length > 0
-                      ? `The ${depositPct}% deposit — ${formatAmount(depositInvoiceTotal)}`
-                      : `The deposit only (${depositPct}%)`)
-                  : 'The deposit only'}
-              </option>
-            </select>
-            {invoicePortion === 'deposit' && depositPct === 0 && draftInvoice.rows.length > 0 && (
-              <span className="q-meta-sm">
-                The deposit in section 5 is 0%, so this would ask the client for nothing. Set one
-                there, or invoice the full amount.
-              </span>
-            )}
-            {invoicePortion === 'deposit' && depositPct > 0 && (
-              <span className="q-meta-sm">
-                The balance can be invoiced later from the booking.
-              </span>
-            )}
-          </div>
           {/*
             * THE WORKING, WHERE IT CAN CONCLUDE.
             *
@@ -2202,8 +2129,12 @@ export function NewBookingForm({
           <span className={draftInvoice.rows.length > 0 ? 'q-price' : 'q-price q-absent'}>
             {draftInvoice.rows.length > 0 ? formatAmount(draftInvoice.total) : 'Not quoted yet'}
           </span>
-          {draftInvoice.rows.length > 0 && invoicePortion === 'deposit' && depositPct > 0 && (
-            <span className="q-meta-sm">of {formatAmount(bookingTotal)} booked</span>
+          {draftInvoice.rows.length > 0 && Number(paidNow) > 0 && (
+            <span className="q-meta-sm">
+              {Number(paidNow) >= draftInvoice.total
+                ? 'settled in full'
+                : `${formatAmount(Math.max(draftInvoice.total - Number(paidNow), 0))} still owed`}
+            </span>
           )}
         </div>
       </div>
