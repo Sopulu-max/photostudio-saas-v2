@@ -16,7 +16,9 @@ import {
   // Money received, and the one transition that moves it to settled.
   createTransaction, settleTransaction,
 } from '@/modules/finances/interface';
-import { addBookingTask } from '@/modules/production/interface';
+// A person joins a booking in a role, and the cascade lands them on every
+// step still waiting for it.
+import { addBookingTask, addToBookingTeam } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
 import {
@@ -70,6 +72,7 @@ export function NewBookingForm({
   // Defaulted: this is mapped over during render, so a missing prop would take
   // the whole page down rather than degrade.
   roleChoices = [],
+  employees = [],
   currencyCode,
   depositDefault,
   taxRate,
@@ -84,6 +87,14 @@ export function NewBookingForm({
   roleOptions: string[];
   /** Roles with their ids, for setting one on a task the studio adds here. */
   roleChoices: { id: string; name: string }[];
+  /*
+   * The studio's people, each with the roles they hold.
+   *
+   * This form knew about roles and never about people, so a booking could say
+   * it needed a Photographer and could not say which one — staffing waited
+   * until somebody opened the booking afterwards.
+   */
+  employees: { id: string; name: string; roleIds: string[] }[];
   currencyCode: string;
   /** What the studio asks for up front, from Contracts settings. */
   depositDefault: number;
@@ -133,6 +144,20 @@ export function NewBookingForm({
   const [extraTasks, setExtraTasks] = useState<{ name: string; roleId: string }[]>([]);
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskRoleId, setNewTaskRoleId] = useState('');
+  /*
+   * WHO IS DOING IT, chosen by role rather than step by step.
+   *
+   * A studio taking a booking says "Tunde is shooting and Ada is editing", not
+   * "Tunde does step one, Tunde does step four". And addToBookingTeam already
+   * works exactly that way: it puts a person on the booking in a role, then
+   * puts them on every step still waiting for that role — the cascade this
+   * form has never once called.
+   *
+   * Keyed by role, so a name chosen here reaches whichever steps need it,
+   * including steps from a package added after the choice was made.
+   */
+  const [staffing, setStaffing] = useState<Record<string, string>>({});
+
 
   /*
    * How much of the booking this first invoice is for.
@@ -430,7 +455,7 @@ export function NewBookingForm({
   const tasksFromPackages = React.useMemo(() => lines.flatMap((line, i) => {
     const deep = line.selectedPackageDeep;
     if (!deep) return [] as {
-      key: string; name: string; role: string | null;
+      key: string; name: string; role: string | null; roleId: string | null;
       service: string; pkg: string; position: number;
     }[];
     const pkgName = (deep.name as string) || line.customName || `Package ${i + 1}`;
@@ -461,6 +486,7 @@ export function NewBookingForm({
           key: `${line.id}:${svc.id}:${t.id}`,
           name: t.name as string,
           role: (t.roleName ?? null) as string | null,
+          roleId: (t.roleId ?? null) as string | null,
           /*
            * The SERVICE, which is what a step belongs to.
            *
@@ -475,6 +501,23 @@ export function NewBookingForm({
           position: Number(t.position ?? 0),
         })));
   }), [lines]);
+  /*
+   * The roles this booking's work actually calls for, each once.
+   *
+   * Derived from the steps rather than declared, so it follows the packages: a
+   * job that gains a videography package gains a Videographer to find.
+   */
+  const rolesNeeded = React.useMemo(() => {
+    const by = new Map<string, string>();
+    for (const t of tasksFromPackages) if (t.roleId && t.role) by.set(t.roleId, t.role);
+    for (const t of extraTasks) {
+      if (!t.roleId) continue;
+      const name = roleChoices.find((r) => r.id === t.roleId)?.name;
+      if (name) by.set(t.roleId, name);
+    }
+    return [...by.entries()].map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasksFromPackages, extraTasks, roleChoices]);
 
   /*
    * WHAT THIS BOOKING COMES TO — computed once, for whichever section asks.
@@ -833,6 +876,29 @@ export function NewBookingForm({
               }
             }
           } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
+        }
+
+        /*
+         * THE PEOPLE GO ON ONCE THERE IS SOMETHING TO PUT THEM ON.
+         *
+         * The steps do not exist until the booking does, so this cannot happen
+         * any earlier — and it does not need to. addToBookingTeam puts the
+         * person on the booking in their role and then onto every step still
+         * waiting for it, which is exactly the shape of what was chosen.
+         *
+         * Each is its own attempt. One person failing to go on must not take
+         * the others with them, and a booking that exists with nobody on it is
+         * a booking that can be staffed later — losing the record of who was
+         * meant to be on it is the only outcome worth reporting.
+         */
+        const staffed = Object.entries(staffing).filter(([, employeeId]) => employeeId);
+        for (const [roleId, employeeId] of staffed) {
+          try {
+            await addToBookingTeam({ bookingId, employeeId, roleId });
+          } catch (e) {
+            const who = employees.find((x) => x.id === employeeId)?.name || 'someone';
+            failed.push(`${who} on the team (${readableError(e, 'they were not added')})`);
+          }
         }
 
         /*
@@ -1877,9 +1943,57 @@ export function NewBookingForm({
                 </>
               )}
 
+              {/*
+                * WHO IS ON IT.
+                *
+                * The section could say the job needs a Photographer and never
+                * which one — it knew roles and had never heard of people, so
+                * staffing waited for somebody to open the booking afterwards.
+                *
+                * Asked by role, because that is how a studio says it: Tunde is
+                * shooting, Ada is editing. Every step wanting that role gets
+                * that person, through the cascade addToBookingTeam already
+                * performs — a person joins the booking in a role and lands on
+                * the work still waiting for it.
+                *
+                * Narrowed to people who actually hold the role, so nobody is
+                * offered for work they do not do. The same rule the booking
+                * page's own team control follows.
+                */}
+              {rolesNeeded.length > 0 && (
+                <div className="q-stack q-stack-sm">
+                  <span className="q-eyebrow">Who is on it</span>
+                  {rolesNeeded.map((role) => {
+                    const eligible = employees.filter((e) => e.roleIds.includes(role.id));
+                    return (
+                      <div key={role.id} className="q-line q-row q-row-between">
+                        <span className="q-strong">{role.name}</span>
+                        {eligible.length === 0 ? (
+                          <span className="q-meta-sm q-absent">
+                            Nobody holds this role yet
+                          </span>
+                        ) : (
+                          <select
+                            className="q-select q-input-sm"
+                            style={{ maxWidth: '220px' }}
+                            value={staffing[role.id] || ''}
+                            onChange={(e) => setStaffing((prev) => ({ ...prev, [role.id]: e.target.value }))}
+                          >
+                            <option value="">Not decided yet</option>
+                            {eligible.map((e) => (
+                              <option key={e.id} value={e.id}>{e.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="q-row" style={{ gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div className="q-field" style={{ flex: 1, minWidth: '200px' }}>
-                  <label className="q-label">Add a task for this booking</label>
+                  <label className="q-label">Add a step for this booking</label>
                   <input
                     className="q-input"
                     value={newTaskName}
@@ -1952,10 +2066,7 @@ export function NewBookingForm({
              * studio can staff it: a photographer, a videographer and an
              * editor, on that date. Distinct roles, named.
              */
-            const needs = [...new Set([
-              ...tasksFromPackages.map((t) => t.role),
-              ...extraTasks.map((t) => roleChoices.find((r) => r.id === t.roleId)?.name ?? null),
-            ].filter(Boolean) as string[])].sort();
+            const needs = rolesNeeded.map((r) => r.name);
             const unassigned = total - (tasksFromPackages.filter((t) => t.role).length
               + extraTasks.filter((t) => t.roleId).length);
             return (

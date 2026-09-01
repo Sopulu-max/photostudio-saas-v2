@@ -6,7 +6,7 @@ import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { listActiveServices, listDimensionsByDomain, listVariablesForServices } from '@/modules/services/interface';
 import { listDeliverables } from '@/modules/deliverables/interface';
-import { listRoles } from '@/modules/team/interface';
+import { listRoles, listEmployees } from '@/modules/team/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { getDepositDefault } from '@/modules/contracts/interface';
 // The studio's tax position. The invoice raised below is snapshotted with it,
@@ -22,11 +22,12 @@ export default async function NewBookingPage() {
     redirect('/login');
   }
 
-  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables] = await Promise.all([
-
-
+  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, employees] = await Promise.all([
     listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
-    listRoles(), getStudioCurrency(), listDeliverables()
+    listRoles(), getStudioCurrency(), listDeliverables(),
+    // Who the studio has, so a booking can be staffed while it is being taken
+    // rather than only afterwards.
+    listEmployees(),
   ]);
 
   // What the studio asks for up front, so the contract field opens on it rather
@@ -103,6 +104,11 @@ export default async function NewBookingPage() {
         allDeliverables={allDeliverables as any}
         roleOptions={(roles as any[]).map((r) => r.name)}
         roleChoices={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+        employees={(employees as any[]).map((e) => ({
+          id: e.id as string,
+          name: (e.contact?.display_name as string) || 'Unnamed',
+          roleIds: ((e.employee_roles || []) as any[]).map((er) => er.role?.id).filter(Boolean),
+        }))}
         currencyCode={currencyCode}
         depositDefault={depositDefault}
         taxRate={taxRate}
