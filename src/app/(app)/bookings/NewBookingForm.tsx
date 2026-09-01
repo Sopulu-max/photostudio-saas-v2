@@ -524,11 +524,25 @@ export function NewBookingForm({
    * whose boxes are all empty is unquoted, while one deliberately priced at zero
    * is a free job.
    */
-  const pricedLines = lines.filter((l) => l.linePrice.trim() !== '');
-  const bookingTotal = pricedLines.reduce((sum, l) => sum + (Number(l.linePrice) || 0), 0);
-  const isQuoted = pricedLines.length > 0;
+  /*
+   * THE MONEY IS SECTION 4'S, AND ONLY SECTION 4'S.
+   *
+   * bookingTotal, depositAmount and the rest were computed here and read by one
+   * thing: a band at the foot of the contract section stating the deposit in
+   * money. They are gone with it.
+   *
+   * They also DISAGREED with the invoice, which is the better reason. This
+   * summed the raw line prices — before any discount, before tax — so a booking
+   * with ₦50,000 off showed an invoice of ₦150,000 in one section and computed
+   * a deposit from ₦200,000 in the next. Two money figures on one page, already
+   * contradicting each other, and the wrong one printed beside the agreement
+   * the client signs.
+   *
+   * The deposit stays what it is: a TERM of the contract, the share due on
+   * confirmation. What that comes to is the invoice's business, worked out from
+   * the invoice's own arithmetic, in the section that owns it.
+   */
   const depositPct = Number(deposit) || 0;
-  const depositAmount = Math.round(bookingTotal * (depositPct / 100) * 100) / 100;
 
   /*
    * THE DOCUMENT THIS FORM IS ABOUT TO RAISE.
@@ -2373,35 +2387,6 @@ export function NewBookingForm({
           </span>
         </div>
 
-        {/*
-          * A PERCENTAGE OF WHAT.
-          *
-          * This section said it "uses your standard terms and the total for
-          * these packages", then took a deposit as a percentage — and named
-          * neither number. The one figure an operator is actually agreeing to
-          * on the telephone, the money due on confirmation, was the one thing
-          * the contract section would not say. It was not set small here; it
-          * did not exist.
-          *
-          * The same band as the sections above, so the page resolves the same
-          * way five times.
-          */}
-        <div className="q-card-foot">
-          <span className={isQuoted ? 'q-price' : 'q-price q-absent'}>
-            {!isQuoted
-              ? 'Not quoted yet'
-              : depositPct > 0
-                ? formatAmount(depositAmount)
-                : formatAmount(bookingTotal)}
-          </span>
-          <span className="q-meta-sm">
-            {!isQuoted
-              ? 'Price the packages above to see what is due'
-              : depositPct > 0
-                ? `on confirmation, ${formatAmount(bookingTotal - depositAmount)} on delivery`
-                : 'due on signing'}
-          </span>
-        </div>
       </div>
 
       {/*
