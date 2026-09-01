@@ -8,7 +8,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
-import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn } from './money';
+import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn , invoiceTotals, discountOn } from './money';
 
 /**
  * Invoices — the document between what was booked and what was paid.
@@ -26,7 +26,7 @@ import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, tax
 
 const INVOICE_SELECT = `
   id, number, status, currency, notes, issued_at, due_at, voided_at, share_token, created_at,
-  tax_rate, tax_amount,
+  tax_rate, tax_amount, discount_kind, discount_value, discount_amount,
   booking:bookings(id, title, scheduled_for),
   contact:contacts(id, display_name, email),
   contract:contracts(id, version),
@@ -38,15 +38,24 @@ function shape(row: any) {
   const lines = (row.lines || []).slice().sort((a: any, b: any) => a.position - b.position);
   const subtotal = lines.reduce((s: number, l: any) => s + Number(l.amount || 0), 0);
   const payments = row.payments || [];
-  // Tax as it was frozen on this document, not as the studio charges today.
+  // Tax and discount as they were frozen on this document, not as the studio
+  // charges or gives today. Both amounts are read back rather than recomputed —
+  // see the note where they are written.
   const taxRate = Number(row.tax_rate || 0);
+  const discount = Math.round(Math.max(0, Math.min(Number(row.discount_amount || 0), subtotal)) * 100) / 100;
+  const net = Math.round((subtotal - discount) * 100) / 100;
   const tax = Number(row.tax_amount || 0);
-  const total = Math.round((subtotal + tax) * 100) / 100;
+  const total = Math.round((net + tax) * 100) / 100;
   return {
     ...row,
     lines,
     payments,
     subtotal,
+    discount,
+    discountKind: (row.discount_kind ?? null) as 'percentage' | 'amount' | null,
+    discountValue: row.discount_value == null ? null : Number(row.discount_value),
+    /** What is being charged before tax — subtotal less whatever came off it. */
+    net,
     taxRate,
     tax,
     total,
@@ -144,7 +153,7 @@ export async function getBookingBilling(bookingId: string) {
       .eq('booking_id', bookingId),
     supabaseAdmin
       .from('invoices')
-      .select('id, status, currency, lines:invoice_lines(amount), payments:financial_transactions(kind, amount, status)')
+      .select('id, status, currency, discount_amount, tax_amount, lines:invoice_lines(amount), payments:financial_transactions(kind, amount, status)')
       .eq('organization_id', orgId)
       .eq('booking_id', bookingId),
   ]);
@@ -162,9 +171,22 @@ export async function getBookingBilling(bookingId: string) {
   let paid = 0;
   for (const inv of ((invoices || []) as any[])) {
     if (inv.status === 'void') continue;
-    const total = ((inv.lines || []) as any[]).reduce((n, l) => n + Number(l.amount || 0), 0);
+    /*
+     * NET OF WHAT CAME OFF IT.
+     *
+     * This summed the lines, which is what was CHARGED before any concession.
+     * A booking discounted by twenty thousand would have counted as fully
+     * invoiced twenty thousand early, and the guard that refuses to
+     * over-invoice would have refused the rest of a booking still owed.
+     *
+     * booked is pre-tax, so invoiced stays pre-tax too and the two remain
+     * comparable — the discount is the only thing subtracted here.
+     */
+    const lineSum = ((inv.lines || []) as any[]).reduce((n, l) => n + Number(l.amount || 0), 0);
+    const off = Math.max(0, Math.min(Number(inv.discount_amount || 0), lineSum));
+    const total = Math.round((lineSum - off) * 100) / 100;
     invoiced += total;
-    paid += settlementOf(total, inv.payments || []).paid;
+    paid += settlementOf(total + Number(inv.tax_amount || 0), inv.payments || []).paid;
     if (!currency && inv.currency) currency = inv.currency;
   }
 
@@ -208,6 +230,19 @@ export async function createInvoiceForBooking(input: {
    * the client can still see what they are paying a deposit ON.
    */
   percentage?: number | null;
+  /**
+   * What the studio gave away on this document, as it was said.
+   *
+   * A percentage of the work or a flat sum off it — the two are not the same
+   * concession and are recorded as spoken, not flattened into money on the way
+   * in. The money is worked out here and frozen beside them.
+   *
+   * It comes off the SUBTOTAL, before any share. So a 10% discount with a 50%
+   * deposit bills half of the discounted work, which is what both of those
+   * words mean; taking the deposit first and discounting after would reach the
+   * same number by accident today and a different one the moment either changes.
+   */
+  discount?: { kind: 'percentage' | 'amount'; value: number } | null;
   /** What the client sees against each line, e.g. "50% deposit". */
   label?: string | null;
   /**
@@ -351,6 +386,10 @@ export async function createInvoiceForBooking(input: {
       // Frozen at the rate that stood when this was raised, so a later change
       // cannot rewrite a document already in a client's hands.
       tax_rate: taxRate,
+      // As it was said, beside what it came to. The amount lands once the lines
+      // exist, since a percentage has nothing to be a percentage of until then.
+      discount_kind: input.discount?.kind ?? null,
+      discount_value: input.discount?.value ?? null,
       notes: input.notes ?? null,
       due_at: input.dueAt ?? null,
     })
@@ -403,11 +442,35 @@ export async function createInvoiceForBooking(input: {
    * on a RATE that changes, so recomputing it later would quietly restate a
    * document. The amount and the rate are frozen together or neither is safe.
    */
-  if (taxRate > 0) {
-    const net = rows.reduce((n, r) => n + Number(r.amount || 0), 0);
+  /*
+   * The subtotal exists only now, so this is where both frozen figures land.
+   *
+   * TAX IS CHARGED ON WHAT THE CLIENT IS ASKED FOR, so the discount comes off
+   * first and the rate applies to what is left. Taxing the subtotal and
+   * discounting afterwards would bill tax on money nobody was charged — a
+   * quiet overcharge that would reconcile against nothing.
+   */
+  const subtotal = rows.reduce((n, r) => n + Number(r.amount || 0), 0);
+  /*
+   * AN INVOICE FOR HALF THE WORK BILLS HALF THE CONCESSION.
+   *
+   * The discount is agreed on the JOB, not on this document, so it is worked
+   * out against the whole of it and then shared exactly as the lines are.
+   *
+   * Taking it off the shared subtotal instead would be right for a percentage
+   * by accident — ten per cent of half is half of ten per cent — and wrong for
+   * a flat sum, which would come off the deposit in full and off the balance
+   * in full, giving the same discount away twice.
+   */
+  const fullSubtotal = lines.reduce(
+    (n, l) => n + amountOf(priceOfLine(l)) * Number(l.quantity ?? 1), 0);
+  const discount = Math.round(
+    discountOn(fullSubtotal, input.discount?.kind ?? null, input.discount?.value ?? null) * share * 100) / 100;
+  const { tax } = invoiceTotals({ subtotal, discountAmount: discount, taxRate });
+  if (taxRate > 0 || discount > 0) {
     await supabaseAdmin
       .from('invoices')
-      .update({ tax_amount: taxOn(net, taxRate) })
+      .update({ tax_amount: tax, discount_amount: discount })
       .eq('id', invoice.id)
       .eq('organization_id', orgId);
   }

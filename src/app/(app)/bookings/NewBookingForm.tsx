@@ -11,6 +11,8 @@ import {
   // The same composition the server uses when it writes the lines, so what is
   // shown here and what is raised cannot describe the work differently.
   describeInvoiceLine, invoiceLineAmount, billingShare, taxOn,
+  // What comes off a price, and the one descent from what was sold to what is owed.
+  discountOn, invoiceTotals,
 } from '@/modules/finances/interface';
 import { addBookingTask } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
@@ -140,6 +142,20 @@ export function NewBookingForm({
   const [invoicePortion, setInvoicePortion] = useState<'full' | 'deposit'>('full');
   const [invoiceDue, setInvoiceDue] = useState('');
   const [invoiceNotes, setInvoiceNotes] = useState('');
+  /*
+   * WHAT THE STUDIO GAVE AWAY, AS IT WAS SAID.
+   *
+   * A studio gives ground — a returning client, a slow month, a job taken as a
+   * favour — and until now the only way to record it was to type a smaller
+   * price onto the line. That stores the concession and the price as one
+   * number and can no longer tell them apart: the invoice says ₦189,000 and
+   * nothing remembers that ₦210,000 was the price and ₦21,000 was given.
+   *
+   * Kept as a percentage or a flat sum because the two are different promises.
+   * Ten per cent of a booking that grows is not twenty thousand naira off it.
+   */
+  const [discountKind, setDiscountKind] = useState<'none' | 'percentage' | 'amount'>('none');
+  const [discountValue, setDiscountValue] = useState('');
   const [deposit, setDeposit] = useState(String(depositDefault));
   
   type LineState = {
@@ -477,8 +493,48 @@ export function NewBookingForm({
       });
 
     const subtotal = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
-    const tax = taxOn(subtotal, taxRate);
-    return { rows, subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 };
+
+    /*
+     * THE SAME DESCENT THE DOCUMENT MAKES, THROUGH THE SAME FUNCTION.
+     *
+     * The concession is agreed on the JOB, so it is worked out against the whole
+     * of it and then shared exactly as the lines are: an invoice for half the
+     * work carries half the discount. Taking it off the shared subtotal would be
+     * right for a percentage by accident and wrong for a flat sum, which would
+     * come off the deposit in full and off the balance in full — the same
+     * discount given away twice.
+     */
+    const fullSubtotal = Math.round(lines
+      .filter((l) => l.packageId && l.linePrice.trim() !== '')
+      .reduce((n, l) => n + (Number(l.linePrice) || 0), 0) * 100) / 100;
+    const kind = discountKind === 'none' ? null : discountKind;
+    const said = Number(discountValue) || 0;
+    const discount = Math.round(discountOn(fullSubtotal, kind, said) * invoiceShare * 100) / 100;
+    const { net, tax, total } = invoiceTotals({ subtotal, discountAmount: discount, taxRate });
+    return { rows, subtotal, discount, net, tax, total, fullSubtotal, fullDiscount: discountOn(fullSubtotal, kind, said) };
+  })();
+
+  /*
+   * WHAT EACH CHOICE WOULD ACTUALLY COME TO.
+   *
+   * Both worked out whatever is selected, because the select has to put a
+   * figure against each option — an operator choosing between them is choosing
+   * between two numbers, and naming only the one they have already picked
+   * leaves them doing the other in their head.
+   *
+   * Same descent as the draft, so the option and the table cannot disagree.
+   */
+  const fullInvoiceTotal = invoiceTotals({
+    subtotal: draftInvoice.fullSubtotal,
+    discountAmount: draftInvoice.fullDiscount,
+    taxRate,
+  }).total;
+
+  const depositInvoiceTotal = (() => {
+    const share = billingShare(depositPct > 0 ? depositPct : null);
+    const subtotal = Math.round(draftInvoice.fullSubtotal * share * 100) / 100;
+    const off = Math.round(draftInvoice.fullDiscount * share * 100) / 100;
+    return invoiceTotals({ subtotal, discountAmount: off, taxRate }).total;
   })();
 
   /*
@@ -700,6 +756,9 @@ export function NewBookingForm({
               notes: invoiceNotes.trim() || null,
               percentage: pct,
               label: pct ? `${pct}% deposit` : null,
+              discount: discountKind !== 'none' && Number(discountValue) > 0
+                ? { kind: discountKind, value: Number(discountValue) }
+                : null,
             });
           } catch (e: any) { failed.push(`invoice (${e?.message || 'failed'})`); }
         }
@@ -1815,16 +1874,26 @@ export function NewBookingForm({
                 * on its own, which is what the foot is for and what the other
                 * sections already do.
                 */}
-              {taxRate > 0 && (
+              {(taxRate > 0 || draftInvoice.discount > 0) && (
                 <div className="q-stack q-stack-sm">
                   <div className="q-row q-row-between">
                     <span className="q-meta">Subtotal</span>
                     <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
                   </div>
-                  <div className="q-row q-row-between">
-                    <span className="q-meta">Tax ({taxRate}%)</span>
-                    <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
-                  </div>
+                  {draftInvoice.discount > 0 && (
+                    <div className="q-row q-row-between">
+                      <span className="q-meta">
+                        Discount{discountKind === 'percentage' ? ` (${Number(discountValue) || 0}%)` : ''}
+                      </span>
+                      <span className="q-num q-text-danger">&minus;{formatAmount(draftInvoice.discount)}</span>
+                    </div>
+                  )}
+                  {taxRate > 0 && (
+                    <div className="q-row q-row-between">
+                      <span className="q-meta">Tax ({taxRate}%){draftInvoice.discount > 0 ? ' on the discounted amount' : ''}</span>
+                      <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -1838,14 +1907,78 @@ export function NewBookingForm({
             </p>
           )}
 
+          {/*
+            * WHAT CAME OFF, BEFORE WHAT IS BEING ASKED FOR.
+            *
+            * A concession is a fact about the job, so it is settled before the
+            * question of how much of the job to bill now.
+            */}
+          <div className="q-row" style={{ alignItems: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="q-field" style={{ minWidth: '200px' }}>
+              <label className="q-label">Discount</label>
+              <select
+                className="q-select"
+                value={discountKind}
+                onChange={(e) => {
+                  const k = e.target.value as 'none' | 'percentage' | 'amount';
+                  setDiscountKind(k);
+                  if (k === 'none') setDiscountValue('');
+                }}
+              >
+                <option value="none">None</option>
+                <option value="percentage">A percentage off</option>
+                <option value="amount">An amount off</option>
+              </select>
+            </div>
+            {discountKind !== 'none' && (
+              <div className="q-field" style={{ minWidth: '160px' }}>
+                <label className="q-label">
+                  {discountKind === 'percentage' ? 'Per cent off' : `Amount off (${currencyCode})`}
+                </label>
+                <input
+                  className="q-input q-num"
+                  type="number"
+                  min={0}
+                  max={discountKind === 'percentage' ? 100 : undefined}
+                  step={discountKind === 'percentage' ? 1 : 0.01}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder={discountKind === 'percentage' ? '10' : '0.00'}
+                  style={{ maxWidth: '140px' }}
+                />
+              </div>
+            )}
+          </div>
+          {discountKind !== 'none' && draftInvoice.fullDiscount > 0 && (
+            <span className="q-meta-sm">
+              {formatAmount(draftInvoice.fullDiscount)} off {formatAmount(draftInvoice.fullSubtotal)},
+              leaving {formatAmount(draftInvoice.fullSubtotal - draftInvoice.fullDiscount)} for the job.
+              {invoicePortion === 'deposit' && depositPct > 0
+                ? ` This invoice carries ${formatAmount(draftInvoice.discount)} of it, being ${depositPct}% of the work.`
+                : ''}
+            </span>
+          )}
+
           <div className="q-field" style={{ maxWidth: '420px' }}>
             <label className="q-label">Amount to invoice</label>
+            {/*
+              * THE FIGURE, NOT THE WORD.
+              *
+              * These read "The full amount" and "The deposit only (30%)", which
+              * name a policy and leave the operator to work out what it comes
+              * to — while quoting somebody on the telephone, from a form that
+              * has already worked it out.
+              */}
             <select
               className="q-select"
               value={invoicePortion}
               onChange={(e) => setInvoicePortion(e.target.value as 'full' | 'deposit')}
             >
-              <option value="full">The full amount</option>
+              <option value="full">
+                {draftInvoice.rows.length > 0
+                  ? `The full amount — ${formatAmount(fullInvoiceTotal)}`
+                  : 'The full amount'}
+              </option>
               <option value="deposit">
                 {/*
                   * The percentage this actually bills, which is the one in
@@ -1855,7 +1988,11 @@ export function NewBookingForm({
                   * option still offering "the deposit only (20%)" and billing
                   * thirty. One deposit, named wherever it is shown.
                   */}
-                {depositPct > 0 ? `The deposit only (${depositPct}%)` : 'The deposit only'}
+                {depositPct > 0
+                  ? (draftInvoice.rows.length > 0
+                      ? `The ${depositPct}% deposit — ${formatAmount(depositInvoiceTotal)}`
+                      : `The deposit only (${depositPct}%)`)
+                  : 'The deposit only'}
               </option>
             </select>
             {invoicePortion === 'deposit' && depositPct === 0 && draftInvoice.rows.length > 0 && (

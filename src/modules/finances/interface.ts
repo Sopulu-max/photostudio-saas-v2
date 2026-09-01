@@ -32,4 +32,8 @@ export { TRANSACTION_KINDS, KINDS, kindOf, totalsByCurrency, settlementOf } from
 // can show the document it is about to raise, rather than drawing its own
 // version of it beside the one the server writes.
 export { describeInvoiceLine, invoiceLineAmount, billingShare, taxOn } from './money';
+// What comes off a price, and the one descent from what was sold to what is
+// owed. Shared so a preview and a document cannot reach different answers.
+export { discountOn, invoiceTotals } from './money';
+export type { DiscountKind } from './money';
 export type { TransactionKind, KindSpec, MoneyTotals } from './money';

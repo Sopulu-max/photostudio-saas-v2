@@ -117,6 +117,42 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
             </div>
           )}
 
+          {/*
+            * HOW IT GOT TO THE TOTAL.
+            *
+            * This document showed one figure and no arithmetic. A studio
+            * charging tax billed it and never said so here; a studio giving a
+            * discount would show a smaller number with nothing to say where the
+            * rest went, which is the version a client queries.
+            *
+            * Drawn only where something happened between the lines and the
+            * total — a plain invoice with no tax and no concession still says
+            * its total once, which is all it has to say.
+            */}
+          {(invoice.discount > 0 || invoice.tax > 0) && (
+            <div className="q-stack q-stack-sm" style={{ marginTop: '8px' }}>
+              <div className="q-row q-row-between">
+                <span className="q-meta">Subtotal</span>
+                <span className="q-num">{formatMoney(invoice.subtotal, currency)}</span>
+              </div>
+              {invoice.discount > 0 && (
+                <div className="q-row q-row-between">
+                  <span className="q-meta">
+                    Discount{invoice.discountKind === 'percentage' && invoice.discountValue != null
+                      ? ` (${invoice.discountValue}%)` : ''}
+                  </span>
+                  <span className="q-num q-text-danger">&minus;{formatMoney(invoice.discount, currency)}</span>
+                </div>
+              )}
+              {invoice.tax > 0 && (
+                <div className="q-row q-row-between">
+                  <span className="q-meta">Tax ({invoice.taxRate}%)</span>
+                  <span className="q-num">{formatMoney(invoice.tax, currency)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="q-tile-sub q-row q-row-between">
             <span className="q-meta">Total</span>
             <strong className="q-stat-value q-num">{formatMoney(invoice.total, currency)}</strong>

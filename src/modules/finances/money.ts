@@ -203,3 +203,58 @@ export function taxOn(net: number, taxRate: number): number {
   if (!taxRate || taxRate <= 0) return 0;
   return Math.round(net * (taxRate / 100) * 100) / 100;
 }
+
+export type DiscountKind = 'percentage' | 'amount';
+
+/**
+ * WHAT COMES OFF, AND IN WHAT ORDER.
+ *
+ * A studio gives ground two ways — a share of the work, or a flat sum — and the
+ * two are not interchangeable: ten per cent of a booking that grows is a
+ * different concession from twenty thousand naira off it. Both are recorded as
+ * said, and this turns either into money.
+ *
+ * IT NEVER EXCEEDS WHAT IS BEING CHARGED. A discount larger than the subtotal
+ * would make an invoice for a negative amount, which is not a discount but a
+ * refund, and a refund is a payment travelling the other way with its own row.
+ *
+ * BEFORE TAX, always. Tax is owed on what the client is actually asked for, so
+ * discounting after it would bill tax on money nobody was charged. The order is
+ * subtotal, less discount, then tax on what is left — which is why taxOn is
+ * given the net and not the subtotal.
+ */
+export function discountOn(subtotal: number, kind?: DiscountKind | null, value?: number | null): number {
+  if (!kind || value == null) return 0;
+  const v = Number(value);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  const off = kind === 'percentage'
+    ? subtotal * (Math.min(v, 100) / 100)
+    : v;
+  return Math.round(Math.max(0, Math.min(off, subtotal)) * 100) / 100;
+}
+
+/**
+ * The whole descent from what was sold to what is owed, in one place.
+ *
+ * Every surface that shows money on an invoice — the booking form's preview,
+ * the document, the client's copy — was working the same sum out for itself.
+ * That is how the package editor came to store `amount` while everything
+ * downstream read `base_price`: two versions of one calculation agree until one
+ * of them is edited.
+ */
+export function invoiceTotals(input: {
+  subtotal: number;
+  discountKind?: DiscountKind | null;
+  discountValue?: number | null;
+  /** Frozen on a document already raised; recomputed while one is being built. */
+  discountAmount?: number | null;
+  taxRate: number;
+}) {
+  const subtotal = Math.round(input.subtotal * 100) / 100;
+  const discount = input.discountAmount != null
+    ? Math.round(Math.max(0, Math.min(Number(input.discountAmount), subtotal)) * 100) / 100
+    : discountOn(subtotal, input.discountKind, input.discountValue);
+  const net = Math.round((subtotal - discount) * 100) / 100;
+  const tax = taxOn(net, input.taxRate);
+  return { subtotal, discount, net, tax, total: Math.round((net + tax) * 100) / 100 };
+}
