@@ -82,6 +82,84 @@ async function resolveScheduledFor(
   return localInstant(date, time, await studioTimezone(orgId));
 }
 
+/**
+ * WHAT A DAY IS LIKE, BEFORE ANYTHING IS COMMITTED TO IT.
+ *
+ * resolveScheduledFor already refuses a closed day and an out-of-hours time on
+ * the intake path, and that stays: a rule enforced only in the browser is not
+ * enforced. But it throws at SUBMIT, which is the far end of a form somebody
+ * has just filled in — the same shape as a contract that could not be raised
+ * being discovered after the booking was saved.
+ *
+ * So the same answer is readable before the choosing, and the throw becomes the
+ * backstop it should have been all along.
+ *
+ * Takes the org explicitly because a visitor to a storefront has no session,
+ * and returns only what a studio publishes about itself. Nothing here says
+ * anything about anyone else's booking.
+ */
+export async function studioDayPublic(orgId: string, date: string) {
+  return studioHoursFor(orgId, date);
+}
+
+/** The same, from a session. */
+export async function studioDay(date: string) {
+  const { orgId } = await getAuthOrgId();
+  return studioHoursFor(orgId, date);
+}
+
+/**
+ * WHAT ELSE IS ALREADY ON THAT DAY.
+ *
+ * Nothing anywhere checked this: two bookings could hold the same Saturday at
+ * two o'clock and neither would mention the other.
+ *
+ * IT REPORTS RATHER THAN REFUSES, deliberately. Whether a studio can run two
+ * shoots at once is a fact about that studio — how many photographers, how many
+ * rooms — and this system has not been told it. Inventing a capacity rule would
+ * mean inventing the number behind it, and a booking wrongly refused is worse
+ * than one taken with open eyes. So the operator is shown what is already
+ * there, with times and stages, and decides.
+ *
+ * OPERATOR ONLY. It names other clients' bookings, so it takes a session and is
+ * never reachable from a storefront. The public read above deliberately answers
+ * a different, narrower question.
+ */
+export async function whatElseIsOn(date: string, exceptBookingId?: string) {
+  const { orgId } = await getAuthOrgId();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+
+  const zone = await studioTimezone(orgId);
+  // The day's own edges, in the studio's zone, so "that day" means the day the
+  // studio is having and not the day the server happens to be having.
+  const from = await localInstant(date, '00:00', zone);
+  const to = await localInstant(date, '23:59', zone);
+
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, scheduled_for, duration_minutes, stage:booking_stages(name, kind)')
+    .eq('organization_id', orgId)
+    .not('scheduled_for', 'is', null)
+    .gte('scheduled_for', from)
+    .lte('scheduled_for', to)
+    .order('scheduled_for');
+  if (error) {
+    console.error('Failed to read what else is on:', error);
+    return [];
+  }
+
+  return ((data || []) as any[])
+    .filter((b) => b.id !== exceptBookingId)
+    .map((b) => ({
+      bookingId: b.id as string,
+      title: (b.title || 'Untitled booking') as string,
+      at: b.scheduled_for as string,
+      durationMinutes: (b.duration_minutes ?? null) as number | null,
+      stage: (b.stage?.name ?? null) as string | null,
+      stageKind: (b.stage?.kind ?? null) as string | null,
+    }));
+}
+
 export async function createBooking(input: {
   contactId?: string | null;
   lines?: {

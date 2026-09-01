@@ -2,7 +2,10 @@
 
 import React, { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBooking, addBookingLine, setLineConfiguration, createContractForBooking } from '@/modules/bookings/interface';
+import { createBooking, addBookingLine, setLineConfiguration, createContractForBooking,
+  // What the studio's day is like, and what is already on it.
+  studioDay, whatElseIsOn,
+} from '@/modules/bookings/interface';
 import { createInvoiceForBooking } from '@/modules/finances/interface';
 import { addBookingTask } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
@@ -181,6 +184,36 @@ export function NewBookingForm({
    * what a custom package built from a fruitless search is classified by — so
    * they are copied onto the line at the moment it is added.
    */
+  /*
+   * WHAT THE STUDIO'S DAY IS LIKE, AND WHO ELSE IS IN IT.
+   *
+   * resolveScheduledFor already refuses a closed day on the INTAKE path, and
+   * that stays where it is — a rule enforced only in a browser is not enforced.
+   * But the studio scheduling its own work is deliberately never refused
+   * (enforceHours: false), which is right: a studio may open on a Sunday for
+   * somebody. Right, and silent — so an operator could put a booking on a day
+   * their own studio is closed and be told nothing at all.
+   *
+   * And nothing anywhere checked whether the slot was already taken. Two
+   * bookings could hold the same Saturday at two o'clock, each unaware.
+   *
+   * Told, not refused. Whether this studio can run two shoots at once is a fact
+   * about the studio that nothing here has been told, and a booking wrongly
+   * refused is worse than one taken with open eyes.
+   */
+  const [dayHours, setDayHours] = useState<{ opensAt: string | null; closesAt: string | null; closed: boolean; label: string | null } | null>(null);
+  const [alsoOn, setAlsoOn] = useState<{ bookingId: string; title: string; at: string; stage: string | null }[]>([]);
+
+  React.useEffect(() => {
+    const date = when.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setDayHours(null); setAlsoOn([]); return; }
+    let live = true;
+    Promise.all([studioDay(date), whatElseIsOn(date)])
+      .then(([h, others]) => { if (!live) return; setDayHours(h as any); setAlsoOn(others as any); })
+      .catch(() => { if (live) { setDayHours(null); setAlsoOn([]); } });
+    return () => { live = false; };
+  }, [when]);
+
   const [catalogueValues, setCatalogueValues] = useState<Record<string, string>>({});
   /** Which package lines arrived since the last render. See useArrivals. */
   const arrived = useArrivals(lines.map((l) => l.id));
@@ -674,6 +707,33 @@ export function NewBookingForm({
             <span className="q-meta-sm">
               This is what puts the booking on the calendar. Leave it empty while it is unsettled.
             </span>
+
+            {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
+              const t = when.slice(11, 16);
+              const early = dayHours.opensAt && t && t < dayHours.opensAt;
+              const late = dayHours.closesAt && t && t >= dayHours.closesAt;
+              const off = dayHours.closed || early || late;
+              return (
+                <span className={off ? 'q-meta-sm q-text-danger q-appear' : 'q-meta-sm q-appear'}>
+                  {dayHours.closed
+                    ? `The studio is closed that day${dayHours.label ? ` (${dayHours.label})` : ''}. You can still book it.`
+                    : early
+                      ? `The studio opens at ${dayHours.opensAt} that day.`
+                      : late
+                        ? `The studio closes at ${dayHours.closesAt} that day.`
+                        : `The studio is open ${dayHours.opensAt ?? '—'} to ${dayHours.closesAt ?? '—'} that day.`}
+                </span>
+              );
+            })()}
+
+            {alsoOn.length > 0 && (
+              <span className="q-meta-sm q-appear">
+                Already that day: {alsoOn.map((b) => {
+                  const at = new Date(b.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+                  return `${at} ${b.title}${b.stage ? ` (${b.stage})` : ''}`;
+                }).join(' · ')}
+              </span>
+            )}
           </div>
           <ClientPicker clients={clients} value={client} onChange={setClient} />
 

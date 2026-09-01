@@ -6,6 +6,9 @@ import { formatMoney } from '@/kernel/currency';
 import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { submitBookingForm } from './actions';
+// The studio's own published hours for a chosen day. Says nothing about
+// anyone else's booking.
+import { studioDayPublic } from '@/modules/bookings/interface';
 import { createPortal } from 'react-dom';
 import { toast } from '@/components/Toast';
 
@@ -93,6 +96,29 @@ export function BookingForm({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
+  /*
+   * SAID WHERE THE DAY IS CHOSEN, NOT AT THE END OF THE FORM.
+   *
+   * createBookingFromIntake already refuses a closed day and an out-of-hours
+   * time — resolveScheduledFor throws — and that stays exactly where it is,
+   * because a rule enforced only in a browser is not enforced.
+   *
+   * But it threw at SUBMIT, after the client had filled in everything else, so
+   * a studio that is shut on Sundays let somebody choose Sunday, answer every
+   * question, and only then be told. The same shape as the contract that could
+   * not be raised being discovered once the booking had already been saved.
+   */
+  const [dayHours, setDayHours] = useState<{ opensAt: string | null; closesAt: string | null; closed: boolean; label: string | null } | null>(null);
+
+  useEffect(() => {
+    const date = scheduledFor.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setDayHours(null); return; }
+    let live = true;
+    studioDayPublic(orgId, date)
+      .then((h) => { if (live) setDayHours(h as any); })
+      .catch(() => { if (live) setDayHours(null); });
+    return () => { live = false; };
+  }, [scheduledFor, orgId]);
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
   // Kept apart from customFields: these are answers to declared variables, not
   // free-form form fields, and they are stored somewhere different.
@@ -536,6 +562,23 @@ export function BookingForm({
                         Choose the date and time you want the session to happen. The studio will confirm it.
                       </p>
                       <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
+                      {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
+                        const t = scheduledFor.slice(11, 16);
+                        const early = dayHours.opensAt && t && t < dayHours.opensAt;
+                        const late = dayHours.closesAt && t && t >= dayHours.closesAt;
+                        const off = dayHours.closed || early || late;
+                        return (
+                          <p className={off ? 'q-note q-note-warn q-meta q-appear' : 'q-meta q-appear'} style={{ marginTop: '12px' }}>
+                            {dayHours.closed
+                              ? `We are closed that day${dayHours.label ? ` (${dayHours.label})` : ''}. Please choose another.`
+                              : early
+                                ? `We open at ${dayHours.opensAt} that day.`
+                                : late
+                                  ? `We close at ${dayHours.closesAt} that day.`
+                                  : `We are open ${dayHours.opensAt ?? '—'} to ${dayHours.closesAt ?? '—'} that day.`}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

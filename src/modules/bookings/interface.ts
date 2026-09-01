@@ -8,6 +8,10 @@
  * modules, they compose onto a booking through these operations + its id.
  */
 export {
+  // What a day is like before anything is committed to it, and what is already
+  // on it. The first is safe to ask from a storefront; the second names other
+  // clients' bookings and takes a session.
+  studioDayPublic, studioDay, whatElseIsOn,
   // Reads — the surfaces ask for these rather than querying the tables
   getBooking,
   listBookings,
