@@ -1874,31 +1874,41 @@ export function NewBookingForm({
                 * on its own, which is what the foot is for and what the other
                 * sections already do.
                 */}
-              {(taxRate > 0 || draftInvoice.discount > 0) && (
-                <div className="q-stack q-stack-sm">
-                  <div className="q-row q-row-between">
-                    <span className="q-meta">Subtotal</span>
-                    <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
-                  </div>
-                  {draftInvoice.discount > 0 && (
-                    <div className="q-row q-row-between">
-                      <span className="q-meta">
-                        Discount{discountKind === 'percentage' ? ` (${Number(discountValue) || 0}%)` : ''}
-                      </span>
-                      <span className="q-num q-text-danger">&minus;{formatAmount(draftInvoice.discount)}</span>
-                    </div>
-                  )}
-                  {taxRate > 0 && (
-                    <div className="q-row q-row-between">
-                      <span className="q-meta">Tax ({taxRate}%){draftInvoice.discount > 0 ? ' on the discounted amount' : ''}</span>
-                      <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </>
           )}
 
+          {/*
+            * ABOUT THE DOCUMENT, NOT ABOUT THE AMOUNT.
+            *
+            * A due date and a note are facts about the piece of paper. They sat
+            * between the money decisions and the working those decisions
+            * produce, so the chain read: give a discount, choose how much to
+            * bill, name a due date, write a note, and only then find out what
+            * any of it came to.
+            *
+            * Moved up beside the lines they describe, so what is charged, what
+            * comes off it and what is owed run without interruption into the
+            * figure at the foot.
+            */}
+          <div className="q-field" style={{ maxWidth: '260px' }}>
+            <label className="q-label">Due date (optional)</label>
+            <input
+              className="q-input"
+              type="date"
+              value={invoiceDue}
+              onChange={(e) => setInvoiceDue(e.target.value)}
+            />
+          </div>
+          <div className="q-field">
+            <label className="q-label">Invoice notes (optional)</label>
+            <textarea
+              className="q-textarea"
+              rows={3}
+              value={invoiceNotes}
+              onChange={(e) => setInvoiceNotes(e.target.value)}
+              placeholder="Bank details, payment reference, or other information for the client."
+            />
+          </div>
           {unpricedLines.length > 0 && (
             <p className="q-meta-sm">
               {unpricedLines.join(', ')} {unpricedLines.length === 1 ? 'is' : 'are'} on the booking
@@ -1949,15 +1959,6 @@ export function NewBookingForm({
               </div>
             )}
           </div>
-          {discountKind !== 'none' && draftInvoice.fullDiscount > 0 && (
-            <span className="q-meta-sm">
-              {formatAmount(draftInvoice.fullDiscount)} off {formatAmount(draftInvoice.fullSubtotal)},
-              leaving {formatAmount(draftInvoice.fullSubtotal - draftInvoice.fullDiscount)} for the job.
-              {invoicePortion === 'deposit' && depositPct > 0
-                ? ` This invoice carries ${formatAmount(draftInvoice.discount)} of it, being ${depositPct}% of the work.`
-                : ''}
-            </span>
-          )}
 
           <div className="q-field" style={{ maxWidth: '420px' }}>
             <label className="q-label">Amount to invoice</label>
@@ -2007,25 +2008,46 @@ export function NewBookingForm({
               </span>
             )}
           </div>
-          <div className="q-field" style={{ maxWidth: '260px' }}>
-            <label className="q-label">Due date (optional)</label>
-            <input
-              className="q-input"
-              type="date"
-              value={invoiceDue}
-              onChange={(e) => setInvoiceDue(e.target.value)}
-            />
-          </div>
-          <div className="q-field">
-            <label className="q-label">Invoice notes (optional)</label>
-            <textarea
-              className="q-textarea"
-              rows={3}
-              value={invoiceNotes}
-              onChange={(e) => setInvoiceNotes(e.target.value)}
-              placeholder="Bank details, payment reference, or other information for the client."
-            />
-          </div>
+          {/*
+            * THE WORKING, WHERE IT CAN CONCLUDE.
+            *
+            * This sat ABOVE the discount control, so the section printed
+            * "Discount (10%) −₦20,000" and then, beneath it, a field labelled
+            * Discount asking whether to give one — the answer before the
+            * question, and the same word twice meaning two different things.
+            *
+            * Worse, the descent had nowhere to land. Subtotal and Discount ran
+            * into Due date and Invoice notes, and the figure they add up to
+            * appeared past both of them in the band at the foot. Arithmetic
+            * that resolves two fields away from itself is not arithmetic
+            * anybody can follow.
+            *
+            * So: what is being billed, then the decisions, then the working,
+            * then the answer in the band — which is where every other section
+            * on this page puts its figure.
+            */}
+              {(taxRate > 0 || draftInvoice.discount > 0) && (
+                <div className="q-stack q-stack-sm">
+                  <div className="q-row q-row-between">
+                    <span className="q-meta">Subtotal</span>
+                    <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
+                  </div>
+                  {draftInvoice.discount > 0 && (
+                    <div className="q-row q-row-between">
+                      <span className="q-meta">
+                        Discount{discountKind === 'percentage' ? ` (${Number(discountValue) || 0}%)` : ''}
+                      </span>
+                      <span className="q-num q-text-danger">&minus;{formatAmount(draftInvoice.discount)}</span>
+                    </div>
+                  )}
+                  {taxRate > 0 && (
+                    <div className="q-row q-row-between">
+                      <span className="q-meta">Tax ({taxRate}%){draftInvoice.discount > 0 ? ' on the discounted amount' : ''}</span>
+                      <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
         </div>
 
         {/*
