@@ -18,7 +18,7 @@ import {
 } from '@/modules/finances/interface';
 // A person joins a booking in a role, and the cascade lands them on every
 // step still waiting for it.
-import { addBookingTask, addToBookingTeam } from '@/modules/production/interface';
+import { addToBookingTeam } from '@/modules/production/interface';
 import { createClient, updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientSelection } from '@/components/ClientPicker';
 import {
@@ -141,9 +141,6 @@ export function NewBookingForm({
    * Held here and written once the booking exists, because a task belongs to
    * a booking and there is no booking to belong to yet.
    */
-  const [extraTasks, setExtraTasks] = useState<{ name: string; roleId: string }[]>([]);
-  const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskRoleId, setNewTaskRoleId] = useState('');
   /*
    * WHO IS DOING IT, chosen by role rather than step by step.
    *
@@ -510,14 +507,9 @@ export function NewBookingForm({
   const rolesNeeded = React.useMemo(() => {
     const by = new Map<string, string>();
     for (const t of tasksFromPackages) if (t.roleId && t.role) by.set(t.roleId, t.role);
-    for (const t of extraTasks) {
-      if (!t.roleId) continue;
-      const name = roleChoices.find((r) => r.id === t.roleId)?.name;
-      if (name) by.set(t.roleId, name);
-    }
     return [...by.entries()].map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasksFromPackages, extraTasks, roleChoices]);
+  }, [tasksFromPackages]);
 
   /*
    * WHAT THIS BOOKING COMES TO — computed once, for whichever section asks.
@@ -814,14 +806,6 @@ export function NewBookingForm({
         // at.
         const skipped: string[] = [];
 
-        // The studio's own tasks, now that there is a booking to attach them to.
-        for (const t of extraTasks) {
-          try {
-            await addBookingTask({ bookingId, name: t.name, roleId: t.roleId || null });
-          } catch (e: any) {
-            failed.push(`task “${t.name}” (${e?.message || 'failed'})`);
-          }
-        }
 
         /*
          * Also not attempted when it cannot work.
@@ -1849,7 +1833,7 @@ export function NewBookingForm({
             heading: string; note: string | null;
             items: {
               key: string; name: string; role: string | null;
-              roleId: string | null; removeAt: number | null;
+              roleId: string | null;
             }[];
           }>();
 
@@ -1873,23 +1857,10 @@ export function NewBookingForm({
               bySource.set(key, { heading: t.service, note: needsPackage ? t.pkg : null, items: [] });
             }
             bySource.get(key)!.items.push({
-              key: t.key, name: t.name, role: t.role, roleId: t.roleId, removeAt: null,
+              key: t.key, name: t.name, role: t.role, roleId: t.roleId,
             });
           }
 
-          if (extraTasks.length > 0) {
-            bySource.set('__own', {
-              heading: 'Added to this booking',
-              note: null,
-              items: extraTasks.map((t, i) => ({
-                key: `extra-${t.name}-${i}`,
-                name: t.name,
-                role: roleChoices.find((r) => r.id === t.roleId)?.name ?? null,
-                roleId: t.roleId || null,
-                removeAt: i,
-              })),
-            });
-          }
 
           const groups = [...bySource.values()];
           const work = groups.flatMap((g) => g.items);
@@ -1899,7 +1870,8 @@ export function NewBookingForm({
               {work.length === 0 ? (
                 <p className="q-meta">
                   Nothing to do yet. Work arrives from a service&rsquo;s workflow, set in Services
-                  settings — or add a step below that belongs to this booking alone.
+                  settings. A step belonging to this booking alone can be added on the booking
+                  once it exists.
                 </p>
               ) : (
                 <>
@@ -1918,9 +1890,7 @@ export function NewBookingForm({
                             <span className="q-row" style={{ gap: '10px', alignItems: 'baseline' }}>
                               {/* Its place in the sequence. A workflow is an
                                   order, and the order is most of what it says. */}
-                              {t.removeAt === null && (
-                                <span className="q-meta-sm q-num">{n + 1}</span>
-                              )}
+                              <span className="q-meta-sm q-num">{n + 1}</span>
                               <span className="q-strong">{t.name}</span>
                             </span>
                             {/*
@@ -1971,19 +1941,6 @@ export function NewBookingForm({
                                   </select>
                                 );
                               })()}
-                              {/* Only the studio's own comes off here. A
-                                  package's step is switched off on the package,
-                                  where what it belongs to is visible. */}
-                              {t.removeAt !== null && (
-                                <button
-                                  type="button"
-                                  className="q-btn-ghost q-btn-xs"
-                                  onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== t.removeAt))}
-                                  title={`Remove ${t.name}`}
-                                >
-                                  &times;
-                                </button>
-                              )}
                             </span>
                           </div>
                         ))}
@@ -1994,36 +1951,6 @@ export function NewBookingForm({
               )}
 
 
-              <div className="q-row" style={{ gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div className="q-field" style={{ flex: 1, minWidth: '200px' }}>
-                  <label className="q-label">Add a step for this booking</label>
-                  <input
-                    className="q-input"
-                    value={newTaskName}
-                    onChange={(e) => setNewTaskName(e.target.value)}
-                    placeholder="e.g. Collect album from printer"
-                  />
-                </div>
-                <div className="q-field" style={{ minWidth: '150px' }}>
-                  <label className="q-label">Role</label>
-                  <select className="q-select" value={newTaskRoleId} onChange={(e) => setNewTaskRoleId(e.target.value)}>
-                    <option value="">No role</option>
-                    {roleChoices.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className="q-btn q-btn-secondary q-btn-sm"
-                  disabled={!newTaskName.trim()}
-                  onClick={() => {
-                    setExtraTasks([...extraTasks, { name: newTaskName.trim(), roleId: newTaskRoleId }]);
-                    setNewTaskName('');
-                    setNewTaskRoleId('');
-                  }}
-                >
-                  Add
-                </button>
-              </div>
             </div>
           );
         })()}
@@ -2055,7 +1982,7 @@ export function NewBookingForm({
           */}
         <div className="q-card-foot">
           {(() => {
-            const total = tasksFromPackages.length + extraTasks.length;
+            const total = tasksFromPackages.length;
             /*
              * WHO THIS JOB NEEDS.
              *
@@ -2070,8 +1997,7 @@ export function NewBookingForm({
              * editor, on that date. Distinct roles, named.
              */
             const needs = rolesNeeded.map((r) => r.name);
-            const unassigned = total - (tasksFromPackages.filter((t) => t.role).length
-              + extraTasks.filter((t) => t.roleId).length);
+            const unassigned = total - tasksFromPackages.filter((t) => t.role).length;
             return (
               <>
                 <span className={total > 0 ? 'q-figure' : 'q-figure q-absent'}>
