@@ -1847,7 +1847,10 @@ export function NewBookingForm({
            */
           const bySource = new Map<string, {
             heading: string; note: string | null;
-            items: { key: string; name: string; role: string | null; removeAt: number | null }[];
+            items: {
+              key: string; name: string; role: string | null;
+              roleId: string | null; removeAt: number | null;
+            }[];
           }>();
 
           const duplicated = new Set(
@@ -1869,7 +1872,9 @@ export function NewBookingForm({
             if (!bySource.has(key)) {
               bySource.set(key, { heading: t.service, note: needsPackage ? t.pkg : null, items: [] });
             }
-            bySource.get(key)!.items.push({ key: t.key, name: t.name, role: t.role, removeAt: null });
+            bySource.get(key)!.items.push({
+              key: t.key, name: t.name, role: t.role, roleId: t.roleId, removeAt: null,
+            });
           }
 
           if (extraTasks.length > 0) {
@@ -1880,6 +1885,7 @@ export function NewBookingForm({
                 key: `extra-${t.name}-${i}`,
                 name: t.name,
                 role: roleChoices.find((r) => r.id === t.roleId)?.name ?? null,
+                roleId: t.roleId || null,
                 removeAt: i,
               })),
             });
@@ -1917,10 +1923,54 @@ export function NewBookingForm({
                               )}
                               <span className="q-strong">{t.name}</span>
                             </span>
+                            {/*
+                              * WHO DOES IT, WHERE IT SAYS WHAT IT NEEDS.
+                              *
+                              * This was two lists: the steps, each showing the
+                              * role it wants, and a separate "Who is on it"
+                              * naming a person per role underneath. The same
+                              * word appeared in both, meaning two different
+                              * things — on a step, what this needs; in the
+                              * list, a role to staff — and joining them was
+                              * left to the reader, four rows apart.
+                              *
+                              * The control belongs on the row. The FACT is
+                              * still per role: choosing here sets that role for
+                              * the whole booking, so every step wanting it
+                              * fills at once and the page shows what
+                              * addToBookingTeam is about to do rather than
+                              * hiding it until afterwards. Pick the editor on
+                              * Colorgrade and Edit fills too, because that is
+                              * what will happen.
+                              */}
                             <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
                               <span className={t.role ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
                                 {t.role || 'No role'}
                               </span>
+                              {t.roleId && (() => {
+                                const eligible = employees.filter((e) => e.roleIds.includes(t.roleId!));
+                                if (eligible.length === 0) {
+                                  return (
+                                    <span className="q-meta-sm q-text-danger">
+                                      nobody holds this
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <select
+                                    className="q-select q-input-sm"
+                                    style={{ maxWidth: '190px' }}
+                                    aria-label={`Who does ${t.name}`}
+                                    value={staffing[t.roleId] || ''}
+                                    onChange={(e) => setStaffing((prev) => ({ ...prev, [t.roleId!]: e.target.value }))}
+                                  >
+                                    <option value="">Nobody yet</option>
+                                    {eligible.map((e) => (
+                                      <option key={e.id} value={e.id}>{e.name}</option>
+                                    ))}
+                                  </select>
+                                );
+                              })()}
                               {/* Only the studio's own comes off here. A
                                   package's step is switched off on the package,
                                   where what it belongs to is visible. */}
@@ -1943,53 +1993,6 @@ export function NewBookingForm({
                 </>
               )}
 
-              {/*
-                * WHO IS ON IT.
-                *
-                * The section could say the job needs a Photographer and never
-                * which one — it knew roles and had never heard of people, so
-                * staffing waited for somebody to open the booking afterwards.
-                *
-                * Asked by role, because that is how a studio says it: Tunde is
-                * shooting, Ada is editing. Every step wanting that role gets
-                * that person, through the cascade addToBookingTeam already
-                * performs — a person joins the booking in a role and lands on
-                * the work still waiting for it.
-                *
-                * Narrowed to people who actually hold the role, so nobody is
-                * offered for work they do not do. The same rule the booking
-                * page's own team control follows.
-                */}
-              {rolesNeeded.length > 0 && (
-                <div className="q-stack q-stack-sm">
-                  <span className="q-eyebrow">Who is on it</span>
-                  {rolesNeeded.map((role) => {
-                    const eligible = employees.filter((e) => e.roleIds.includes(role.id));
-                    return (
-                      <div key={role.id} className="q-line q-row q-row-between">
-                        <span className="q-strong">{role.name}</span>
-                        {eligible.length === 0 ? (
-                          <span className="q-meta-sm q-absent">
-                            Nobody holds this role yet
-                          </span>
-                        ) : (
-                          <select
-                            className="q-select q-input-sm"
-                            style={{ maxWidth: '220px' }}
-                            value={staffing[role.id] || ''}
-                            onChange={(e) => setStaffing((prev) => ({ ...prev, [role.id]: e.target.value }))}
-                          >
-                            <option value="">Not decided yet</option>
-                            {eligible.map((e) => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
               <div className="q-row" style={{ gap: '8px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div className="q-field" style={{ flex: 1, minWidth: '200px' }}>
