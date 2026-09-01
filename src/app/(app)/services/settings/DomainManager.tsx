@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 
 function useAction() {
   const [isPending, startTransition] = useTransition();
@@ -40,8 +41,29 @@ export function DomainManager({
                 <span className="q-meta-sm">{counts[d.id] || 0} services</span>
               </div>
               <div className="q-row">
-                <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
-                  onClick={() => run(() => onDelete(d.id))}>Remove</button>
+                {/*
+                  * The most consequential button on the settings page, and it
+                  * used to fire on the first click.
+                  *
+                  * A domain is what every service in it is defined in relation
+                  * to, and what its classifications and output types belong to
+                  * — so this is never a small removal. The armed label says how
+                  * many services are standing on it, because the count beside
+                  * the name is read as description and not as a warning.
+                  */}
+                <ConfirmButton
+                  className="q-btn q-btn-secondary q-btn-xs"
+                  disabled={isPending}
+                  confirmLabel={
+                    counts[d.id]
+                      ? `Remove ${d.name} and its ${counts[d.id]} service${counts[d.id] === 1 ? '' : 's'}?`
+                      : `Remove ${d.name}?`
+                  }
+                  title={`Remove the ${d.name} domain`}
+                  onConfirm={() => run(() => onDelete(d.id))}
+                >
+                  Remove
+                </ConfirmButton>
               </div>
             </div>
           ))}

@@ -202,10 +202,33 @@ export function DimensionManager({
               <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
                 {d.values.filter((v) => !v.parentId).map((parent) => (
                   <React.Fragment key={parent.id}>
+                    {/*
+                      * ARMED, BECAUSE THIS TAKES A WORD OUT OF THE STUDIO'S
+                      * VOCABULARY.
+                      *
+                      * These four crosses were the last one-click destructions
+                      * in the app. Not survivors of the sweep that replaced
+                      * window.confirm — they never had a confirm to replace.
+                      * A stray click on a 12px glyph, sitting inside the chip
+                      * so the whole chip reads as one target, removed a value
+                      * that services are classified by and that the packages
+                      * built on them narrow to.
+                      *
+                      * The armed label names what goes, because "Sure?" on a
+                      * row of identical crosses does not say which one is
+                      * armed.
+                      */}
                     <span className="q-badge q-badge-neutral">
                       {parent.name}
-                      <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }} title={`Remove ${parent.name}`}
-                        onClick={() => run(() => removeDimensionValue(parent.id))}>&times;</button>
+                      <ConfirmButton
+                        className="q-btn-ghost"
+                        confirmLabel={`Remove ${parent.name}?`}
+                        title={`Remove ${parent.name} from ${d.name}`}
+                        disabled={isPending}
+                        onConfirm={() => run(() => removeDimensionValue(parent.id))}
+                      >
+                        &times;
+                      </ConfirmButton>
                     </span>
                     {d.values.filter((v) => v.parentId === parent.id).map((child) => (
                       <span key={child.id} className="q-badge q-badge-neutral" style={{ opacity: 0.8 }}
@@ -214,8 +237,15 @@ export function DimensionManager({
                         <button className="q-btn-ghost" style={{ padding: '0 0 0 6px' }}
                           title={`Take ${child.name} back out of ${parent.name}`}
                           onClick={() => run(() => setValueParent({ valueId: child.id, parentId: null }))}>&uarr;</button>
-                        <button className="q-btn-ghost" style={{ padding: '0 0 0 4px' }} title={`Remove ${child.name}`}
-                          onClick={() => run(() => removeDimensionValue(child.id))}>&times;</button>
+                        <ConfirmButton
+                          className="q-btn-ghost"
+                          confirmLabel={`Remove ${child.name}?`}
+                          title={`Remove ${child.name} from ${d.name}`}
+                          disabled={isPending}
+                          onConfirm={() => run(() => removeDimensionValue(child.id))}
+                        >
+                          &times;
+                        </ConfirmButton>
                       </span>
                     ))}
                   </React.Fragment>
@@ -303,11 +333,15 @@ export function DimensionManager({
                     <span className="q-meta-plain">{v.label}</span>
                     <span className="q-row q-row-sm">
                       <span className="q-meta-sm">{variableKindLabel(v.kind)}</span>
-                      <button className="q-btn-ghost q-btn-xs" disabled={isPending}
-                        title={`Remove ${v.label}`}
-                        onClick={() => run(() => removeDimensionVariable(v.id), () => loadVars(dims))}>
+                      <ConfirmButton
+                        className="q-btn-ghost q-btn-xs"
+                        disabled={isPending}
+                        confirmLabel={`Remove ${v.label}?`}
+                        title={`Stop asking for ${v.label} whenever ${d.name} is answered`}
+                        onConfirm={() => run(() => removeDimensionVariable(v.id), () => loadVars(dims))}
+                      >
                         &times;
-                      </button>
+                      </ConfirmButton>
                     </span>
                   </div>
                 ))}
