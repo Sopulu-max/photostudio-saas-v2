@@ -113,6 +113,9 @@ export function BookingForm({
   useEffect(() => {
     const date = scheduledFor.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setDayHours(null); return; }
+    // Cleared before asking: the previous day's hours must not stand under a
+    // new date while the answer for it is still in flight.
+    setDayHours(null);
     let live = true;
     studioDayPublic(orgId, date)
       .then((h) => { if (live) setDayHours(h as any); })

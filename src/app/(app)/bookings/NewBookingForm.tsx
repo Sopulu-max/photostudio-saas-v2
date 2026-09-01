@@ -207,6 +207,16 @@ export function NewBookingForm({
   React.useEffect(() => {
     const date = when.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setDayHours(null); setAlsoOn([]); return; }
+    /*
+     * Cleared before asking, not only when the date is unreadable.
+     *
+     * Without this the previous day's answer stayed on screen while the new one
+     * was in flight, so a Wednesday could be told the studio opens at 13:00 —
+     * which is true of Sunday and false of Wednesday. A stale true sentence
+     * about the wrong day is worse than no sentence, because there is nothing
+     * about it that looks wrong.
+     */
+    setDayHours(null); setAlsoOn([]);
     let live = true;
     Promise.all([studioDay(date), whatElseIsOn(date)])
       .then(([h, others]) => { if (!live) return; setDayHours(h as any); setAlsoOn(others as any); })
