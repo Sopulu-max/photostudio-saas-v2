@@ -429,16 +429,50 @@ export function NewBookingForm({
    */
   const tasksFromPackages = React.useMemo(() => lines.flatMap((line, i) => {
     const deep = line.selectedPackageDeep;
-    if (!deep) return [] as { key: string; name: string; role: string | null; pkg: string }[];
+    if (!deep) return [] as {
+      key: string; name: string; role: string | null;
+      service: string; pkg: string; position: number;
+    }[];
     const pkgName = (deep.name as string) || line.customName || `Package ${i + 1}`;
     return ((deep.services || []) as any[]).flatMap((svc: any) =>
       ((svc.tasks || []) as any[])
-        .filter((t) => t.is_active !== false)
+        /*
+         * THE FIELDS THIS OBJECT ACTUALLY HAS.
+         *
+         * This read t.role?.name and t.is_active. getPackage returns roleName
+         * and isActive, so both were undefined — and neither failed loudly.
+         *
+         * The role came out null on every step, so the list said "No role" five
+         * times and the band said "0 of them with a role", about a studio whose
+         * every workflow step names one: Photographer, Videographer, Editor.
+         * The data was three characters away the whole time.
+         *
+         * And `undefined !== false` is true, so the filter that exists to drop
+         * a step switched off on a package dropped nothing. Latent only because
+         * this studio has switched none off; the first one it does would have
+         * been created anyway.
+         *
+         * The same shape as the package editor storing `amount` while
+         * everything downstream read `base_price` — code that agrees with
+         * itself and is wrong.
+         */
+        .filter((t) => t.isActive !== false)
         .map((t) => ({
           key: `${line.id}:${svc.id}:${t.id}`,
           name: t.name as string,
-          role: (t.role?.name ?? null) as string | null,
+          role: (t.roleName ?? null) as string | null,
+          /*
+           * The SERVICE, which is what a step belongs to.
+           *
+           * A workflow hangs off a service; a package merely bundles services.
+           * Labelling a step with its package labels it with the ancestor that
+           * cannot tell two of them apart — "Shoot · Standard Event Coverage"
+           * twice, where one is the photographer and one is the videographer,
+           * different people doing different work with different equipment.
+           */
+          service: (svc.name as string) || 'Service',
           pkg: pkgName,
+          position: Number(t.position ?? 0),
         })));
   }), [lines]);
 
@@ -1722,18 +1756,71 @@ export function NewBookingForm({
            * tells you whether removing it is yours to do. It just no longer
            * decides the layout.
            */
-          const work = [
-            ...tasksFromPackages.map((t) => ({
-              key: t.key, name: t.name, role: t.role, from: t.pkg, removeAt: null as number | null,
-            })),
-            ...extraTasks.map((t, i) => ({
-              key: `extra-${t.name}-${i}`,
-              name: t.name,
-              role: roleChoices.find((r) => r.id === t.roleId)?.name ?? null,
-              from: 'Added to this booking',
-              removeAt: i,
-            })),
-          ];
+          /*
+           * GROUPED BY WHAT PRODUCES IT, IN THE ORDER IT HAPPENS.
+           *
+           * A workflow belongs to a SERVICE and it is a sequence: shoot, then
+           * colour-grade, then edit. Flattened into one list labelled with the
+           * package, a booking of Event Photography and Event Videography read
+           *
+           *     Shoot · Standard Event Coverage · No role
+           *     Colorgrade · Standard Event Coverage · No role
+           *     Edit · Standard Event Coverage · No role
+           *     Shoot · Standard Event Coverage · No role
+           *     Edit · Standard Event Coverage · No role
+           *
+           * — two Shoots that look like a duplicated row, three Edits between
+           * them, and the only word on every line the one word identical across
+           * all five. Every fact that distinguished them was thrown away: which
+           * service, which role, and where one sequence ends and the next
+           * begins.
+           *
+           * Whose it is stays on the heading, not repeated down every row. Two
+           * lines of the same package are told apart by the package name only
+           * where that is actually ambiguous.
+           */
+          const bySource = new Map<string, {
+            heading: string; note: string | null;
+            items: { key: string; name: string; role: string | null; removeAt: number | null }[];
+          }>();
+
+          const duplicated = new Set(
+            tasksFromPackages
+              .map((t) => `${t.pkg}::${t.service}`)
+              .filter((k, i, all) => all.indexOf(k) !== i)
+              .map((k) => k.split('::')[1]),
+          );
+          const servicesOnMoreThanOnePackage = new Set(
+            [...new Set(tasksFromPackages.map((t) => `${t.service}::${t.pkg}`))]
+              .map((k) => k.split('::')[0])
+              .filter((svc, i, all) => all.indexOf(svc) !== i),
+          );
+
+          for (const t of [...tasksFromPackages].sort(
+            (a, b) => a.service.localeCompare(b.service) || a.position - b.position)) {
+            const needsPackage = servicesOnMoreThanOnePackage.has(t.service) || duplicated.has(t.service);
+            const key = needsPackage ? `${t.service}::${t.pkg}` : t.service;
+            if (!bySource.has(key)) {
+              bySource.set(key, { heading: t.service, note: needsPackage ? t.pkg : null, items: [] });
+            }
+            bySource.get(key)!.items.push({ key: t.key, name: t.name, role: t.role, removeAt: null });
+          }
+
+          if (extraTasks.length > 0) {
+            bySource.set('__own', {
+              heading: 'Added to this booking',
+              note: null,
+              items: extraTasks.map((t, i) => ({
+                key: `extra-${t.name}-${i}`,
+                name: t.name,
+                role: roleChoices.find((r) => r.id === t.roleId)?.name ?? null,
+                removeAt: i,
+              })),
+            });
+          }
+
+          const groups = [...bySource.values()];
+          const work = groups.flatMap((g) => g.items);
 
           return (
             <div className="q-stack q-stack-md">
@@ -1748,29 +1835,42 @@ export function NewBookingForm({
                     {work.length} {work.length === 1 ? 'step' : 'steps'} will be created with this
                     booking. Roles and who does them can be changed on the booking afterwards.
                   </p>
-                  <div className="q-stack" style={{ gap: '4px' }}>
-                    {work.map((t) => (
-                      <div key={t.key} className="q-line q-row q-row-between">
-                        <span>
-                          <span className="q-strong">{t.name}</span>
-                          <span className="q-meta-sm q-block">{t.from}</span>
+                  <div className="q-stack q-stack-md">
+                    {groups.map((g) => (
+                      <div key={g.heading + (g.note ?? '')} className="q-stack" style={{ gap: '4px' }}>
+                        <span className="q-eyebrow">
+                          {g.heading}{g.note ? ` · ${g.note}` : ''}
                         </span>
-                        <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-                          <span className="q-meta-sm">{t.role || 'No role'}</span>
-                          {/* Only the studio's own comes off here. A package's
-                              step is switched off on the package, where what it
-                              belongs to is visible. */}
-                          {t.removeAt !== null && (
-                            <button
-                              type="button"
-                              className="q-btn-ghost q-btn-xs"
-                              onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== t.removeAt))}
-                              title={`Remove ${t.name}`}
-                            >
-                              &times;
-                            </button>
-                          )}
-                        </span>
+                        {g.items.map((t, n) => (
+                          <div key={t.key} className="q-line q-row q-row-between">
+                            <span className="q-row" style={{ gap: '10px', alignItems: 'baseline' }}>
+                              {/* Its place in the sequence. A workflow is an
+                                  order, and the order is most of what it says. */}
+                              {t.removeAt === null && (
+                                <span className="q-meta-sm q-num">{n + 1}</span>
+                              )}
+                              <span className="q-strong">{t.name}</span>
+                            </span>
+                            <span className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                              <span className={t.role ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
+                                {t.role || 'No role'}
+                              </span>
+                              {/* Only the studio's own comes off here. A
+                                  package's step is switched off on the package,
+                                  where what it belongs to is visible. */}
+                              {t.removeAt !== null && (
+                                <button
+                                  type="button"
+                                  className="q-btn-ghost q-btn-xs"
+                                  onClick={() => setExtraTasks(extraTasks.filter((_, x) => x !== t.removeAt))}
+                                  title={`Remove ${t.name}`}
+                                >
+                                  &times;
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
@@ -1839,8 +1939,25 @@ export function NewBookingForm({
         <div className="q-card-foot">
           {(() => {
             const total = tasksFromPackages.length + extraTasks.length;
-            const withRole = tasksFromPackages.filter((t) => t.role).length
-              + extraTasks.filter((t) => t.roleId).length;
+            /*
+             * WHO THIS JOB NEEDS.
+             *
+             * The aside used to count how many steps had a role, which was only
+             * ever interesting because the role was being read from the wrong
+             * field and the answer was always none. With the roles actually
+             * arriving it would say "5 of them with a role" — true, and of no
+             * use to anybody.
+             *
+             * What an operator wants at the moment of booking is whether the
+             * studio can staff it: a photographer, a videographer and an
+             * editor, on that date. Distinct roles, named.
+             */
+            const needs = [...new Set([
+              ...tasksFromPackages.map((t) => t.role),
+              ...extraTasks.map((t) => roleChoices.find((r) => r.id === t.roleId)?.name ?? null),
+            ].filter(Boolean) as string[])].sort();
+            const unassigned = total - (tasksFromPackages.filter((t) => t.role).length
+              + extraTasks.filter((t) => t.roleId).length);
             return (
               <>
                 <span className={total > 0 ? 'q-figure' : 'q-figure q-absent'}>
@@ -1849,7 +1966,12 @@ export function NewBookingForm({
                     : 'No work defined yet'}
                 </span>
                 {total > 0 && (
-                  <span className="q-meta-sm">{withRole} of them with a role</span>
+                  <span className="q-meta-sm">
+                    {needs.length > 0 ? `Needs ${needs.join(', ')}` : 'No roles named'}
+                    {needs.length > 0 && unassigned > 0
+                      ? `, and ${unassigned} ${unassigned === 1 ? 'step names none' : 'steps name none'}`
+                      : ''}
+                  </span>
                 )}
               </>
             );
