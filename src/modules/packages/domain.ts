@@ -1451,10 +1451,29 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
 
   const dimensionVariables = dimensionIds.size === 0 ? [] : (await supabaseAdmin
     .from('service_variables')
-    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
     .order('position')).data || [];
+
+  /*
+   * WHO DECIDED, ACROSS THE WHOLE BUNDLE.
+   *
+   * A variable belonging to a CLASSIFICATION is not any one service's, but the
+   * row recording who answers it still hangs off a package_services row,
+   * because a package cannot tag itself — see the note on bundleRows. Which row
+   * it landed on is an accident of how the package was built.
+   *
+   * Read per-service, the first row iterated won and a decision recorded on any
+   * other was invisible: a studio saying "the client answers the location
+   * address" could find it silently unasked.
+   */
+  const decidedAnywhere = new Map<string, string>();
+  for (const row of ((rows || []) as any[])) {
+    for (const f of ((row.package_variable_values || []) as any[])) {
+      if (f.answered_by) decidedAnywhere.set(f.service_variable_id, f.answered_by as string);
+    }
+  }
 
   const all: any[] = [];
   for (const row of ((rows || []) as any[])) {
@@ -1485,26 +1504,43 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       });
     }
 
-    // The classification's own, decided by the same rows and the same rule.
-    for (const v of (dimensionVariables as any[])) {
-      if (all.some((x) => x.id === v.id)) continue;
-      all.push({
-        id: v.id,
-        serviceId: service.id,
-        serviceName: service.name,
-        key: v.key,
-        label: v.label,
-        kind: v.kind,
-        unit: v.unit ?? null,
-        options: Array.isArray(v.options) ? v.options : [],
-        defaultValue: v.default_value ?? null,
-        min: v.min_value ?? null,
-        max: v.max_value ?? null,
-        position: 1000 + (v.position ?? 0),
-        fixed: decided.get(v.id) === 'studio',
-        asked: decided.get(v.id) === 'client',
-      });
-    }
+  }
+
+  /*
+   * THE CLASSIFICATION'S OWN, ATTRIBUTED TO THE CLASSIFICATION.
+   *
+   * These were pushed inside the per-service loop above and stamped with
+   * whichever service the loop happened to be on — first one wins, by way of a
+   * skip-if-seen guard. So a package bundling Event Photography and Event
+   * Videography told the operator that "Location Address" came from Event
+   * Photography, when it comes from Context: it is asked because of how the
+   * work is CLASSIFIED, not because of which service performs it. That is the
+   * whole point of a variable belonging to a dimension, and the label said the
+   * opposite of it.
+   *
+   * Out of the loop entirely now, since they were never a service's, and
+   * carrying the dimension that does own them.
+   */
+  for (const v of (dimensionVariables as any[])) {
+    if (all.some((x) => x.id === v.id)) continue;
+    all.push({
+      id: v.id,
+      serviceId: null,
+      serviceName: null,
+      dimensionId: v.dimension_id ?? v.dimension?.id ?? null,
+      dimensionName: v.dimension?.name ?? null,
+      key: v.key,
+      label: v.label,
+      kind: v.kind,
+      unit: v.unit ?? null,
+      options: Array.isArray(v.options) ? v.options : [],
+      defaultValue: v.default_value ?? null,
+      min: v.min_value ?? null,
+      max: v.max_value ?? null,
+      position: 1000 + (v.position ?? 0),
+      fixed: decidedAnywhere.get(v.id) === 'studio',
+      asked: decidedAnywhere.get(v.id) === 'client',
+    });
   }
   return all.sort((a, b) => a.position - b.position);
 }

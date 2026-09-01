@@ -1257,11 +1257,29 @@ export function NewBookingForm({
                                 <label className="q-label">
                                   {v.label}
                                   {v.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({v.unit}s)</span>}
-                                  {/* Separated in the text, not only in the
-                                      spacing: read aloud, "Location Address"
-                                      and "Event Photography" ran together into
-                                      one word. */}
-                                  <span className="q-meta-sm" style={{ marginLeft: '8px' }}>&middot; {v.serviceName}</span>
+                                  {/*
+                                    * WHERE THE QUESTION COMES FROM, TRUTHFULLY.
+                                    *
+                                    * A variable can belong to a service or to a
+                                    * CLASSIFICATION. This printed serviceName
+                                    * either way, and the domain was stamping a
+                                    * classification's variable with whichever
+                                    * service came first in the bundle — so
+                                    * "Location Address" claimed to come from
+                                    * Event Photography when it comes from
+                                    * Context. It is asked because of how the
+                                    * work is classified, not because of who
+                                    * performs it.
+                                    *
+                                    * Separated in the text as well as the
+                                    * spacing: read aloud, the two ran together
+                                    * into one word.
+                                    */}
+                                  {(v.dimensionName || v.serviceName) && (
+                                    <span className="q-meta-sm" style={{ marginLeft: '8px' }}>
+                                      &middot; {v.dimensionName || v.serviceName}
+                                    </span>
+                                  )}
                                 </label>
                                 <VariableField
                                   kind={v.kind}

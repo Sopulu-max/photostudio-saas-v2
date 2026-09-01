@@ -428,7 +428,13 @@ export function BookingForm({
                           
                           const byService = new Map<string, any[]>();
                           for (const v of openVariables) {
-                            const svcName = v.serviceName || 'Details';
+                            /* Grouped by what the question actually belongs
+                               to. A classification's variable has no service —
+                               it is asked because of how the work is
+                               classified — and grouping it under one of the
+                               services would tell the client it came from
+                               there. */
+                            const svcName = v.dimensionName || v.serviceName || 'Details';
                             const list = byService.get(svcName) || [];
                             list.push(v);
                             byService.set(svcName, list);
