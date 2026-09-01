@@ -1292,6 +1292,65 @@ export function NewBookingForm({
                                   emptyLabel="Not said yet"
                                   width="100%"
                                 />
+                                {/*
+                                  * A DATE THE STUDIO KNOWS AND THE CALENDAR
+                                  * DOES NOT.
+                                  *
+                                  * The calendar reads bookings.scheduled_for
+                                  * and nothing else; an answer like the date of
+                                  * the occasion lands in
+                                  * booking_line_variable_values, which
+                                  * listBookingsInRange never touches. So a
+                                  * studio could take the date of the wedding
+                                  * from the client and have the booking appear
+                                  * on no calendar at all, with nothing saying
+                                  * so.
+                                  *
+                                  * NOT FILLED IN AUTOMATICALLY, because these
+                                  * are two different facts: scheduled_for is
+                                  * when the STUDIO works, and this is when the
+                                  * EVENT is. Usually the same for event
+                                  * coverage and not always — a pre-wedding
+                                  * shoot is before, an album after — and a
+                                  * calendar that invents commitments nobody
+                                  * made is worse than one with gaps.
+                                  *
+                                  * So it is offered, and it is offered here,
+                                  * beside the answer that was just given rather
+                                  * than in the section above that the operator
+                                  * has already scrolled past.
+                                  */}
+                                {v.kind === 'date' && (line.variableAnswers[v.id] ?? '') !== '' && (() => {
+                                  const said = String(line.variableAnswers[v.id]).slice(0, 10);
+                                  const scheduled = when ? when.slice(0, 10) : '';
+                                  const reads = (d: string) => new Date(`${d}T00:00`).toLocaleDateString(undefined,
+                                    { day: 'numeric', month: 'long', year: 'numeric' });
+                                  if (!scheduled) {
+                                    return (
+                                      <span className="q-row q-row-sm q-appear" style={{ alignItems: 'center' }}>
+                                        <span className="q-meta-sm">This booking is not scheduled.</span>
+                                        <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                                          onClick={() => setWhen(`${said}T09:00`)}>
+                                          Schedule it for {reads(said)}
+                                        </button>
+                                      </span>
+                                    );
+                                  }
+                                  if (scheduled !== said) {
+                                    return (
+                                      <span className="q-row q-row-sm q-appear" style={{ alignItems: 'center' }}>
+                                        <span className="q-meta-sm q-text-danger">
+                                          This booking is scheduled for {reads(scheduled)}.
+                                        </span>
+                                        <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                                          onClick={() => setWhen(`${said}T${when.slice(11) || '09:00'}`)}>
+                                          Move it to {reads(said)}
+                                        </button>
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             ))}
                           </>
