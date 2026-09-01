@@ -903,12 +903,31 @@ export function NewBookingForm({
                               const domains = [...new Set(((p.services || []) as any[])
                                 .map((sv: any) => sv.domain?.name || sv.domainName).filter(Boolean))];
                               const priced = hasPrice(p.price);
+                              /*
+                               * How many of this one are already on the booking.
+                               *
+                               * Adding the same package twice is legitimate — two
+                               * portrait sessions, two shoots on a wedding — so
+                               * the click adds rather than toggles. But it was
+                               * adding SILENTLY: the card looked identical after,
+                               * and the line it created landed below the fold. A
+                               * click that appears not to have worked invites
+                               * another, so three of a package was the natural
+                               * result of doubting the first one.
+                               *
+                               * The answer is not to forbid the second. It is to
+                               * make the first visible where the click happens.
+                               */
+                              const onBooking = lines.filter((l) => l.packageId === p.id).length;
                               return (
                                 <button
                                   key={p.id}
                                   type="button"
-                                  className="q-card q-card-interactive q-stack"
+                                  className={`q-card q-card-interactive q-stack${onBooking > 0 ? ' q-card-chosen' : ''}`}
                                   style={{ textAlign: 'left', cursor: 'pointer' }}
+                                  aria-label={onBooking > 0
+                                    ? `${p.name} — ${onBooking} already on this booking. Add another.`
+                                    : `Add ${p.name} to this booking`}
                                   onClick={() => addPackage(p.id)}
                                   title={p.description || p.name}
                                 >
@@ -951,6 +970,16 @@ export function NewBookingForm({
                                         ? formatMoney(Number((p.price as any).amount), String((p.price as any).currency || currencyCode))
                                         : 'No price set'}
                                     </span>
+                                    {/* Said at the point of the click, which is
+                                        where the answer to "did that land?" has
+                                        to be. The flash on the new line below
+                                        says where it went; this says that it
+                                        went. */}
+                                    {onBooking > 0 && (
+                                      <span className="q-badge q-badge-success">
+                                        {onBooking === 1 ? 'On this booking' : `${onBooking} on this booking`}
+                                      </span>
+                                    )}
                                   </div>
                                 </button>
                               );

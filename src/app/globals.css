@@ -2546,6 +2546,18 @@ body {
    container's own box-shadow scrolls away with its content — the shade has to
    belong to the opening, not to what is moving through it.
    ========================================================================== */
+/*
+ * A CATALOGUE CARD THAT IS ALREADY ON THE BOOKING.
+ *
+ * Not disabled and not a toggle — clicking it again adds a second, which is a
+ * real thing to want. It simply stops being indistinguishable from the ones
+ * that are not on the booking, so a click that landed is visible without
+ * looking anywhere else.
+ */
+.q-card-chosen {
+  border-color: color-mix(in srgb, var(--q-color-success) 45%, var(--q-color-ink-100));
+}
+
 .q-rail-frame {
   position: relative;
   /* The bleed moves here: the frame is what meets the section's edges now, and
