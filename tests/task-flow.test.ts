@@ -42,6 +42,7 @@ import {
   getBookingTasks, setTaskRole, addBookingTask, removeBookingTask, assignToTask,
 } from '@/modules/production/domain';
 import { PURGE_ORDER } from './purge';
+import { seedStudio, seedRow } from './seed';
 
 let serviceId = '';
 let packageId = '';
@@ -54,17 +55,7 @@ const DOMAIN = 'Photography';
 
 describe('Tasks flow from a package onto a booking', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Task Flow Studio', status: 'active',
-    });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Task Flow Owner',
-    });
-    const { error: stageError } = await supabaseAdmin.from('booking_stages').insert([
-      { organization_id: TEST_ORG_ID, name: 'Enquiry', kind: 'enquiry', position: 0, is_default: true },
-      { organization_id: TEST_ORG_ID, name: 'Booked', kind: 'booked', position: 1, is_default: false },
-    ]);
-    if (stageError) throw new Error(`Could not seed booking stages: ${stageError.message}`);
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Task Flow Studio' });
 
     const created = await createService({
       name: 'Portrait Session', serviceDomain: DOMAIN, primaryDeliverable: 'Edited image',
@@ -72,13 +63,10 @@ describe('Tasks flow from a package onto a booking', () => {
     serviceId = created.serviceId;
 
     // Someone who can actually do the work, and holds the role.
-    const { data: contact } = await supabaseAdmin.from('contacts')
-      .insert({ organization_id: TEST_ORG_ID, display_name: 'Ada Shoots' }).select('id').single();
-    employeeContactId = contact!.id;
-    const { data: employee } = await supabaseAdmin.from('employees')
-      .insert({ organization_id: TEST_ORG_ID, contact_id: employeeContactId, status: 'active' })
-      .select('id').single();
-    employeeId = employee!.id;
+    employeeContactId = (await seedRow('contacts',
+      { organization_id: TEST_ORG_ID, display_name: 'Ada Shoots' }, 'the contact behind the employee')).id;
+    employeeId = (await seedRow('employees',
+      { organization_id: TEST_ORG_ID, contact_id: employeeContactId, status: 'active' }, 'the employee')).id;
   });
 
   afterAll(async () => {
