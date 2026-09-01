@@ -769,7 +769,23 @@ export function NewBookingForm({
           const chosen = Object.values(line.chosenClassifications).filter(Boolean) as string[];
           if (chosen.length > 0) {
             try {
-              await answerPackageClassifications({ packageId: instanceId, valueIds: chosen });
+              /*
+               * CHECKED, NOT JUST CAUGHT.
+               *
+               * This was a bare try/catch, and the call it wraps did not throw
+               * when it failed — it returned { ok: true } having written
+               * nothing, because a classification hangs off a package's bundle
+               * rows and a package that bundles nothing has none. So an
+               * operator picked Wedding, was told "The booking is saved", and
+               * the booking was not for a wedding. The channel to report it
+               * already existed; nothing ever reached it.
+               */
+              const said = await answerPackageClassifications({ packageId: instanceId, valueIds: chosen });
+              if (said && said.ok === false) {
+                classificationProblems.push(
+                  `${payload.name || 'a package'} (${said.reason || 'it could not be recorded'})`,
+                );
+              }
             } catch (e) {
               // Reported with everything else that could not be raised, once
               // the booking itself has landed.
@@ -842,7 +858,7 @@ export function NewBookingForm({
          */
         const failed: string[] = [];
         if (classificationProblems.length > 0) {
-          failed.push(`the classification on ${classificationProblems.join(' and ')}`);
+          failed.push(`what ${classificationProblems.join(' and ')} is for`);
         }
         // Kept apart from failures: a thing not attempted because the booking
         // is not ready for it is not the same as a thing that broke, and an

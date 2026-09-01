@@ -1340,7 +1340,29 @@ export async function answerPackageClassifications(input: {
   valueIds: string[];
 }) {
   const orgId = input.organizationId ?? (await getAuthOrgId()).orgId;
-  if (input.valueIds.length === 0) return { ok: true };
+  /*
+   * IT USED TO SAY OK WHEN IT HAD DONE NOTHING.
+   *
+   * Three early returns, all shaped `return { ok: true }`, and only the first
+   * of them was honest. Nobody asking for anything is a success. Being asked to
+   * record a classification and having nowhere to put it is not, and saying so
+   * anyway is how a booking came to be saved, reported saved, and not be for a
+   * wedding.
+   *
+   * The form has a whole channel for this — classificationProblems, gathered
+   * and raised once the booking has landed — and it was fed by a catch. Nothing
+   * threw. The operator picked Wedding, was told "The booking is saved", and
+   * the classification existed nowhere.
+   *
+   * Throwing is not the fix either: the storefront calls this before it creates
+   * the booking and does not catch, so a client choosing an occasion for a
+   * package that bundles nothing would lose the entire booking over an
+   * annotation. Losing a classification is bad; losing the job is worse.
+   *
+   * So it answers truthfully and each caller decides. `recorded` is how many
+   * narrowings were actually written, and `reason` says what stopped it.
+   */
+  if (input.valueIds.length === 0) return { ok: true, recorded: 0 };
 
   const { data: chosen } = await supabaseAdmin
     .from('dimension_values')
@@ -1348,11 +1370,23 @@ export async function answerPackageClassifications(input: {
     .eq('organization_id', orgId)
     .in('id', input.valueIds);
   const answered = (chosen || []) as any[];
-  if (answered.length === 0) return { ok: true };
+  // Asked for values this studio does not have. Never expected, so it is worth
+  // hearing about rather than absorbing.
+  if (answered.length === 0) {
+    return { ok: false, recorded: 0, reason: 'those classification values are not this studio’s' };
+  }
   const answeredDimensions = new Set(answered.map((v) => v.dimension_id));
 
+  /*
+   * A classification narrows a SERVICE, and what a package owns is its join to
+   * the services it bundles — so a package bundling nothing has no row to carry
+   * one. Reachable two ways: a package built from nothing on the booking
+   * itself, and a catalogue package a studio never got round to filling in.
+   */
   const rows = await bundleRows(orgId, input.packageId);
-  if (rows.length === 0) return { ok: true };
+  if (rows.length === 0) {
+    return { ok: false, recorded: 0, reason: 'it does not bundle any services yet' };
+  }
 
   // What the instance currently carries, so the untouched dimensions survive.
   const { data: existing } = await supabaseAdmin
@@ -1387,7 +1421,7 @@ export async function answerPackageClassifications(input: {
     console.error('Failed to record which classification was chosen:', error);
     throw new Error('Could not record what this booking is for');
   }
-  return { ok: true };
+  return { ok: true, recorded: settled.length };
 }
 
 export async function getOpenVariablesForPackagePublic(orgId: string, packageId: string) {
