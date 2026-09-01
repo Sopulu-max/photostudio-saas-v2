@@ -91,6 +91,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   initial,
   onSubmitOverride,
   hideControls,
+  derivedFrom,
 }: {
   mode: 'create' | 'edit';
   packageId?: string;
@@ -145,6 +146,22 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   lockedQuestionIds?: string[];
   onSubmitOverride?: (payload: any) => Promise<void> | void;
   hideControls?: boolean;
+  /*
+   * The catalogue package this one is an instance OF, by name.
+   *
+   * Set when a booking took a package off the shelf; null when the operator is
+   * authoring something bespoke on the spot. It is the difference between
+   * ANSWERING a package and DEFINING one, and 02-ONTOLOGY draws that line
+   * itself: booking facts are "what is true of this one engagement — never used
+   * to define the layers above".
+   *
+   * So when it is set, what the package IS becomes a statement rather than a
+   * set of fields: its picture, its name, what it bundles. What the package
+   * left OPEN stays every bit as editable as before — the asked variables, the
+   * unsettled classifications, the deliverable specifications, the work. That
+   * is the booking's job and the whole of it.
+   */
+  derivedFrom?: string | null;
 }, ref) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -160,6 +177,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * running here, come off.
    */
   const embedded = Boolean(hideControls);
+  /* An instance of a catalogue package, as opposed to something bespoke being
+     written here for the first time. */
+  const derived = Boolean(derivedFrom);
   const heading = (n: number, title: string) => (embedded ? title : `${n}. ${title}`);
 
   /*
@@ -1310,7 +1330,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {/* First, because for a photography studio the picture is half of what
               a package is — and because two packages of one service are told
               apart on a card by almost nothing else. */}
-          {coverUrl !== undefined && (
+          {coverUrl !== undefined && !derived && (
             <div className="q-field">
               <label className="q-label">Cover</label>
               <ImageUpload
@@ -1329,17 +1349,45 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               {mode === 'edit' && <span className="q-meta-sm">Saved as soon as it is chosen.</span>}
             </div>
           )}
-          <div className="q-field">
-            <label className="q-label">Name</label>
-            <input className="q-input" value={effectiveName}
-              onFocus={() => { if (!nameTouched) setName(composed); }}
-              onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
-            <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled below — type here to give it a name of your own.'}</span>
-          </div>
-          <div className="q-field">
-            <label className="q-label">Description</label>
-            <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
-          </div>
+          {derived ? (
+            /*
+             * WHAT THIS IS, STATED. NOT ASKED.
+             *
+             * A booking that can rename its package and rewrite its description
+             * can turn Studio Portrait Photography into something that bundles
+             * videography and promises an album, while still reporting as
+             * Studio Portrait. Then "what did we sell this year" has no answer,
+             * and the lens 10-BLUEPRINT names next — reading booking lines back
+             * against the catalogue's own vocabulary — is reading noise.
+             *
+             * It also made the package's own declaration decorative. A package
+             * exists to fix some things and leave others open; if everything is
+             * editable here anyway, fixing something meant nothing.
+             */
+            <div className="q-field">
+              <span className="q-eyebrow">From your catalogue</span>
+              <p className="q-lead" style={{ margin: '2px 0 0' }}>{effectiveName}</p>
+              {description && <p className="q-meta" style={{ margin: '6px 0 0' }}>{description}</p>}
+              <span className="q-meta-sm" style={{ marginTop: '6px' }}>
+                This booking keeps its own copy, so editing the package later will not
+                change what was agreed here. What it left open is set below.
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="q-field">
+                <label className="q-label">Name</label>
+                <input className="q-input" value={effectiveName}
+                  onFocus={() => { if (!nameTouched) setName(composed); }}
+                  onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
+                <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled below — type here to give it a name of your own.'}</span>
+              </div>
+              <div className="q-field">
+                <label className="q-label">Description</label>
+                <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
+              </div>
+            </>
+          )}
           {/*
             * NOT WHEN EMBEDDED, BECAUSE THEN IT IS NOT THIS FORM'S TO SET.
             *
@@ -1448,13 +1496,18 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                             {!isOpen && <span className="q-meta-sm"> — {summary}</span>}
                           </span>
                         </button>
-                        <button
-                          type="button" className="q-btn-ghost q-btn-xs"
-                          onClick={() => toggleService(s.id)}
-                          title={`Remove ${s.name} from this package`}
-                        >
-                          Remove
-                        </button>
+                        {/* Dropping a service is changing WHAT THE PACKAGE IS,
+                            not answering what it left open, so a booking taking
+                            one off the shelf is not offered it. See derivedFrom. */}
+                        {!derived && (
+                          <button
+                            type="button" className="q-btn-ghost q-btn-xs"
+                            onClick={() => toggleService(s.id)}
+                            title={`Remove ${s.name} from this package`}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
 
                       {/*
@@ -1534,7 +1587,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 * services and every one of them is bundled, so a search box
                 * there searches an empty set.
                 */}
-              {allServices.length > chosen.length && (
+              {/* And neither is adding one. A package that can gain a service
+                  at booking time is a package being defined by a booking, which
+                  is the one direction 02-ONTOLOGY says the layers never run. */}
+              {!derived && allServices.length > chosen.length && (
                 <CatalogFilter
                   items={allServices.filter((s) => !serviceIds.includes(s.id))}
                   noun="service"

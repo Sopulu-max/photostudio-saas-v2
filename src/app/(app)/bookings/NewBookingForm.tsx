@@ -1141,6 +1141,19 @@ export function NewBookingForm({
                         // the way it was looked for.
                         intendedValueIds={Object.values(line.selectedDimensionValues).filter(Boolean)}
                         hideControls={true}
+                        /*
+                          * Which catalogue package this line is an instance of,
+                          * or null when the operator is writing something
+                          * bespoke here for the first time.
+                          *
+                          * It decides whether this form ANSWERS a package or
+                          * DEFINES one. Off the shelf, what the package is — its
+                          * picture, its name, what it bundles — is stated rather
+                          * than asked, and everything it left open stays exactly
+                          * as editable as it was. Bespoke, there is nothing to
+                          * be an instance of, so the whole editor is the point.
+                          */
+                        derivedFrom={line.packageId === 'custom' ? null : (line.selectedPackageDeep?.name ?? null)}
                         initial={line.packageId === 'custom' 
                           ? { variableValues: [], name: line.customName || '' } 
                           : {
