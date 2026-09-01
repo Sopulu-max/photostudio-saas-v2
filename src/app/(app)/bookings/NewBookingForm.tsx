@@ -1209,12 +1209,35 @@ export function NewBookingForm({
                       })()}
 
                       <div className="q-field" style={{ marginTop: '24px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
-                        <label className="q-label">Line Price</label>
-                        <input className="q-input" type="number" value={line.linePrice} onChange={e => {
-                          const newLines = [...lines];
-                          newLines[index].linePrice = e.target.value;
-                          setLines(newLines);
-                        }} placeholder="0.00" />
+                        {/*
+                          * THE ONE PRICE ON THIS LINE, AND IT SAYS SO.
+                          *
+                          * The editor above used to offer a Base Price as well,
+                          * blank, which submitBooking then overwrote with this
+                          * figure — two fields for one number, and the inert one
+                          * was the one an operator looking for the package's
+                          * price reached first. The editor no longer draws it
+                          * when it is embedded.
+                          *
+                          * It arrives holding the catalogue price and can be
+                          * changed for this client, which is the whole reason a
+                          * booking keeps its own instance of a package: what was
+                          * quoted here does not move when the catalogue does.
+                          */}
+                        <label className="q-label">Price for this booking</label>
+                        <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                          <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
+                          <input className="q-input q-num" type="number" value={line.linePrice} onChange={e => {
+                            const newLines = [...lines];
+                            newLines[index].linePrice = e.target.value;
+                            setLines(newLines);
+                          }} placeholder="0.00" step="0.01" style={{ width: '140px' }} />
+                        </div>
+                        <span className="q-meta-sm">
+                          {line.selectedPackageDeep?.price?.base_price != null || line.selectedPackageDeep?.price?.amount != null
+                            ? 'From the package. Change it to quote this client differently.'
+                            : 'This package has no price set, so name one here or leave it unquoted.'}
+                        </span>
                       </div>
                     </>
                   ) : null}

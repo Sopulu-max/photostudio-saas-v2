@@ -1340,13 +1340,31 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             <label className="q-label">Description</label>
             <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
           </div>
-          <div className="q-field">
-            <label className="q-label">Base Price</label>
-            <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-              <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
-              <input type="number" className="q-input q-num" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} placeholder="0.00" step="0.01" style={{ width: '120px' }} />
+          {/*
+            * NOT WHEN EMBEDDED, BECAUSE THEN IT IS NOT THIS FORM'S TO SET.
+            *
+            * Inside the new-booking form this editor builds the booking's own
+            * instance of a package, and the price of that instance is decided
+            * beside it, by the line — submitBooking assigns payload.price from
+            * the line's figure unconditionally, so anything typed here was
+            * overwritten on the way out.
+            *
+            * So there were two price fields on one line, for one price: this
+            * one, blank and inert, and the line's, carrying the catalogue
+            * figure. An operator looking for the package's price found the
+            * blank one first, which is exactly the wrong half of the pair to
+            * find. A field that takes input and discards it is worse than no
+            * field.
+            */}
+          {!embedded && (
+            <div className="q-field">
+              <label className="q-label">Base Price</label>
+              <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
+                <input type="number" className="q-input q-num" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} placeholder="0.00" step="0.01" style={{ width: '120px' }} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
