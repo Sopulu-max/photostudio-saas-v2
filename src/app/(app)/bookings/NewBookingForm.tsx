@@ -677,6 +677,20 @@ export function NewBookingForm({
          */
         if (!submitLines.some((l) => hasPrice(l.linePrice))) {
           skipped.push('an invoice (nothing is priced yet)');
+        } else if (invoicePortion === 'deposit' && depositPct <= 0) {
+          /*
+           * A DEPOSIT OF NOTHING IS NOT A DOCUMENT.
+           *
+           * billingShare(0) is 0, so this billed every line at zero and raised a
+           * real invoice for nothing — lines, number, and all — which then has
+           * to be withdrawn. The form said so beneath the select and submitted
+           * it anyway, which is a warning doing the work of a decision.
+           *
+           * Skipped rather than refused, like the contract that has no client:
+           * the booking is still worth taking, and the invoice can be raised
+           * from it the moment a deposit is set.
+           */
+          skipped.push('an invoice (the deposit is 0%)');
         } else {
           try {
             const pct = invoicePortion === 'deposit' ? Number(deposit) || 0 : null;

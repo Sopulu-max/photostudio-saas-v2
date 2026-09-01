@@ -272,6 +272,20 @@ export async function createInvoiceForBooking(input: {
    * again after withdrawing one.
    */
   const share = billingShare(input.percentage);
+  /*
+   * A SHARE OF NOTHING IS NOT AN INVOICE.
+   *
+   * billingShare(0) is 0, which bills every line at zero and produces a
+   * document with a number, a client and no money on it — one that then has to
+   * be withdrawn. The new-booking form warned about it beneath the select and
+   * submitted it regardless, and a rule enforced only in a browser is not
+   * enforced.
+   *
+   * Null is a different instruction and still means all of it.
+   */
+  if (input.percentage != null && share <= 0) {
+    throw new Error('A deposit of 0% would ask the client for nothing. Set a deposit, or invoice the full amount.');
+  }
   if (!input.allowOverInvoicing) {
     const billing = await getBookingBilling(input.bookingId);
     if (billing.leftToInvoice <= 0 && billing.booked > 0) {
