@@ -1203,21 +1203,41 @@ export function NewBookingForm({
               className={`q-card q-stack q-stack-md q-appear${arrived.has(line.id) ? ' q-flash' : ''}`}
               style={{ position: 'relative' }}
             >
-              {lines.length > 1 && (
-                <button
-                  type="button"
-                  className="q-btn-ghost q-btn-xs"
-                  style={{ position: 'absolute', top: '16px', right: '16px' }}
-                  onClick={() => {
-                    const newLines = [...lines];
-                    newLines.splice(index, 1);
-                    setLines(newLines);
-                    editorRefs.current.splice(index, 1);
-                  }}
-                >
-                  Remove
-                </button>
-              )}
+              {/*
+                * ALWAYS. A package put on can be taken off.
+                *
+                * This was {lines.length > 1 && …}, so a booking with exactly one
+                * package had no way to remove it: chosen was permanent until the
+                * page was abandoned.
+                *
+                * That guard was right in the old model. The form always began
+                * with one line, and the catalogue lived INSIDE an empty one — so
+                * removing the last line took away the only way to browse, and
+                * keeping one was how the page stayed usable.
+                *
+                * The catalogue is section-level now and a booking with no
+                * packages is a legitimate thing to have: a package stopped being
+                * required here a while ago, and is one of four ways a booking
+                * can be worth writing down. So the last one comes off like any
+                * other, and the catalogue above is still there to add another.
+                *
+                * The twin of "Add another package", which came out when the
+                * empty line did. This one was missed.
+                */}
+              <button
+                type="button"
+                className="q-btn-ghost q-btn-xs"
+                style={{ position: 'absolute', top: '16px', right: '16px' }}
+                title={`Take ${line.selectedPackageDeep?.name || 'this package'} off the booking`}
+                onClick={() => {
+                  const newLines = [...lines];
+                  newLines.splice(index, 1);
+                  setLines(newLines);
+                  editorRefs.current.splice(index, 1);
+                }}
+              >
+                Remove
+              </button>
               {/*
                 * ONLY WHEN IT DISTINGUISHES SOMETHING.
                 *
