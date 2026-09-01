@@ -1180,6 +1180,35 @@ export function NewBookingForm({
                         }
                       />
                       {/*
+                        * WHAT THIS BOOKING SAYS ABOUT THIS PACKAGE.
+                        *
+                        * These were under a heading reading "What this package
+                        * asks", inside a q-narrow panel. Both were wrong, and
+                        * the second more so than the first.
+                        *
+                        * q-narrow is this system's NARROWING surface — the
+                        * recessed box a catalogue's filters sit in. Putting the
+                        * questions there said, in the only vocabulary the design
+                        * has for it, "these are controls for narrowing a list".
+                        * They are the opposite: they are what the booking
+                        * commits to. Recessed and captioned as a description of
+                        * the package, the most defining thing on the line read
+                        * as the least important.
+                        *
+                        * And there is nothing to announce. "What this package
+                        * asks" describes the package's behaviour; at booking
+                        * time these are not a description of anything, they are
+                        * the questions being answered. "What occasion is it
+                        * for?" needs no heading to explain that it is a
+                        * question.
+                        *
+                        * So they sit with the price, which is the same kind of
+                        * thing — a fact this booking states about its own copy
+                        * of the package — in one group below the rule, at the
+                        * weight of everything else being decided.
+                        */}
+                      <div className="q-stack q-stack-md" style={{ marginTop: '24px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
+                      {/*
                         * WHAT THIS PACKAGE ASKS, ASKED HERE TOO.
                         *
                         * The storefront put these to the client and this form
@@ -1208,15 +1237,7 @@ export function NewBookingForm({
                           return next;
                         });
                         return (
-                          <div className="q-narrow q-stack q-stack-md" style={{ marginTop: '24px' }}>
-                            <div>
-                              <h4 className="q-section-title" style={{ margin: 0 }}>What this package asks</h4>
-                              <p className="q-meta-sm" style={{ margin: '4px 0 0' }}>
-                                Left open for the client. Answer what they have said; the rest can be
-                                filled in on the booking.
-                              </p>
-                            </div>
-
+                          <>
                             {q.classifications.map((c: any) => (
                               <div className="q-field" key={c.dimensionId}>
                                 <label className="q-label">{c.question || c.name}</label>
@@ -1236,7 +1257,11 @@ export function NewBookingForm({
                                 <label className="q-label">
                                   {v.label}
                                   {v.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({v.unit}s)</span>}
-                                  <span className="q-meta-sm" style={{ marginLeft: '8px' }}>{v.serviceName}</span>
+                                  {/* Separated in the text, not only in the
+                                      spacing: read aloud, "Location Address"
+                                      and "Event Photography" ran together into
+                                      one word. */}
+                                  <span className="q-meta-sm" style={{ marginLeft: '8px' }}>&middot; {v.serviceName}</span>
                                 </label>
                                 <VariableField
                                   kind={v.kind}
@@ -1251,11 +1276,11 @@ export function NewBookingForm({
                                 />
                               </div>
                             ))}
-                          </div>
+                          </>
                         );
                       })()}
 
-                      <div className="q-field" style={{ marginTop: '24px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
+                        <div className="q-field">
                         {/*
                           * THE ONE PRICE ON THIS LINE, AND IT SAYS SO.
                           *
@@ -1285,6 +1310,7 @@ export function NewBookingForm({
                             ? 'From the package. Change it to quote this client differently.'
                             : 'This package has no price set, so name one here or leave it unquoted.'}
                         </span>
+                        </div>
                       </div>
                     </>
                   ) : null}
