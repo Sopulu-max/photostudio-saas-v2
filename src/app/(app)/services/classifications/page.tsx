@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listValueEntries } from '@/modules/services/interface';
-import type { ValueEntry } from '@/modules/services/interface';
+import { ClassificationIndex } from './ClassificationIndex';
 import { Aperture } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -35,16 +35,7 @@ export default async function ClassificationsPage() {
   }
 
   const entries = await listValueEntries();
-
-  // Domain → dimension → values, which is the shape the graph already has.
-  const byDomain = new Map<string, Map<string, ValueEntry[]>>();
-  for (const e of entries) {
-    const domain = e.domainName || 'Unfiled';
-    if (!byDomain.has(domain)) byDomain.set(domain, new Map());
-    const dims = byDomain.get(domain)!;
-    if (!dims.has(e.dimensionName)) dims.set(e.dimensionName, []);
-    dims.get(e.dimensionName)!.push(e);
-  }
+  const unused = entries.filter((e) => e.servicesIncludingNarrower === 0).length;
 
   return (
     <div>
@@ -56,6 +47,18 @@ export default async function ClassificationsPage() {
           <p className="q-page-subtitle">
             The same services and packages, entered from how they are classified rather than from what
             they are. Nothing is stored for this view — every value below is one a service already carries.
+            {/*
+              * The one thing this page knows that no other page does.
+              *
+              * It could already tell which vocabulary nothing carries — it drew
+              * those badges in a different colour — but it never said so, and a
+              * fact worth colouring is a fact worth stating. A word written
+              * down and never used is either work the studio is not describing
+              * or a word it should drop.
+              */}
+            {unused > 0 && (
+              <> {unused} of {entries.length} {unused === 1 ? 'is' : 'are'} not yet carried by any service.</>
+            )}
           </p>
         </div>
       </header>
@@ -71,44 +74,7 @@ export default async function ClassificationsPage() {
           <Link href="/services/settings" className="q-btn q-btn-primary">Configure classifications</Link>
         </div>
       ) : (
-        <div className="q-stack q-stack-lg">
-          {[...byDomain.entries()].map(([domain, dims]) => (
-            <section key={domain}>
-              <h2 className="q-section-title">{domain}</h2>
-              <div className="q-stack q-stack-md" style={{ marginTop: '12px' }}>
-                {[...dims.entries()].map(([dimension, values]) => (
-                  <div key={dimension} className="q-tile q-stack q-stack-sm">
-                    <strong className="q-strong">{dimension}</strong>
-                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                      {values.map((v) => (
-                        <Link
-                          key={v.id}
-                          href={`/services/classifications/${v.id}`}
-                          className={`q-badge ${v.servicesIncludingNarrower > 0 ? 'q-badge-success' : 'q-badge-neutral'}`}
-                          title={
-                            v.servicesIncludingNarrower === 0
-                              ? `No services classified as ${v.name}`
-                              : v.servicesIncludingNarrower === v.services
-                                ? `${v.services} service${v.services === 1 ? '' : 's'} classified as ${v.name}`
-                                : `${v.services} classified as ${v.name}, ${v.servicesIncludingNarrower} including narrower values`
-                          }
-                        >
-                          {/* A value nested inside another is shown as such, so
-                              the list reads as the tree the studio built. */}
-                          {v.parentId && <span style={{ opacity: 0.5, marginRight: '4px' }}>↳</span>}
-                          {v.name}
-                          {v.servicesIncludingNarrower > 0 && (
-                            <span style={{ marginLeft: '6px', opacity: 0.7 }}>{v.servicesIncludingNarrower}</span>
-                          )}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <ClassificationIndex entries={entries} />
       )}
     </div>
   );
