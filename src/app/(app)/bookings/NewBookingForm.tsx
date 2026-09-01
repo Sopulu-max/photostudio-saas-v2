@@ -1780,22 +1780,33 @@ export function NewBookingForm({
                 * position, and a row reading "Tax 0%" is noise on every line of
                 * every booking a studio that charges none will ever take.
                 */}
-              <div className="q-stack q-stack-sm">
-                <div className="q-row q-row-between">
-                  <span className="q-meta">Subtotal</span>
-                  <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
-                </div>
-                {taxRate > 0 && (
+              {/*
+                * ONLY WHERE THERE IS ARITHMETIC TO SHOW.
+                *
+                * This drew Subtotal, Tax and Total. With no tax — which is every
+                * studio that has not set a rate — Subtotal and Total are the
+                * same figure on two rows with nothing between them, and the
+                * band at the foot of the section says it a third time. One
+                * package, no tax: ₦210,000 appeared five times in this section,
+                * counting the two table columns.
+                *
+                * The breakdown earns its place when something happens between
+                * the two numbers. When nothing does, the foot carries the answer
+                * on its own, which is what the foot is for and what the other
+                * sections already do.
+                */}
+              {taxRate > 0 && (
+                <div className="q-stack q-stack-sm">
+                  <div className="q-row q-row-between">
+                    <span className="q-meta">Subtotal</span>
+                    <span className="q-num">{formatAmount(draftInvoice.subtotal)}</span>
+                  </div>
                   <div className="q-row q-row-between">
                     <span className="q-meta">Tax ({taxRate}%)</span>
                     <span className="q-num">{formatAmount(draftInvoice.tax)}</span>
                   </div>
-                )}
-                <div className="q-tile-sub q-row q-row-between">
-                  <span className="q-meta">Total</span>
-                  <strong className="q-stat-value q-num">{formatAmount(draftInvoice.total)}</strong>
                 </div>
-              </div>
+              )}
             </>
           )}
 
