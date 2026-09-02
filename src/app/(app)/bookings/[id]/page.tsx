@@ -24,6 +24,7 @@ import { formatMoney } from '@/kernel/currency';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { GenerateInvoiceButton } from './InvoiceForms';
 import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
+import { ShareBooking } from './ShareBooking';
 
 export const dynamic = 'force-dynamic';
 
@@ -853,6 +854,27 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Contract */}
+        {/*
+          * THE CLIENT'S OWN COPY.
+          *
+          * Last, because it is about the whole booking rather than a part of
+          * it — everything above is what the link would show. Shut by default
+          * with its state on the header, like every other section here, so the
+          * one thing an operator needs at a glance ("is this out there?") is
+          * legible without opening anything.
+          */}
+        <Section
+          title="Share with the client"
+          summary={booking.share_token ? 'Link is live' : 'Not shared'}
+        >
+          <ShareBooking
+            bookingId={booking.id}
+            shareToken={(booking as any).share_token ?? null}
+            sharedAt={(booking as any).shared_at ?? null}
+            hasClient={Boolean(booking.contact?.id)}
+          />
+        </Section>
+
         <Section
           title="Contract"
           summary={latestContract ? String(latestContract.status) : 'None raised'}

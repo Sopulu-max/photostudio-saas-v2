@@ -32,6 +32,9 @@ export {
   // The booking's own record, saved as one — what the edit page commits
   updateBookingRecord,
   deleteBooking,
+  // The client-facing reading of a booking, opened and closed by its studio
+  shareBooking,
+  unshareBooking,
   setBookingSchedule,
   suggestedDurationForBooking,
   extractPackageFromEnquiry,

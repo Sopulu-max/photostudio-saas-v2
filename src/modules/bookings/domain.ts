@@ -10,6 +10,7 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/interface';
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'crypto';
 
 /**
  * Create a booking. A title alone is enough — everything else (client, lines,
@@ -977,6 +978,7 @@ export async function getBooking(bookingId: string) {
     .from('bookings')
     .select(`
       id, title, brief, scheduled_for, duration_minutes, created_at, stage_id,
+      share_token, shared_at,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(
@@ -2043,4 +2045,91 @@ export async function suggestedDurationForBooking(bookingId: string): Promise<nu
   const durations = await Promise.all(packageIds.map(async (id) => (await getPackageForBooking(id))?.duration_minutes ?? null));
   const known = durations.filter((d): d is number => typeof d === 'number' && d > 0);
   return known.length ? Math.max(...known) : null;
+}
+
+/*
+ * ─── A BOOKING A CLIENT CAN READ ──────────────────────────────────────────
+ *
+ * The operator's booking page and the client's are two readings of one row,
+ * not one page behind a flag. The studio's is a management surface — what is
+ * staffed, what is outstanding, what still has to be done. The client's is an
+ * account of their own job.
+ *
+ * The mechanism is the one already used three times over: a nullable
+ * capability token on the row, minted deliberately and destroyed on revoke.
+ * Nothing about a booking is readable until somebody decides it should be.
+ */
+
+/** Mint the link, or hand back the one already minted. */
+export async function shareBooking(input: { bookingId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('id, share_token, contact_id')
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!booking) throw new Error('Booking not found');
+
+  /*
+   * SHARING TWICE HANDS BACK THE SAME LINK.
+   *
+   * Minting a fresh token on every press would silently kill a link the client
+   * may already have, and an operator pressing Share again is asking to send
+   * it, not to revoke it. Revoking is its own act, with its own button.
+   */
+  if (booking.share_token) {
+    return { shareToken: booking.share_token as string, reused: true };
+  }
+
+  const token = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ share_token: token, shared_at: new Date().toISOString() })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to share booking:', error);
+    throw new Error('The link could not be created.');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'shared',
+    actorId: actorId ?? undefined,
+    payload: {},
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { shareToken: token, reused: false };
+}
+
+/** Destroy the link. Anyone holding it gets nothing from then on. */
+export async function unshareBooking(input: { bookingId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ share_token: null, shared_at: null })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to revoke booking link:', error);
+    throw new Error('The link could not be revoked.');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'unshared',
+    actorId: actorId ?? undefined,
+    payload: {},
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
 }
