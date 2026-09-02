@@ -864,8 +864,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * legible without opening anything.
           */}
         <Section
-          title="Share with the client"
-          summary={booking.share_token ? 'Link is live' : 'Not shared'}
+          title="Client confirmation"
+          summary={booking.share_token ? 'Ready to send' : 'Not prepared'}
         >
           <ShareBooking
             bookingId={booking.id}
