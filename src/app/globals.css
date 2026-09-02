@@ -469,6 +469,33 @@ body {
   border-color: var(--q-color-ink-200);
 }
 
+/*
+ * A CARD WHOSE WHOLE FACE OPENS ONE THING, WITH ROOM FOR A CONTROL THAT DOES
+ * ANOTHER.
+ *
+ * The package card was a single <a> wrapping everything, which is the simplest
+ * way to make a whole card clickable and leaves nowhere to put a second act.
+ * An <a> inside an <a> is not valid and does not behave: browsers close the
+ * first one where the second begins, so the markup that comes out is not the
+ * markup that was written.
+ *
+ * The standard answer, and the one here: the card is an ordinary element, one
+ * link inside it grows a transparent layer over the whole face, and anything
+ * that must stay reachable lifts above that layer. The card keeps its single
+ * obvious destination, assistive technology gets one properly named link
+ * rather than a card-sized one reading out every word on it, and a button can
+ * sit in the corner and be a button.
+ */
+.q-card-linked { position: relative; }
+.q-card-linked .q-card-cover-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+/* Above the cover layer, so it is clicked instead of the card. */
+.q-card-act { position: relative; z-index: 1; }
+
 /* ---- Buttons ---- */
 .q-btn {
   display: inline-flex;

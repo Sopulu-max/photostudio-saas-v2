@@ -133,7 +133,7 @@ export function PackagesClient({
     const priced = pkg.price?.amount != null;
 
     return (
-      <Link href={`/packages/${pkg.id}`} className="q-card q-card-interactive q-plain-link q-stack q-rise">
+      <div className="q-card q-card-interactive q-card-linked q-stack q-rise">
         {/*
           * Drawn whenever ANY package in this grid has one — not always.
           *
@@ -181,7 +181,22 @@ export function PackagesClient({
           {bundle && bundle.toLowerCase() !== pkg.name.trim().toLowerCase() && (
             <span className="q-eyebrow">{bundle}</span>
           )}
-          <h3 className="q-card-title">{pkg.name}</h3>
+          {/*
+            * THE LINK IS THE TITLE, AND THE TITLE COVERS THE CARD.
+            *
+            * The whole card used to be one <a>. That is the easy way to make a
+            * card clickable and it leaves nowhere to put a second act — and an
+            * <a> inside an <a> is not valid, so a Book button could not simply
+            * be added. Now one link names the package and stretches an
+            * invisible layer over the face; the card still opens on a click
+            * anywhere, and a screen reader hears "Standard Event Coverage,
+            * link" instead of every word on the card read out as one name.
+            */}
+          <h3 className="q-card-title">
+            <Link href={`/packages/${pkg.id}`} className="q-card-cover-link q-plain-link">
+              {pkg.name}
+            </Link>
+          </h3>
         </div>
 
         {/* What the client gets: the one line the card is about. Bounded,
@@ -254,8 +269,28 @@ export function PackagesClient({
           <span className={taskCount > 0 ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
             {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'No tasks'}
           </span>
+          {/*
+            * WHAT THE CATALOGUE IS FOR.
+            *
+            * A studio looking at its packages is usually looking because
+            * somebody wants one. Until now the only thing a card could do was
+            * open itself, so taking the booking meant leaving here, opening the
+            * new booking form and finding the package again in its rail — the
+            * catalogue was a reference work rather than somewhere work starts.
+            *
+            * It carries the package to the form rather than doing anything
+            * itself: booking is the booking form's job, and this is one more
+            * way in.
+            */}
+          <Link
+            href={`/bookings/new?package=${pkg.id}`}
+            className="q-btn q-btn-secondary q-btn-xs q-card-act"
+            title={`Take a booking for ${pkg.name}`}
+          >
+            Book
+          </Link>
         </div>
-      </Link>
+      </div>
     );
   };
 

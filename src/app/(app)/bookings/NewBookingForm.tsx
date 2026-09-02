@@ -116,6 +116,7 @@ export function NewBookingForm({
   currencyCode,
   termsTemplate = '',
   taxRate,
+  initialPackageId,
 }: {
   clients: Option[]; 
   packages: PackageOption[];
@@ -141,6 +142,14 @@ export function NewBookingForm({
   termsTemplate?: string;
   /** What the studio charges on top, frozen onto the invoice as it is raised. */
   taxRate: number;
+  /**
+   * A package this booking is being started for, chosen before arriving here.
+   *
+   * The Book button on a package card. Already checked against this studio's
+   * own packages by the page, so by the time it reaches this it names one that
+   * exists.
+   */
+  initialPackageId?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -508,6 +517,30 @@ export function NewBookingForm({
       setLines((prev) => prev.map((l) => l.id !== line.id ? l : { ...l, isLoadingDeep: false }));
     });
   };
+
+  /*
+   * A BOOKING STARTED FROM THE CATALOGUE ARRIVES WITH ITS PACKAGE ON IT.
+   *
+   * Book on a package card is a link to this form carrying the id, so the
+   * package goes on exactly as though it had been picked from the rail — same
+   * call, same loading, same editor. Nothing about a package chosen this way is
+   * different from one chosen here, which is why this adds a line rather than
+   * holding the id somewhere separate and special.
+   *
+   * Once, on arrival. The ref rather than a bare empty dependency list because
+   * effects run twice in development under Strict Mode, and the visible result
+   * of that is the package appearing on the booking twice — the same doubling
+   * an operator reported from clicking a package three times in the rail.
+   */
+  const startedFromCatalogue = useRef(false);
+  React.useEffect(() => {
+    if (!initialPackageId || startedFromCatalogue.current) return;
+    startedFromCatalogue.current = true;
+    addPackage(initialPackageId);
+    // addPackage is redefined every render and is stable in behaviour; the ref
+    // is what actually guards this, so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPackageId]);
 
 
 

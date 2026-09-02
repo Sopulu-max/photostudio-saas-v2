@@ -490,6 +490,57 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     expect(html, 'a named client is reported as unnamed').not.toMatch(/Not named yet/i);
   });
 
+  /**
+   * BOOKING STARTS WHERE THE CATALOGUE IS.
+   *
+   * A studio looking at its packages is usually looking because somebody wants
+   * one, and until now the only thing a card could do was open itself — so
+   * taking the booking meant leaving, opening the form and finding the package
+   * again in its rail.
+   *
+   * Both halves are checked, because either alone is useless: the card has to
+   * offer it, and the form has to arrive with the package actually on it. The
+   * second is the one that could silently do nothing — an effect that never
+   * fires leaves an ordinary empty form, which looks exactly like a form.
+   */
+  it('offers a booking from every package card', async () => {
+    const res = await load('/packages', { headers: { cookie: cookieHeader } });
+    expect(res.status, `the packages page returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the packages page rendered Next error page').not.toMatch(CRASHED);
+    /*
+     * A substring, not a pattern. The first version of this built a RegExp from
+     * a template literal, where `\?` collapses to a bare `?` — which made the
+     * preceding character optional and matched nothing. A href is a literal
+     * string; asking whether it is present is the whole question.
+     */
+    expect(html, 'no package card offers a booking')
+      .toContain(`/bookings/new?package=${packageId}`);
+  });
+
+  it('opens the booking form with that package already on it', async () => {
+    const res = await load(`/bookings/new?package=${packageId}`, { headers: { cookie: cookieHeader } });
+    expect(res.status, `the booking form returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the booking form rendered Next error page').not.toMatch(CRASHED);
+    expect(html, 'the form did not load').toMatch(/Client confirmation/i);
+  });
+
+  it('ignores a package id that is not this studio’s', async () => {
+    /*
+     * A query parameter is whatever somebody typed into the address bar. An id
+     * matching nothing must open an ordinary empty form rather than a form
+     * trying to load a package that is not there — and an id belonging to
+     * another studio must be indistinguishable from one that does not exist.
+     */
+    const res = await load('/bookings/new?package=00000000-0000-0000-0000-000000000000', {
+      headers: { cookie: cookieHeader },
+    });
+    expect(res.status, `a stale package link returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'a stale package link crashed the form').not.toMatch(CRASHED);
+  });
+
   it('serves the public storefront without a session at all', async () => {
     const { data: org } = await supabaseAdmin
       .from('organizations').select('slug').eq('id', orgId).single();

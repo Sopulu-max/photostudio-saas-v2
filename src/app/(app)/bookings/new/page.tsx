@@ -17,12 +17,25 @@ import { getTaxRate } from '@/modules/finances/interface';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewBookingPage() {
+export default async function NewBookingPage(
+  props: { searchParams: Promise<{ package?: string }> },
+) {
   try {
     await getAuthOrgId();
   } catch {
     redirect('/login');
   }
+
+  /*
+   * A booking started from the catalogue arrives already knowing its package.
+   *
+   * The Book button on a package card carries the id here rather than doing
+   * anything itself — taking a booking is this form's job, and the catalogue
+   * is one more way in. Read as a plain string and checked against the
+   * studio's own packages below, because a query parameter is whatever
+   * somebody typed into the address bar.
+   */
+  const { package: wantedPackage } = await props.searchParams;
 
   const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, employees, termsTemplate] = await Promise.all([
     listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
@@ -99,6 +112,18 @@ export default async function NewBookingPage() {
       <NewBookingForm 
         clients={clientOptions} 
         packages={packageOptions} 
+        /*
+         * Only if it is really one of this studio's. An id that matches nothing
+         * is dropped rather than passed on, so a mistyped or stale link opens an
+         * ordinary empty form instead of a form quietly trying to load a package
+         * that is not there — or one belonging to somebody else, since
+         * packageOptions is already scoped to this organization.
+         */
+        initialPackageId={
+          wantedPackage && packageOptions.some((p: any) => p.id === wantedPackage)
+            ? wantedPackage
+            : undefined
+        }
         services={serviceOptions}
         dimensionsByDomain={dimensionsByDomain}
         allServices={activeServices as any}
