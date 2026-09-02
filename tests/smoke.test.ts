@@ -133,6 +133,7 @@ let orgId = '';
 let cookieHeader = '';
 let packageId = '';
 let bookingId = '';
+let fullBookingId = '';
 let workflowId = '';
 
 describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
@@ -284,6 +285,44 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     bookingId = await seed('bookings', {
       organization_id: orgId, title: 'Smoke Booking', stage_id: stageId,
     });
+
+    /*
+     * AND ONE THAT HOLDS EVERYTHING, because an empty booking proves only that
+     * the page survives having nothing to say.
+     *
+     * Every figure on the Invoices section is arithmetic across three tables,
+     * and none of it runs on a booking with no money on it. A discount in
+     * particular reaches the screen through booked, invoiced and discounted
+     * together — it can be right in getBookingBilling and still be rendered as
+     * a remainder by the page, which is exactly the bug this booking exists to
+     * catch: 250,000 of work, 10% given away, billed in full and nothing left
+     * to invoice.
+     */
+    const clientContactId = await seed('contacts', {
+      organization_id: orgId, display_name: 'Smoke Client',
+    });
+    const fullPackageId = await seed('packages', {
+      organization_id: orgId, name: 'Smoke Package',
+      price: { amount: 250000, currency: 'NGN' },
+    });
+    fullBookingId = await seed('bookings', {
+      organization_id: orgId, title: 'Smoke Full Booking', stage_id: stageId,
+      contact_id: clientContactId, scheduled_for: '2026-12-01T10:00:00.000Z',
+      brief: 'Everything filled in.',
+    });
+    await seed('booking_lines', {
+      organization_id: orgId, booking_id: fullBookingId, package_id: fullPackageId,
+      title: 'Smoke Package', price: { amount: 250000, currency: 'NGN' }, quantity: 1,
+    });
+    const fullInvoiceId = await seed('invoices', {
+      organization_id: orgId, booking_id: fullBookingId, contact_id: clientContactId,
+      status: 'issued', currency: 'NGN', number: 'SMOKE-1', issued_at: '2026-11-01T09:00:00.000Z',
+      discount_kind: 'percentage', discount_value: 10, discount_amount: 25000,
+    });
+    await seed('invoice_lines', {
+      organization_id: orgId, invoice_id: fullInvoiceId,
+      description: 'Smoke Package', quantity: 1, unit_price: 250000, amount: 250000,
+    });
   });
 
   afterAll(async () => {
@@ -291,6 +330,10 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     if (orgId) {
       // These do not cascade from the studio, so they go first. Services before
       // workflows, because a service points at the workflow that produces it.
+      // Invoice rows point at the booking, so they go before it.
+      await supabaseAdmin.from('invoice_lines').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('invoices').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('booking_lines').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('bookings').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('services').delete().eq('organization_id', orgId);
@@ -393,6 +436,47 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     // The states an empty booking is in, said rather than left blank.
     expect(html, 'an unnamed client did not say so').toMatch(/Not named yet/i);
     expect(html, 'an unscheduled booking did not say so').toMatch(/Not scheduled/i);
+  });
+
+  /**
+   * THE ARITHMETIC, AS THE OPERATOR ACTUALLY SEES IT.
+   *
+   * getBookingBilling being right is not the same as the page being right: the
+   * booking page recomputes leftToInvoice itself whenever a contract exists,
+   * and had the identical fault on that branch. So this asserts the rendered
+   * words rather than the returned numbers.
+   *
+   * 250,000 of work, 10% off, one invoice for the lot. Nothing is left to bill
+   * — the studio gave that money away, and the page used to announce it as an
+   * outstanding remainder.
+   */
+  it('does not render a discount as money still to invoice', async () => {
+    const res = await load(`/bookings/${fullBookingId}`, { headers: { cookie: cookieHeader } });
+    expect(res.status, `the booking page returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the populated booking page rendered Next error page').not.toMatch(CRASHED);
+
+    expect(html, 'a fully billed booking is still asking to be invoiced')
+      .not.toMatch(/left to invoice/i);
+    expect(html, 'a fully billed booking says money is still to invoice')
+      .not.toMatch(/still to invoice/i);
+    // And the concession is named, so the gap between the two figures beside it
+    // is not left for the reader to work out.
+    expect(html, 'what was given away is not shown anywhere').toMatch(/Discounted/i);
+  });
+
+  it('renders what a populated booking actually holds', async () => {
+    const res = await load(`/bookings/${fullBookingId}`, { headers: { cookie: cookieHeader } });
+    const html = await res.text();
+    // Each of these is a field the new booking form saves. A page that renders
+    // the empty states correctly can still drop every one of them.
+    expect(html, 'the client is not on the page').toMatch(/Smoke Client/);
+    expect(html, 'the brief is not on the page').toMatch(/Everything filled in/);
+    expect(html, 'the package is not on the page').toMatch(/Smoke Package/);
+    expect(html, 'the invoice is not on the page').toMatch(/SMOKE-1/);
+    expect(html, 'an unscheduled state is shown for a scheduled booking')
+      .not.toMatch(/Not scheduled/i);
+    expect(html, 'a named client is reported as unnamed').not.toMatch(/Not named yet/i);
   });
 
   it('serves the public storefront without a session at all', async () => {
