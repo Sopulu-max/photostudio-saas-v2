@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createBooking, addBookingLine, setLineConfiguration, createContractForBooking,
   // What the studio's day is like, and what is already on it.
   studioDay, whatElseIsOn,
+  // The document the client is sent, prepared at the moment it is wanted.
+  shareBooking,
 } from '@/modules/bookings/interface';
 import {
   createInvoiceForBooking,
@@ -253,6 +255,16 @@ export function NewBookingForm({
    * back to the standing text only when nothing was said at all.
    */
   const [agreementText, setAgreementText] = useState(termsTemplate);
+  /*
+   * Whether to prepare the client's confirmation as part of taking the booking.
+   *
+   * OFF UNTIL SOMEBODY SAYS SO. A confirmation is readable by anyone holding
+   * its address, and the rule this studio set is that no booking becomes
+   * readable until a person decides it should. A box that arrives already
+   * ticked is not a person deciding — it is every booking taken on this form
+   * being published by default, which is the arrangement that was turned down.
+   */
+  const [prepareConfirmation, setPrepareConfirmation] = useState(false);
   
   type LineState = {
     id: string;
@@ -1029,6 +1041,32 @@ export function NewBookingForm({
               agreementText,
             });
           } catch (e: any) { failed.push(`contract (${readableError(e, 'failed')})`); }
+        }
+
+        /*
+         * THE CONFIRMATION, PREPARED WHERE IT IS ACTUALLY WANTED.
+         *
+         * The document a client is sent existed only on the booking page, so
+         * taking a booking and sending the client their confirmation were two
+         * journeys with a navigation between them — and the second one was easy
+         * to never make. The moment a studio wants it is this moment.
+         *
+         * Last, and in its own attempt, for the reason everything else down
+         * here is: the booking is already saved. A confirmation that will not
+         * prepare is a button on the booking page, not a lost booking.
+         */
+        if (prepareConfirmation) {
+          if (!finalContactId) {
+            // A document addressed to nobody. Expected rather than broken, so
+            // it is a skip and reads as one.
+            skipped.push('the client confirmation (no client yet)');
+          } else {
+            try {
+              await shareBooking({ bookingId });
+            } catch (e) {
+              failed.push(`the client confirmation (${readableError(e, 'it could not be prepared')})`);
+            }
+          }
         }
 
         /*
@@ -2521,6 +2559,53 @@ export function NewBookingForm({
           * thing on it that needs a name to be an agreement with.
           */}
 
+      </div>
+
+      <div className="q-card q-section">
+        <h2 className="q-section-title">6. Client confirmation</h2>
+        {/*
+          * THE SECOND DOCUMENT, BESIDE THE FIRST.
+          *
+          * Sections five and six are the two things a client is given: what
+          * they agreed to, and what they booked. They sit together because
+          * that is what they have in common — everything above them is the
+          * studio working out the job, and these two are what leaves the
+          * building.
+          *
+          * A confirmation is not a contract in miniature. It states what was
+          * booked, when it happens and where the money stands, as of the day it
+          * was issued; the contract states what both sides agreed. A studio
+          * sends the first to every client and the second only where terms
+          * matter.
+          */}
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          A document stating what was booked, when it happens and what has been paid — for the
+          client to keep. It can be downloaded and sent from the booking at any time.
+        </p>
+
+        <label className="q-row" style={{ gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={prepareConfirmation}
+            onChange={(e) => setPrepareConfirmation(e.target.checked)}
+            disabled={!client}
+            style={{ marginTop: '3px' }}
+          />
+          <span>
+            <span className="q-strong">Prepare it now</span>
+            <span className="q-meta-sm" style={{ display: 'block' }}>
+              {/*
+                * Says what preparing actually does, because it is not nothing:
+                * the document becomes readable by anyone holding its address.
+                * An operator ticking this is entitled to know that before they
+                * tick it rather than after.
+                */}
+              {client
+                ? 'The confirmation is made ready to download and send. Anyone with its address can read it, and it can be withdrawn from the booking.'
+                : 'A confirmation is addressed to somebody, so this needs a client. The booking will still be taken — add a client above, or prepare it later from the booking itself.'}
+            </span>
+          </span>
+        </label>
       </div>
 
       {/*

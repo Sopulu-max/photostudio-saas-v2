@@ -106,7 +106,7 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/bookings', expect: /<\/html>/i },
   // The form itself, not just the list. It is the largest surface in the app
   // and the one most often changed, and until now nothing loaded it.
-  { path: '/bookings/new', expect: /New booking/i },
+  { path: '/bookings/new', expect: /Client confirmation/i },
   // Matched on a column heading, not the word "Galleries": that now sits in the
   // sidebar on every page, so it would pass even for a crashed one.
   { path: '/galleries', expect: /Client opened/i },
@@ -433,9 +433,20 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     for (const section of ['Client', 'Date and time', 'Packages', 'Team', 'Tasks', 'Deliverables', 'Contract']) {
       expect(html, `the booking page is missing its ${section} section`).toMatch(section);
     }
-    // The states an empty booking is in, said rather than left blank.
-    expect(html, 'an unnamed client did not say so').toMatch(/Not named yet/i);
-    expect(html, 'an unscheduled booking did not say so').toMatch(/Not scheduled/i);
+    /*
+     * The states an empty booking is in, said rather than left blank.
+     *
+     * These read the SECTION BODIES now, not the folded headers. The page
+     * stopped folding — a booking that had to be unfolded read as a different
+     * kind of object from a service or a package — and the summaries that
+     * existed only to write those headers went with it.
+     *
+     * The assertion is the same one either way: an empty booking says it is
+     * empty. Only where it says so moved, so this follows it rather than being
+     * deleted, which would have retired the check along with the wording.
+     */
+    expect(html, 'an unnamed client did not say so').toMatch(/No client yet/i);
+    expect(html, 'an unscheduled booking did not say so').toMatch(/No date yet/i);
   });
 
   /**
