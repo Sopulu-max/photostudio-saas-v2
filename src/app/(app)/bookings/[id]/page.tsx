@@ -197,83 +197,67 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     : billing.leftToInvoice;
   const leftToPay = billing.leftToPay;
 
-  /*
-   * WHY THIS PAGE FOLDS AND THE PACKAGE PAGE DID NOT.
-   *
-   * A package detail page is four readings of one thing — every section says
-   * something about a bundled service — so grouping by service collapsed it
-   * honestly. A booking is not like that. Client, date, packages, team, tasks,
-   * deliverables, invoices and contract are nine genuinely different concerns
-   * of one job, and none of them is a facet of another. There is nothing here
-   * to group.
-   *
-   * What there is, is length. Nine stacked sections on a real booking run to
-   * several screens, and an operator opening one has come to answer a single
-   * question: is it paid, is it staffed, has it been sent. Reading the answer
-   * meant scrolling past eight things it was not.
-   *
-   * SO EACH SECTION ANSWERS ITSELF ON ITS OWN HEADER, and the page opens on
-   * what still needs somebody. Settled and empty sections stay shut with their
-   * answer showing — "Signed", "None raised", "Everything shared" — so folding
-   * hides the controls and never the state. Packages stays open regardless,
-   * being the substance of the job rather than a task within it.
-   *
-   * Native <details>, so the page stays a server component and folds with no
-   * JavaScript, exactly as the package page does.
-   */
-  const Section = ({ title, summary, open = false, children }: {
+  const Section = ({ title, children }: {
     title: string;
-    summary?: string;
-    open?: boolean;
     children: React.ReactNode;
   }) => (
     /*
-     * Nine sections arriving together is nine sections arriving nowhere.
-     *
-     * q-rise staggers by nth-child, so they come in down the page in the order
-     * they are read — client, date, packages, team, tasks, deliverables,
-     * invoices, contract — which is the order an operator scans them in anyway.
-     * One class on the shared Section, so every one of them obeys it and no
-     * future section can forget to.
+     * q-rise staggers by nth-child, so sections come in down the page in the
+     * order they are read — client, date, packages, team, tasks, deliverables,
+     * invoices, contract. One class on the shared Section so every one of them
+     * obeys it and no future section can forget to.
      */
-    <details className="q-details q-card q-section q-rise" open={open}>
-      <summary className="q-disclosure">
-        <span className="q-disclosure-mark" aria-hidden="true" />
-        <span className="q-row q-row-between q-fill">
-          <h2 className="q-section-title">{title}</h2>
-          {summary && <span className="q-meta-sm">{summary}</span>}
-        </span>
-      </summary>
-      <div className="q-tile-sub">{children}</div>
-    </details>
+    <div className="q-card q-section q-rise">
+      <h2 className="q-section-title">{title}</h2>
+      {children}
+    </div>
   );
 
-  // The figures each header states. Derived here rather than inside the JSX so
-  // the summary and the section it heads cannot drift apart.
-  const tasksDone = (bookingTasks as any[]).filter((t) => t.done).length;
-  const tasksUnassigned = (bookingTasks as any[]).filter((t) => !t.assignee).length;
-  const sharedCount = fulfilment.filter((f: any) => f.shared).length;
-  const scheduled = booking.scheduled_for
-    ? new Date(booking.scheduled_for).toLocaleString(undefined, {
-        weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-      })
-    : null;
-  const money = (n: number) => formatMoney(n, moneyCurrency);
 
   return (
     <div className="q-page-narrow">
       <Link href="/bookings" className="q-back">&larr; Back to Bookings</Link>
-      <header className="q-page-header">
+
+      {/*
+        * The work, before the words about it — and present either way.
+        *
+        * Drawn only when a cover exists, this page would give no sign that a
+        * booking could have one, so the only way to find out would be to open
+        * the editor. Empty it is the same wash the card uses, and it says what
+        * it is for. The whole band is the link to the editor.
+        */}
+      <Link
+        href={`/bookings/${booking.id}/edit`}
+        className={(booking as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
+        style={(booking as any).cover_url
+          ? {
+              backgroundImage: `url(${(booking as any).cover_url})`,
+              backgroundPosition: (booking as any).cover_position || undefined,
+            }
+          : undefined}
+        title={(booking as any).cover_url ? 'Change the cover' : 'Add a cover'}
+      >
+        {!(booking as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
+      </Link>
+
+      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h1 className="q-page-title">{booking.title}</h1>
-          <p className="q-page-subtitle">{booking.contact?.display_name || 'No client yet'}</p>
+          <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
+            <h1 className="q-page-title">{booking.title}</h1>
+            {/* The stage badge belongs next to the title — it is the booking's
+                current identity, not an action button. The picker to change it
+                stays on the right where the controls live. */}
+            {booking.stage?.name && (
+              <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
+            )}
+          </div>
+          <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
+            {booking.contact?.display_name || 'No client yet'}
+          </p>
         </div>
-        {/* The stage stays here: moving a booking along is the work, not an
-            amendment to it. Editing the record is one click away. */}
         <div className="q-row">
-          <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage?.name}</span>
           <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
-          <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary q-btn-sm">Edit</Link>
+          <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
         </div>
       </header>
 
@@ -288,17 +272,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * yet. Shown exactly as typed; it is a person's sentence, not a field.
           */}
         {booking.brief && (
-          <Section title="What they asked for" summary="In their words" open>
+          <Section title="What they asked for">
             <p className="q-text-body q-prewrap">{booking.brief}</p>
           </Section>
         )}
 
         {/* Client */}
-        <Section
-          title="Client"
-          summary={booking.contact?.display_name || 'Not named yet'}
-          open={!booking.contact?.display_name}
-        >
+        <Section title="Client">
           {booking.contact?.display_name ? (
             <div>
               <strong className="q-strong">{booking.contact?.display_name}</strong>
@@ -315,10 +295,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* What the client filled in. Named after the form it came from, so the
             thing a studio builds and the thing it reads back carry one name. */}
         {intake.length > 0 && (
-          <Section
-            title="Booking form answers"
-            summary={`${intake.length} answered`}
-          >
+          <Section title="Booking form answers">
             <div className="q-stack q-stack-sm">
               {intake.map((row: any, i: number) => (
                 <div key={i} className="q-tile q-row q-row-between">
@@ -334,11 +311,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         )}
 
         {/* When */}
-        <Section
-          title="Date and time"
-          summary={scheduled || 'Not scheduled'}
-          open={!booking.scheduled_for}
-        >
+        <Section title="Date and time">
           {booking.scheduled_for ? (
             <div>
               <strong className="q-strong">
@@ -366,13 +339,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
 
         {/* What they're booking — one line per Package */}
-        <Section
-          title="Packages"
-          summary={lines.length === 0
-            ? 'Nothing on it yet'
-            : `${lines.length} ${lines.length === 1 ? 'package' : 'packages'} · ${money(bookedTotal)}`}
-          open
-        >
+        <Section title="Packages">
           {lines.length === 0 ? (
             <div>
               <p className="q-empty">
@@ -497,20 +464,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * role nobody is covering has to be visible, which a list of names
           * cannot show.
           */}
-        {/*
-          * Who is on this booking. Always shown, even when empty — a booking
-          * with nobody on it is a thing the studio needs to see, and hiding the
-          * section hid the only way to put anyone on one.
-          */}
-        <Section
-          title="Team"
-          summary={team.roles.length === 0
-            ? 'Nobody assigned'
-            : team.unfilled > 0
-              ? `${team.unfilled} ${team.unfilled === 1 ? 'task' : 'tasks'} unassigned`
-              : 'Fully staffed'}
-          open={team.roles.length === 0 || team.unfilled > 0}
-        >
+        <Section title="Team">
           {team.roles.length === 0 ? (
             <p className="q-meta" style={{ marginBottom: '16px' }}>
               No team members assigned.
@@ -584,13 +538,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * package a task came from is still shown against it; it just no
           * longer decides how the list is organised.
           */}
-        <Section
-          title="Tasks"
-          summary={bookingTasks.length === 0
-            ? 'No work defined'
-            : `${tasksDone} of ${bookingTasks.length} done`}
-          open={bookingTasks.length === 0 || tasksDone < bookingTasks.length || tasksUnassigned > 0}
-        >
+        <Section title="Tasks">
           <BookingTasks
             bookingId={booking.id}
             tasks={bookingTasks as any}
@@ -600,15 +548,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Deliverables */}
-        <Section
-          title="Deliverables"
-          summary={fulfilment.length === 0
-            ? 'Nothing promised'
-            : undelivered.length === 0
-              ? 'Everything shared'
-              : `${sharedCount} of ${fulfilment.length} shared`}
-          open={undelivered.length > 0}
-        >
+        <Section title="Deliverables">
           {/* What the packages promised, and whether it's been handed over. */}
           {fulfilment.length > 0 && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
@@ -721,17 +661,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         </Section>
 
         {/* Money */}
-        <Section
-          title="Invoices & Payments"
-          summary={bookingValue === 0
-            ? 'Nothing to bill yet'
-            : leftToPay > 0
-              ? `${money(leftToPay)} outstanding`
-              : leftToInvoice > 0
-                ? `${money(leftToInvoice)} left to invoice`
-                : 'Settled in full'}
-          open={leftToPay > 0 || leftToInvoice > 0}
-        >
+        <Section title="Invoices & Payments">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
               {invoices.length === 0
@@ -853,20 +783,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         </Section>
 
-        {/* Contract */}
         {/*
           * THE CLIENT'S OWN COPY.
           *
           * Last, because it is about the whole booking rather than a part of
-          * it — everything above is what the link would show. Shut by default
-          * with its state on the header, like every other section here, so the
-          * one thing an operator needs at a glance ("is this out there?") is
-          * legible without opening anything.
+          * it — everything above is what the link would show.
           */}
-        <Section
-          title="Client confirmation"
-          summary={booking.share_token ? 'Ready to send' : 'Not prepared'}
-        >
+        <Section title="Client confirmation">
           <ShareBooking
             bookingId={booking.id}
             bookingTitle={booking.title}
@@ -876,11 +799,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           />
         </Section>
 
-        <Section
-          title="Contract"
-          summary={latestContract ? String(latestContract.status) : 'None raised'}
-          open={!latestContract}
-        >
+        <Section title="Contract">
           {contracts.length > 0 && (
             <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
               {contracts.map((c) => (

@@ -7,6 +7,7 @@ import { updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientOption, type ClientSelection } from '@/components/ClientPicker';
 import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
+import { ImageUpload } from '@/components/ImageUpload';
 
 const toLocalInput = (iso: string | null) => {
   if (!iso) return '';
@@ -34,6 +35,8 @@ export function BookingRecordForm({
   scheduledFor,
   durationMinutes,
   brief,
+  coverUrl: initialCoverUrl,
+  coverPosition: initialCoverPosition,
   suggestedMinutes,
   clients,
 }: {
@@ -44,6 +47,8 @@ export function BookingRecordForm({
   durationMinutes: number | null;
   /** What the client asked for, in their words. */
   brief: string | null;
+  coverUrl: string | null;
+  coverPosition: string | null;
   suggestedMinutes: number | null;
   clients: ClientOption[];
 }) {
@@ -69,8 +74,34 @@ export function BookingRecordForm({
   const [when, setWhen] = useState(initial.when);
   const [dur, setDur] = useState(initial.dur);
   const [briefText, setBriefText] = useState(initial.brief);
+  const [coverUrl, setCoverUrl] = useState<string | null>(initialCoverUrl);
+  const [coverPosition, setCoverPosition] = useState<string | null>(initialCoverPosition);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  // Cover saves immediately — an upload has already happened in storage, and
+  // leaving the row unwritten until Save means navigating away orphans it.
+  const saveCover = (patch: { coverUrl?: string | null; coverPosition?: string | null }) => {
+    startTransition(async () => {
+      try {
+        await updateBookingRecord({ bookingId, ...patch });
+        router.refresh();
+      } catch (e: any) {
+        toast.bad(readableError(e, 'The cover could not be saved.'));
+      }
+    });
+  };
+
+  const applyCover = (next: string | null) => {
+    setCoverUrl(next);
+    setCoverPosition(null);
+    saveCover({ coverUrl: next, coverPosition: null });
+  };
+
+  const applyCoverPosition = (next: string) => {
+    setCoverPosition(next);
+    saveCover({ coverPosition: next });
+  };
 
   const dirty =
     t !== initial.title || cid !== initial.contactId || when !== initial.when || dur !== initial.dur ||
@@ -153,6 +184,22 @@ export function BookingRecordForm({
         <span className="q-meta-sm">
           Their own words, kept as written. Emptying the box removes it.
         </span>
+      </div>
+
+      <div className="q-field">
+        <label className="q-label">Cover</label>
+        <ImageUpload
+          url={coverUrl}
+          folder="bookings"
+          label="cover"
+          maxEdge={2400}
+          onUploaded={(u) => applyCover(u)}
+          onCleared={() => applyCover(null)}
+          position={coverPosition}
+          onPositionChange={applyCoverPosition}
+          disabled={isPending}
+        />
+        <span className="q-meta-sm">Saved as soon as it is chosen.</span>
       </div>
 
       <div className="q-stack q-stack-sm">
