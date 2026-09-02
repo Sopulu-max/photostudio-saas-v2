@@ -978,7 +978,7 @@ export async function getBooking(bookingId: string) {
     .from('bookings')
     .select(`
       id, title, brief, scheduled_for, duration_minutes, created_at, stage_id,
-      share_token, shared_at,
+      share_token, shared_at, cover_url, cover_position,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(id, display_name, email),
       booking_lines(
@@ -1399,6 +1399,8 @@ export async function updateBookingRecord(input: {
   scheduledFor?: string | null;
   durationMinutes?: number | null;
   brief?: string | null;
+  coverUrl?: string | null;
+  coverPosition?: string | null;
 }) {
   const { orgId, personId } = await getAuthOrgId();
 
@@ -1461,6 +1463,23 @@ export async function updateBookingRecord(input: {
       });
       changed.push('brief');
     }
+  }
+
+  // Cover is a visual attribute of the booking row — no existing operation owns
+  // it, so it is written here directly. Either field may be updated alone:
+  // `coverPosition` changes without touching the URL when the operator drags
+  // the focal point; a new image resets the position.
+  const coverPatch: Record<string, string | null> = {};
+  if (input.coverUrl !== undefined) coverPatch.cover_url = input.coverUrl || null;
+  if (input.coverPosition !== undefined) coverPatch.cover_position = input.coverPosition || null;
+  if (Object.keys(coverPatch).length > 0) {
+    const { error } = await supabaseAdmin
+      .from('bookings')
+      .update(coverPatch)
+      .eq('id', input.bookingId)
+      .eq('organization_id', orgId);
+    if (error) throw new Error('Failed to save the cover.');
+    changed.push('cover');
   }
 
   revalidatePath(`/bookings/${input.bookingId}`);
@@ -2132,4 +2151,100 @@ export async function unshareBooking(input: { bookingId: string }) {
 
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
+}
+
+/**
+ * The booking as the client's own document, fetched by token alone.
+ *
+ * No session, no organization to scope by — the token IS the authority, which
+ * is the same bargain the gallery and the invoice already strike. So the token
+ * is the only thing looked up by, and everything else hangs off the row it
+ * finds. There is no id in the URL to swap for somebody else's.
+ *
+ * It gathers what a confirmation has to state and nothing else. The studio's
+ * page is a management surface — what is staffed, what is still to be done,
+ * which tasks are unassigned — and none of that is the client's business or
+ * their concern. What they need is what was agreed and where it stands.
+ */
+export async function getBookingByShareToken(token: string) {
+  if (!token || token.length < 32) return null;
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select(`
+      id, title, brief, scheduled_for, duration_minutes, shared_at, created_at,
+      stage:booking_stages(name, kind),
+      contact:contacts(display_name, email, phone),
+      organization:organizations(id, name, slug, currency, metadata),
+      booking_lines(
+        id, title, price, quantity, package_id,
+        package:packages(
+          id, name, description, price,
+          package_services(
+            id,
+            service:services(id, name),
+            package_deliverables(quantity, spec_values, deliverable:deliverables(name)),
+            package_service_dimension_values(
+              dimension_value:dimension_values(id, name, dimension:dimensions(name))
+            )
+          )
+        )
+      )
+    `)
+    .eq('share_token', token)
+    .maybeSingle();
+
+  if (!booking) return null;
+
+  /*
+   * The money, worked out by the one function that knows how.
+   *
+   * getBookingBilling counts what was billed, what was forgiven and what has
+   * been paid, and a document restating that arithmetic itself would be a
+   * second answer waiting to disagree with the studio's own screen. It needs a
+   * session, so the figures are read here directly by the same rules.
+   */
+  const { data: invoices } = await supabaseAdmin
+    .from('invoices')
+    .select('id, status, currency, discount_amount, tax_amount, share_token, lines:invoice_lines(amount), payments:financial_transactions(kind, amount, status)')
+    .eq('booking_id', booking.id);
+
+  let booked = 0;
+  let currency: string | null = null;
+  for (const l of ((booking as any).booking_lines || [])) {
+    const price: any = firstPriced(l.package?.price, l.price);
+    booked += amountOf(price) * Number(l.quantity ?? 1);
+    if (!currency && price?.currency) currency = price.currency;
+  }
+
+  let invoiced = 0;
+  let discounted = 0;
+  let paid = 0;
+  for (const inv of ((invoices || []) as any[])) {
+    if (inv.status === 'void') continue;
+    const lineSum = (inv.lines || []).reduce((n: number, l: any) => n + Number(l.amount || 0), 0);
+    const off = Math.max(0, Math.min(Number(inv.discount_amount || 0), lineSum));
+    invoiced += Math.round((lineSum - off) * 100) / 100;
+    discounted += off;
+    for (const p of (inv.payments || [])) {
+      if (p.status === 'settled') {
+        paid += p.kind === 'refund' ? -Number(p.amount || 0) : Number(p.amount || 0);
+      }
+    }
+    if (!currency && inv.currency) currency = inv.currency;
+  }
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    ...(booking as any),
+    money: {
+      currency: currency || (booking as any).organization?.currency || 'USD',
+      agreed: round(booked),
+      discounted: round(discounted),
+      invoiced: round(invoiced),
+      paid: round(paid),
+      /** What the client still owes on what has actually been billed. */
+      outstanding: round(Math.max(invoiced - paid, 0)),
+    },
+  };
 }

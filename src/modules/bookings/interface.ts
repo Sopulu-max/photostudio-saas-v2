@@ -35,6 +35,8 @@ export {
   // The client-facing reading of a booking, opened and closed by its studio
   shareBooking,
   unshareBooking,
+  // Read by token alone — the client's document has no session behind it
+  getBookingByShareToken,
   setBookingSchedule,
   suggestedDurationForBooking,
   extractPackageFromEnquiry,

@@ -869,6 +869,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         >
           <ShareBooking
             bookingId={booking.id}
+            bookingTitle={booking.title}
             shareToken={(booking as any).share_token ?? null}
             sharedAt={(booking as any).shared_at ?? null}
             hasClient={Boolean(booking.contact?.id)}

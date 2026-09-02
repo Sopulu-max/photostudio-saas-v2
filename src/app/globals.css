@@ -1588,6 +1588,25 @@ body {
   }
   .q-noprint { display: none !important; }
   .q-doc-pay { background: transparent; }
+
+  /*
+   * A BLANK SECOND SHEET, AND WHY EVERY DOCUMENT HAD ONE.
+   *
+   * Hiding with `visibility: hidden` above keeps the space: the elements stop
+   * being drawn but go on occupying exactly the height they had. Every
+   * document page wraps itself in a full-height ground — min-height: 100vh
+   * plus vertical padding — and in print `vh` resolves against the SHEET, so
+   * that wrapper alone is taller than one page. The document itself is lifted
+   * out of flow by `position: absolute` and contributes nothing, so what ran
+   * onto page two was the invisible wrapper and nothing else.
+   *
+   * A booking confirmation is 632px of content on a 986px sheet and printed as
+   * two pages. Collapsing any ancestor of a document is the whole fix, and
+   * `:has` is what keeps it to those — no other layout on the site is touched,
+   * and no page has to remember to opt in.
+   */
+  :has(.q-doc) { min-height: 0 !important; height: auto !important; }
+
   @page { margin: 18mm; }
 }
 

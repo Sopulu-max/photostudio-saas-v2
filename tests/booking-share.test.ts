@@ -29,7 +29,12 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
   }),
 }));
 
-import { createBooking, shareBooking, unshareBooking } from '@/modules/bookings/domain';
+import {
+  createBooking, shareBooking, unshareBooking, getBookingByShareToken,
+} from '@/modules/bookings/domain';
+import { createPackage } from '@/modules/packages/domain';
+import { createInvoiceForBooking, getBookingBilling } from '@/modules/finances/invoices';
+import { createTransaction, settleTransaction } from '@/modules/finances/domain';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
@@ -121,6 +126,59 @@ describe('sharing a booking with the client who made it', () => {
     expect(await openByToken(before.shareToken),
       'the revoked token opens the booking again').toBeNull();
   });
+
+  /*
+   * THE DOCUMENT'S FIGURES AND THE STUDIO'S MUST BE THE SAME FIGURES.
+   *
+   * getBookingBilling asks getAuthOrgId, and the document has no session — the
+   * token IS the authority — so the totals are worked out a second time in
+   * getBookingByShareToken. That duplication is forced, and it is exactly the
+   * shape of fault this repository keeps being bitten by: two readers of one
+   * truth, agreeing on the day they were written and drifting afterwards.
+   *
+   * It cannot be removed, so it is pinned. If somebody changes how a discount
+   * is counted on one side, this fails rather than a client receiving a
+   * confirmation that disagrees with the studio's own screen.
+   */
+  it('states the same money the studio’s own page states', async () => {
+    const priced = await createBooking({ contactId: TEST_PERSON_ID, brief: 'Priced' });
+    const { packageId } = await createPackage({
+      name: 'Priced Package', instanceOf: true,
+      price: { base_price: 400_000, currency: 'NGN' } as any,
+    });
+    await supabaseAdmin.from('booking_lines').insert({
+      organization_id: TEST_ORG_ID, booking_id: priced.bookingId, package_id: packageId,
+      title: 'Priced Package', price: { base_price: 400_000, currency: 'NGN' }, quantity: 1,
+    });
+
+    const { invoiceId } = await createInvoiceForBooking({
+      bookingId: priced.bookingId, dueAt: null, percentage: null, label: null,
+      discount: { kind: 'percentage', value: 25 },
+    } as any);
+    const tx: any = await createTransaction({
+      kind: 'charge', type: 'Deposit', amount: 100_000, currency: 'NGN',
+      invoiceId, bookingId: priced.bookingId, contactId: TEST_PERSON_ID,
+    });
+    await settleTransaction({ transactionId: tx.id });
+
+    const { shareToken } = await shareBooking({ bookingId: priced.bookingId });
+    const doc = await getBookingByShareToken(shareToken);
+    const studio = await getBookingBilling(priced.bookingId);
+
+    expect(doc, 'the document could not be read by its own token').toBeTruthy();
+    expect(doc!.money.agreed, 'the document disagrees on what was agreed').toBe(studio.booked);
+    expect(doc!.money.discounted, 'the document disagrees on what was given away')
+      .toBe(studio.discounted);
+    expect(doc!.money.invoiced, 'the document disagrees on what was billed').toBe(studio.invoiced);
+    expect(doc!.money.paid, 'the document disagrees on what was paid').toBe(studio.paid);
+    expect(doc!.money.outstanding, 'the document disagrees on what is owed')
+      .toBe(studio.leftToPay);
+
+    // And the arithmetic is actually right, not merely agreed upon: 400,000
+    // less a quarter is 300,000 billed, less 100,000 paid leaves 200,000.
+    expect(doc!.money.discounted).toBe(100_000);
+    expect(doc!.money.outstanding).toBe(200_000);
+  }, 120000);
 
   it('refuses to share a booking belonging to another studio', async () => {
     // The id is a real booking, just not this session's. assertOurs equivalent:
