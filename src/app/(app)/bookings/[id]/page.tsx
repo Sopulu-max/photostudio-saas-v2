@@ -179,8 +179,20 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
    * exists, fixes what is owed overall; what has been billed and paid comes from
    * the invoices themselves.
    */
+  /*
+   * A CONCESSION IS NOT A REMAINDER, ON EITHER BRANCH.
+   *
+   * This subtracted only what had been billed, so a discount reappeared as work
+   * still to do: 250,000 agreed, 225,000 invoiced after ten per cent off, and
+   * the page announcing "₦25,000 left to invoice" — in the section summary, in
+   * a panel of its own, and forcing the section open as though somebody had
+   * forgotten to bill it. Nobody had. The studio gave it away.
+   *
+   * getBookingBilling counts it now, and the contract branch has to as well, or
+   * the bug survives on exactly the bookings formal enough to have a contract.
+   */
   const leftToInvoice = contractBasePrice > 0
-    ? Math.max(contractBasePrice - billing.invoiced, 0)
+    ? Math.max(contractBasePrice - billing.invoiced - billing.discounted, 0)
     : billing.leftToInvoice;
   const leftToPay = billing.leftToPay;
 
@@ -774,6 +786,22 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 <div className="q-stat-label">Invoiced</div>
                 <div className="q-stat-value">{formatMoney(billing.invoiced, moneyCurrency)}</div>
               </div>
+              {/*
+                * THE GAP BETWEEN AGREED AND INVOICED, NAMED.
+                *
+                * Two figures that do not add up, side by side, with nothing
+                * saying why. The discount was recorded on the invoice, worked
+                * out correctly and frozen there — and then never mentioned
+                * again on the page where the operator actually looks. What was
+                * given away is a decision somebody made, and it belongs on the
+                * record beside the numbers it explains.
+                */}
+              {billing.discounted > 0 && (
+                <div className="q-panel">
+                  <div className="q-stat-label">Discounted</div>
+                  <div className="q-stat-value">{formatMoney(billing.discounted, moneyCurrency)}</div>
+                </div>
+              )}
               <div className="q-panel">
                 <div className="q-stat-label">Paid</div>
                 <div className="q-stat-value">{formatMoney(billing.paid, moneyCurrency)}</div>

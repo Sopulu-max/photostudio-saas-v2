@@ -40,7 +40,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createClient } from '@/modules/clients/domain';
 import { createBooking, createContractForBooking } from '@/modules/bookings/domain';
 import { createPackage, answerPackageClassifications } from '@/modules/packages/domain';
-import { createInvoiceForBooking } from '@/modules/finances/invoices';
+import { createInvoiceForBooking, getBookingBilling } from '@/modules/finances/invoices';
 import { createTransaction, settleTransaction } from '@/modules/finances/domain';
 import { addToBookingTeam } from '@/modules/production/domain';
 import { seedStudio, seedRow } from './seed';
@@ -301,6 +301,37 @@ describe('everything typed into the new booking form', () => {
     expect(terms?.line_items?.[0]?.title, 'the contract states no scope')
       .toBeTruthy();
   });
+
+  it('does not report a discount as money still to invoice', async () => {
+    /*
+     * The whole of the booking has been billed. 250,000 of work, 10% given
+     * away, one invoice for the lot.
+     */
+    const billing = await getBookingBilling(ctx.bookingId);
+
+    expect(billing.booked, 'the booking is not worth what was priced on it').toBe(250_000);
+    // Net of the concession, deliberately — the over-invoicing guard needs it
+    // that way, or a discounted booking counts as fully billed early.
+    expect(billing.invoiced, 'the invoice is not counted net of the discount').toBe(225_000);
+
+    /*
+     * AND THIS IS THE ONE THAT MATTERS.
+     *
+     * leftToInvoice is booked − invoiced, and with the discount subtracted from
+     * one side only, the concession reappears as a remainder. The booking page
+     * reads this straight: "₦25,000 left to invoice", in the summary, in a
+     * panel, and it forces the section open as though somebody still has work
+     * to do. Nobody does. The studio gave that money away on purpose.
+     */
+    expect(billing.leftToInvoice,
+      'a discount is being reported as money still to bill').toBe(0);
+    // Named, so the gap between 250,000 agreed and 225,000 invoiced is not left
+    // for the reader to work out.
+    expect(billing.discounted, 'what was given away is not reported at all').toBe(25_000);
+    // Billed plus forgiven equals the job. Nothing over, nothing outstanding.
+    expect(billing.overInvoiced, 'a fully billed, discounted booking reads as over-billed')
+      .toBe(false);
+  }, 90000);
 
 /*
  * A CLASSIFICATION WITH NOWHERE TO GO SAYS SO.

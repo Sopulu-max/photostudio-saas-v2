@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast, readableError } from '@/components/Toast';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import {
   createDelivery,
   updateDelivery,
@@ -182,15 +183,32 @@ export function UploadFilesButton({ deliveryId, bookingId }: { deliveryId: strin
 
 export function RemoveFileButton({ fileId, bookingId }: { fileId: string; bookingId: string }) {
   const { isPending, run } = useAction();
+  /*
+   * THE ONE BARE CONTROL AMONG SEVERAL CAREFUL ONES.
+   *
+   * Deleting a booking opens a paragraph explaining what goes with it;
+   * removing a line and deleting a delivery each ask twice. This sat on a grid
+   * of thumbnails, at 0.7rem, and acted on the first click.
+   *
+   * It only unlinks — the asset itself survives — but that is not what the
+   * operator experiences. On a delivery already shared, the picture leaves what
+   * the client is looking at, and nothing in the interface puts it back. So it
+   * asks, and the armed label says what actually happens rather than repeating
+   * the word Remove, which was the half of it that sounded permanent.
+   *
+   * The inline font size went with it: q-btn-xs is the size this wanted, and a
+   * measurement hard-coded onto one element cannot answer to the design.
+   */
   return (
-    <button
-      className="q-btn q-btn-secondary"
-      style={{ fontSize: '0.7rem', padding: '2px 7px' }}
+    <ConfirmButton
+      className="q-btn q-btn-secondary q-btn-xs"
       disabled={isPending}
-      onClick={() => run(() => removeFile({ fileId, bookingId }))}
+      confirmLabel="Take it out?"
+      title="Take this file out of the delivery. The file itself is kept."
+      onConfirm={() => run(() => removeFile({ fileId, bookingId }))}
     >
       Remove
-    </button>
+    </ConfirmButton>
   );
 }
 

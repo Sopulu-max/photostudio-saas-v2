@@ -169,6 +169,20 @@ export async function getBookingBilling(bookingId: string) {
 
   let invoiced = 0;
   let paid = 0;
+  /*
+   * WHAT WAS GIVEN AWAY, NOT BILLED AND NOT STILL OWING.
+   *
+   * Kept because subtracting the discount from `invoiced` alone leaves it
+   * missing from the sum: booked is 250,000, invoiced is 225,000, and the
+   * 25,000 difference had nowhere to be except leftToInvoice — where it read as
+   * work still to bill. The booking page said "₦25,000 left to invoice", put it
+   * in a panel of its own and forced the section open, about money the studio
+   * had decided to give away.
+   *
+   * Billed plus forgiven is what has been accounted for. Both halves have to be
+   * counted or the arithmetic invents a remainder.
+   */
+  let discounted = 0;
   for (const inv of ((invoices || []) as any[])) {
     if (inv.status === 'void') continue;
     /*
@@ -186,6 +200,7 @@ export async function getBookingBilling(bookingId: string) {
     const off = Math.max(0, Math.min(Number(inv.discount_amount || 0), lineSum));
     const total = Math.round((lineSum - off) * 100) / 100;
     invoiced += total;
+    discounted += off;
     paid += settlementOf(total + Number(inv.tax_amount || 0), inv.payments || []).paid;
     if (!currency && inv.currency) currency = inv.currency;
   }
@@ -195,12 +210,28 @@ export async function getBookingBilling(bookingId: string) {
     booked: round(booked),
     invoiced: round(invoiced),
     paid: round(paid),
-    /** Still to bill. Negative would mean over-billed, which the guard prevents. */
-    leftToInvoice: round(Math.max(booked - invoiced, 0)),
+    /**
+     * Taken off the price across every live invoice on this booking.
+     *
+     * Reported rather than merely subtracted, because the gap between what a
+     * booking is worth and what it was billed is a decision somebody made, and
+     * a page showing both figures without it leaves the reader to guess.
+     */
+    discounted: round(discounted),
+    /**
+     * Still to bill — what is neither billed nor given away.
+     *
+     * Negative would mean over-billed, which the guard prevents.
+     */
+    leftToInvoice: round(Math.max(booked - invoiced - discounted, 0)),
     /** Still owed on what has been billed. */
     leftToPay: round(Math.max(invoiced - paid, 0)),
-    /** True when more has been billed than the booking is worth. */
-    overInvoiced: round(invoiced) > round(booked),
+    /**
+     * True when more has been accounted for than the booking is worth. A
+     * concession counts: billing 250,000, forgiving 25,000 and then billing
+     * another 25,000 has put 275,000 against a 250,000 job.
+     */
+    overInvoiced: round(invoiced + discounted) > round(booked),
     currency: currency || (await getStudioCurrency()),
   };
 }
