@@ -132,6 +132,7 @@ let userId = '';
 let orgId = '';
 let cookieHeader = '';
 let packageId = '';
+let retiredPackageId = '';
 let bookingId = '';
 let fullBookingId = '';
 let workflowId = '';
@@ -257,6 +258,16 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     packageId = await seed('packages', {
       organization_id: orgId, name: 'Smoke Package', status: 'active',
       price: { base_price: 42000, currency: 'NGN' },
+    });
+
+    /*
+     * A package the studio has withdrawn, so the catalogue can be asked whether
+     * it still offers to sell one. It needs no bundle: what is being checked is
+     * the card's own act, not what the package contains.
+     */
+    retiredPackageId = await seed('packages', {
+      organization_id: orgId, name: 'Smoke Retired Package', status: 'retired',
+      price: { base_price: 9000, currency: 'NGN' },
     });
 
     const bundledId = await seed('package_services', {
@@ -515,6 +526,28 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
      * string; asking whether it is present is the whole question.
      */
     expect(html, 'no package card offers a booking')
+      .toContain(`/bookings/new?package=${packageId}`);
+  });
+
+  it('does not offer to book a package the studio has withdrawn', async () => {
+    /*
+     * Retired packages are drawn by the same card component, in their own grid
+     * below the offered ones — so they had a Book button too. Survivable while
+     * it was a small grey link, and plainly wrong once it became the loudest
+     * thing on the card. A studio that withdrew a package should not be invited
+     * to sell it.
+     *
+     * Both halves matter: the retired one must not offer it, and the offered
+     * one must still, or a rule meant to withhold one button could quietly
+     * remove them all.
+     */
+    const res = await load('/packages', { headers: { cookie: cookieHeader } });
+    const html = await res.text();
+    expect(html, 'the retired package is not on the page at all')
+      .toContain('Smoke Retired Package');
+    expect(html, 'a withdrawn package still offers to be booked')
+      .not.toContain(`/bookings/new?package=${retiredPackageId}`);
+    expect(html, 'withholding it from retired packages removed it from live ones too')
       .toContain(`/bookings/new?package=${packageId}`);
   });
 

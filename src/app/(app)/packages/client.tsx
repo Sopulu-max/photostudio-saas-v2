@@ -270,7 +270,7 @@ export function PackagesClient({
             {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'No tasks'}
           </span>
           {/*
-            * WHAT THE CATALOGUE IS FOR.
+            * WHAT THE CATALOGUE IS FOR, LOOKING LIKE IT.
             *
             * A studio looking at its packages is usually looking because
             * somebody wants one. Until now the only thing a card could do was
@@ -281,14 +281,31 @@ export function PackagesClient({
             * It carries the package to the form rather than doing anything
             * itself: booking is the booking form's job, and this is one more
             * way in.
+            *
+            * PRIMARY, BECAUSE IT IS THE PRIMARY ACT. It arrived as the quietest
+            * control the system has — secondary, extra-small — which put the
+            * one thing a card is FOR below the two figures describing it. The
+            * accent is what Lumen reserves for the confident action, and on a
+            * catalogue whose purpose is taking bookings that action is this
+            * one. Twelve accented buttons in a grid is not noise when all
+            * twelve are the same offer.
+            *
+            * NOT ON A PACKAGE THAT IS NO LONGER SOLD. Retired packages are
+            * drawn by this same component in their own grid below, so they had
+            * a Book button too — survivable while it was a small grey link, and
+            * plainly wrong the moment it became the loudest thing on the card.
+            * A studio that withdrew a package should not be invited to sell it;
+            * the card still opens, which is what a retired package is for.
             */}
-          <Link
-            href={`/bookings/new?package=${pkg.id}`}
-            className="q-btn q-btn-secondary q-btn-xs q-card-act"
-            title={`Take a booking for ${pkg.name}`}
-          >
-            Book
-          </Link>
+          {pkg.status !== 'retired' && (
+            <Link
+              href={`/bookings/new?package=${pkg.id}`}
+              className="q-btn q-btn-primary q-btn-sm q-card-act"
+              title={`Take a booking for ${pkg.name}`}
+            >
+              Book
+            </Link>
+          )}
         </div>
       </div>
     );
