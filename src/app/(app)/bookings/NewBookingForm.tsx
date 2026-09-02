@@ -52,6 +52,44 @@ export type PackageOption = {
   dimensions: { id: string, name: string, values: { id: string, name: string }[] }[];
 };
 
+/**
+ * What a package was FOUND under becomes what it is FOR — where it may.
+ *
+ * An operator narrows the catalogue to Birthday, picks the package that comes
+ * back, and is then asked "What occasion is it for?" with nothing filled in.
+ * They just said. Left untouched the booking saves classified as nothing,
+ * which is not a failure to save — it is a failure to have asked once.
+ *
+ * ONLY WHERE THE PACKAGE PERMITS IT, which is the whole of the difficulty. A
+ * package narrows the domain's vocabulary before the booking narrows the
+ * package's: the studio declares six occasions, this package is for three of
+ * them, and this booking is for one. Carrying a filtered value across without
+ * checking would assert something the package excludes — and because the
+ * select only offers what the package allows, the answer would render as blank
+ * while submitting as Birthday. A control showing one thing and sending
+ * another is worse than the gap it was meant to close.
+ *
+ * So a value carries only when the package offers it as an answer. Exact
+ * matches, not narrower ones: Beach may well be a kind of Outdoor, but if the
+ * package offers Outdoor then Outdoor is the answer it can represent, and
+ * quietly upgrading a filter into a different word is not this function's to do.
+ */
+export function carriedClassifications(
+  /** What the catalogue was narrowed by, keyed by classification. */
+  filteredBy: Record<string, string>,
+  /** What this package leaves open, each with the answers it permits. */
+  open: { dimensionId: string; values: { id: string }[] }[],
+): Record<string, string> {
+  const carried: Record<string, string> = {};
+  for (const c of open || []) {
+    const chosen = filteredBy[c.dimensionId];
+    if (!chosen) continue;
+    if (!(c.values || []).some((v) => v.id === chosen)) continue;
+    carried[c.dimensionId] = chosen;
+  }
+  return carried;
+}
+
 export type ServiceOption = {
   id: string;
   name: string;
@@ -441,11 +479,16 @@ export function NewBookingForm({
       getPackage(id),
       getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [] })),
     ]).then(([deep, open]) => {
+      // Answered by the filter that found it, where the package allows that
+      // answer. Anything already typed wins — this fills a blank, it never
+      // overwrites a decision.
+      const carried = carriedClassifications(catalogueValues, (open as any)?.classifications || []);
       setLines((prev) => prev.map((l) => l.id !== line.id ? l : {
         ...l,
         selectedPackageDeep: deep,
         isLoadingDeep: false,
         openQuestions: open,
+        chosenClassifications: { ...carried, ...l.chosenClassifications },
         linePrice: l.linePrice || (deep.price?.amount != null ? String(deep.price.amount) : ''),
       }));
     }).catch((err) => {

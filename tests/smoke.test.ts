@@ -104,6 +104,9 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/attendance', expect: /Recorded against|No employees yet/i },
   { path: '/team', expect: /Who does the work/i },
   { path: '/bookings', expect: /<\/html>/i },
+  // The form itself, not just the list. It is the largest surface in the app
+  // and the one most often changed, and until now nothing loaded it.
+  { path: '/bookings/new', expect: /New booking/i },
   // Matched on a column heading, not the word "Galleries": that now sits in the
   // sidebar on every page, so it would pass even for a crashed one.
   { path: '/galleries', expect: /Client opened/i },
