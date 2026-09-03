@@ -5,7 +5,7 @@ import { getStudio } from '@/kernel/organizations';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
   CalendarCheck, CalendarDays, FileSignature,
-  Package, Users, PieChart, Settings, Clock, Box, Images,
+  Package, Users, PieChart, Settings, Clock, Box, Images, StickyNote,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,7 @@ const SECTIONS = [
       { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
       { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', desc: 'Who is doing what, across every booking', icon: CheckSquare },
+      { label: 'Notes', href: '/notes', desc: 'What the studio needs to remember', icon: StickyNote },
       // Cockpit rather than Studio, matching the sidebar: who is in is
       // something you check this morning, not something you configure.
       { label: 'Attendance', href: '/attendance', desc: 'Who is in today', icon: Clock },

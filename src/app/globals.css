@@ -470,6 +470,26 @@ body {
 }
 
 /*
+ * THE ONE BEING LOOKED AT.
+ *
+ * A list beside an editor is only navigable if the list says which row the
+ * editor is showing. Written as a class rather than an inline style so every
+ * such pairing reads the same, and because a selected state expressed once is
+ * a selected state that cannot drift.
+ *
+ * Border and ground rather than a heavier shadow: the card already lifts on
+ * hover, and using lift for both would make "chosen" and "under the pointer"
+ * the same signal.
+ */
+.q-card-selected {
+  border-color: var(--q-color-accent);
+  /* accent-soft is the accent at 10%, and it is redefined for dark alongside
+     the accent itself — so this follows the theme without a second value. */
+  background-color: var(--q-color-accent-soft);
+}
+.q-card-selected:hover { border-color: var(--q-color-accent); }
+
+/*
  * A CARD WHOSE WHOLE FACE OPENS ONE THING, WITH ROOM FOR A CONTROL THAT DOES
  * ANOTHER.
  *

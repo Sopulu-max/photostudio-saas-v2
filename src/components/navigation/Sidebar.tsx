@@ -19,6 +19,7 @@ import {
   Clock,
   Settings,
   Box,
+  StickyNote,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -28,6 +29,9 @@ const NAV_SECTIONS = [
       { label: 'Command Center', href: '/overview', icon: LayoutDashboard },
       { label: 'Calendar', href: '/calendar', icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+      // Cockpit, beside Tasks: notes are something a studio jots and checks
+      // during the day, not something it configures.
+      { label: 'Notes', href: '/notes', icon: StickyNote },
       // Cockpit, not Studio: who is in is a thing you check this morning, not
       // something you configure.
       { label: 'Attendance', href: '/attendance', icon: Clock },

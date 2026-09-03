@@ -47,7 +47,7 @@ const TEST_NAMES = [
 
 /** Child-first, the same order tests/purge.ts uses when a run cleans up properly. */
 const PURGE_ORDER = [
-  'events',
+  'events', 'notes',
   'assignments', 'booking_tasks', 'booking_line_variable_values', 'booking_lines',
   'financial_transactions', 'invoice_lines', 'invoices',
   'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',

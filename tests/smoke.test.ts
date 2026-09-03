@@ -128,6 +128,7 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/services/classifications', expect: /By classification/i },
   { path: '/calendar', expect: /<\/html>/i },
   { path: '/tasks', expect: /<\/html>/i },
+  { path: '/notes', expect: /What the studio needs to remember/i },
   { path: '/analytics', expect: /<\/html>/i },
   { path: '/settings', expect: /The hours you keep/i },
 ];
@@ -373,6 +374,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
       await supabaseAdmin.from('invoice_lines').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('invoices').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('booking_lines').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('notes').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('service_deliverable_options').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('service_deliverables').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('variables').delete().eq('organization_id', orgId);

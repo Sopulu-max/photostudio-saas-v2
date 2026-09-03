@@ -10,7 +10,7 @@
  * Order is child-first. Tables that do cascade are harmless to include.
  */
 export const PURGE_ORDER = [
-  'events',
+  'events', 'notes',
   'assignments', 'booking_tasks', 'booking_line_variable_values', 'booking_lines',
   // financial_transactions before contracts: a transaction points at the
   // contract it settles, so contracts cannot go first. Invoices go after the
