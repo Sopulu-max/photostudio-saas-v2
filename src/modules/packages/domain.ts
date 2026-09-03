@@ -8,6 +8,14 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
+// One definition of what a deliverable link looks like, shared by every reader.
+import {
+  SERVICE_OFFERS, PACKAGE_PROMISE, PACKAGE_PROMISE_COUNT, DELIVERABLE_REF,
+} from '@/modules/deliverables/shape';
+// A link to a deliverable is written by the module that defines one.
+import {
+  setPackageDeliverables, copyPackageDeliverables,
+} from '@/modules/deliverables/domain';
 import { formatDeliverable } from './deliverableSpec';
 
 /**
@@ -269,7 +277,7 @@ async function bundleRows(orgId: string, packageId: string) {
  */
 async function replaceBundleLinks(
   orgId: string,
-  table: 'package_variable_values' | 'package_deliverables',
+  table: 'package_variable_values',
   rows: { id: string }[],
   links: Record<string, unknown>[],
   failure: string
@@ -360,7 +368,7 @@ async function writePackageVariableValues(
       return targets.map((r) => ({
         organization_id: orgId,
         package_service_id: r.id,
-        service_variable_id: v.serviceVariableId,
+        variable_id: v.serviceVariableId,
         value: asked ? null : v.value,
         answered_by: asked ? 'client' : 'studio',
       }));
@@ -402,7 +410,11 @@ async function writePackageDeliverables(
       spec_values: p.specValues ?? null,
     });
   }
-  await replaceBundleLinks(orgId, 'package_deliverables', rows, links, 'Failed to save what this package promises');
+  /*
+   * Packages decides WHAT it promises and how much of it — that is this layer's
+   * job and it stays here. Writing the link is Deliverables', so it is asked.
+   */
+  await setPackageDeliverables({ packageServiceIds: rows.map((r) => r.id), links });
 }
 
 
@@ -550,7 +562,7 @@ export async function createPackage(input: {
     assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
     assertAllOurs(orgId, 'deliverables', (input.deliverables || []).map((d) => d.deliverableId), 'outputs'),
     assertAllOurs(orgId, 'dimension_values', (input.narrowings || []).map((n) => n.valueId), 'classifications'),
-    assertAllOurs(orgId, 'service_variables',
+    assertAllOurs(orgId, 'variables',
       (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
   ]);
 
@@ -644,7 +656,7 @@ export async function updatePackage(input: {
     assertAllOurs(orgId, 'services', input.serviceIds, 'services'),
     assertAllOurs(orgId, 'deliverables', (input.deliverables || []).map((d) => d.deliverableId), 'outputs'),
     assertAllOurs(orgId, 'dimension_values', (input.narrowings || []).map((n) => n.valueId), 'classifications'),
-    assertAllOurs(orgId, 'service_variables',
+    assertAllOurs(orgId, 'variables',
       (input.variableValues || []).map((v) => v.serviceVariableId), 'variables'),
   ]);
 
@@ -777,11 +789,21 @@ async function copyPackage(
   const originalIds = original.map((s) => s.id);
   const rekey = (packageServiceId: string) => copyRowOf.get(serviceOfOriginal.get(packageServiceId) as string);
 
-  const [outputs, narrowings, fixed] = await Promise.all([
-    supabaseAdmin.from('package_deliverables').select('package_service_id, deliverable_id, quantity').eq('organization_id', orgId).in('package_service_id', originalIds),
+  const [narrowings, fixed] = await Promise.all([
     supabaseAdmin.from('package_service_dimension_values').select('package_service_id, dimension_value_id').eq('organization_id', orgId).in('package_service_id', originalIds),
-    supabaseAdmin.from('package_variable_values').select('package_service_id, service_variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
+    supabaseAdmin.from('package_variable_values').select('package_service_id, variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
   ]);
+
+  /*
+   * Old bundle row → new one, as a plain object. What the promises carry across
+   * is Deliverables' to decide, which is how spec_values stops being dropped:
+   * this used to list the columns by hand and name only two of the three.
+   */
+  const rowMap: Record<string, string> = {};
+  for (const id of originalIds) {
+    const to = rekey(id);
+    if (to) rowMap[id] = to;
+  }
 
   const carry = async (table: string, rows: any[] | null, shape: (r: any, packageServiceId: string) => Record<string, unknown>) => {
     const links = ((rows || []) as any[])
@@ -794,9 +816,9 @@ async function copyPackage(
   };
 
   await Promise.all([
-    carry('package_deliverables', outputs.data, (r, to) => ({ organization_id: orgId, package_service_id: to, deliverable_id: r.deliverable_id, quantity: r.quantity })),
+    copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap }),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
-    carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, service_variable_id: r.service_variable_id, value: r.value })),
+    carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, variable_id: r.variable_id, value: r.value })),
   ]);
 
   return made;
@@ -953,13 +975,13 @@ const PACKAGE_SELECT = `
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
-    service_deliverables(deliverable:deliverables(id, name)),
+    ${SERVICE_OFFERS},
     service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
-    service_variables(id, service_id, key, label, unit, kind, options)
+    variables(id, service_id, key, label, unit, kind, options)
   ),
   package_service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
-  package_deliverables(quantity, spec_values, deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)),
-  package_variable_values(value, answered_by, variable:service_variables(id, service_id, key, label, unit, kind)),
+  ${PACKAGE_PROMISE},
+  package_variable_values(value, answered_by, variable:variables(id, service_id, key, label, unit, kind)),
   package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active))
 `;
 
@@ -1014,7 +1036,7 @@ function shapePackage(p: any) {
         .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity })),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
       narrowedTo: shapeDimensionLinks(ps.package_service_dimension_values),
-      variables: (ps.service?.service_variables || []).map((v: any) => ({
+      variables: (ps.service?.variables || []).map((v: any) => ({
         id: v.id, serviceId: v.service_id, key: v.key, label: v.label, unit: v.unit, kind: v.kind, options: v.options
       })),
       variableValues: (ps.package_variable_values || [])
@@ -1104,7 +1126,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id, name, description, duration_minutes,
       package_services(id, service:services(
         id, name
-      ), package_deliverables(id), package_service_dimension_values(dimension_value:dimension_values(
+      ), ${PACKAGE_PROMISE_COUNT}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
     `)
@@ -1144,10 +1166,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
       id, name, description, pricing_variant, duration_minutes, form_schema, cover_url, cover_position,
       package_services(
         service:services(name),
-        package_deliverables(
-          quantity, spec_values,
-          deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)
-        )
+        ${PACKAGE_PROMISE}
       )
     `)
     .eq('id', packageId)
@@ -1446,11 +1465,11 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     .select(`
       service:services(
         id, name,
-        service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
+        variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
         service_dimension_values(dimension_value:dimension_values(id, dimension_id))
       ),
       package_service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
-      package_variable_values(service_variable_id, answered_by)
+      package_variable_values(variable_id, answered_by)
     `)
     .eq('package_id', packageId)
     .eq('organization_id', orgId)
@@ -1484,7 +1503,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
   }
 
   const dimensionVariables = dimensionIds.size === 0 ? [] : (await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
@@ -1505,7 +1524,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
   const decidedAnywhere = new Map<string, string>();
   for (const row of ((rows || []) as any[])) {
     for (const f of ((row.package_variable_values || []) as any[])) {
-      if (f.answered_by) decidedAnywhere.set(f.service_variable_id, f.answered_by as string);
+      if (f.answered_by) decidedAnywhere.set(f.variable_id, f.answered_by as string);
     }
   }
 
@@ -1514,9 +1533,9 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     const service = row.service;
     if (!service) continue;
     const decided = new Map(
-      ((row.package_variable_values || []) as any[]).map((f) => [f.service_variable_id, f.answered_by as string]),
+      ((row.package_variable_values || []) as any[]).map((f) => [f.variable_id, f.answered_by as string]),
     );
-    for (const v of (service.service_variables || [])) {
+    for (const v of (service.variables || [])) {
       all.push({
         id: v.id,
         serviceId: service.id,
@@ -1639,7 +1658,7 @@ export async function getDeliverablesForPackages(packageIds: string[]): Promise<
   // Read through the bundle, since that is where a promise now lives.
   const { data, error } = await supabaseAdmin
     .from('package_services')
-    .select('package_deliverables(deliverable:deliverables(id, name))')
+    .select(`package_deliverables(${DELIVERABLE_REF})`)
     .eq('organization_id', orgId)
     .in('package_id', packageIds);
   if (error) {

@@ -11,6 +11,8 @@ import { getPackageForBooking, getPackageVariables } from '@/modules/packages/in
 import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/interface';
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'crypto';
+// One definition of what a deliverable link looks like, shared by every reader.
+import { PACKAGE_PROMISE_NAMED } from '@/modules/deliverables/shape';
 
 /**
  * Create a booking. A title alone is enough — everything else (client, lines,
@@ -435,7 +437,7 @@ export async function setLineConfiguration(input: {
   // package's scope still needs inheriting.
   const { data: existingRows } = await supabaseAdmin
     .from('booking_line_variable_values')
-    .select('service_variable_id, value, source')
+    .select('variable_id, value, source')
     .eq('organization_id', orgId)
     .eq('booking_line_id', input.lineId);
   const existing = (existingRows || []) as any[];
@@ -446,7 +448,7 @@ export async function setLineConfiguration(input: {
     .eq('organization_id', orgId)
     .eq('booking_line_id', input.lineId);
 
-  type Row = { organization_id: string; booking_line_id: string; service_variable_id: string; value: unknown; source: string };
+  type Row = { organization_id: string; booking_line_id: string; variable_id: string; value: unknown; source: string };
 
   // What the line starts from before this call's answers are applied.
   const inherited: Row[] = [];
@@ -460,7 +462,7 @@ export async function setLineConfiguration(input: {
       inherited.push({
         organization_id: orgId,
         booking_line_id: input.lineId,
-        service_variable_id: e.service_variable_id,
+        variable_id: e.variable_id,
         value: e.value,
         source: e.source,
       });
@@ -471,7 +473,7 @@ export async function setLineConfiguration(input: {
     // the package rather than to the package.
     const { data: fixed } = await supabaseAdmin
       .from('package_services')
-      .select('package_variable_values(service_variable_id, value)')
+      .select('package_variable_values(variable_id, value)')
       .eq('organization_id', orgId)
       .eq('package_id', line.package_id);
     // A line's configuration is keyed by variable, so bundling the same service
@@ -481,12 +483,12 @@ export async function setLineConfiguration(input: {
     const taken = new Set<string>();
     for (const row of ((fixed || []) as any[])) {
       for (const f of (row.package_variable_values || [])) {
-        if (taken.has(f.service_variable_id)) continue;
-        taken.add(f.service_variable_id);
+        if (taken.has(f.variable_id)) continue;
+        taken.add(f.variable_id);
         inherited.push({
           organization_id: orgId,
           booking_line_id: input.lineId,
-          service_variable_id: f.service_variable_id,
+          variable_id: f.variable_id,
           value: f.value,
           source: 'package',
         });
@@ -505,15 +507,15 @@ export async function setLineConfiguration(input: {
     answers.push({
       organization_id: orgId,
       booking_line_id: input.lineId,
-      service_variable_id: a.serviceVariableId,
+      variable_id: a.serviceVariableId,
       value: a.value,
       source: input.source || 'client',
     });
   }
   const cleared = new Set(input.clear || []);
   const rows = [
-    ...inherited.filter((r) => !answered.has(r.service_variable_id) && !cleared.has(r.service_variable_id)),
-    ...answers.filter((r) => !cleared.has(r.service_variable_id)),
+    ...inherited.filter((r) => !answered.has(r.variable_id) && !cleared.has(r.variable_id)),
+    ...answers.filter((r) => !cleared.has(r.variable_id)),
   ];
 
   if (rows.length > 0) {
@@ -533,7 +535,7 @@ export async function getLineConfiguration(lineId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('booking_line_variable_values')
-    .select('value, source, variable:service_variables(id, key, label, unit, position)')
+    .select('value, source, variable:variables(id, key, label, unit, position)')
     .eq('organization_id', orgId)
     .eq('booking_line_id', lineId);
   if (error) {
@@ -2183,7 +2185,7 @@ export async function getBookingByShareToken(token: string) {
           package_services(
             id,
             service:services(id, name),
-            package_deliverables(quantity, spec_values, deliverable:deliverables(name)),
+            ${PACKAGE_PROMISE_NAMED},
             package_service_dimension_values(
               dimension_value:dimension_values(id, name, dimension:dimensions(name))
             )

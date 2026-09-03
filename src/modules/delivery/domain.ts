@@ -8,6 +8,12 @@ import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { getDeliverablesForPackages } from '@/modules/packages/interface';
 import { GALLERY_RENDITIONS, type GalleryRendition } from './renditions';
+// The deliverable edges belong to the module that defines a deliverable.
+import {
+  setDeliveryDeliverables, listDeliveryDeliverableIds,
+  listDeliveredDeliverableIdsForBooking,
+} from '@/modules/deliverables/domain';
+import { DELIVERY_FULFILS } from '@/modules/deliverables/shape';
 
 /**
  * Delivery — handing finished work to the client.
@@ -187,12 +193,8 @@ export async function registerFile(input: {
   // type and we can say so. With two or more, nothing here knows which file is
   // the album and which is a photo, so the asset stays untyped rather than
   // guessing — a wrong type is worse than none.
-  const { data: covers } = await supabaseAdmin
-    .from('delivery_deliverables')
-    .select('deliverable_id')
-    .eq('organization_id', orgId)
-    .eq('delivery_id', input.deliveryId);
-  const deliverableId = (covers || []).length === 1 ? (covers as any[])[0].deliverable_id : null;
+  const covers = await listDeliveryDeliverableIds(input.deliveryId);
+  const deliverableId = covers.length === 1 ? covers[0] : null;
 
   // 1. Register the Production Asset
   const { data: asset, error: assetError } = await supabaseAdmin
@@ -444,21 +446,9 @@ export async function setDeliveryFulfils(input: {
   const stray = ids.find((id) => !promisedIds.has(id));
   if (stray) throw new Error('That deliverable is not part of what this booking promised.');
 
-  await supabaseAdmin
-    .from('delivery_deliverables')
-    .delete()
-    .eq('organization_id', orgId)
-    .eq('delivery_id', input.deliveryId);
-
-  if (ids.length > 0) {
-    const { error } = await supabaseAdmin.from('delivery_deliverables').insert(
-      ids.map((deliverable_id) => ({ organization_id: orgId, delivery_id: input.deliveryId, deliverable_id }))
-    );
-    if (error) {
-      console.error('Failed to set what this delivery fulfils:', error);
-      throw new Error('Failed to save what this delivery covers');
-    }
-  }
+  // Delivery decides WHICH promises these files close out; writing the link is
+  // Deliverables', the same rule the package and service edges follow.
+  await setDeliveryDeliverables({ deliveryId: input.deliveryId, deliverableIds: ids });
 
   await logEvent({
     organizationId: orgId,
@@ -498,11 +488,7 @@ export async function getFulfilmentForBooking(bookingId: string) {
   if (promised.length === 0) return [];
 
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin
-    .from('delivery_deliverables')
-    .select('deliverable_id, delivery:deliveries!inner(id, title, status, booking_id)')
-    .eq('organization_id', orgId)
-    .eq('delivery.booking_id', bookingId);
+  const data = await listDeliveredDeliverableIdsForBooking(bookingId);
 
   const byDeliverable = new Map<string, { id: string; title: string; status: string }[]>();
   for (const row of ((data || []) as any[])) {
@@ -534,7 +520,7 @@ export async function listDeliveriesForBooking(bookingId: string) {
     .from('deliveries')
     // Pinned to the delivery_id key for the same reason as the gallery query:
     // cover_asset_id makes a bare `delivery_assets` embed ambiguous.
-    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, cover_asset_id, delivery_assets!delivery_assets_delivery_id_fkey(id, position, asset:assets(id, file_name, mime_type, size_bytes)), delivery_deliverables(deliverable:deliverables(id, name))')
+    .select(`id, title, status, share_token, shared_at, last_viewed_at, archived_at, cover_asset_id, delivery_assets!delivery_assets_delivery_id_fkey(id, position, asset:assets(id, file_name, mime_type, size_bytes)), ${DELIVERY_FULFILS}`)
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId)
     .order('created_at', { ascending: false });

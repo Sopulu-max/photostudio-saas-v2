@@ -33,10 +33,23 @@ import {
   listDeliveryContainers, createDeliveryContainer,
   renameDeliveryContainer, deleteDeliveryContainer,
   listDeliverables, createDeliverable, updateDeliverableConfig,
+  declareDeliverableVariable, listVariablesForDeliverables, removeDeliverableVariable,
 } from '@/modules/deliverables/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+import { createPackage, duplicatePackage } from '@/modules/packages/domain';
+
 import { seedStudio, seedRow } from './seed';
 import { PURGE_ORDER } from './purge';
+/** What a package's bundle rows promise, read straight from the tables. */
+async function readPromises(packageId: string) {
+  const { data: rows } = await supabaseAdmin
+    .from('package_services').select('id').eq('package_id', packageId);
+  const { data } = await supabaseAdmin
+    .from('package_deliverables')
+    .select('deliverable_id, quantity, spec_values')
+    .in('package_service_id', (rows || []).map((r: any) => r.id));
+  return (data || []) as any[];
+}
 
 describe('the studio’s delivery containers', () => {
   beforeAll(async () => {
@@ -88,33 +101,147 @@ describe('the studio’s delivery containers', () => {
       .rejects.toThrow();
   });
 
-  it('carries a spec schema from the kind through to every reader', async () => {
+  it('returns the columns it promises — the unit a deliverable is counted in', async () => {
     const domain = await seedRow('service_domains',
       { organization_id: TEST_ORG_ID, name: 'Framing' }, 'the domain');
     const { outputTypeId } = await createDeliverable({
       serviceDomainId: domain.id, name: 'Framed print',
     });
 
-    // Exactly the shape the editor now writes: label kept for people, key for
-    // storage, options only where the answer is a choice.
-    await updateDeliverableConfig(outputTypeId, {
-      default_unit: 'print',
-      spec_schema: [
-        { key: 'size', label: 'Size', type: 'select', options: ['20x30', '16x20'] },
-        { key: 'frame', label: 'Frame', type: 'text' },
-      ] as any,
-      spec_values: { size: '20x30' },
-    });
+    /*
+     * default_unit is what formatDeliverable counts in — "30 seconds video"
+     * rather than "30 video". It is live, and it was one of three columns
+     * listDeliverables mapped onto every row while selecting none of them, so
+     * it arrived undefined on every read the app made.
+     *
+     * What a deliverable NEEDS SETTLING is no longer here: spec_schema was a
+     * variable system invented for one screen, and a deliverable declares real
+     * variables now — see the third-owner test above.
+     */
+    await updateDeliverableConfig(outputTypeId, { default_unit: 'print' });
 
     const found = (await listDeliverables()).find((d) => d.id === outputTypeId);
-    const schema = found!.spec_schema as any;
-    expect(Array.isArray(schema), 'the schema did not survive as a list').toBe(true);
-    expect(schema.length, 'the declared fields did not come back').toBe(2);
-    expect(schema[0].label, 'the studio’s own word for the field was lost').toBe('Size');
-    expect(schema[0].options, 'the permitted answers were lost').toEqual(['20x30', '16x20']);
+    expect(found, 'the deliverable is not in the list at all').toBeTruthy();
+    expect(found!.default_unit, 'default_unit came back undefined again').toBe('print');
+  }, 60000);
 
-    // The usual answer is a DEFAULT, not a lock. Both readers take it as one.
-    expect((found!.spec_values as any).size).toBe('20x30');
+  it('carries a package’s specification onto a copy of it', async () => {
+    /*
+     * THE DRIFT THAT MOVING THE EDGE FOUND.
+     *
+     * Saving a package wrote deliverable_id, quantity AND spec_values. Copying
+     * one — which is what duplicating does, and what instancing a package for a
+     * booking does — selected and inserted only the first two. So a duplicate
+     * came out saying "Framed print" where the original said
+     * "Framed print · 20x30", and a client's own instance of a package lost the
+     * specification it was sold with.
+     *
+     * Two writers of one edge with different column lists. It was invisible
+     * until a spec could actually be set, which is why it survived: every
+     * spec_values in the database was null.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Print Shop' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Printing', service_domain_id: domain.id }, 'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Wall print',
+    });
+
+    const { packageId } = await createPackage({
+      name: 'Print Package',
+      serviceIds: [service.id],
+      deliverables: [{
+        serviceId: service.id,
+        deliverableId: outputTypeId,
+        quantity: 3,
+        specValues: { size: '20x30', frame: 'oak' },
+      }],
+    });
+
+    const original = await readPromises(packageId);
+    expect(original.length, 'the promise was not saved at all').toBe(1);
+    expect(original[0].spec_values, 'the spec never reached the original')
+      .toEqual({ size: '20x30', frame: 'oak' });
+
+    const copy = await duplicatePackage(packageId);
+    const copied = await readPromises(copy.packageId);
+
+    expect(copied.length, 'the copy promises nothing').toBe(1);
+    expect(Number(copied[0].quantity), 'the quantity did not travel').toBe(3);
+    expect(copied[0].spec_values, 'the specification was dropped by the copy')
+      .toEqual({ size: '20x30', frame: 'oak' });
+  }, 90000);
+
+  it('declares what it needs settling as a real variable, not a shape of its own', async () => {
+    /*
+     * THE THIRD OWNER OF A VARIABLE, NOT A THIRD MECHANISM.
+     *
+     * A variable already has a kind, a unit, options, bounds and a default; a
+     * package already decides whether it fixes one or leaves it to the client;
+     * a booking line already holds the answer. The dimension migration made
+     * exactly this argument when a classification became the second owner, and
+     * called the alternative "the duplication this codebase keeps paying for".
+     *
+     * I built that duplication anyway — a jsonb spec_schema with three field
+     * types against the eight the real one checks, no unit, no bounds, no
+     * default, and no share of parseVariableValue. This is what says the
+     * correction works: a deliverable's declaration is an ordinary variable.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Album Bindery' }, 'the domain');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Bound album',
+    });
+
+    const made: any = await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Cover material', kind: 'choice', options: ['Linen', 'Leather'] },
+    });
+    expect(made.deliverable_id, 'it was not owned by the deliverable').toBe(outputTypeId);
+    expect(made.service_id, 'it claimed a service as well').toBeNull();
+    expect(made.dimension_id, 'it claimed a classification as well').toBeNull();
+    // The key is derived from the label, so a studio names a thing once.
+    expect(made.key).toBe('cover_material');
+
+    const declared = await listVariablesForDeliverables([outputTypeId]);
+    expect(declared.length, 'the declaration did not come back').toBe(1);
+    expect(declared[0].options, 'the permitted answers were lost').toEqual(['Linen', 'Leather']);
+
+    // Asking twice for the same thing finds the one that exists.
+    const again: any = await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Cover material', kind: 'choice', options: ['Linen'] },
+    });
+    expect(again.id, 'declaring the same field twice made two').toBe(made.id);
+
+    await removeDeliverableVariable(made.id);
+    expect((await listVariablesForDeliverables([outputTypeId])).length,
+      'the declaration survived removal').toBe(0);
+  }, 90000);
+
+  it('refuses a variable that claims two owners', async () => {
+    /*
+     * The check constraint is what keeps one mechanism from becoming three. If
+     * it ever stops refusing this, a row could be a service's AND a
+     * deliverable's, and every reader that filters by one owner would be wrong.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Two Owners' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Some service', service_domain_id: domain.id }, 'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Some output',
+    });
+
+    const { error } = await supabaseAdmin.from('variables').insert({
+      organization_id: TEST_ORG_ID,
+      service_id: service.id,
+      deliverable_id: outputTypeId,
+      key: 'both', label: 'Both', kind: 'text', options: [], position: 0,
+    });
+    expect(error, 'a variable was allowed to belong to two things at once').toBeTruthy();
+    expect(String(error?.message)).toMatch(/one_owner|violates check/i);
   }, 60000);
 
   it('returns the spec columns it promises, instead of undefined', async () => {

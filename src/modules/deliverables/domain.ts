@@ -414,3 +414,282 @@ export async function listDeliverableIdsForServices(serviceIds: string[]): Promi
     .eq('organization_id', orgId);
   return Array.from(new Set(((data || []) as any[]).map((d) => d.deliverable_id))) as string[];
 }
+
+/*
+ * ─── WHAT A PACKAGE PROMISES, AND WHAT A DELIVERY FULFILS ──────────────────
+ *
+ * The remaining two edges. Packages still decides WHAT it promises and in what
+ * quantity — that is the commercial layer's whole job — and Delivery still
+ * decides which promises a bundle of files closes out. Neither writes the link
+ * any more, for the reason the service edge moved: a link to a deliverable is
+ * this module's to write, and an edge written from three places drifts.
+ *
+ * IT HAD ALREADY DRIFTED. Saving a package wrote deliverable_id, quantity AND
+ * spec_values; copying one — which is what duplicating a package does, and what
+ * instancing one for a booking does — selected only deliverable_id and quantity
+ * and inserted only those. So "Framed print · 20x30" came out of a duplicate as
+ * "Framed print", and the client's own instance of a package lost the
+ * specification it was sold with. Invisible until now only because nothing
+ * could set a spec in the first place.
+ *
+ * One writer, one column list, and that class of fault has nowhere left to
+ * live.
+ */
+
+/** Every column a package's promise carries. The one definition of that shape. */
+const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity, spec_values';
+
+/** What these bundle rows promise. */
+export async function listPackageDeliverableLinks(packageServiceIds: string[]) {
+  if (packageServiceIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('package_deliverables')
+    .select(PACKAGE_DELIVERABLE_COLUMNS)
+    .eq('organization_id', orgId)
+    .in('package_service_id', packageServiceIds);
+  return (data || []) as any[];
+}
+
+/**
+ * Replace what a package promises, across every bundle row it has.
+ *
+ * Scoped by bundle row rather than by package, because a promise hangs off the
+ * row joining a package to a service — there is no package-wide handle on these.
+ */
+export async function setPackageDeliverables(input: {
+  packageServiceIds: string[];
+  links: Record<string, unknown>[];
+}) {
+  const { orgId } = await getAuthOrgId();
+  if (input.packageServiceIds.length === 0) return { ok: true };
+
+  const { error: clearError } = await supabaseAdmin
+    .from('package_deliverables').delete()
+    .eq('organization_id', orgId)
+    .in('package_service_id', input.packageServiceIds);
+  if (clearError) {
+    console.error('Failed to clear what this package promises:', clearError);
+    throw new Error('Failed to save what this package promises');
+  }
+
+  if (input.links.length === 0) return { ok: true };
+  const { error } = await supabaseAdmin.from('package_deliverables').insert(input.links);
+  if (error) {
+    console.error('Failed to save what this package promises:', error);
+    throw new Error('Failed to save what this package promises');
+  }
+  return { ok: true };
+}
+
+/**
+ * Carry a package's promises onto a copy of it, whole.
+ *
+ * `rowMap` is old bundle-row id → new one. A plain object rather than the
+ * function the caller used to pass, so nothing here depends on being called
+ * from the same process.
+ *
+ * Every column travels. That is the entire point: the previous copier listed
+ * its columns by hand and forgot spec_values.
+ */
+export async function copyPackageDeliverables(input: {
+  fromPackageServiceIds: string[];
+  rowMap: Record<string, string>;
+}) {
+  const { orgId } = await getAuthOrgId();
+  const source = await listPackageDeliverableLinks(input.fromPackageServiceIds);
+
+  const links = source
+    .map((r) => ({ r, to: input.rowMap[r.package_service_id] }))
+    .filter((x) => Boolean(x.to))
+    .map(({ r, to }) => ({
+      organization_id: orgId,
+      package_service_id: to,
+      deliverable_id: r.deliverable_id,
+      quantity: r.quantity,
+      spec_values: r.spec_values,
+    }));
+  if (links.length === 0) return { ok: true, copied: 0 };
+
+  const { error } = await supabaseAdmin.from('package_deliverables').insert(links);
+  if (error) {
+    console.error('Failed to copy what the package promises:', error);
+    throw new Error('Failed to copy the package');
+  }
+  return { ok: true, copied: links.length };
+}
+
+/** Which promises this delivery closes out. */
+export async function listDeliveryDeliverableIds(deliveryId: string): Promise<string[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('delivery_deliverables')
+    .select('deliverable_id')
+    .eq('organization_id', orgId)
+    .eq('delivery_id', deliveryId);
+  return ((data || []) as any[]).map((r) => r.deliverable_id).filter(Boolean);
+}
+
+/** Say which promises a delivery fulfils, replacing whatever it said before. */
+export async function setDeliveryDeliverables(input: {
+  deliveryId: string;
+  deliverableIds: string[];
+}) {
+  const { orgId } = await getAuthOrgId();
+
+  await supabaseAdmin
+    .from('delivery_deliverables').delete()
+    .eq('organization_id', orgId)
+    .eq('delivery_id', input.deliveryId);
+
+  if (input.deliverableIds.length === 0) return { ok: true };
+  const { error } = await supabaseAdmin.from('delivery_deliverables').insert(
+    input.deliverableIds.map((deliverable_id) => ({
+      organization_id: orgId, delivery_id: input.deliveryId, deliverable_id,
+    })),
+  );
+  if (error) {
+    console.error('Failed to set what this delivery fulfils:', error);
+    throw new Error('Failed to save what this delivery covers');
+  }
+  return { ok: true };
+}
+
+/** Which deliverables a booking's deliveries have covered between them. */
+export async function listDeliveredDeliverableIdsForBooking(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('delivery_deliverables')
+    .select('deliverable_id, delivery:deliveries!inner(id, title, status, booking_id)')
+    .eq('organization_id', orgId)
+    .eq('delivery.booking_id', bookingId);
+  return (data || []) as any[];
+}
+
+/*
+ * ─── WHAT A DELIVERABLE NEEDS SETTLING ─────────────────────────────────────
+ *
+ * "Edited photograph" needs nothing. "Framed print" has a size and a frame, and
+ * every package promising one has to settle both — a fact about the KIND, not
+ * about any package that sells it.
+ *
+ * THIS IS THE THIRD OWNER OF A VARIABLE, NOT A THIRD MECHANISM. A variable
+ * already has a kind, a unit, options, bounds and a default; a package already
+ * decides whether it fixes one or leaves it for the client; a booking line
+ * already holds the answer. The dimension migration made exactly this argument
+ * when a classification became the second owner, and named the alternative "the
+ * duplication this codebase keeps paying for".
+ *
+ * I built that duplication anyway — a jsonb `spec_schema` carrying a shape
+ * invented for it, with three field types against the eight the real one
+ * checks, no unit, no bounds, no default, and no share of parseVariableValue.
+ * It was a second variable system that only deliverables could use and only
+ * this module could read. This is the correction: a deliverable declares a
+ * variable, like a service and a classification do.
+ *
+ * The answer table needs nothing. package_variable_values keys on
+ * (package_service_id, variable_id), and two deliverables that each declare a
+ * "size" declare two different variables — so a package can answer both, on one
+ * bundle row, with no schema change at all.
+ */
+
+/** What these deliverables declare. */
+export async function listVariablesForDeliverables(deliverableIds: string[]) {
+  if (deliverableIds.length === 0) return [];
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('variables')
+    .select('*')
+    .eq('organization_id', orgId)
+    .in('deliverable_id', deliverableIds)
+    .order('position');
+  if (error) {
+    console.error('Failed to list what these deliverables need settling:', error);
+    return [];
+  }
+  return (data || []) as any[];
+}
+
+/**
+ * Declare something a deliverable needs settling.
+ *
+ * Idempotent on the key: asking twice for "size" finds the one that exists
+ * rather than making a second the unique index would refuse anyway.
+ */
+export async function declareDeliverableVariable(input: {
+  deliverableId: string;
+  variable: {
+    key?: string;
+    label: string;
+    kind?: string;
+    unit?: string | null;
+    options?: string[];
+    defaultValue?: unknown;
+    min?: number | null;
+    max?: number | null;
+  };
+}) {
+  const { orgId } = await getAuthOrgId();
+
+  // Scoped read, so this doubles as the ownership check: a deliverable that is
+  // not this studio's comes back empty.
+  const { data: deliverable } = await supabaseAdmin
+    .from('deliverables').select('id')
+    .eq('id', input.deliverableId).eq('organization_id', orgId).maybeSingle();
+  if (!deliverable) throw new Error('That deliverable was not found.');
+
+  const key = (input.variable.key || input.variable.label || '')
+    .trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_|_$/g, '');
+  const label = (input.variable.label || '').trim();
+  if (!key || !label) throw new Error('That needs a name.');
+
+  const existing = await listVariablesForDeliverables([input.deliverableId]);
+  const already = existing.find((v) => v.key === key);
+  if (already) return already;
+
+  const { data, error } = await supabaseAdmin
+    .from('variables')
+    .insert({
+      organization_id: orgId,
+      // The owner, and the only thing that makes this different from a
+      // service's or a classification's. The check constraint refuses two.
+      deliverable_id: input.deliverableId,
+      service_id: null,
+      dimension_id: null,
+      key,
+      label,
+      kind: input.variable.kind || 'text',
+      unit: (input.variable.unit || '').trim() || null,
+      options: input.variable.options || [],
+      default_value: input.variable.defaultValue ?? null,
+      min_value: input.variable.min ?? null,
+      max_value: input.variable.max ?? null,
+      position: existing.length,
+    })
+    .select('*')
+    .single();
+  if (error || !data) {
+    console.error('Failed to declare what a deliverable needs:', error);
+    throw new Error('Could not add that');
+  }
+
+  revalidatePath('/deliverables');
+  revalidatePath('/packages');
+  return data as any;
+}
+
+export async function removeDeliverableVariable(variableId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('variables').delete()
+    .eq('id', variableId).eq('organization_id', orgId)
+    // Never a service's or a classification's, however the id arrived.
+    .not('deliverable_id', 'is', null);
+  if (error) {
+    console.error('Failed to remove a deliverable variable:', error);
+    throw new Error('Failed to remove that');
+  }
+  revalidatePath('/deliverables');
+  revalidatePath('/packages');
+  return { ok: true };
+}

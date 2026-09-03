@@ -6,6 +6,8 @@ import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
 import { findByName } from '@/kernel/naming';
+// One definition of what a deliverable link looks like, shared by every reader.
+import { SERVICE_OFFERS } from '@/modules/deliverables/shape';
 import type {
   DimensionWrite, PublicIntakeDimension, ServiceDimensionTag, StudioDimensionShape,
 } from './dimensions';
@@ -698,13 +700,13 @@ export async function duplicateService(serviceId: string) {
 
   // A fork is the same work — what varies about it varies the same way.
   const { data: vars } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .select('key, label, kind, unit, options, default_value, min_value, max_value, position')
     .eq('service_id', serviceId)
     .eq('organization_id', orgId)
     .order('position');
   if (vars && vars.length > 0) {
-    await supabaseAdmin.from('service_variables').insert(
+    await supabaseAdmin.from('variables').insert(
       vars.map((v: any) => ({
         organization_id: orgId,
         service_id: copy.id,
@@ -745,8 +747,8 @@ export async function listServices() {
       cover_url, cover_position,
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
-      service_deliverables(deliverable:deliverables(id, name)),
-      service_variables(label, kind, unit, options),
+      ${SERVICE_OFFERS},
+      variables(label, kind, unit, options),
       ${SERVICE_DIMENSION_SELECT},
       workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
@@ -759,7 +761,7 @@ export async function listServices() {
     dimensions: shapeServiceDimensions(s),
     // What varies about it, so the studio's own services teach the next form
     // exactly as the template library does.
-    variables: (s.service_variables || []).map((v: any) => ({
+    variables: (s.variables || []).map((v: any) => ({
       label: v.label, kind: v.kind, unit: v.unit, options: v.options || [],
     })),
     workflow: s.workflow ? {
@@ -791,8 +793,8 @@ export async function getService(serviceId: string) {
       cover_url, cover_position,
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
-      service_deliverables(deliverable:deliverables(id, name)),
-      service_variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
+      ${SERVICE_OFFERS},
+      variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
       ${SERVICE_DIMENSION_SELECT},
       workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
@@ -812,7 +814,7 @@ export async function getService(serviceId: string) {
      * has — facts the studio entered and then could not read back anywhere
      * except the edit form.
      */
-    variables: (((data as any).service_variables) || [])
+    variables: (((data as any).variables) || [])
       .slice()
       .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
       .map((v: any) => ({
@@ -850,6 +852,7 @@ function rowToVariable(r: any): ServiceVariable {
     id: r.id,
     serviceId: r.service_id ?? null,
     dimensionId: r.dimension_id ?? null,
+    deliverableId: r.deliverable_id ?? null,
     key: r.key,
     label: r.label,
     kind: r.kind,
@@ -865,7 +868,7 @@ function rowToVariable(r: any): ServiceVariable {
 export async function listServiceVariables(serviceId: string): Promise<ServiceVariable[]> {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .select('*')
     .eq('organization_id', orgId)
     .eq('service_id', serviceId)
@@ -890,7 +893,7 @@ export async function listVariablesForDimensions(dimensionIds: string[]): Promis
   if (dimensionIds.length === 0) return [];
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .select('*')
     .eq('organization_id', orgId)
     .in('dimension_id', dimensionIds)
@@ -937,7 +940,7 @@ export async function declareDimensionVariable(input: {
   if (already) return already;
 
   const { data, error } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .insert({
       organization_id: orgId,
       // The owner, and the only thing that makes this different from a
@@ -980,7 +983,7 @@ export async function declareDimensionVariable(input: {
 export async function removeDimensionVariable(variableId: string) {
   const { orgId } = await getAuthOrgId();
   const { error } = await supabaseAdmin
-    .from('service_variables').delete()
+    .from('variables').delete()
     .eq('id', variableId).eq('organization_id', orgId)
     .not('dimension_id', 'is', null);
   if (error) { console.error('Failed to remove a dimension variable:', error); throw new Error('Failed to remove that'); }
@@ -993,7 +996,7 @@ export async function listVariablesForServices(serviceIds: string[]): Promise<Se
   if (serviceIds.length === 0) return [];
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .select('*')
     .eq('organization_id', orgId)
     .in('service_id', serviceIds)
@@ -1110,7 +1113,7 @@ export async function declareServiceVariable(input: {
   if (already) return already;
 
   const { data, error } = await supabaseAdmin
-    .from('service_variables')
+    .from('variables')
     .insert({
       organization_id: orgId,
       service_id: input.serviceId,
@@ -1253,7 +1256,7 @@ export async function setServiceVariables(input: { serviceId: string; variables:
 
   // Anything not in the incoming list is gone.
   const keptIds = clean.map((v) => v.raw.id).filter(Boolean) as string[];
-  let removal = supabaseAdmin.from('service_variables').delete().eq('organization_id', orgId).eq('service_id', input.serviceId);
+  let removal = supabaseAdmin.from('variables').delete().eq('organization_id', orgId).eq('service_id', input.serviceId);
   if (keptIds.length > 0) removal = removal.not('id', 'in', `(${keptIds.join(',')})`);
   await removal;
 
@@ -1272,8 +1275,8 @@ export async function setServiceVariables(input: { serviceId: string; variables:
       position: v.position,
     };
     const { error } = v.raw.id
-      ? await supabaseAdmin.from('service_variables').update(row).eq('id', v.raw.id).eq('organization_id', orgId)
-      : await supabaseAdmin.from('service_variables').insert(row);
+      ? await supabaseAdmin.from('variables').update(row).eq('id', v.raw.id).eq('organization_id', orgId)
+      : await supabaseAdmin.from('variables').insert(row);
     if (error) {
       console.error('Failed to save service variable:', error);
       throw new Error(`Failed to save "${v.label}"`);

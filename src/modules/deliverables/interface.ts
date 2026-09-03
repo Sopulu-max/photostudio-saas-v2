@@ -20,6 +20,7 @@ import {
   deleteDeliveryContainer,
   listDeliverableIdsForService, setDeliverablesForService,
   copyDeliverablesBetweenServices,
+  listVariablesForDeliverables, declareDeliverableVariable, removeDeliverableVariable,
 } from './domain';
 export type { Deliverable } from './domain';
 export {
@@ -31,4 +32,11 @@ export {
   // offers; this module is what attaches them, because it is what defines them.
   listDeliverableIdsForService, setDeliverablesForService,
   copyDeliverablesBetweenServices,
+  /*
+   * What a deliverable needs settling. The THIRD owner of a variable, beside a
+   * service and a classification — not a third mechanism. A jsonb spec_schema
+   * was that third mechanism, and it was smaller and worse than the one that
+   * already existed.
+   */
+  listVariablesForDeliverables, declareDeliverableVariable, removeDeliverableVariable,
 };
