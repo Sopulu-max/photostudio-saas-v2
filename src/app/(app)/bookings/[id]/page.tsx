@@ -2,7 +2,8 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
-import { CreateContractButton, ExtractPackageButton } from './BookingActions';
+import { CreateContractButton } from './BookingActions';
+import { EnquiryPanel } from './EnquiryPanel';
 
 import { listClients } from '@/modules/clients/interface';
 import { listEmployees, listRoles } from '@/modules/team/interface';
@@ -10,7 +11,7 @@ import { getBookingTeam, getBookingTasks } from '@/modules/production/interface'
 import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
-import { getBooking, getIntakeAnswersForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
+import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
 import { listPackages, formatDeliverable } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
@@ -108,10 +109,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [deliveries, stages, intake, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles] = await Promise.all([
+  const [deliveries, stages, intake, enquiry, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles] = await Promise.all([
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
+    getEnquiryForBooking(booking.id),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     getFulfilmentForBooking(booking.id),
@@ -344,15 +346,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {/* What they're booking — one line per Package */}
         <Section title="Packages">
           {lines.length === 0 ? (
-            <div>
+            <div className="q-stack q-stack-sm">
               <p className="q-empty">
                 Nothing on this booking yet —{' '}
                 <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">add a package</Link>{' '}
                 whenever you know what they want.
               </p>
-              {booking.metadata?.form_responses?.dimensions && (
-                <ExtractPackageButton bookingId={booking.id} />
-              )}
+              {enquiry && <EnquiryPanel bookingId={booking.id} enquiry={enquiry} />}
             </div>
           ) : (
             <div className="q-stack">

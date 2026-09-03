@@ -39,6 +39,8 @@ export {
   getBookingByShareToken,
   setBookingSchedule,
   suggestedDurationForBooking,
+  // A custom enquiry: what the client described, and whether it can be built on
+  getEnquiryForBooking,
   extractPackageFromEnquiry,
   // The staffing cascade: which roles the booked Packages' workflows call for
   getStaffingNeedsForBooking,

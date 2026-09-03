@@ -357,22 +357,38 @@ export async function createBookingFromIntake(input: {
     throw new Error('Failed to create your booking request.');
   }
 
-  const { data: intakeLine, error: lineError } = await supabaseAdmin.from('booking_lines').insert({
-    organization_id: orgId,
-    booking_id: booking.id,
-    package_id: input.packageId,
-    title: input.packageName,
-    price: input.linePrice || {},
-  }).select('id').single();
-  if (lineError || !intakeLine) {
-    console.error('Failed to add intake booking line:', lineError);
-    throw new Error('Failed to create your booking request.');
-  }
-
-  // The line is configured the moment it exists: the package's own scope, plus
-  // whatever the client answered for what it left open. Without this an intake
-  // booking would arrive knowing less than the package it came from.
+  /*
+   * A LINE ONLY WHEN SOMETHING WAS ACTUALLY BOOKED.
+   *
+   * A booking line is the claim that a specific package was taken on. A custom
+   * enquiry has made no such claim — the client described what they wanted and
+   * asked the studio to work out the rest. A line pointing at no package
+   * asserts a fact that does not exist, and everything this app knows how to do
+   * with a booking hangs off the package that line points at: services,
+   * classifications, variables, deliverables, price, the work. So it rendered
+   * as a card reading "Services: None" and nothing else, and — worse — it hid
+   * the empty state, which is where the control for turning an enquiry into a
+   * real package lives. The stub was the reason the bridge was unreachable.
+   *
+   * What the client said is not lost: it is in metadata.form_responses, which
+   * is where the enquiry belongs until the studio decides what it is.
+   */
   if (input.packageId) {
+    const { data: intakeLine, error: lineError } = await supabaseAdmin.from('booking_lines').insert({
+      organization_id: orgId,
+      booking_id: booking.id,
+      package_id: input.packageId,
+      title: input.packageName,
+      price: input.linePrice || {},
+    }).select('id').single();
+    if (lineError || !intakeLine) {
+      console.error('Failed to add intake booking line:', lineError);
+      throw new Error('Failed to create your booking request.');
+    }
+
+    // The line is configured the moment it exists: the package's own scope, plus
+    // whatever the client answered for what it left open. Without this an intake
+    // booking would arrive knowing less than the package it came from.
     await setLineConfiguration({
       bookingId: booking.id,
       lineId: intakeLine.id,
@@ -1951,6 +1967,77 @@ export async function listBookingsForDimensionValue(valueId: string) {
   return { bookings, total: bookings.reduce((sum, b) => sum + b.total, 0) };
 }
 
+/**
+ * What a client asked for in their own words, resolved against the studio's
+ * vocabulary.
+ *
+ * One resolver for both the reading and the doing. The button that offers to
+ * build a package out of an enquiry and the code that builds it have to agree
+ * about whether there is anything to build, or the studio is offered a control
+ * that dead-ends — which is what happened: an enquiry whose answers were `{}`
+ * passed the old truthiness check (an empty object is truthy) and then failed
+ * inside with "Nothing recognisable was chosen".
+ *
+ * A value the studio no longer has is dropped rather than guessed at. Older
+ * enquiries recorded answers keyed by the flat vocabulary the engine used to
+ * carry ("occasion") instead of by the studio's own dimension; those resolve to
+ * nothing now, and saying so is better than inventing a dimension for them.
+ */
+async function resolveEnquiry(orgId: string, metadata: any): Promise<{
+  message: string | null;
+  chosen: { dimension: string; value: string; domainName: string | null }[];
+}> {
+  const answers = metadata?.form_responses;
+  const message = (answers?.message || '').trim() || null;
+  const dimensions = answers?.dimensions;
+  if (!dimensions || typeof dimensions !== 'object') return { message, chosen: [] };
+
+  const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
+  const config = await getPublicIntakeDimensions(orgId);
+
+  const chosen: { dimension: string; value: string; domainName: string | null }[] = [];
+  for (const [dimensionId, valueId] of Object.entries(dimensions as Record<string, string>)) {
+    if (!valueId) continue;
+    const dim = config.find((d) => d.id === dimensionId);
+    const value = dim?.values.find((v) => v.id === valueId);
+    if (dim && value) chosen.push({ dimension: dim.name, value: value.name, domainName: dim.domainName });
+  }
+  return { message, chosen };
+}
+
+/**
+ * The enquiry behind a booking, for the screens that have to decide whether
+ * there is anything here to act on.
+ *
+ * Returns nothing for a booking that came in against a real package — that one
+ * already knows what it is, and its answers read back as booking form answers.
+ */
+export async function getEnquiryForBooking(bookingId: string): Promise<{
+  message: string | null;
+  chosen: { dimension: string; value: string }[];
+  /** Whether a service and package could actually be built from this. */
+  extractable: boolean;
+} | null> {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('id, metadata')
+    .eq('id', bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!booking) return null;
+
+  const { message, chosen } = await resolveEnquiry(orgId, booking.metadata);
+  if (!message && chosen.length === 0) return null;
+
+  return {
+    message,
+    chosen: chosen.map((c) => ({ dimension: c.dimension, value: c.value })),
+    extractable: chosen.length > 0,
+  };
+}
+
 export async function extractPackageFromEnquiry(bookingId: string) {
   const { orgId } = await getAuthOrgId();
 
@@ -1963,25 +2050,10 @@ export async function extractPackageFromEnquiry(bookingId: string) {
 
   if (!booking) throw new Error('Booking not found');
 
-  const dimensions = (booking.metadata as any)?.form_responses?.dimensions;
-  if (!dimensions || typeof dimensions !== 'object') {
-    throw new Error('No dimensions found in custom request');
+  const { chosen } = await resolveEnquiry(orgId, booking.metadata);
+  if (chosen.length === 0) {
+    throw new Error('This enquiry has nothing the studio recognises to build a package from.');
   }
-
-  // Resolve what they chose against the studio's own vocabulary. Each answer
-  // is a value under a dimension the studio named, so both the question and the
-  // answer come back as this studio says them.
-  const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
-  const config = await getPublicIntakeDimensions(orgId);
-
-  const chosen: { dimension: string; value: string; domainName: string | null }[] = [];
-  for (const [dimensionId, valueId] of Object.entries(dimensions as Record<string, string>)) {
-    if (!valueId) continue;
-    const dim = config.find((d) => d.id === dimensionId);
-    const value = dim?.values.find((v) => v.id === valueId);
-    if (dim && value) chosen.push({ dimension: dim.name, value: value.name, domainName: dim.domainName });
-  }
-  if (chosen.length === 0) throw new Error('Nothing recognisable was chosen in this request');
 
   // Named from what they described, in the order the studio asks its questions.
   const serviceName = chosen.map((c) => c.value).join(' ') || 'Custom Service';

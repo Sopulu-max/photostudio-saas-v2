@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getBooking, suggestedDurationForBooking, getLineConfigurationForm } from '@/modules/bookings/interface';
+import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking } from '@/modules/bookings/interface';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -10,6 +10,7 @@ import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
 import { LineActions } from '../LineActions';
 import { LineConfigForm } from '../LineConfigForm';
+import { EnquiryPanel } from '../EnquiryPanel';
 import { DeleteBookingButton } from '../BookingHeaderActions';
 
 export const dynamic = 'force-dynamic';
@@ -31,12 +32,13 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   if (!booking) notFound();
 
   const lineIds = booking.lines.map((l: any) => l.id);
-  const [clientRows, packageRows, suggestedMinutes, currencyCode, work] = await Promise.all([
+  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry] = await Promise.all([
     listClients(),
     listPackages(),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     Promise.resolve({} as Record<string, any>),
+    getEnquiryForBooking(booking.id),
   ]);
 
   // Configuration is per line, so it's fetched per line.
@@ -107,7 +109,11 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           </p>
 
           {booking.lines.length === 0 ? (
-            <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+            <div className="q-stack q-stack-sm">
+              <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+              {/* A custom enquiry said something; this is where it gets acted on. */}
+              {enquiry && <EnquiryPanel bookingId={booking.id} enquiry={enquiry} />}
+            </div>
           ) : (
             <div className="q-stack">
               {booking.lines.map((l: any) => {
