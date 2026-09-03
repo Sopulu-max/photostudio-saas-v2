@@ -9,13 +9,12 @@ import {
   buildVariableSuggestions,
 } from '@/modules/services/interface';
 import {
-  listDeliverablesByDomain, listVariablesForDeliverables,
+  listDeliverablesByDomain, listVariablesForDeliverables, listDeliverables,
   listServiceCapabilities, listServiceDeliverableOptions,
 } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
-import { ServiceNarrowings } from '../ServiceNarrowings';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,20 +49,40 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const permitted = await listServiceDeliverableOptions(
     capabilities.map((c) => c.serviceDeliverableId),
   );
-  const narrowable = capabilities.map((r) => ({
-    serviceDeliverableId: r.serviceDeliverableId,
-    deliverableName: r.deliverableName,
-    questions: (deliverableQuestions as any[])
-      .filter((v) => v.deliverable_id === r.deliverableId)
-      // Only a question with a list of answers can be narrowed to some of them.
-      .filter((v) => Array.isArray(v.options) && v.options.length > 1)
-      .map((v) => ({
-        id: v.id as string,
-        label: v.label as string,
-        options: v.options as string[],
-        permitted: permitted[`${r.serviceDeliverableId}:${v.id}`] || [],
-      })),
-  }));
+  // The unit it is counted in travels with the kind, so a service shows it
+  // rather than leaving an operator to look it up elsewhere.
+  const deliverableUnits = Object.fromEntries(
+    (await listDeliverables())
+      .filter((d) => capabilities.some((c) => c.deliverableId === d.id))
+      .map((d) => [d.id, d.default_unit]),
+  );
+  /*
+   * WHAT EACH CHOSEN DELIVERABLE BRINGS WITH IT.
+   *
+   * Keyed by name because that is what the editor works in — an operator picks
+   * "Edited Photographs", not an id. Carries the capability row too, since a
+   * narrowing hangs off that and only exists once the service has been saved
+   * with the deliverable on it.
+   */
+  const inherits: Record<string, {
+    serviceDeliverableId: string | null;
+    unit: string | null;
+    questions: { id: string; label: string; options: string[]; permitted: string[] }[];
+  }> = {};
+  for (const c of capabilities) {
+    inherits[c.deliverableName] = {
+      serviceDeliverableId: c.serviceDeliverableId,
+      unit: (deliverableUnits as any)[c.deliverableId] ?? null,
+      questions: (deliverableQuestions as any[])
+        .filter((v) => v.deliverable_id === c.deliverableId)
+        .map((v) => ({
+          id: v.id as string,
+          label: v.label as string,
+          options: Array.isArray(v.options) ? (v.options as string[]) : [],
+          permitted: permitted[`${c.serviceDeliverableId}:${v.id}`] || [],
+        })),
+    };
+  }
 
   // The same knowledge the create form gets — editing a service should narrow
   // exactly as defining one does.
@@ -97,12 +116,6 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         </div>
       </header>
 
-      {/*
-        * possibility → restriction → fact. The outputs declare what they allow;
-        * this is where a service says what it actually does of that.
-        */}
-      <ServiceNarrowings capabilities={narrowable} />
-
       <ServiceFieldsEditor
         mode="edit"
         serviceId={service.id}
@@ -114,6 +127,7 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         dimensionSuggestions={dimensionSuggestions}
         variableSuggestions={variableSuggestions}
         outputTypesByDomain={outputTypesByDomain}
+        inherits={inherits}
         dimensionsByDomain={dimensionsByDomain}
         workflowsByDomain={workflowsByDomain}
         roleOptions={roleOptions}

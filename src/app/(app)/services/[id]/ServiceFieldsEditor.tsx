@@ -7,6 +7,7 @@ import { narrowFor, dimensionKey } from '@/modules/services/interface';
 import type { Narrowed, DimensionSuggestions, StudioDimensionShape, DimensionWrite } from '@/modules/services/interface';
 import { CheckCircle2, Plus, Settings } from 'lucide-react';
 import { PickOne, PickMany } from '@/components/Pick';
+import { DeliverableStructure } from './DeliverableStructure';
 import { ServiceVariablesEditor } from './ServiceVariablesEditor';
 import { WorkflowEditor } from './WorkflowEditor';
 import type { WorkflowInput } from '@/modules/services/interface';
@@ -34,7 +35,7 @@ import { ImageUpload } from '@/components/ImageUpload';
  *    settings — the questions are as open as the answers.
  */
 export function ServiceFieldsEditor({
-  mode, serviceId, status, domains, domainOptions, outputTypesByDomain, dimensionsByDomain,
+  mode, serviceId, status, domains, domainOptions, outputTypesByDomain, dimensionsByDomain, inherits,
   serviceSuggestions, deliverableSuggestions, dimensionSuggestions, variableSuggestions,
   workflowsByDomain,
   roleOptions,
@@ -45,6 +46,22 @@ export function ServiceFieldsEditor({
   domainOptions: string[];
   /** Domain name → the KINDS it can produce. Deliverables belong to a domain too. */
   outputTypesByDomain: Record<string, { id: string; name: string }[]>;
+  /**
+   * What each chosen deliverable brings with it, keyed by name.
+   *
+   * A deliverable is a kind that declares its own shape — a unit it is counted
+   * in, and questions every package promising it has to settle. A service
+   * picking one INHERITS that; it does not restate it. Shown here so choosing
+   * "Edited Photographs" says what it carries rather than being a bare word.
+   *
+   * Optional because a service being created has no saved capability rows yet,
+   * so there is nothing to narrow until it exists.
+   */
+  inherits?: Record<string, {
+    serviceDeliverableId: string | null;
+    unit: string | null;
+    questions: { id: string; label: string; options: string[]; permitted: string[] }[];
+  }>;
   /** Domain name → the dimensions it actively classifies by, with their values. */
   dimensionsByDomain: Record<string, StudioDimensionShape[]>;
   /** Domain → the services it knows about. */
@@ -462,9 +479,29 @@ export function ServiceFieldsEditor({
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ display: 'block', marginTop: '8px', opacity: 0.7 }}>
-              Kinds only. Quantities and sizes are set on a package.
+              Kinds only. Quantities are set on a package.
             </span>
           </div>
+
+          {/*
+            * WHAT THE CHOSEN DELIVERABLES BRING WITH THEM.
+            *
+            * A deliverable is not a bare word: it is a kind that declares its
+            * own shape — the unit it is counted in, and the questions every
+            * package promising it has to settle. A service picking one inherits
+            * that, and this is where picking it stops being a word and starts
+            * showing what it carries.
+            *
+            * The narrowing lives here rather than in a block of its own further
+            * down the page, because "this service only ever does softcopy" is a
+            * statement about THIS deliverable on THIS service. Separated from
+            * the thing it qualifies, it read as unrelated settings.
+            */}
+          <DeliverableStructure
+            chosen={[primaryDeliverable, ...deliverables].filter(Boolean)}
+            inherits={inherits}
+            disabled={isPending}
+          />
         </div>
       </div>
 

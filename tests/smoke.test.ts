@@ -135,6 +135,7 @@ let userId = '';
 let orgId = '';
 let cookieHeader = '';
 let packageId = '';
+let smokeServiceId = '';
 let retiredPackageId = '';
 let bookingId = '';
 let fullBookingId = '';
@@ -256,6 +257,24 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
       }),
       seed('deliverables', { organization_id: orgId, name: 'Smoke Output', service_domain_id: domainId }),
     ]);
+    smokeServiceId = serviceId;
+
+    /*
+     * A deliverable that declares something, and a service that produces it.
+     *
+     * The service editor shows what a chosen deliverable BRINGS WITH IT — its
+     * unit and the questions every package promising it must settle. With
+     * nothing declared there is nothing to draw, so a page check would pass on
+     * an empty section and prove nothing.
+     */
+    await seed('variables', {
+      organization_id: orgId, deliverable_id: deliverableId,
+      key: 'copy_type', label: 'Copy type', kind: 'choice',
+      options: ['Softcopy', 'Hardcopy'], position: 0,
+    });
+    await seed('service_deliverables', {
+      organization_id: orgId, service_id: serviceId, deliverable_id: deliverableId,
+    });
     // Priced, because an unpriced fixture cannot tell a page that lost the
     // price from a page that never had one to show.
     packageId = await seed('packages', {
@@ -348,6 +367,9 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
       await supabaseAdmin.from('invoice_lines').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('invoices').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('booking_lines').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('service_deliverable_options').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('service_deliverables').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('variables').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('delivery_containers').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('bookings').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
@@ -597,6 +619,38 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     const html = await res.text();
     expect(html, 'the page rendered Next error page').not.toMatch(CRASHED);
     expect(html, 'a container the studio has is not shown').toContain('Smoke Container');
+  });
+
+  it('shows what a chosen deliverable brings with it, on the service that produces it', async () => {
+    /*
+     * A deliverable is a kind that declares its own shape. A service picking one
+     * inherits that — it does not restate it — and until now picking one added a
+     * word to a list and said nothing else.
+     *
+     * The narrowing lives on the deliverable rather than in a settings block
+     * further down the page, because "this service only ever does softcopy" is a
+     * statement about THIS deliverable on THIS service.
+     */
+    const res = await load(`/services/${smokeServiceId}/edit`, { headers: { cookie: cookieHeader } });
+    expect(res.status, `the service editor returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the service editor rendered Next error page').not.toMatch(CRASHED);
+
+    /*
+     * ASSERTED ON WHAT ONLY RENDERING PRODUCES.
+     *
+     * The first version of this checked for "Copy type" and "Softcopy", and
+     * passed even with the section fed an empty list — because Next serialises
+     * a client component's props into the page, so the declared question is in
+     * the HTML whether or not anything draws it. A test that cannot fail is
+     * worse than no test: it reports coverage it does not have.
+     *
+     * This heading exists only inside the component, and only once it has
+     * something to show.
+     */
+    expect(html, 'the inherited structure did not render')
+      .toContain('What these bring with them');
+    expect(html, 'the chosen deliverable is not named in it').toContain('Smoke Output');
   });
 
   it('serves the public storefront without a session at all', async () => {
