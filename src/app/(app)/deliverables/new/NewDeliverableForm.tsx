@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PickOne } from '@/components/Pick';
 import { narrowFor, type Narrowed } from '@/modules/services/suggestions';
 import { toast, readableError } from '@/components/Toast';
+import { DeclaredQuestions, type DeclaredQuestion } from '@/components/DeclaredQuestions';
 import { createDeliverableAction, createDeliveryContainerAction } from './actions';
 
 type Kind = 'deliverable' | 'container';
@@ -44,6 +45,14 @@ export function NewDeliverableForm({
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [domainId, setDomainId] = useState(domains[0]?.id ?? '');
+  /*
+   * What it needs settling, collected here and written once the row exists.
+   *
+   * Naming a deliverable and saying what it needs settling is one act — "edited
+   * photographs, and they are softcopy or hardcopy". Making an operator create
+   * it, land on its page and start again was two jobs for one thought.
+   */
+  const [questions, setQuestions] = useState<DeclaredQuestion[]>([]);
   const [saving, setSaving] = useState(false);
 
   const domainName = domains.find((d) => d.id === domainId)?.name ?? '';
@@ -75,10 +84,18 @@ export function NewDeliverableForm({
         router.push('/deliverables');
         return;
       }
-      const { id } = await createDeliverableAction({
-        domainId, name: name.trim(), unit: unit.trim() || null,
+      const { id, refused } = await createDeliverableAction({
+        domainId,
+        name: name.trim(),
+        unit: unit.trim() || null,
+        questions: questions.map((q) => ({
+          label: q.label, kind: q.kind, unit: q.unit, options: q.options,
+        })),
       });
       toast.ok(name.trim() + ' added to ' + domainName + '.');
+      if (refused.length > 0) {
+        toast.bad('Could not declare ' + refused.join(' or ') + '. You can add that on its page.');
+      }
       // To the thing just made, where what it needs settling is declared.
       router.push('/deliverables/' + id + '?type=output');
     } catch (err) {
@@ -194,6 +211,30 @@ export function NewDeliverableForm({
               </span>
             </div>
 
+            {/*
+              * DECLARED IN THE SAME ACT AS NAMING IT.
+              *
+              * This is the point of a deliverable being a kind rather than a
+              * word: it declares what every package promising it must settle,
+              * once, here. The same control the deliverable's own page uses —
+              * one component, two owners of the state — because two spellings
+              * of one idea is the drift this module has spent its history
+              * paying for.
+              */}
+            <div className="q-field">
+              <label className="q-label">What it needs settling (optional)</label>
+              <p className="q-help">
+                Every package promising this is asked these, and can fix an answer or leave it to
+                the client. A service can later say it only does some of the answers.
+              </p>
+              <DeclaredQuestions
+                questions={questions}
+                onChange={setQuestions}
+                disabled={saving}
+                emptyHint="Nothing yet. A framed print has a size; edited photographs may be softcopy or hardcopy. Say it once and every package inherits the question."
+              />
+            </div>
+
             {already.length > 0 && (
               <div className="q-field">
                 <span className="q-label">{domainName} already produces</span>
@@ -227,7 +268,9 @@ export function NewDeliverableForm({
         </button>
         {kind === 'deliverable' && (
           <span className="q-meta-sm">
-            Next you can say what it needs settling — a size, a type, a length.
+            {questions.length > 0
+              ? 'It will be asked for ' + questions.map((q) => q.label).join(' and ') + '.'
+              : 'You can add what it needs settling later, on its own page.'}
           </span>
         )}
       </div>

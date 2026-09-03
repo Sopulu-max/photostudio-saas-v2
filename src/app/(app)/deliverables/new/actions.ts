@@ -2,6 +2,7 @@
 
 import {
   createDeliverable, createDeliveryContainer, updateDeliverableConfig,
+  declareDeliverableVariable,
 } from '@/modules/deliverables/interface';
 
 /**
@@ -16,6 +17,14 @@ export async function createDeliverableAction(input: {
   domainId: string;
   name: string;
   unit?: string | null;
+  /**
+   * What it needs settling, declared in the same act as naming it.
+   *
+   * Written after the row exists because a variable needs an owner, but taken
+   * in the same submission — a studio saying "edited photographs, and they are
+   * softcopy or hardcopy" is describing one thing, not doing two jobs.
+   */
+  questions?: { label: string; kind: string; unit: string | null; options: string[] }[];
 }) {
   const { outputTypeId } = await createDeliverable({
     serviceDomainId: input.domainId,
@@ -26,7 +35,25 @@ export async function createDeliverableAction(input: {
   if (input.unit?.trim()) {
     await updateDeliverableConfig(outputTypeId, { default_unit: input.unit.trim() });
   }
-  return { id: outputTypeId };
+
+  /*
+   * Each in turn, and a failure here does not lose the deliverable — it is
+   * already made, and a question that would not save can be added on its page.
+   * Reported rather than swallowed, so an operator is not left believing they
+   * declared something they did not.
+   */
+  const refused: string[] = [];
+  for (const q of (input.questions || [])) {
+    try {
+      await declareDeliverableVariable({
+        deliverableId: outputTypeId,
+        variable: { label: q.label, kind: q.kind, unit: q.unit, options: q.options },
+      });
+    } catch {
+      refused.push(q.label);
+    }
+  }
+  return { id: outputTypeId, refused };
 }
 
 /**

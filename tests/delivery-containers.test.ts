@@ -39,6 +39,7 @@ import {
 } from '@/modules/deliverables/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { createPackage, duplicatePackage, getPackageVariables } from '@/modules/packages/domain';
+import { createDeliverableAction } from '@/app/(app)/deliverables/new/actions';
 
 import { seedStudio, seedRow } from './seed';
 import { PURGE_ORDER } from './purge';
@@ -321,6 +322,45 @@ describe('the studio’s delivery containers', () => {
     expect((await listDeliverables()).length,
       'a container was filed as a deliverable').toBe(before);
   }, 60000);
+
+  it('declares what it needs settling in the same act as naming it', async () => {
+    /*
+     * ONE ACT, NOT TWO.
+     *
+     * The create page took a domain, a name and a unit, then sent an operator to
+     * the deliverable's own page to say what it needs settling — which is the
+     * whole point of a deliverable being a KIND rather than a word. "Edited
+     * photographs, and they are softcopy or hardcopy" is one thought.
+     *
+     * The questions are written after the row exists, because a variable needs
+     * an owner, but they arrive in the same submission.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'One Act' }, 'the domain');
+
+    const { id, refused } = await createDeliverableAction({
+      domainId: domain.id,
+      name: 'Retouched Prints',
+      unit: 'print',
+      questions: [
+        { label: 'Copy type', kind: 'choice', unit: null, options: ['Softcopy', 'Hardcopy'] },
+        { label: 'Notes', kind: 'text', unit: null, options: [] },
+      ],
+    });
+
+    expect(refused, 'a question was refused during creation').toEqual([]);
+
+    const made = (await listDeliverables()).find((d) => d.id === id);
+    expect(made, 'the deliverable was not created').toBeTruthy();
+    expect(made!.default_unit, 'the unit typed on the create page was lost').toBe('print');
+
+    const declared = await listVariablesForDeliverables([id]);
+    expect(declared.length, 'the questions did not travel with the creation').toBe(2);
+
+    const copyType: any = declared.find((v: any) => v.label === 'Copy type');
+    expect(copyType.options, 'the permitted answers were lost').toEqual(['Softcopy', 'Hardcopy']);
+    expect(copyType.deliverable_id, 'the question was not owned by the deliverable').toBe(id);
+  }, 90000);
 
   it('returns the columns it promises — the unit a deliverable is counted in', async () => {
     const domain = await seedRow('service_domains',
