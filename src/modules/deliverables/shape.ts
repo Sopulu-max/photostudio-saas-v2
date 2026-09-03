@@ -24,21 +24,21 @@
 export const DELIVERABLE_REF = 'deliverable:deliverables(id, name)';
 
 /**
- * A deliverable with the shape it declares — the unit it is counted in, the
- * fields a package must settle, and the studio's usual answers. Anything
- * rendering a promise through formatDeliverable, or drawing the spec form,
- * needs these.
+ * A deliverable with what a reader needs beside its name: the unit it is
+ * counted in. What it needs SETTLING is no longer here — a deliverable declares
+ * real variables now, and their answers arrive through package_variable_values
+ * like every other answer.
  */
 export const DELIVERABLE_WITH_SHAPE =
-  'deliverable:deliverables(id, name, default_unit, spec_schema, spec_values)';
+  'deliverable:deliverables(id, name, default_unit)';
 
 /** What a package promises: the kind, how many, and what was settled about it. */
 export const PACKAGE_PROMISE =
-  `package_deliverables(quantity, spec_values, ${DELIVERABLE_WITH_SHAPE})`;
+  `package_deliverables(quantity, ${DELIVERABLE_WITH_SHAPE})`;
 
 /** The same, where only the name is rendered. */
 export const PACKAGE_PROMISE_NAMED =
-  `package_deliverables(quantity, spec_values, deliverable:deliverables(name))`;
+  `package_deliverables(quantity, deliverable:deliverables(name))`;
 
 /** Enough to count promises without carrying what they say. */
 export const PACKAGE_PROMISE_COUNT = 'package_deliverables(id)';

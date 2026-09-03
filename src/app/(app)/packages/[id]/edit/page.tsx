@@ -118,7 +118,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
             deliverables: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.deliverables || []) as any[]).map((d) => ({
                 serviceId: s.id as string, deliverableId: d.id as string,
-                quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null, specValues: d.spec_values ?? null,
+                quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null,
               }))),
             narrowings: (((pkg as any).services || []) as any[]).flatMap((s) =>
               ((s.narrowedTo || []) as { values: { id: string }[] }[])

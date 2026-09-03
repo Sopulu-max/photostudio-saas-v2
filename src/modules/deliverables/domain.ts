@@ -22,21 +22,19 @@ type NamedTable = 'deliverables' | 'delivery_containers';
  * What listDeliverables actually returns.
  *
  * Its signature said `Facet & { serviceDomainId, domainName }` while the body
- * also returned default_unit, spec_schema and spec_values. The mapped source is
- * typed `any[]`, so TypeScript could not see the difference and never
- * complained — the three fields arrived at runtime and were invisible to every
- * caller through the type. A signature that under-reports is worse than one
- * that is merely wrong: it makes working fields look like missing ones.
+ * also returned columns the query never selected, so they arrived undefined and
+ * were invisible to every caller through the type. A signature that
+ * under-reports is worse than one that is merely wrong: it makes working fields
+ * look like missing ones.
+ *
+ * Only default_unit remains of those. What a deliverable needs SETTLING is
+ * declared as variables now, not as a jsonb schema.
  */
 export type Deliverable = Facet & {
   serviceDomainId: string;
   domainName: string | null;
   /** The unit a package usually specifies this in — "photograph", "minute". */
   default_unit: string | null;
-  /** What spec fields this kind HAS. Declared here, answered on a package. */
-  spec_schema: Record<string, unknown> | null;
-  /** Defaults for those fields, which a package may override. */
-  spec_values: Record<string, unknown> | null;
 };
 
 async function listNamed(table: NamedTable): Promise<Facet[]> {
@@ -136,7 +134,7 @@ export async function listDeliverables(): Promise<Deliverable[]> {
     /* The three spec columns were being returned by the mapper without being
        selected, so they arrived undefined on every row. The type now promises
        them, so the query has to ask for them. */
-    .select('id, name, position, service_domain_id, default_unit, spec_schema, spec_values, domain:service_domains(name)')
+    .select('id, name, position, service_domain_id, default_unit, domain:service_domains(name)')
     .eq('organization_id', orgId)
     .order('position');
   if (error) { console.error('Failed to list deliverables:', error); return []; }
@@ -145,8 +143,6 @@ export async function listDeliverables(): Promise<Deliverable[]> {
     serviceDomainId: d.service_domain_id,
     domainName: d.domain?.name ?? null,
     default_unit: d.default_unit ?? null,
-    spec_schema: d.spec_schema ?? null,
-    spec_values: d.spec_values ?? null,
   }));
 }
 
@@ -262,14 +258,10 @@ export async function deleteDeliverable(id: string) {
 
 export async function updateDeliverableConfig(id: string, input: {
   default_unit?: string | null;
-  spec_schema?: Record<string, unknown> | null;
-  spec_values?: Record<string, unknown> | null;
 }) {
   const { orgId } = await getAuthOrgId();
   const patch: Record<string, unknown> = {};
   if (input.default_unit !== undefined) patch.default_unit = input.default_unit;
-  if (input.spec_schema !== undefined) patch.spec_schema = input.spec_schema;
-  if (input.spec_values !== undefined) patch.spec_values = input.spec_values;
 
   if (Object.keys(patch).length > 0) {
     const { error } = await supabaseAdmin.from('deliverables').update(patch).eq('id', id).eq('organization_id', orgId);
@@ -518,7 +510,7 @@ export async function listDeliverableIdsForServices(serviceIds: string[]): Promi
  */
 
 /** Every column a package's promise carries. The one definition of that shape. */
-const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity, spec_values';
+const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity';
 
 /** What these bundle rows promise. */
 export async function listPackageDeliverableLinks(packageServiceIds: string[]) {
@@ -588,7 +580,6 @@ export async function copyPackageDeliverables(input: {
       package_service_id: to,
       deliverable_id: r.deliverable_id,
       quantity: r.quantity,
-      spec_values: r.spec_values,
     }));
   if (links.length === 0) return { ok: true, copied: 0 };
 

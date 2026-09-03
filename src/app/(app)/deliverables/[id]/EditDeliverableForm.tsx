@@ -27,18 +27,9 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
     try {
       await updateDeliverable(id, 'output', name.trim());
       
-      if (type === 'output') {
-        let parsedSchema = null;
-        let parsedValues = null;
-        
-        parsedSchema = initialOutput?.spec_schema ?? null;
-        
-        parsedValues = initialOutput?.spec_values ?? null;
-        
+      if (type === 'output') {        
         await updateDeliverableConfig(id, {
           default_unit: defaultUnit.trim() || null,
-          spec_schema: parsedSchema,
-          spec_values: parsedValues
         });
       }
       

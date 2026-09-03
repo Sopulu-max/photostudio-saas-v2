@@ -390,7 +390,7 @@ async function writePackageVariableValues(
 async function writePackageDeliverables(
   orgId: string,
   rows: { id: string; service_id: string }[],
-  promises?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[]
+  promises?: { serviceId: string; deliverableId: string; quantity?: number | null }[]
 ) {
   const rowIdOf = new Map(rows.map((r) => [r.service_id, r.id]));
   const seen = new Set<string>();
@@ -407,7 +407,6 @@ async function writePackageDeliverables(
       package_service_id: packageServiceId,
       deliverable_id: p.deliverableId,
       quantity: p.quantity ?? null,
-      spec_values: p.specValues ?? null,
     });
   }
   /*
@@ -508,7 +507,7 @@ export async function createPackage(input: {
    * kind of thing it produces; this is where it gets specific, which is what a
    * package is for. Each promise names the bundled service that produces it.
    */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null }[];
   /** The production sequences to run, each on the bundled service it belongs to. */
   /*
    * Never read and never written — no caller passes it and nothing consumes it.
@@ -630,7 +629,7 @@ export async function updatePackage(input: {
   coverPosition?: string | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; specValues?: Record<string, unknown> | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null }[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
   variableValues?: PackageVariableWrite[];
   /**
@@ -981,7 +980,7 @@ const PACKAGE_SELECT = `
   ),
   package_service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
   ${PACKAGE_PROMISE},
-  package_variable_values(value, answered_by, variable:variables(id, service_id, key, label, unit, kind)),
+  package_variable_values(value, answered_by, variable:variables(id, service_id, deliverable_id, key, label, unit, kind)),
   package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active))
 `;
 
@@ -1031,9 +1030,26 @@ function shapePackage(p: any) {
       packageServiceId: ps.id,
       // What the service offers, and what this package sells of it.
       offers: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+      /*
+       * WHAT THIS PACKAGE PROMISES, AND WHAT IT SETTLED ABOUT IT.
+       *
+       * The spec used to be a jsonb blob on the promise row. A deliverable
+       * declares real variables now, and a package answers them like any
+       * other — so the spec is assembled here from those answers rather than
+       * read from a column that only this corner of the app understood.
+       */
       deliverables: (ps.package_deliverables || [])
         .filter((pd: any) => pd.deliverable)
-        .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity })),
+        .map((pd: any) => ({
+          ...pd.deliverable,
+          quantity: pd.quantity,
+          spec_values: Object.fromEntries(
+            ((ps.package_variable_values || []) as any[])
+              .filter((pv) => pv.variable?.deliverable_id === pd.deliverable.id)
+              .filter((pv) => pv.value !== null && pv.value !== '')
+              .map((pv) => [pv.variable.key, pv.value]),
+          ),
+        })),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
       narrowedTo: shapeDimensionLinks(ps.package_service_dimension_values),
       variables: (ps.service?.variables || []).map((v: any) => ({
@@ -1043,6 +1059,9 @@ function shapePackage(p: any) {
         .filter((pv: any) => pv.variable)
         .map((pv: any) => ({
           serviceVariableId: pv.variable.id, serviceId: pv.variable.service_id,
+          // Which deliverable this answer settles, when it settles one. A
+          // variable owned by a deliverable is how "20x30" is recorded now.
+          deliverableId: pv.variable.deliverable_id ?? null,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
           answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
@@ -1064,6 +1083,9 @@ function shapePackage(p: any) {
         .filter((pv: any) => pv.variable)
         .map((pv: any) => ({
           serviceVariableId: pv.variable.id, serviceId: pv.variable.service_id,
+          // Which deliverable this answer settles, when it settles one. A
+          // variable owned by a deliverable is how "20x30" is recorded now.
+          deliverableId: pv.variable.deliverable_id ?? null,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
           answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
@@ -1202,20 +1224,10 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     deliverableNames: ((p.package_services || []) as any[])
       .flatMap((ps) => (ps.package_deliverables || []) as any[])
       .filter((pd) => pd.deliverable?.name)
-      .map((pd) => ({
-        id: pd.deliverable.id,
+      .map((pd) => formatDeliverable({
         name: pd.deliverable.name,
-        default_unit: pd.deliverable.default_unit,
-        spec_schema: pd.deliverable.spec_schema,
-        spec_values: pd.deliverable.spec_values,
         quantity: pd.quantity,
-        package_spec_values: pd.spec_values
-      }))
-      .map((pd) => formatDeliverable({ 
-        name: pd.name, 
-        quantity: pd.quantity, 
-        unit: pd.default_unit,
-        spec_values: pd.spec_values || pd.package_spec_values 
+        unit: pd.deliverable.default_unit,
       })),
   };
 }

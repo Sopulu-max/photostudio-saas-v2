@@ -13,6 +13,14 @@ export type DeliverableSpec = {
   name: string;
   quantity?: number | null;
   unit?: string | null;
+  /**
+   * What was settled about it, keyed by the variable that asked.
+   *
+   * No longer a column. A deliverable declares real variables and a package
+   * answers them like any other, so the caller assembles this from those
+   * answers — which is why two readers of one promise can no longer disagree
+   * about what it says.
+   */
   spec_values?: Record<string, unknown> | null;
 };
 

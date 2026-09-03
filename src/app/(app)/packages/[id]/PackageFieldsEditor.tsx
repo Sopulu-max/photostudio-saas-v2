@@ -63,7 +63,15 @@ type Stage = { name: string; roleName: string; frontStage: boolean };
  * bundling Photography and Framing promises prints through Framing; without the
  * pairing, "20 prints" floats free of anything that makes them.
  */
-type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null; specValues?: Record<string, unknown> | null };
+/*
+ * What a package promises: a kind, and how many.
+ *
+ * `specValues` was here too — a jsonb blob answering a schema invented for this
+ * screen. A deliverable declares real variables now and a package answers them
+ * like any other, so what it settles travels with the variable answers rather
+ * than beside the promise.
+ */
+type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null };
 
 import type { ServiceVariable } from '@/modules/services/interface';
 import { toast, readableError } from '@/components/Toast';
@@ -384,7 +392,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       if (seeded.some((p) => p.serviceId === sid)) continue;
       const produces = (allServices.find((x) => x.id === sid)?.deliverables || []) as { id: string }[];
       for (const d of produces) {
-        seeded.push({ serviceId: sid, deliverableId: d.id, quantity: null, unit: null, spec: null, specValues: null });
+        seeded.push({ serviceId: sid, deliverableId: d.id, quantity: null, unit: null, spec: null });
       }
     }
     return seeded;
@@ -396,7 +404,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     if (!deliverableId) return;
     setPromises((prev) => prev.some((p) => p.serviceId === sid && p.deliverableId === deliverableId)
       ? prev
-      : [...prev, { serviceId: sid, deliverableId, quantity: null, unit: null, spec: null, specValues: null }]);
+      : [...prev, { serviceId: sid, deliverableId, quantity: null, unit: null, spec: null }]);
     setNewDeliverableId((prev) => ({ ...prev, [sid]: '' }));
   };
   const removePromise = (sid: string, deliverableId: string) =>
@@ -649,7 +657,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               ...prev,
               ...produces
                 .filter((d) => !prev.some((p) => p.serviceId === id && p.deliverableId === d.id))
-                .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null, specValues: null })),
+                .map((d) => ({ serviceId: id, deliverableId: d.id, quantity: null, unit: null, spec: null })),
             ]);
           }
 
@@ -746,7 +754,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         serviceId: p.serviceId,
         deliverableId: p.deliverableId,
         quantity: p.quantity,
-        specValues: p.specValues
       })),
       /*
        * The tasks, which this form rendered and then threw away.
@@ -1292,7 +1299,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 */}
 
               <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, spec_values: p.specValues || (allDeliverables as any[]).find((d) => d.id === p.deliverableId)?.spec_values })}
+                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity })}
               </span>
             </div>
           );
@@ -1735,7 +1742,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                       <Counted text={formatDeliverable({
                         name,
                         quantity: p.quantity,
-                        spec_values: p.specValues || def?.spec_values,
                       } as any)} />
                     </span>
                     {bundled.length > 1 && <span className="q-meta-sm">{from}</span>}

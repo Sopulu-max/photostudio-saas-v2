@@ -47,9 +47,21 @@ async function readPromises(packageId: string) {
     .from('package_services').select('id').eq('package_id', packageId);
   const { data } = await supabaseAdmin
     .from('package_deliverables')
-    .select('deliverable_id, quantity, spec_values')
+    .select('deliverable_id, quantity')
     .in('package_service_id', (rows || []).map((r: any) => r.id));
   return (data || []) as any[];
+}
+
+/** What a package settled for one variable, read straight from the table. */
+async function readSettled(packageId: string, variableId: string) {
+  const { data: rows } = await supabaseAdmin
+    .from('package_services').select('id').eq('package_id', packageId);
+  const { data } = await supabaseAdmin
+    .from('package_variable_values')
+    .select('value')
+    .eq('variable_id', variableId)
+    .in('package_service_id', (rows || []).map((r: any) => r.id));
+  return (data || [])[0]?.value ?? null;
 }
 
 describe('the studio’s delivery containers', () => {
@@ -172,20 +184,22 @@ describe('the studio’s delivery containers', () => {
     expect(found!.default_unit, 'default_unit came back undefined again').toBe('print');
   }, 60000);
 
-  it('carries a package’s specification onto a copy of it', async () => {
+  it('carries what a package settled onto a copy of it', async () => {
     /*
-     * THE DRIFT THAT MOVING THE EDGE FOUND.
+     * THE DRIFT THAT MOVING THE EDGE FOUND, ON ITS NEW PATH.
      *
-     * Saving a package wrote deliverable_id, quantity AND spec_values. Copying
-     * one — which is what duplicating does, and what instancing a package for a
-     * booking does — selected and inserted only the first two. So a duplicate
-     * came out saying "Framed print" where the original said
+     * The original fault: saving a package wrote deliverable_id, quantity AND
+     * spec_values, while copying one — what duplicating does, and what
+     * instancing a package for a booking does — selected and inserted only the
+     * first two. A duplicate said "Framed print" where the original said
      * "Framed print · 20x30", and a client's own instance of a package lost the
      * specification it was sold with.
      *
-     * Two writers of one edge with different column lists. It was invisible
-     * until a spec could actually be set, which is why it survived: every
-     * spec_values in the database was null.
+     * spec_values is gone now: a deliverable declares real variables and a
+     * package answers them like any other. But the fault it exposed was never
+     * about that column — it was a copier listing its columns by hand and
+     * missing one. So the guard follows the answer to where it lives, and
+     * insists a duplicate carries what the original settled.
      */
     const domain = await seedRow('service_domains',
       { organization_id: TEST_ORG_ID, name: 'Print Shop' }, 'the domain');
@@ -195,29 +209,33 @@ describe('the studio’s delivery containers', () => {
       serviceDomainId: domain.id, name: 'Wall print',
     });
 
+    // What a wall print needs settling, declared once on the kind.
+    const sizeVar: any = await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Size', kind: 'choice', options: ['20x30', '16x20'] },
+    });
+
     const { packageId } = await createPackage({
       name: 'Print Package',
       serviceIds: [service.id],
-      deliverables: [{
-        serviceId: service.id,
-        deliverableId: outputTypeId,
-        quantity: 3,
-        specValues: { size: '20x30', frame: 'oak' },
-      }],
-    });
+      deliverables: [{ serviceId: service.id, deliverableId: outputTypeId, quantity: 3 }],
+      // The package settles it — the same act as fixing a service's variable.
+      variableValues: [{ serviceVariableId: sizeVar.id, value: '20x30' }],
+    } as any);
 
     const original = await readPromises(packageId);
     expect(original.length, 'the promise was not saved at all').toBe(1);
-    expect(original[0].spec_values, 'the spec never reached the original')
-      .toEqual({ size: '20x30', frame: 'oak' });
+    expect(Number(original[0].quantity), 'the quantity never reached the original').toBe(3);
+    expect(await readSettled(packageId, sizeVar.id),
+      'the answer never reached the original').toBe('20x30');
 
     const copy = await duplicatePackage(packageId);
     const copied = await readPromises(copy.packageId);
 
     expect(copied.length, 'the copy promises nothing').toBe(1);
     expect(Number(copied[0].quantity), 'the quantity did not travel').toBe(3);
-    expect(copied[0].spec_values, 'the specification was dropped by the copy')
-      .toEqual({ size: '20x30', frame: 'oak' });
+    expect(await readSettled(copy.packageId, sizeVar.id),
+      'what the package settled was dropped by the copy').toBe('20x30');
   }, 90000);
 
   it('declares what it needs settling as a real variable, not a shape of its own', async () => {
@@ -310,17 +328,16 @@ describe('the studio’s delivery containers', () => {
     });
 
     await supabaseAdmin.from('deliverables')
-      .update({ default_unit: 'print', spec_values: { size: '20x30' } })
+      .update({ default_unit: 'print' })
       .eq('id', outputTypeId).eq('organization_id', TEST_ORG_ID);
 
     const found = (await listDeliverables()).find((d) => d.id === outputTypeId);
-    expect(found, 'the output type is not in the list at all').toBeTruthy();
+    expect(found, 'the deliverable is not in the list at all').toBeTruthy();
     expect(found!.default_unit, 'default_unit came back undefined again').toBe('print');
-    expect((found!.spec_values as any)?.size, 'spec_values came back undefined again')
-      .toBe('20x30');
-    // A row that genuinely has no spec says null, not undefined — the shape a
-    // caller can test against.
-    expect(found!.spec_schema, 'an unset spec schema is not null').toBeNull();
+    // A row that has not set one says null, not undefined — the shape a caller
+    // can test against.
+    expect((await listDeliverables()).find((d) => d.name === 'Held output')!.default_unit,
+      'an unset unit is not null').toBeNull();
   }, 60000);
 });
 
