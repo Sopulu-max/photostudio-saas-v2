@@ -101,6 +101,9 @@ if (!serverUp) {
 const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/home', expect: /Everything your studio runs on/i },
   { path: '/overview', expect: /Command Center|needs your attention|Overview/i },
+  // The launchpad. It promises everything the studio runs on, and had been
+  // quietly missing two of them.
+  { path: '/home', expect: /Deliverables/i },
   { path: '/attendance', expect: /Recorded against|No employees yet/i },
   { path: '/team', expect: /Who does the work/i },
   { path: '/bookings', expect: /<\/html>/i },

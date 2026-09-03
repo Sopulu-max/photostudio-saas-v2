@@ -5,7 +5,7 @@ import { getStudio } from '@/kernel/organizations';
 import {
   LayoutDashboard, Layers, CheckSquare, DollarSign,
   CalendarCheck, CalendarDays, FileSignature,
-  Package, Users, PieChart, Settings, Clock,
+  Package, Users, PieChart, Settings, Clock, Box, Images,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,16 @@ export const dynamic = 'force-dynamic';
 // Mirrors the sidebar's grouping — Cockpit / Work / Studio / Platform. When
 // one moves, so does the other; two different answers to "where does this
 // live" is worse than either answer alone.
+//
+// It had drifted anyway, in the quietest way a mirror can: by omission. The
+// sidebar carried Galleries and Deliverables and this did not, so the page
+// promising "everything your studio runs on" was missing two of the things it
+// runs on — and an operator who navigates from here would not know they exist.
+// Nothing announced it, because a missing tile looks exactly like a complete
+// grid.
+//
+// Same section, same order, same icon as the sidebar, so the two agree on
+// sight rather than only in intent.
 const SECTIONS = [
   {
     label: 'Cockpit',
@@ -31,6 +41,7 @@ const SECTIONS = [
     jewel: 'q-bg-jewel-emerald',
     apps: [
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
+      { label: 'Galleries', href: '/galleries', desc: 'Finished work, handed to clients', icon: Images },
       { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
       { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
@@ -42,6 +53,7 @@ const SECTIONS = [
     apps: [
       { label: 'Services', href: '/services', desc: 'What this studio knows how to do', icon: Layers },
       { label: 'Packages', href: '/packages', desc: 'What clients can book', icon: Package },
+      { label: 'Deliverables', href: '/deliverables', desc: 'The kinds of thing you produce', icon: Box },
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
     ],
   },
