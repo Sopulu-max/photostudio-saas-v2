@@ -16,7 +16,7 @@ import {
 import {
   setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions,
 } from '@/modules/deliverables/domain';
-import { narrowOptions } from '@/modules/deliverables/shape';
+import { narrowOptions, specFromAnswers, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
 
 /**
@@ -1044,12 +1044,7 @@ function shapePackage(p: any) {
         .map((pd: any) => ({
           ...pd.deliverable,
           quantity: pd.quantity,
-          spec_values: Object.fromEntries(
-            ((ps.package_variable_values || []) as any[])
-              .filter((pv) => pv.variable?.deliverable_id === pd.deliverable.id)
-              .filter((pv) => pv.value !== null && pv.value !== '')
-              .map((pv) => [pv.variable.key, pv.value]),
-          ),
+          spec_values: specFromAnswers(ps.package_variable_values, pd.deliverable.id),
         })),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
       narrowedTo: shapeDimensionLinks(ps.package_service_dimension_values),
@@ -1189,7 +1184,8 @@ export async function getPackagePublic(orgId: string, packageId: string) {
       id, name, description, pricing_variant, duration_minutes, form_schema, cover_url, cover_position,
       package_services(
         service:services(name),
-        ${PACKAGE_PROMISE}
+        ${PACKAGE_PROMISE},
+        ${PROMISE_ANSWERS}
       )
     `)
     .eq('id', packageId)
@@ -1222,14 +1218,21 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     // Specified, so the storefront says "6 edited photographs" rather than
     // leaving a client to guess how many. Flattened across the bundle: a client
     // reading a storefront wants the whole promise, not it sorted by producer.
+    /*
+     * What was settled travels with it. A storefront saying "20 Edited
+     * photographs" where the package settled softcopy is telling a client less
+     * than the studio decided — and it is the sentence the declaration exists
+     * to produce.
+     */
     deliverableNames: ((p.package_services || []) as any[])
-      .flatMap((ps) => (ps.package_deliverables || []) as any[])
-      .filter((pd) => pd.deliverable?.name)
-      .map((pd) => formatDeliverable({
-        name: pd.deliverable.name,
-        quantity: pd.quantity,
-        unit: pd.deliverable.default_unit,
-      })),
+      .flatMap((ps) => ((ps.package_deliverables || []) as any[])
+        .filter((pd) => pd.deliverable?.name)
+        .map((pd) => formatDeliverable({
+          name: pd.deliverable.name,
+          quantity: pd.quantity,
+          unit: pd.deliverable.default_unit,
+          spec_values: specFromAnswers(ps.package_variable_values, pd.deliverable.id),
+        }))),
   };
 }
 

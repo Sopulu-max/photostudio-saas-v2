@@ -35,13 +35,25 @@ export const DELIVERABLE_REF = 'deliverable:deliverables(id, name)';
 export const DELIVERABLE_WITH_SHAPE =
   'deliverable:deliverables(id, name, default_unit)';
 
-/** What a package promises: the kind, how many, and what was settled about it. */
+/** What a package promises: the kind and how many. */
 export const PACKAGE_PROMISE =
   `package_deliverables(quantity, ${DELIVERABLE_WITH_SHAPE})`;
 
+/**
+ * The answers a bundle row holds, enough to say what was settled about a
+ * deliverable it promises.
+ *
+ * Selected wherever a promise is going to be RENDERED, because what a promise
+ * says is no longer on the promise row: a deliverable declares real variables
+ * and a package answers them like any other, so the sentence is assembled from
+ * those answers.
+ */
+export const PROMISE_ANSWERS =
+  'package_variable_values(value, variable:variables(id, key, deliverable_id))';
+
 /** The same, where only the name is rendered. */
 export const PACKAGE_PROMISE_NAMED =
-  `package_deliverables(quantity, deliverable:deliverables(name))`;
+  `package_deliverables(quantity, deliverable:deliverables(id, name))`;
 
 /** Enough to count promises without carrying what they say. */
 export const PACKAGE_PROMISE_COUNT = 'package_deliverables(id)';
@@ -74,4 +86,29 @@ export function narrowOptions(declared: string[], permittedByEachService: string
    * rather than in a control that silently cannot be filled.
    */
   return out.length > 0 ? out : declared;
+}
+
+/**
+ * What a package settled about one deliverable it promises.
+ *
+ * ONE READER, BECAUSE EVERY SURFACE THAT RENDERS A PROMISE NEEDS IT. The
+ * package page, the storefront listing, the booking page and the client's
+ * confirmation all say what was promised — and when the spec moved off the
+ * promise row and onto variable answers, only the first of them was taught
+ * where to look. The other three quietly went back to saying "20 Edited
+ * photographs" with no mention of softcopy, which is exactly the sentence the
+ * declaration exists to produce.
+ *
+ * Keyed by the variable's key, which is what formatDeliverable renders.
+ */
+export function specFromAnswers(
+  packageVariableValues: any[] | null | undefined,
+  deliverableId: string,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    ((packageVariableValues || []) as any[])
+      .filter((pv) => pv?.variable?.deliverable_id === deliverableId)
+      .filter((pv) => pv.value !== null && pv.value !== '')
+      .map((pv) => [pv.variable.key, pv.value]),
+  );
 }

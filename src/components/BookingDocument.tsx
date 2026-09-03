@@ -1,6 +1,8 @@
 import React from 'react';
 import { formatMoney } from '@/kernel/currency';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { specFromAnswers } from '@/modules/deliverables/shape';
+import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 
 /**
  * The booking as a document — what a client is sent once they have booked.
@@ -87,8 +89,23 @@ export function BookingDocument({
       for (const d of (row.package_deliverables || [])) {
         const name = d.deliverable?.name;
         if (!name) continue;
-        const qty = Number(d.quantity ?? 0);
-        includes.push(qty > 1 ? `${name} × ${qty}` : name);
+        /*
+         * WHAT WAS SETTLED, ON THE DOCUMENT THE CLIENT KEEPS.
+         *
+         * This said the name and a count. But a studio that decided softcopy
+         * decided it FOR the client, and the confirmation was the one place
+         * that never mentioned it — the sentence the declaration exists to
+         * produce, missing from the page it matters most on.
+         *
+         * Rendered through the one formatter, so this reads exactly as the
+         * package page and the storefront read.
+         */
+        includes.push(formatDeliverable({
+          name,
+          quantity: d.quantity,
+          unit: d.deliverable?.default_unit ?? null,
+          spec_values: specFromAnswers(row.package_variable_values, d.deliverable.id),
+        }));
       }
       for (const c of (row.package_service_dimension_values || [])) {
         const v = c.dimension_value;

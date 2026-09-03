@@ -12,7 +12,7 @@ import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'crypto';
 // One definition of what a deliverable link looks like, shared by every reader.
-import { PACKAGE_PROMISE_NAMED } from '@/modules/deliverables/shape';
+import { PACKAGE_PROMISE_NAMED, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 
 /**
  * Create a booking. A title alone is enough — everything else (client, lines,
@@ -2186,6 +2186,7 @@ export async function getBookingByShareToken(token: string) {
             id,
             service:services(id, name),
             ${PACKAGE_PROMISE_NAMED},
+            ${PROMISE_ANSWERS},
             package_service_dimension_values(
               dimension_value:dimension_values(id, name, dimension:dimensions(name))
             )
