@@ -5,7 +5,7 @@ import { fieldType } from '@/modules/services/fieldTypes';
 import { formatMoney } from '@/kernel/currency';
 import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
-import { submitBookingForm } from './actions';
+import { submitBookingForm, getPackageIntakePublic } from './actions';
 // The studio's own published hours for a chosen day. Says nothing about
 // anyone else's booking.
 import { studioDayPublic } from '@/modules/bookings/interface';
@@ -150,6 +150,21 @@ export function BookingForm({
   const [intakeDomain, setIntakeDomain] = useState('');
   const [resolvedPackageId, setResolvedPackageId] = useState<string | null>(null);
   const [resolvedPackageName, setResolvedPackageName] = useState<string | null>(null);
+  /*
+   * What the package they matched asks of them.
+   *
+   * The package page has this before it renders; the custom path cannot, since
+   * which package it is only becomes known when the client picks one. So it is
+   * fetched at that moment, and until it arrives the step that asks it is not
+   * offered — a step that renders nothing would be a dead page in the middle of
+   * the form.
+   */
+  const [matchedIntake, setMatchedIntake] = useState<{
+    formSchema: any[];
+    openVariables: any[];
+    openClassifications: { dimensionId: string; name: string; question: string | null; values: { id: string; name: string }[] }[];
+  } | null>(null);
+  const [loadingIntake, setLoadingIntake] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -167,12 +182,94 @@ export function BookingForm({
   );
   const singleDomain = intakeDomains.length === 1 ? intakeDomains[0] : '';
   const activeDomain = intakeDomain || singleDomain;
-  const askedDimensions = useMemo(
-    () => (dimensionConfig || []).filter(d => !activeDomain || d.domainName === activeDomain),
-    [dimensionConfig, activeDomain]
-  );
+  /**
+   * How many domains offer each dimension.
+   *
+   * A dimension can be shared: Glamour's Photography and Videography both ask
+   * Occasion, and it is the same dimension with the same values, not two that
+   * happen to share a name. Which matters twice below.
+   */
+  const domainsPerDimension = useMemo(() => {
+    const counts = new Map<string, Set<string>>();
+    for (const d of dimensionConfig || []) {
+      const set = counts.get(d.id) || new Set<string>();
+      set.add(d.domainName || '');
+      counts.set(d.id, set);
+    }
+    return counts;
+  }, [dimensionConfig]);
+
+  const askedDimensions = useMemo(() => {
+    const rows = (dimensionConfig || []).filter(d => !activeDomain || d.domainName === activeDomain);
+    /*
+     * ASKED ONCE, however many domains ask it.
+     *
+     * The config carries one row per (domain, dimension), which is right — a
+     * question Photography asks and Videography does not must be offered under
+     * Photography alone. But with no domain chosen, every row was rendered, so
+     * a studio working in two domains asked the client "What occasion is it
+     * for?" twice, with identical options. The two shared one entry in
+     * dimensionSelections — they are keyed by dimension id — so answering
+     * either silently answered both, and React saw two children with the same
+     * key and warned that it may drop one.
+     */
+    const seen = new Set<string>();
+    return rows.filter((d) => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+  }, [dimensionConfig, activeDomain]);
   const hasDimensions = isCustom && !!dimensionConfig && dimensionConfig.length > 0;
   const hasMatchStep = isCustom && !!availablePackages && availablePackages.length > 0;
+
+  /*
+   * Load what the matched package asks, and forget the previous one's answers.
+   *
+   * Clearing matters as much as loading. A client who picks Wedding Coverage,
+   * answers its questions, goes back and picks Portrait Session instead would
+   * otherwise submit the first package's answers against the second — and they
+   * are keyed by question and variable id, so they would not simply be ignored:
+   * storeAnswers drops what the new package did not ask, but the variable
+   * answers would land on its line as settings it never declared.
+   */
+  useEffect(() => {
+    if (!isCustom) return;
+    setChosenClassifications({});
+    setVariableAnswers({});
+
+    if (!resolvedPackageId) { setMatchedIntake(null); return; }
+
+    let live = true;
+    setLoadingIntake(true);
+    getPackageIntakePublic(orgId, resolvedPackageId)
+      .then((intake) => { if (live) setMatchedIntake(intake); })
+      // A failure here must not strand the client: the step is simply not
+      // offered, and submit still refuses a package whose required questions
+      // went unanswered rather than booking something half-known.
+      .catch(() => { if (live) setMatchedIntake(null); })
+      .finally(() => { if (live) setLoadingIntake(false); });
+    return () => { live = false; };
+  }, [isCustom, orgId, resolvedPackageId]);
+
+  /*
+   * WHAT IS ACTUALLY BEING BOOKED, which is not the same as which page they
+   * started on. `isCustom` says they arrived by describing what they wanted; a
+   * match made further down means a real package is being booked, and it asks
+   * its own questions from that point on.
+   */
+  const effectiveFormSchema: any[] = isCustom ? (matchedIntake?.formSchema ?? []) : formSchema;
+  const effectiveOpenVariables: any[] = isCustom ? (matchedIntake?.openVariables ?? []) : openVariables;
+  const effectiveOpenClassifications = isCustom
+    ? (matchedIntake?.openClassifications ?? [])
+    : openClassifications;
+
+  /** Whether the matched package has anything of its own to ask. */
+  const hasPackageStep = isCustom && !!resolvedPackageId && !loadingIntake && (
+    effectiveFormSchema.length > 0
+    || effectiveOpenVariables.length > 0
+    || effectiveOpenClassifications.length > 0
+  );
 
   const scoredPackages = useMemo(() => {
     if (!availablePackages || !availablePackages.length) return [];
@@ -188,11 +285,14 @@ export function BookingForm({
   const steps: { title: string; id: string }[] = [{ title: 'You', id: 'personal' }];
   if (hasFormSchema || hasOpenVariables || isCustom) steps.push({ title: 'Details', id: 'details' });
   if (hasMatchStep) steps.push({ title: 'Packages', id: 'match' });
+  // After the match, never before it: these are the chosen package's own
+  // questions, and there is no package to ask them of until one is chosen.
+  if (hasPackageStep) steps.push({ title: 'Your package', id: 'package-details' });
   if (hasVariant && !isCustom) steps.push({ title: 'Options', id: 'tiers' });
   steps.push({ title: 'Review', id: 'review' });
 
   const totalSteps = steps.length;
-  const activeStep = steps[currentStep];
+  const activeStep = steps[currentStep] ?? steps[steps.length - 1];
 
   const canGoNext = (): boolean => {
     if (activeStep.id === 'personal') {
@@ -213,7 +313,31 @@ export function BookingForm({
       }
       return true;
     }
-    if (activeStep.id === 'match') return true;
+    /*
+     * Not while the chosen package's questions are still being fetched. The
+     * step that asks them only joins the wizard once they arrive, so advancing
+     * a moment too early would walk straight past it — and book the package
+     * having asked nothing, which is the bug this whole step exists to fix.
+     */
+    if (activeStep.id === 'match') return !loadingIntake;
+    if (activeStep.id === 'package-details') {
+      /*
+       * Checked here rather than left to the server. The server does refuse a
+       * required question that went unanswered — but it refuses the whole
+       * submission, at the end, with a message the client cannot act on. This
+       * is the same rule applied where it can still be fixed.
+       */
+      for (const c of effectiveOpenClassifications) {
+        if (!chosenClassifications[c.dimensionId]) return false;
+      }
+      for (const field of effectiveFormSchema) {
+        if (field.required) {
+          const val = customFields[field.id];
+          if (val == null || val === '' || (Array.isArray(val) && val.length === 0)) return false;
+        }
+      }
+      return true;
+    }
     if (activeStep.id === 'tiers') return tierIndex !== null;
     return true;
   };
@@ -240,7 +364,7 @@ export function BookingForm({
         customFields: effectiveCustomFields,
         // Structured, unlike customFields: each answers a variable the service
         // declared, so it lands on the line rather than in form_responses.
-        variableAnswers: openVariables
+        variableAnswers: effectiveOpenVariables
           .filter((v) => (variableAnswers[v.id] ?? '') !== '')
           .map((v) => ({
             serviceVariableId: v.id,
@@ -378,7 +502,13 @@ export function BookingForm({
                                 <div key={dim.id}>
                                   <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
                                     {dim.question || dim.name}
-                                    {!activeDomain && dim.domainName && (
+                                    {/* Named only when the domain actually
+                                        distinguishes it. A dimension both
+                                        domains ask is one question, and
+                                        labelling it with whichever domain
+                                        happened to come first would say
+                                        something untrue about the other. */}
+                                    {!activeDomain && dim.domainName && (domainsPerDimension.get(dim.id)?.size ?? 1) === 1 && (
                                       <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>
                                         ({dim.domainName})
                                       </span>
@@ -416,6 +546,350 @@ export function BookingForm({
                         </div>
                       </>
                     ) : (
+                      <PackageQuestions
+                        openClassifications={effectiveOpenClassifications}
+                        chosenClassifications={chosenClassifications}
+                        setChosenClassifications={setChosenClassifications}
+                        openVariables={effectiveOpenVariables}
+                        variableAnswers={variableAnswers}
+                        setVariableAnswers={setVariableAnswers}
+                        formSchema={effectiveFormSchema}
+                        customFields={customFields}
+                        setCustomFields={setCustomFields}
+                      />
+                    )}
+
+                    <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '32px' }}>
+                      <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
+                        When would you like it?
+                        <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
+                      </label>
+                      {/* This writes to the same column the studio's own
+                          calendar reads, because a client choosing a date and
+                          time IS the booking getting its date. What is not yet
+                          settled is whether the studio has agreed to it, and
+                          that is what the booking's stage says — not a second
+                          column holding a wish. So it asks plainly, and says
+                          who confirms. */}
+                      <p className="q-meta" style={{ marginBottom: '16px' }}>
+                        Choose the date and time you want the session to happen. The studio will confirm it.
+                      </p>
+                      <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
+                      {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
+                        const t = scheduledFor.slice(11, 16);
+                        const early = dayHours.opensAt && t && t < dayHours.opensAt;
+                        const late = dayHours.closesAt && t && t >= dayHours.closesAt;
+                        const off = dayHours.closed || early || late;
+                        return (
+                          <p className={off ? 'q-note q-note-warn q-meta q-appear' : 'q-meta q-appear'} style={{ marginTop: '12px' }}>
+                            {dayHours.closed
+                              ? `We are closed that day${dayHours.label ? ` (${dayHours.label})` : ''}. Please choose another.`
+                              : early
+                                ? `We open at ${dayHours.opensAt} that day.`
+                                : late
+                                  ? `We close at ${dayHours.closesAt} that day.`
+                                  : `We are open ${dayHours.opensAt ?? '—'} to ${dayHours.closesAt ?? '—'} that day.`}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step: Match */}
+              {activeStep.id === 'match' && (
+                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>What fits?</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
+                    {hasSelections && hasMatches
+                      ? 'Based on what you described, these packages match — best fit first. Pick one or skip to continue with your request.'
+                      : hasSelections && !hasMatches
+                        ? "No exact matches yet. Here's everything we offer — pick one or skip to let us put something together."
+                        : "Here's what we offer. Pick one that fits, or skip and describe what you need."}
+                  </p>
+
+                  <div className="q-stack q-stack-md">
+                    {scoredPackages.map(pkg => {
+                      const isSelected = resolvedPackageId === pkg.id;
+                      const isDimmed = hasSelections && hasMatches && pkg.score === 0;
+                      return (
+                        <button
+                          key={pkg.id}
+                          type="button"
+                          className={`q-tile q-card-interactive ${isSelected ? 'q-selected' : ''}`}
+                          style={{
+                            textAlign: 'left',
+                            width: '100%',
+                            border: `2px solid ${isSelected ? 'var(--q-color-accent)' : 'var(--q-color-ink-200)'}`,
+                            background: isSelected ? 'var(--q-color-accent-subtle)' : 'var(--q-color-paper)',
+                            padding: '20px 24px',
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            opacity: isDimmed ? 0.45 : 1,
+                          }}
+                          onClick={() => {
+                            if (isSelected) {
+                              setResolvedPackageId(null);
+                              setResolvedPackageName(null);
+                            } else {
+                              setResolvedPackageId(pkg.id);
+                              setResolvedPackageName(pkg.name);
+                            }
+                          }}
+                        >
+                          <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                            <div>
+                              <div className="q-strong" style={{ fontSize: '1.1rem' }}>{pkg.name}</div>
+                              {pkg.description && (
+                                <div className="q-meta" style={{ marginTop: '6px' }}>{pkg.description}</div>
+                              )}
+                              <div className="q-meta-sm" style={{ marginTop: '12px', display: 'flex', gap: '12px', color: 'var(--q-color-ink-500)', flexWrap: 'wrap' }}>
+                                {pkg.duration_minutes ? <span>⏱ {pkg.duration_minutes} minutes</span> : null}
+                                {(pkg as any).deliverablesCount ? (
+                                  <span>📦 {(pkg as any).deliverablesCount} deliverable{(pkg as any).deliverablesCount === 1 ? '' : 's'}</span>
+                                ) : null}
+                                {pkg.services && pkg.services.length > 0 ? (
+                                  <span>🛠 {pkg.services.length} service{pkg.services.length === 1 ? '' : 's'}</span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div style={{ marginLeft: '16px' }}>
+                              <div className={`q-radio ${isSelected ? 'checked' : ''}`} />
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/*
+                * Step: the matched package's own questions.
+                *
+                * The same component the package page renders in its Details
+                * step. Reached only from the custom path, and only once a match
+                * has been picked — which is the whole point: booking a package
+                * this way used to skip everything it asks.
+                */}
+              {activeStep.id === 'package-details' && (
+                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>About {resolvedPackageName}.</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
+                    A few things this package needs to know.
+                  </p>
+                  <PackageQuestions
+                    openClassifications={effectiveOpenClassifications}
+                    chosenClassifications={chosenClassifications}
+                    setChosenClassifications={setChosenClassifications}
+                    openVariables={effectiveOpenVariables}
+                    variableAnswers={variableAnswers}
+                    setVariableAnswers={setVariableAnswers}
+                    formSchema={effectiveFormSchema}
+                    customFields={customFields}
+                    setCustomFields={setCustomFields}
+                  />
+                </div>
+              )}
+
+              {/* Step: Review */}
+              {activeStep.id === 'review' && (
+                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Review & Submit</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Just to make sure we got everything right.</p>
+                  <div className="q-card" style={{ backgroundColor: 'var(--q-color-ink-50)', marginBottom: '32px' }}>
+
+                    <div style={{ marginBottom: '24px' }}>
+                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Your Details</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 500 }}>{firstName} {lastName}</div>
+                      <div style={{ color: 'var(--q-color-ink-600)' }}>{email}{phone ? ` • ${phone}` : ''}</div>
+                    </div>
+
+                    <div style={{ marginBottom: '24px' }}>
+                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Booking</div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{displayPackageName}</div>
+                      {isCustom && !resolvedPackageName && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-400)', marginTop: '2px' }}>We&rsquo;ll match you to the right package.</div>
+                      )}
+                    </div>
+
+                    {/*
+                      * What was answered ABOUT the package, as opposed to what
+                      * was described in order to find one.
+                      *
+                      * "Just to make sure we got everything right" has to include
+                      * the things actually asked, and this showed none of them —
+                      * not the classification the client settled, not the
+                      * variables they set. Harmless while the custom path asked
+                      * nothing; not once it asks a step's worth.
+                      */}
+                    {(() => {
+                      const answered: { label: string; value: string }[] = [];
+                      for (const c of effectiveOpenClassifications) {
+                        const chosen = c.values.find((v) => v.id === chosenClassifications[c.dimensionId]);
+                        if (chosen) answered.push({ label: c.name, value: chosen.name });
+                      }
+                      for (const v of effectiveOpenVariables) {
+                        const raw = variableAnswers[v.id];
+                        if (raw != null && raw !== '') {
+                          answered.push({ label: v.label, value: v.unit ? `${raw} ${v.unit}${String(raw) === '1' ? '' : 's'}` : String(raw) });
+                        }
+                      }
+                      for (const field of effectiveFormSchema) {
+                        const val = customFields[field.id];
+                        if (val == null || val === '' || (Array.isArray(val) && val.length === 0)) continue;
+                        answered.push({ label: field.label, value: fieldType(field.type).display(val) });
+                      }
+                      if (answered.length === 0) return null;
+
+                      return (
+                        <div style={{ marginBottom: '24px' }}>
+                          <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>About your package</div>
+                          <div className="q-stack q-stack-xs">
+                            {answered.map((a, i) => (
+                              <div key={`${a.label}-${i}`} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
+                                <span style={{ color: 'var(--q-color-ink-400)' }}>{a.label}: </span>
+                                {a.value}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {isCustom && hasSelections && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>What you described</div>
+                        <div className="q-stack q-stack-xs">
+                          {Object.entries(dimensionSelections)
+                            .filter(([, v]) => v)
+                            .map(([dimId, valueId]) => {
+                              const dim = dimensionConfig?.find(d => d.id === dimId);
+                              const opt = dim?.values.find(o => o.id === valueId);
+                              return opt ? (
+                                <div key={dimId} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
+                                  <span style={{ color: 'var(--q-color-ink-400)' }}>{dim!.name}: </span>
+                                  {opt.name}
+                                </div>
+                              ) : null;
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {scheduledFor && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>Requested Time</div>
+                        <div style={{ fontSize: '1.05rem' }}>{new Date(scheduledFor).toLocaleString()}</div>
+                      </div>
+                    )}
+
+                    {hasVariant && tierIndex !== null && !isCustom && (
+                      <div>
+                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>{variant!.axis_label}</div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{variant!.tiers[tierIndex].label} — {formatMoney(variant!.tiers[tierIndex].price, currencyCode)}</div>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              )}
+            </form>
+          )}
+        </div>
+      </main>
+
+      {/* Footer */}
+      {!isSuccess && (
+        <footer style={{ padding: '24px 32px', borderTop: '1px solid var(--q-color-ink-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--q-color-paper)' }}>
+          <div>
+            {currentStep > 0 ? (
+              <button onClick={() => setCurrentStep(s => s - 1)} className="q-btn q-btn-outline q-btn-lg" style={{ borderRadius: '24px' }}>Back</button>
+            ) : (
+              <div />
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {activeStep.id === 'match' && (
+              <button
+                type="button"
+                className="q-btn q-btn-outline"
+                disabled={loadingIntake}
+                onClick={() => setCurrentStep(s => s + 1)}
+                style={{ borderRadius: '24px' }}
+              >
+                Skip
+              </button>
+            )}
+            <button
+              form="booking-form"
+              type="submit"
+              className="q-btn q-btn-primary q-btn-lg"
+              disabled={!canGoNext() || isSubmitting}
+              style={{ borderRadius: '24px', padding: '12px 32px' }}
+            >
+              {currentStep === totalSteps - 1
+                ? (isSubmitting ? 'Submitting…' : 'Submit Request')
+                : activeStep.id === 'match' && loadingIntake
+                  ? 'Loading…'
+                  /* Only when the next thing really is the review. With
+                     questions still to answer this said "Book this package"
+                     over a button that opened another step. */
+                  : activeStep.id === 'match' && resolvedPackageId && !hasPackageStep
+                    ? 'Book this package'
+                    : 'Continue'}
+            </button>
+          </div>
+        </footer>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <button onClick={() => setIsOpen(true)} className="q-btn q-btn-primary q-btn-lg" style={{ width: '100%', fontSize: '1.1rem', padding: '16px', borderRadius: '12px' }}>
+        {triggerLabel}
+      </button>
+      {isOpen && typeof document !== 'undefined' && createPortal(formContent, document.body)}
+    </>
+  );
+}
+
+
+/**
+ * The questions a package asks of whoever books it.
+ *
+ * ONE DEFINITION, used by both ways in. The package page knows which package
+ * it is before it renders and asks these in the Details step. The custom path
+ * does not know until the client picks a match, so it asks them in a step of
+ * its own after the match — the same questions, rendered by the same code,
+ * because two copies of this is exactly how the custom path came to ask none
+ * of them.
+ */
+function PackageQuestions({
+  openClassifications,
+  chosenClassifications,
+  setChosenClassifications,
+  openVariables,
+  variableAnswers,
+  setVariableAnswers,
+  formSchema,
+  customFields,
+  setCustomFields,
+}: {
+  openClassifications: { dimensionId: string; name: string; question: string | null; values: { id: string; name: string }[] }[];
+  chosenClassifications: Record<string, string>;
+  setChosenClassifications: (v: Record<string, string>) => void;
+  openVariables: any[];
+  variableAnswers: Record<string, string>;
+  setVariableAnswers: (v: Record<string, string>) => void;
+  formSchema: any[];
+  customFields: Record<string, any>;
+  setCustomFields: (v: Record<string, any>) => void;
+}) {
+  return (
                       <div className="q-stack q-stack-lg">
                         {/*
                           * WHICH ONE, asked before anything that follows from it.
@@ -547,224 +1021,5 @@ export function BookingForm({
                           </div>
                         )}
                       </div>
-                    )}
-
-                    <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '32px' }}>
-                      <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                        When would you like it?
-                        <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
-                      </label>
-                      {/* This writes to the same column the studio's own
-                          calendar reads, because a client choosing a date and
-                          time IS the booking getting its date. What is not yet
-                          settled is whether the studio has agreed to it, and
-                          that is what the booking's stage says — not a second
-                          column holding a wish. So it asks plainly, and says
-                          who confirms. */}
-                      <p className="q-meta" style={{ marginBottom: '16px' }}>
-                        Choose the date and time you want the session to happen. The studio will confirm it.
-                      </p>
-                      <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
-                      {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
-                        const t = scheduledFor.slice(11, 16);
-                        const early = dayHours.opensAt && t && t < dayHours.opensAt;
-                        const late = dayHours.closesAt && t && t >= dayHours.closesAt;
-                        const off = dayHours.closed || early || late;
-                        return (
-                          <p className={off ? 'q-note q-note-warn q-meta q-appear' : 'q-meta q-appear'} style={{ marginTop: '12px' }}>
-                            {dayHours.closed
-                              ? `We are closed that day${dayHours.label ? ` (${dayHours.label})` : ''}. Please choose another.`
-                              : early
-                                ? `We open at ${dayHours.opensAt} that day.`
-                                : late
-                                  ? `We close at ${dayHours.closesAt} that day.`
-                                  : `We are open ${dayHours.opensAt ?? '—'} to ${dayHours.closesAt ?? '—'} that day.`}
-                          </p>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Step: Match */}
-              {activeStep.id === 'match' && (
-                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>What fits?</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
-                    {hasSelections && hasMatches
-                      ? 'Based on what you described, these packages match — best fit first. Pick one or skip to continue with your request.'
-                      : hasSelections && !hasMatches
-                        ? "No exact matches yet. Here's everything we offer — pick one or skip to let us put something together."
-                        : "Here's what we offer. Pick one that fits, or skip and describe what you need."}
-                  </p>
-
-                  <div className="q-stack q-stack-md">
-                    {scoredPackages.map(pkg => {
-                      const isSelected = resolvedPackageId === pkg.id;
-                      const isDimmed = hasSelections && hasMatches && pkg.score === 0;
-                      return (
-                        <button
-                          key={pkg.id}
-                          type="button"
-                          className={`q-tile q-card-interactive ${isSelected ? 'q-selected' : ''}`}
-                          style={{
-                            textAlign: 'left',
-                            width: '100%',
-                            border: `2px solid ${isSelected ? 'var(--q-color-accent)' : 'var(--q-color-ink-200)'}`,
-                            background: isSelected ? 'var(--q-color-accent-subtle)' : 'var(--q-color-paper)',
-                            padding: '20px 24px',
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            opacity: isDimmed ? 0.45 : 1,
-                          }}
-                          onClick={() => {
-                            if (isSelected) {
-                              setResolvedPackageId(null);
-                              setResolvedPackageName(null);
-                            } else {
-                              setResolvedPackageId(pkg.id);
-                              setResolvedPackageName(pkg.name);
-                            }
-                          }}
-                        >
-                          <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
-                            <div>
-                              <div className="q-strong" style={{ fontSize: '1.1rem' }}>{pkg.name}</div>
-                              {pkg.description && (
-                                <div className="q-meta" style={{ marginTop: '6px' }}>{pkg.description}</div>
-                              )}
-                              <div className="q-meta-sm" style={{ marginTop: '12px', display: 'flex', gap: '12px', color: 'var(--q-color-ink-500)', flexWrap: 'wrap' }}>
-                                {pkg.duration_minutes ? <span>⏱ {pkg.duration_minutes} minutes</span> : null}
-                                {(pkg as any).deliverablesCount ? (
-                                  <span>📦 {(pkg as any).deliverablesCount} deliverable{(pkg as any).deliverablesCount === 1 ? '' : 's'}</span>
-                                ) : null}
-                                {pkg.services && pkg.services.length > 0 ? (
-                                  <span>🛠 {pkg.services.length} service{pkg.services.length === 1 ? '' : 's'}</span>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div style={{ marginLeft: '16px' }}>
-                              <div className={`q-radio ${isSelected ? 'checked' : ''}`} />
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Step: Review */}
-              {activeStep.id === 'review' && (
-                <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Review & Submit</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Just to make sure we got everything right.</p>
-                  <div className="q-card" style={{ backgroundColor: 'var(--q-color-ink-50)', marginBottom: '32px' }}>
-
-                    <div style={{ marginBottom: '24px' }}>
-                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Your Details</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 500 }}>{firstName} {lastName}</div>
-                      <div style={{ color: 'var(--q-color-ink-600)' }}>{email}{phone ? ` • ${phone}` : ''}</div>
-                    </div>
-
-                    <div style={{ marginBottom: '24px' }}>
-                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Booking</div>
-                      <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{displayPackageName}</div>
-                      {isCustom && !resolvedPackageName && (
-                        <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-400)', marginTop: '2px' }}>We&rsquo;ll match you to the right package.</div>
-                      )}
-                    </div>
-
-                    {isCustom && hasSelections && (
-                      <div style={{ marginBottom: '24px' }}>
-                        <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>What you described</div>
-                        <div className="q-stack q-stack-xs">
-                          {Object.entries(dimensionSelections)
-                            .filter(([, v]) => v)
-                            .map(([dimId, valueId]) => {
-                              const dim = dimensionConfig?.find(d => d.id === dimId);
-                              const opt = dim?.values.find(o => o.id === valueId);
-                              return opt ? (
-                                <div key={dimId} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
-                                  <span style={{ color: 'var(--q-color-ink-400)' }}>{dim!.name}: </span>
-                                  {opt.name}
-                                </div>
-                              ) : null;
-                            })}
-                        </div>
-                      </div>
-                    )}
-
-                    {scheduledFor && (
-                      <div style={{ marginBottom: '24px' }}>
-                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>Requested Time</div>
-                        <div style={{ fontSize: '1.05rem' }}>{new Date(scheduledFor).toLocaleString()}</div>
-                      </div>
-                    )}
-
-                    {hasVariant && tierIndex !== null && !isCustom && (
-                      <div>
-                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>{variant!.axis_label}</div>
-                        <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{variant!.tiers[tierIndex].label} — {formatMoney(variant!.tiers[tierIndex].price, currencyCode)}</div>
-                      </div>
-                    )}
-
-                  </div>
-                </div>
-              )}
-            </form>
-          )}
-        </div>
-      </main>
-
-      {/* Footer */}
-      {!isSuccess && (
-        <footer style={{ padding: '24px 32px', borderTop: '1px solid var(--q-color-ink-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--q-color-paper)' }}>
-          <div>
-            {currentStep > 0 ? (
-              <button onClick={() => setCurrentStep(s => s - 1)} className="q-btn q-btn-outline q-btn-lg" style={{ borderRadius: '24px' }}>Back</button>
-            ) : (
-              <div />
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {activeStep.id === 'match' && (
-              <button
-                type="button"
-                className="q-btn q-btn-outline"
-                onClick={() => setCurrentStep(s => s + 1)}
-                style={{ borderRadius: '24px' }}
-              >
-                Skip
-              </button>
-            )}
-            <button
-              form="booking-form"
-              type="submit"
-              className="q-btn q-btn-primary q-btn-lg"
-              disabled={!canGoNext() || isSubmitting}
-              style={{ borderRadius: '24px', padding: '12px 32px' }}
-            >
-              {currentStep === totalSteps - 1
-                ? (isSubmitting ? 'Submitting…' : 'Submit Request')
-                : activeStep.id === 'match' && resolvedPackageId
-                  ? 'Book this package'
-                  : 'Continue'}
-            </button>
-          </div>
-        </footer>
-      )}
-    </div>
-  );
-
-  return (
-    <>
-      <button onClick={() => setIsOpen(true)} className="q-btn q-btn-primary q-btn-lg" style={{ width: '100%', fontSize: '1.1rem', padding: '16px', borderRadius: '12px' }}>
-        {triggerLabel}
-      </button>
-      {isOpen && typeof document !== 'undefined' && createPortal(formContent, document.body)}
-    </>
   );
 }

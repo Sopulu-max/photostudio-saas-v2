@@ -39,7 +39,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createService, getPublicIntakeDimensions } from '@/modules/services/domain';
-import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
+import { submitBookingForm, getPackageIntakePublic } from '@/app/book/[slug]/[packageId]/actions';
 import { getEnquiryForBooking, extractPackageFromEnquiry, getBooking } from '@/modules/bookings/domain';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
@@ -163,6 +163,93 @@ describe('a client who did not pick a package', () => {
 
     await expect(extractPackageFromEnquiry(bookingId)).rejects.toThrow();
   }, 120000);
+
+
+  it('asks a matched package its own questions, having asked none before', async () => {
+    /*
+     * THE GAP THIS CLOSES. Matching a package on the custom path already went
+     * down the full package branch of submitBookingForm — instance,
+     * classifications and all — while the form went on rendering the custom
+     * questions, because `isCustom` describes which page you started on, not
+     * what you ended up booking. So the package was booked without being asked
+     * anything it asks: its intake form, its open classifications, its declared
+     * variables. With a REQUIRED question it was worse than incomplete —
+     * validateAnswers refused answers that had never been collected, and the
+     * booking failed outright with a message the client could do nothing about.
+     */
+    const { createPackage, updatePackageQuestions } = await import('@/modules/packages/domain');
+    const { serviceId } = await createService({
+      name: 'Full Coverage',
+      serviceDomain: 'Photography',
+      dimensions: [{ name: 'Occasion', values: ['Wedding', 'Birthday'] }],
+    });
+    const { packageId } = await createPackage({ name: 'Full Coverage Package', serviceIds: [serviceId] });
+    await updatePackageQuestions({
+      packageId,
+      questions: [{ id: 'venue', type: 'text', label: 'Where is it?', required: true }] as any,
+    });
+
+    // What the form now fetches the moment a match is picked.
+    const intake = await getPackageIntakePublic(TEST_ORG_ID, packageId);
+    expect(intake.formSchema.length, 'the package’s own questions were not offered').toBe(1);
+    // Two values under Occasion is a choice, not two simultaneous facts.
+    expect(intake.openClassifications.length, 'the package’s open classification was not offered').toBe(1);
+
+    // Unanswered, it still refuses — the server rule is unchanged, and is what
+    // the new step exists to satisfy rather than to replace.
+    await expect(submitBookingForm(TEST_ORG_ID, packageId, {
+      firstName: 'Femi', lastName: 'Ola', email: 'femi@example.com', phone: '',
+      customFields: { message: 'Saw this one', dimensions: {} },
+      fromCustomPath: true,
+    } as any), 'a required question went unasked and the booking was allowed').rejects.toThrow();
+  }, 180000);
+
+  it('keeps what a matched client said, alongside the package’s answers', async () => {
+    /*
+     * storeAnswers keeps only what the package asked, which is right — it is
+     * what stops a removed question's answer lingering. But somebody who came
+     * the custom way said a sentence and picked answers that no package asked,
+     * and those are the whole reason this package was matched. Dropping them
+     * would lose the client's own words at the moment the studio most needs
+     * them.
+     */
+    const { createPackage, updatePackageQuestions } = await import('@/modules/packages/domain');
+    const { serviceId } = await createService({ name: 'Studio Hour', serviceDomain: 'Photography' });
+    const { packageId } = await createPackage({ name: 'Studio Hour Package', serviceIds: [serviceId] });
+    await updatePackageQuestions({
+      packageId,
+      questions: [{ id: 'venue', type: 'text', label: 'Where is it?', required: true }] as any,
+    });
+
+    const { data: schema } = await supabaseAdmin
+      .from('packages').select('form_schema').eq('id', packageId).single();
+    const questionId = (schema!.form_schema as any[])[0].id as string;
+
+    const { bookingId } = await submitBookingForm(TEST_ORG_ID, packageId, {
+      firstName: 'Grace', lastName: 'Nnamdi', email: 'grace@example.com', phone: '',
+      customFields: {
+        [questionId]: 'The Botanical Gardens',
+        message: 'Golden hour if possible',
+        dimensions: { [occasionDimensionId]: weddingValueId },
+      },
+      fromCustomPath: true,
+    } as any);
+
+    const { data: booking } = await supabaseAdmin
+      .from('bookings').select('metadata').eq('id', bookingId).single();
+    const stored = (booking!.metadata as any).form_responses;
+
+    expect(stored[questionId], 'the package’s own answer was not stored').toBe('The Botanical Gardens');
+    expect(stored.message, 'the client’s own words were dropped once they matched a package')
+      .toBe('Golden hour if possible');
+    expect(stored.dimensions, 'what they described was dropped once they matched a package')
+      .toEqual({ [occasionDimensionId]: weddingValueId });
+
+    // And it is a real booking on a real package instance, not an enquiry.
+    const lines = await linesOf(bookingId);
+    expect(lines.length).toBe(1);
+    expect(lines[0].package_id).toBeTruthy();
+  }, 180000);
 
   it('a package booking is untouched — it still gets its line', async () => {
     /*
