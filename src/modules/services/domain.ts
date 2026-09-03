@@ -40,8 +40,8 @@ type StageInput = { name: string; roleName?: string | null; frontStage?: boolean
 // `dimension_values`, owned by a service domain, because a domain is the
 // boundary: everything below one belongs to it.
 
-// `deliverables` is not on this list: output types belong to a service domain
-// now, so they are found-or-created through findOrCreateOutputType, not here.
+// `deliverables` is not on this list: a deliverable belongs to a service domain
+// now, so they are found-or-created through findOrCreateDeliverableNamed, not here.
 // Rename and delete still work by id, which needs no domain.
 type NamedTable = 'service_domains' | 'delivery_containers' | 'deliverables';
 
@@ -229,7 +229,10 @@ function shapeServiceDimensions(row: any): ServiceDimensionTag[] {
   return [...byDimension.values()].sort((a, b) => a.position - b.position);
 }
 
-import { findOrCreateOutputType } from '@/modules/deliverables/domain';
+import {
+  findOrCreateDeliverableNamed, setDeliverablesForService, copyDeliverablesBetweenServices,
+  attachDeliverableToService, listDeliverableIdsForServices,
+} from '@/modules/deliverables/domain';
 
 type Facet = { id: string; name: string; position: number };
 
@@ -527,10 +530,10 @@ export async function createService(input: {
 
   const domainId = await findOrCreateNamed('service_domains', orgId, input.serviceDomain || '');
   // Resolved inside the domain the service belongs to — a service with no
-  // domain cannot name an output type, because there is no vocabulary to name
+  // domain cannot name a deliverable, because there is no vocabulary to name
   // it in yet.
   const primaryDeliverableId = input.primaryDeliverable && domainId
-    ? await findOrCreateOutputType(orgId, domainId, input.primaryDeliverable)
+    ? await findOrCreateDeliverableNamed(orgId, domainId, input.primaryDeliverable)
     : null;
 
   const { data: service, error } = await supabaseAdmin
@@ -550,15 +553,17 @@ export async function createService(input: {
     .single();
   if (error || !service) { console.error('Failed to create service:', error); throw new Error('Failed to create service'); }
 
-  // Insert general outputs (the assets this service can produce beyond its primary output)
-  const deliverableIds: string[] = [];
-  for (const d of (domainId ? input.deliverables || [] : [])) {
-    const id = await findOrCreateOutputType(orgId, domainId!, d);
-    if (id) deliverableIds.push(id);
-  }
-  if (deliverableIds.length > 0) {
-    await supabaseAdmin.from('service_deliverables').insert(deliverableIds.map((deliverable_id) => ({ organization_id: orgId, service_id: service.id, deliverable_id })));
-  }
+  /*
+   * What this service produces, asked of the module that defines it.
+   *
+   * This resolved the names and wrote service_deliverables here — Services
+   * reaching past Deliverables to write the relationship to a thing
+   * Deliverables owns. It asks now, the same way it already asked for the name
+   * to be minted.
+   */
+  await setDeliverablesForService({
+    serviceId: service.id, serviceDomainId: domainId, names: input.deliverables || [],
+  });
 
   await writeServiceDimensions(orgId, service.id, domainId, input.dimensions);
 
@@ -623,7 +628,7 @@ export async function updateService(input: {
   const outputDomainId = (patch.service_domain_id as string | undefined) ?? existing.service_domain_id;
   if (input.primaryDeliverable !== undefined) {
     patch.primary_deliverable_id = input.primaryDeliverable && outputDomainId
-      ? await findOrCreateOutputType(orgId, outputDomainId, input.primaryDeliverable)
+      ? await findOrCreateDeliverableNamed(orgId, outputDomainId, input.primaryDeliverable)
       : null;
   }
   if (input.workflow !== undefined && outputDomainId) {
@@ -635,16 +640,12 @@ export async function updateService(input: {
     if (error) { console.error('Failed to update service:', error); throw new Error('Failed to save the service'); }
   }
 
+  // Undefined means "not mentioned", which is not the same as "none" — an edit
+  // that never touched this field must not clear what the service produces.
   if (input.deliverables !== undefined) {
-    await supabaseAdmin.from('service_deliverables').delete().eq('service_id', input.serviceId).eq('organization_id', orgId);
-    const deliverableIds: string[] = [];
-    for (const d of (outputDomainId ? input.deliverables : [])) {
-      const id = await findOrCreateOutputType(orgId, outputDomainId, d);
-      if (id) deliverableIds.push(id);
-    }
-    if (deliverableIds.length > 0) {
-      await supabaseAdmin.from('service_deliverables').insert(deliverableIds.map((deliverable_id) => ({ organization_id: orgId, service_id: input.serviceId, deliverable_id })));
-    }
+    await setDeliverablesForService({
+      serviceId: input.serviceId, serviceDomainId: outputDomainId, names: input.deliverables,
+    });
   }
 
   if (input.variables !== undefined) {
@@ -681,10 +682,7 @@ export async function duplicateService(serviceId: string) {
     .single();
   if (error || !copy) { console.error('Failed to duplicate service:', error); throw new Error('Failed to duplicate the service'); }
 
-  const { data: outputs } = await supabaseAdmin.from('service_deliverables').select('deliverable_id').eq('service_id', serviceId).eq('organization_id', orgId);
-  if (outputs && outputs.length > 0) {
-    await supabaseAdmin.from('service_deliverables').insert(outputs.map((d: any) => ({ organization_id: orgId, service_id: copy.id, deliverable_id: d.deliverable_id })));
-  }
+  await copyDeliverablesBetweenServices({ fromServiceId: serviceId, toServiceId: copy.id });
 
   // How it was classified comes with it — a fork is the same work, differently
   // sold. The links copy directly: both services are in the same domain, so
@@ -1200,34 +1198,21 @@ export async function declareServiceDeliverable(input: {
   const { data: service } = await supabaseAdmin
     .from('services').select('service_domain_id')
     .eq('id', input.serviceId).eq('organization_id', orgId).maybeSingle();
-  // deliverables.service_domain_id is NOT NULL — an output belongs to a domain
-  // the way a dimension does, and there is nowhere to put one without it.
+  // deliverables.service_domain_id is NOT NULL — a deliverable belongs to a
+  // domain the way a dimension does, and there is nowhere to put one without it.
   if (!service?.service_domain_id) throw new Error('That service has no domain to hold the output.');
 
-  const deliverableId = await findOrCreateOutputType(orgId, service.service_domain_id, asked);
-  if (!deliverableId) throw new Error(`Failed to add "${asked}"`);
-
-  const { data: already } = await supabaseAdmin
-    .from('service_deliverables').select('id')
-    .eq('organization_id', orgId)
-    .eq('service_id', input.serviceId)
-    .eq('deliverable_id', deliverableId)
-    .maybeSingle();
-
-  if (!already) {
-    const { error } = await supabaseAdmin.from('service_deliverables')
-      .insert({ organization_id: orgId, service_id: input.serviceId, deliverable_id: deliverableId });
-    if (error) {
-      console.error('Failed to attach an output to a service:', error);
-      throw new Error(`Failed to add "${asked}"`);
-    }
-  }
-
-  // The stored name, not the typed one: find-or-create matches an existing
-  // output however it was capitalised, and the caller must show what the studio
-  // actually calls it rather than what was just typed.
-  const { data: stored } = await supabaseAdmin
-    .from('deliverables').select('id, name').eq('id', deliverableId).maybeSingle();
+  /*
+   * Attaching is Deliverables' to do. This module decides that a service
+   * SHOULD produce something and records that the service changed; the module
+   * that defines deliverables is what puts the two together.
+   */
+  const stored = await attachDeliverableToService({
+    serviceId: input.serviceId,
+    serviceDomainId: service.service_domain_id,
+    name: asked,
+  });
+  const deliverableId = stored.id;
 
   await logEvent({
     organizationId: orgId,
@@ -1309,11 +1294,13 @@ export async function setServiceVariables(input: { serviceId: string; variables:
   return { ok: true, count: clean.length };
 }
 
+/*
+ * Kept as a name Services' callers already know, answered by the module that
+ * owns the edge. Reading service_deliverables here would be the same reach
+ * across the seam that writing it was.
+ */
 export async function getDeliverableIdsForServices(serviceIds: string[]): Promise<string[]> {
-  if (serviceIds.length === 0) return [];
-  const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin.from('service_deliverables').select('deliverable_id').in('service_id', serviceIds).eq('organization_id', orgId);
-  return Array.from(new Set((data || []).map((d: any) => d.deliverable_id))) as string[];
+  return listDeliverableIdsForServices(serviceIds);
 }
 
 /*
