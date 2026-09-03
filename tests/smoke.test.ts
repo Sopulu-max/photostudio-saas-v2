@@ -118,6 +118,9 @@ const PAGES: { path: string; expect: RegExp }[] = [
   // One word for these across the app, and the container section that used to
   // be two hardcoded empty arrays under a heading promising containers.
   { path: '/deliverables', expect: /Deliverables/i },
+  // The create page. It offered a broken container option and no suggestions;
+  // now it says what it is adding and what the domain already produces.
+  { path: '/deliverables/new', expect: /What are you adding/i },
   { path: '/packages', expect: /<\/html>/i },
   { path: '/services/classifications', expect: /By classification/i },
   { path: '/calendar', expect: /<\/html>/i },

@@ -296,6 +296,32 @@ describe('the studio’s delivery containers', () => {
     }), 'a narrowing permitted an answer the question never offered').rejects.toThrow(/not one of the answers/i);
   }, 90000);
 
+  it('creates a container from the create page, which it never could before', async () => {
+    /*
+     * THE HALF OF THAT PAGE THAT NEVER WORKED.
+     *
+     * Both choices went to createDeliverable, which resolves a name inside a
+     * service domain — and a container has none, so it arrived with an empty
+     * domain id. findOrCreateDeliverableNamed returns null for that, and the
+     * caller throws "Give the deliverable a name." So an operator picking
+     * Delivery Container was told the name was wrong, when the name was the one
+     * thing that was right.
+     *
+     * The page routes to createDeliveryContainer now. This pins the seam rather
+     * than the page: a container must not need a domain, and must not land in
+     * the deliverables vocabulary.
+     */
+    const before = (await listDeliverables()).length;
+
+    const { containerId } = await createDeliveryContainer('Bare USB');
+    expect(containerId, 'a container still cannot be made without a domain').toBeTruthy();
+
+    expect((await listDeliveryContainers()).some((c) => c.id === containerId),
+      'the container was not created').toBe(true);
+    expect((await listDeliverables()).length,
+      'a container was filed as a deliverable').toBe(before);
+  }, 60000);
+
   it('returns the columns it promises — the unit a deliverable is counted in', async () => {
     const domain = await seedRow('service_domains',
       { organization_id: TEST_ORG_ID, name: 'Framing' }, 'the domain');
