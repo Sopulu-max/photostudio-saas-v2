@@ -25,6 +25,8 @@ import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { GenerateInvoiceButton } from './InvoiceForms';
 import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
 import { ShareBooking } from './ShareBooking';
+import { NotesFor } from '@/components/NotesFor';
+import { listNotesAbout } from '@/modules/notes/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +127,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   // Booked, invoiced and paid — three different questions, asked of Finances
   // rather than worked out again here from its tables.
   const billing = await getBookingBilling(booking.id);
+  const notes = await listNotesAbout({ type: 'booking', id: booking.id });
 
   // What the packages promised, and what's still owed. Shared is the bar, not
   // uploaded: a bundle the client can't open isn't delivered.
@@ -789,6 +792,24 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * Last, because it is about the whole booking rather than a part of
           * it — everything above is what the link would show.
           */}
+        {/*
+          * WHAT THE STUDIO HAS WRITTEN DOWN ABOUT THIS JOB.
+          *
+          * Distinct from the brief above, which is the client's own words and
+          * is never edited. This is the studio's side: the gate code, that they
+          * moved the date twice, what to remember for the next one.
+          *
+          * The same notes the notes app holds — one table, one module. A note
+          * taken off this booking goes there rather than being destroyed.
+          */}
+        <Section title="Notes">
+          <NotesFor
+            about={{ type: 'booking', id: booking.id }}
+            aboutLabel="this booking"
+            notes={notes}
+          />
+        </Section>
+
         <Section title="Client confirmation">
           <ShareBooking
             bookingId={booking.id}

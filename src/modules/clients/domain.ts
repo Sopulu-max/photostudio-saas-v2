@@ -146,7 +146,7 @@ export async function getClient(clientId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('clients')
-    .select('id, status, source, notes, tags, created_at, contact:contacts(id, display_name, email, phone, avatar_url)')
+    .select('id, status, source, tags, created_at, contact:contacts(id, display_name, email, phone, avatar_url)')
     .eq('id', clientId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -155,7 +155,7 @@ export async function getClient(clientId: string) {
 
 /**
  * A client was write-once until now. Identity (name/email/phone) lives on the
- * kernel contact; CRM depth (notes/tags/source) lives on the client row —
+ * kernel contact; CRM depth (tags/source) lives on the client row —
  * this updates whichever side the caller actually passed.
  */
 export async function updateClient(input: {
@@ -163,7 +163,6 @@ export async function updateClient(input: {
   name?: string;
   email?: string | null;
   phone?: string | null;
-  notes?: string | null;
   tags?: string[];
   source?: string | null;
 }) {
@@ -198,7 +197,6 @@ export async function updateClient(input: {
   }
 
   const clientPatch: Record<string, unknown> = {};
-  if (input.notes !== undefined) clientPatch.notes = input.notes || null;
   if (input.tags !== undefined) clientPatch.tags = input.tags;
   if (input.source !== undefined) clientPatch.source = input.source || null;
   if (Object.keys(clientPatch).length > 0) {

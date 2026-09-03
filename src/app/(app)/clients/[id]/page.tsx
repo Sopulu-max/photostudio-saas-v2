@@ -8,6 +8,8 @@ import { formatMoney } from '@/kernel/currency';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { ClientEditor } from './ClientEditor';
+import { NotesFor } from '@/components/NotesFor';
+import { listNotesAbout } from '@/modules/notes/interface';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +24,11 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
   const client: any = await getClient(params.id);
   if (!client) notFound();
 
-  const [bookings, payments] = await Promise.all([
+  const [bookings, payments, notes] = await Promise.all([
     listBookingsForContact(client.contact.id),
     getPaymentSummaryForContact(client.contact.id),
+    // The studio's own record of this person, as opposed to their details.
+    listNotesAbout({ type: 'client', id: params.id }),
   ]);
 
   const lifetimeValue = bookings.reduce((sum: number, b: any) => sum + b.total, 0);
@@ -75,10 +79,27 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
             name={client.contact?.display_name || ''}
             email={client.contact?.email}
             phone={client.contact?.phone}
-            notes={client.notes}
             tags={client.tags || []}
             source={client.source}
             status={client.status}
+          />
+        </div>
+
+        {/*
+          * WHAT THE STUDIO KNOWS ABOUT THIS CLIENT.
+          *
+          * This replaces a "Notes" textarea that sat inside the details form —
+          * one box, saved with the record, empty on every client in the
+          * database. It could hold one thought at a time, undated and
+          * unattributed, and it was a second answer to a question the notes app
+          * now answers properly.
+          */}
+        <div className="q-card q-section">
+          <h2 className="q-section-title">Notes</h2>
+          <NotesFor
+            about={{ type: 'client', id: client.id }}
+            aboutLabel={client.contact?.display_name || 'this client'}
+            notes={notes}
           />
         </div>
 

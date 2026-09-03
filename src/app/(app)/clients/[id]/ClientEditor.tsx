@@ -14,7 +14,6 @@ export function ClientEditor({
   name: initialName,
   email: initialEmail,
   phone: initialPhone,
-  notes: initialNotes,
   tags: initialTags,
   source: initialSource,
   status,
@@ -23,7 +22,6 @@ export function ClientEditor({
   name: string;
   email: string | null;
   phone: string | null;
-  notes: string | null;
   tags: string[];
   source: string | null;
   status: string;
@@ -31,7 +29,6 @@ export function ClientEditor({
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail ?? '');
   const [phone, setPhone] = useState(initialPhone ?? '');
-  const [notes, setNotes] = useState(initialNotes ?? '');
   const [tags, setTags] = useState((initialTags || []).join(', '));
   const [source, setSource] = useState(initialSource ?? '');
   const [isPending, startTransition] = useTransition();
@@ -41,7 +38,6 @@ export function ClientEditor({
     name.trim() !== initialName ||
     email !== (initialEmail ?? '') ||
     phone !== (initialPhone ?? '') ||
-    notes !== (initialNotes ?? '') ||
     tags !== (initialTags || []).join(', ') ||
     source !== (initialSource ?? '');
 
@@ -57,7 +53,6 @@ export function ClientEditor({
       name,
       email: email.trim() || null,
       phone: phone.trim() || null,
-      notes: notes.trim() || null,
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       source: source.trim() || null,
     }));
@@ -96,11 +91,16 @@ export function ClientEditor({
           placeholder="Comma separated — e.g. VIP, repeat client" />
       </div>
 
-      <div className="q-field">
-        <label className="q-label">Notes</label>
-        <textarea className="q-textarea" value={notes} onChange={(e) => setNotes(e.target.value)}
-          placeholder="Anything worth remembering about this client." />
-      </div>
+      {/*
+        * THE NOTES BOX IS GONE FROM HERE.
+        *
+        * It was one textarea saved with the record: a single thought at a time,
+        * undated, unattributed, and empty on every client in the database. It
+        * also asked the same question the notes app answers — "anything worth
+        * remembering about this client" — which made two places to write one
+        * thing. Notes are their own section on this page now, and the same
+        * notes the notes app holds.
+        */}
 
       <div className="q-row">
         <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty} onClick={save}>

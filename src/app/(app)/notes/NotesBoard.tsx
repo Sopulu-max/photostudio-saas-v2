@@ -85,7 +85,8 @@ export function NotesBoard({ initial }: { initial: Note[] }) {
       const now = new Date().toISOString();
       const fresh: Note = {
         id: noteId, title: null, body: '', pinned: false,
-        authorName: null, createdAt: now, updatedAt: now,
+        authorName: null, aboutType: null, aboutId: null,
+        createdAt: now, updatedAt: now,
       };
       setNotes((prev) => [fresh, ...prev]);
       setOpenId(noteId);

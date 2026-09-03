@@ -32,7 +32,9 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 import {
   listNotes, getNote, createNote, updateNote, setNotePinned, deleteNote,
+  listNotesAbout, setNoteAbout,
 } from '@/modules/notes/domain';
+import { createBooking } from '@/modules/bookings/domain';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
@@ -103,6 +105,62 @@ describe('the notes a studio keeps', () => {
     const { noteId } = await createNote({ body: 'Temporary' });
     await deleteNote(noteId);
     expect(await getNote(noteId), 'the note survived removal').toBeNull();
+  }, 60000);
+
+  it('can be about a booking, and comes back with it', async () => {
+    const { bookingId } = await createBooking({ brief: 'A job with notes on it' });
+
+    const attached = await createNote({ body: 'Gate code is 4417', about: { type: 'booking', id: bookingId } });
+    await createNote({ body: 'About nothing in particular' });
+
+    const about = await listNotesAbout({ type: 'booking', id: bookingId });
+    expect(about.length, 'the booking’s notes did not come back').toBe(1);
+    expect(about[0].id).toBe(attached.noteId);
+    expect(about[0].aboutType).toBe('booking');
+    expect(about[0].aboutId).toBe(bookingId);
+
+    // And the notes app still holds it — one table, not two.
+    const all = await listNotes();
+    expect(all.some((n) => n.id === attached.noteId),
+      'a note written on a booking is missing from the notes app').toBe(true);
+  }, 90000);
+
+  it('detaching keeps the note', async () => {
+    /*
+     * What a note says was worth keeping whether or not it turned out to belong
+     * to that booking. Taking it off sends it to the notes app; deleting is its
+     * own act, and the interface asks separately for each.
+     */
+    const { bookingId } = await createBooking({ brief: 'Another job' });
+    const { noteId } = await createNote({ body: 'Turned out to be general', about: { type: 'booking', id: bookingId } });
+
+    await setNoteAbout({ id: noteId, about: null });
+
+    expect((await listNotesAbout({ type: 'booking', id: bookingId })).length,
+      'the note is still on the booking').toBe(0);
+
+    const still = await getNote(noteId);
+    expect(still, 'detaching destroyed the note').toBeTruthy();
+    expect(still!.body, 'detaching lost what it said').toBe('Turned out to be general');
+    expect(still!.aboutType, 'it still claims to be about something').toBeNull();
+  }, 90000);
+
+  it('refuses half an attachment', async () => {
+    /*
+     * A type with no id points nowhere; an id with no type cannot be resolved.
+     * And a type this app cannot render is a note that exists and can never be
+     * found — worse than one that was refused. The database says so rather than
+     * trusting every caller to.
+     */
+    const { noteId } = await createNote({ body: 'Whole or nothing' });
+
+    const halfType = await supabaseAdmin.from('notes')
+      .update({ about_type: 'booking' }).eq('id', noteId);
+    expect(halfType.error, 'a note was allowed to be about a type with no id').toBeTruthy();
+
+    const unknownKind = await supabaseAdmin.from('notes')
+      .update({ about_type: 'invoice', about_id: noteId }).eq('id', noteId);
+    expect(unknownKind.error, 'a note was allowed to be about a kind nothing renders').toBeTruthy();
   }, 60000);
 
   it('never reaches another studio’s notes', async () => {
