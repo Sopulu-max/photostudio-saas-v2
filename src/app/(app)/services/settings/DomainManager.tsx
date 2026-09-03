@@ -46,7 +46,7 @@ export function DomainManager({
                   * used to fire on the first click.
                   *
                   * A domain is what every service in it is defined in relation
-                  * to, and what its classifications and output types belong to
+                  * to, and what its classifications and deliverables belong to
                   * — so this is never a small removal. The armed label says how
                   * many services are standing on it, because the count beside
                   * the name is read as description and not as a warning.

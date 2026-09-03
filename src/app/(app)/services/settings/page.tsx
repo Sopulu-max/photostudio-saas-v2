@@ -109,7 +109,7 @@ export default async function ServiceSettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">Output types</h2>
+          <h2 className="q-section-title">Deliverables</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             The types of output a service produces — RAW images, edited video, a bound album. Like
             classifications, these belong to a domain. Quantities, sizes and specifications are set on a

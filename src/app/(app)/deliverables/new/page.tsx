@@ -20,7 +20,7 @@ export default async function NewDeliverablePage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">New Deliverable</h1>
-          <p className="q-page-subtitle">Add a new output type or delivery container to the studio registry.</p>
+          <p className="q-page-subtitle">Add a deliverable or a delivery container to the studio's registry.</p>
         </div>
       </header>
       <NewDeliverableForm domains={domains} />

@@ -8,7 +8,7 @@ import {
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
   buildVariableSuggestions,
 } from '@/modules/services/interface';
-import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
+import { listDeliverablesByDomain } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
@@ -27,7 +27,7 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   if (!service) notFound();
 
   const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, variables, roles] = await Promise.all([
-    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(),
+    listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(),
     listServices(), listServiceVariables(params.id), listRoles()
   ]);
 

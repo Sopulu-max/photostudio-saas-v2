@@ -7,7 +7,7 @@ import {
   buildVariableSuggestions,
   listWorkflowsByDomain,
 } from '@/modules/services/interface';
-import { listOutputTypesByDomain } from '@/modules/deliverables/interface';
+import { listDeliverablesByDomain } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { TemplatePicker } from './TemplatePicker';
 
@@ -30,7 +30,7 @@ export default async function NewServicePage(props: {
   }
 
   const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, roles] = await Promise.all([
-    listServiceDomains(), listOutputTypesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(), listServices(), listRoles()
+    listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(), listServices(), listRoles()
   ]);
 
   // The knowledge the form arrives with. Built from the curated library plus

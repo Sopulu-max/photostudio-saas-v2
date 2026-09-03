@@ -43,7 +43,7 @@ export function ServiceFieldsEditor({
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
   domains?: { id: string; name: string }[];
   domainOptions: string[];
-  /** Domain name → the KINDS it can produce. Output types belong to a domain too. */
+  /** Domain name → the KINDS it can produce. Deliverables belong to a domain too. */
   outputTypesByDomain: Record<string, { id: string; name: string }[]>;
   /** Domain name → the dimensions it actively classifies by, with their values. */
   dimensionsByDomain: Record<string, StudioDimensionShape[]>;
@@ -288,7 +288,7 @@ export function ServiceFieldsEditor({
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ marginTop: '4px', opacity: 0.7 }}>
-              Determines the classifications and output types available below.
+              Determines the classifications and deliverables available below.
             </span>
           </label>
         </div>
@@ -435,7 +435,7 @@ export function ServiceFieldsEditor({
 
       {/* 3. Output Configuration */}
       <div className="q-card q-stack" style={{ backgroundColor: 'var(--q-color-paper)', boxShadow: 'var(--q-shadow-sm)', marginTop: '16px' }}>
-        <h3 className="q-section-title">Output types</h3>
+        <h3 className="q-section-title">Deliverables</h3>
 
         <div className="q-stack q-gap-sm" style={{ marginTop: '16px' }}>
           <label className="q-label">
@@ -447,7 +447,7 @@ export function ServiceFieldsEditor({
               value={primaryDeliverable}
               onChange={setPrimaryOutputType}
               options={outputSuggestions}
-              placeholder="Select or type a new output type"
+              placeholder="Select or type a new deliverable"
               disabled={isPending}
             />
           </label>
@@ -458,11 +458,11 @@ export function ServiceFieldsEditor({
               values={deliverables}
               onChange={setDeliverables}
               options={outputSuggestions.filter((o) => o !== primaryDeliverable)}
-              placeholder="Select or type new output types"
+              placeholder="Select or type new deliverables"
               disabled={isPending}
             />
             <span className="q-meta-sm" style={{ display: 'block', marginTop: '8px', opacity: 0.7 }}>
-              Output types only. Quantities and sizes are set on a package.
+              Kinds only. Quantities and sizes are set on a package.
             </span>
           </div>
         </div>

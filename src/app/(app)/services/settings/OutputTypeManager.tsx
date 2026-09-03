@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { listOutputTypesByDomain, createDeliverable, renameDeliverable, deleteDeliverable } from '@/modules/deliverables/interface';
+import { listDeliverablesByDomain, createDeliverable, renameDeliverable, deleteDeliverable } from '@/modules/deliverables/interface';
 import { narrowFor } from '@/modules/services/interface';
 import type { Narrowed } from '@/modules/services/interface';
 import { PickToAdd } from '@/components/Pick';
@@ -12,7 +12,7 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 /**
  * What each domain can produce.
  *
- * An output type is a KIND — edited photographs, a bound album — and like a
+ * A deliverable is a KIND — edited photographs, a bound album — and like a
  * dimension it belongs to one service domain. Photography producing "Contact
  * sheet" says nothing about Printing, which is what lets a studio expand into a
  * domain without dragging the others along.
@@ -37,7 +37,7 @@ export function OutputTypeManager({
 
   const load = React.useCallback(async () => {
     setLoading(true);
-    try { setByDomain(await listOutputTypesByDomain()); }
+    try { setByDomain(await listDeliverablesByDomain()); }
     finally { setLoading(false); }
   }, []);
 
@@ -52,7 +52,7 @@ export function OutputTypeManager({
   if (domains.length === 0) {
     return (
       <p className="q-empty">
-        Add a service domain first. Output types belong to a domain.
+        Add a service domain first. Deliverables belong to a domain.
       </p>
     );
   }
@@ -139,7 +139,7 @@ export function OutputTypeManager({
       <PickToAdd
         options={narrowFor(suggestions, domainName, '')
           .filter((o) => !types.some((t) => t.name.toLowerCase() === o.toLowerCase()))}
-        placeholder={`Add an output type for ${domainName || 'this domain'}`}
+        placeholder={`Add a deliverable for ${domainName || 'this domain'}`}
         disabled={isPending}
         onAdd={(v) => run(() => createDeliverable({ serviceDomainId: domainId, name: v }))}
       />
