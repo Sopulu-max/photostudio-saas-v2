@@ -1267,20 +1267,27 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 const def = (allDeliverables as any[]).find((d) => d.id === p.deliverableId);
                 if (!def) return null;
                 
-                // If it's a baked instance, there is no form to show
-                if (def.spec_values) {
-                  return (
-                    <div className="q-meta-sm q-banner q-banner-info">
-                      <strong>Locked SKU:</strong> The details for this deliverable are predefined and locked by the studio.
-                    </div>
-                  );
-                }
-
-                // If it's a class with a schema, render the form
+                /*
+                 * ONE MEANING PER COLUMN.
+                 *
+                 * This read spec_values on the KIND as "locked SKU — show no
+                 * form", while formatDeliverable read the same column as
+                 * defaults to fall back on. Two meanings for one field, and the
+                 * stricter one won here: any deliverable whose studio had
+                 * recorded a usual answer became uneditable on every package,
+                 * including for fields it had said nothing about.
+                 *
+                 * A kind's values are what it usually is. A package may say
+                 * something different — that is the whole reason a package
+                 * exists. So the form always draws, pre-filled from the kind.
+                 */
                 const schema = def.spec_schema;
                 if (!schema || !Array.isArray(schema) || schema.length === 0) return null;
                 
-                const currentVals = p.specValues || {};
+                // What this package said, falling back to what the kind
+                // usually is — the same precedence formatDeliverable uses, so
+                // the form and the sentence under it cannot disagree.
+                const currentVals = { ...(def.spec_values || {}), ...(p.specValues || {}) };
 
                 return (
                   <div className="q-stack q-stack-sm" style={{ paddingLeft: '16px', borderLeft: '2px solid var(--q-color-neutral-300)' }}>
@@ -1291,7 +1298,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                       
                       return (
                         <div key={i} className="q-field">
-                          <label className="q-label q-label-sm">{field.key}</label>
+                          {/* The label the studio typed; the key is storage. */}
+                          <label className="q-label q-label-sm">{field.label || field.key}</label>
                           {field.type === 'select' && field.options ? (
                             <select 
                               className="q-select q-select-sm" 

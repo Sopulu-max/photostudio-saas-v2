@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { SpecFields, keyOf, type SpecField } from './SpecFields';
 import { useRouter } from 'next/navigation';
 import { updateDeliverable, deleteOutputOrContainer, updateDeliverableConfig } from './actions';
 import { ConfirmButton } from '@/components/ConfirmButton';
@@ -14,8 +15,17 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
   const router = useRouter();
   const [name, setName] = useState(initialName);
   const [defaultUnit, setDefaultUnit] = useState(initialOutput?.default_unit || '');
-  const [specSchemaStr, setSpecSchemaStr] = useState(initialOutput?.spec_schema ? JSON.stringify(initialOutput.spec_schema, null, 2) : '[\n  \n]');
-  const [specValuesStr, setSpecValuesStr] = useState(initialOutput?.spec_values ? JSON.stringify(initialOutput.spec_values, null, 2) : '{\n  \n}');
+  /*
+   * A schema is a list of fields, not a string of JSON. It was stored as JSON
+   * and edited as JSON, which are two different decisions — the first is fine
+   * and the second is why no studio ever declared one.
+   */
+  const [fields, setFields] = useState<SpecField[]>(
+    Array.isArray(initialOutput?.spec_schema) ? (initialOutput.spec_schema as SpecField[]) : [],
+  );
+  const [defaults, setDefaults] = useState<Record<string, unknown>>(
+    (initialOutput?.spec_values as Record<string, unknown>) || {},
+  );
   
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -33,13 +43,26 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
         let parsedSchema = null;
         let parsedValues = null;
         
-        if (specSchemaStr.trim() && specSchemaStr.trim() !== '[\n  \n]') {
-          try { parsedSchema = JSON.parse(specSchemaStr); } catch { throw new Error('Invalid JSON in Specification Schema'); }
-        }
+        // Keyed off the label, so the studio names a field once and the stored
+        // key follows. A field with no name is a row somebody started and left.
+        parsedSchema = fields
+          .filter((f) => f.key.trim())
+          .map((f) => ({
+            key: keyOf(f.key),
+            label: f.key.trim(),
+            type: f.type,
+            ...(f.type === 'select' ? { options: f.options || [] } : {}),
+          }));
         
-        if (specValuesStr.trim() && specValuesStr.trim() !== '{\n  \n}') {
-          try { parsedValues = JSON.parse(specValuesStr); } catch { throw new Error('Invalid JSON in Instance Values'); }
-        }
+        /*
+         * The studio's usual answers, kept only for fields that still exist — a
+         * default for a deleted field is a value nothing will ever ask for, and
+         * formatDeliverable would go on rendering it.
+         */
+        const live = new Set(parsedSchema.map((f: any) => f.key));
+        parsedValues = Object.fromEntries(
+          Object.entries(defaults).filter(([k, v]) => live.has(k) && v !== '' && v != null),
+        );
         
         await updateDeliverableConfig(id, {
           default_unit: defaultUnit.trim() || null,
@@ -96,28 +119,50 @@ export function EditDeliverableForm({ id, type, initialName, initialOutput }: {
           </div>
 
           <div className="q-field">
-            <label className="q-label">Specification Schema (JSON)</label>
-            <p className="q-help">Define the structural questions a package must answer for this deliverable. Example: <code>{`[{"key": "size", "type": "select", "options": ["8x8", "10x10"]}]`}</code></p>
-            <textarea
-              className="q-input"
-              rows={6}
-              value={specSchemaStr}
-              onChange={(e) => setSpecSchemaStr(e.target.value)}
-              style={{ fontFamily: 'monospace' }}
-            />
+            <label className="q-label">What has to be settled about it</label>
+            <p className="q-help">
+              Declared once here. Every package that promises this deliverable is asked these, and
+              every page that shows one reads them the same way.
+            </p>
+            <SpecFields fields={fields} onChange={setFields} disabled={saving} />
           </div>
 
-          <div className="q-field">
-            <label className="q-label">Predefined Instance Values (JSON)</label>
-            <p className="q-help">If this deliverable is a specific SKU, bake the answers to the schema here. A package adding this deliverable will only need to supply a quantity. Example: <code>{`{"size": "10x10"}`}</code></p>
-            <textarea
-              className="q-input"
-              rows={4}
-              value={specValuesStr}
-              onChange={(e) => setSpecValuesStr(e.target.value)}
-              style={{ fontFamily: 'monospace' }}
-            />
-          </div>
+          {fields.filter((f) => f.key.trim()).length > 0 && (
+            <div className="q-field">
+              <label className="q-label">Your usual answers (optional)</label>
+              <p className="q-help">
+                What this normally is, so a package starts from it rather than a blank. A package can
+                still say something different.
+              </p>
+              <div className="q-stack q-stack-sm">
+                {fields.filter((f) => f.key.trim()).map((f) => {
+                  const k = keyOf(f.key);
+                  const val = (defaults[k] ?? '') as string;
+                  const set = (v: string) => setDefaults((prev) => ({ ...prev, [k]: v }));
+                  return (
+                    <div key={k} className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
+                      <span className="q-meta" style={{ minWidth: '8rem' }}>{f.key.trim()}</span>
+                      {f.type === 'select' ? (
+                        <select className="q-select q-input-sm" value={val} disabled={saving}
+                          onChange={(e) => set(e.target.value)}>
+                          <option value="">No usual answer</option>
+                          {(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          className="q-input q-input-sm"
+                          type={f.type === 'number' ? 'number' : 'text'}
+                          value={val}
+                          disabled={saving}
+                          onChange={(e) => set(e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

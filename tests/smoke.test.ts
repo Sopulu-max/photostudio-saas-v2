@@ -115,6 +115,9 @@ const PAGES: { path: string; expect: RegExp }[] = [
   { path: '/finances', expect: /<\/html>/i },
   { path: '/services', expect: /<\/html>/i },
   { path: '/services/settings', expect: /Classifications/i },
+  // One word for these across the app, and the container section that used to
+  // be two hardcoded empty arrays under a heading promising containers.
+  { path: '/deliverables', expect: /Deliverables/i },
   { path: '/packages', expect: /<\/html>/i },
   { path: '/services/classifications', expect: /By classification/i },
   { path: '/calendar', expect: /<\/html>/i },
@@ -345,6 +348,7 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
       await supabaseAdmin.from('invoice_lines').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('invoices').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('booking_lines').delete().eq('organization_id', orgId);
+      await supabaseAdmin.from('delivery_containers').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('bookings').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('packages').delete().eq('organization_id', orgId);
       await supabaseAdmin.from('services').delete().eq('organization_id', orgId);
@@ -572,6 +576,27 @@ describe.skipIf(!serverUp)('Smoke: every signed-in page loads', () => {
     expect(res.status, `a stale package link returned ${res.status}`).toBe(200);
     const html = await res.text();
     expect(html, 'a stale package link crashed the form').not.toMatch(CRASHED);
+  });
+
+  it('shows the delivery containers the studio actually has', async () => {
+    /*
+     * The page had a section headed for containers whose list was
+     * `const containers: any[] = []` and whose map ran over another empty
+     * literal — two separate guarantees that nothing could be drawn, while the
+     * table had rows in it. A heading with no way to be wrong is not coverage,
+     * so this seeds one and insists it appears.
+     */
+    const containerId = await supabaseAdmin
+      .from('delivery_containers')
+      .insert({ organization_id: orgId, name: 'Smoke Container', position: 0 })
+      .select('id').single();
+    expect(containerId.error, `could not seed a container: ${containerId.error?.message}`).toBeFalsy();
+
+    const res = await load('/deliverables', { headers: { cookie: cookieHeader } });
+    expect(res.status, `the output types page returned ${res.status}`).toBe(200);
+    const html = await res.text();
+    expect(html, 'the page rendered Next error page').not.toMatch(CRASHED);
+    expect(html, 'a container the studio has is not shown').toContain('Smoke Container');
   });
 
   it('serves the public storefront without a session at all', async () => {

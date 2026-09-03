@@ -1,0 +1,175 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { randomUUID } from 'crypto';
+
+/**
+ * THE VESSELS THAT CARRY WORK TO A CLIENT.
+ *
+ * A gallery, a Drive folder, a USB stick. The ontology lists delivery
+ * containers as built, and the table has been in the schema all along with a
+ * real row in it — but nothing could reach one. `delivery_containers` appeared
+ * in a single TypeScript union and nowhere else, and the page section headed
+ * for them held `const containers: any[] = []` above a map over another empty
+ * literal. Two independent guarantees that nothing would ever draw.
+ *
+ * So these functions are new, and this is what says they work. The rendering is
+ * covered by the smoke suite; what is covered here is the writing, which smoke
+ * cannot reach because it seeds rows directly.
+ */
+
+const TEST_ORG_ID = randomUUID();
+const TEST_PERSON_ID = randomUUID();
+
+vi.mock('@/lib/supabase/getOrgId', () => ({
+  getAuthOrgId: async () => ({
+    userId: 'containers', orgId: TEST_ORG_ID, personId: TEST_PERSON_ID, contactId: TEST_PERSON_ID,
+  }),
+  getOptionalAuthOrgId: async () => ({
+    userId: 'containers', orgId: TEST_ORG_ID, personId: TEST_PERSON_ID, contactId: TEST_PERSON_ID,
+  }),
+}));
+
+import {
+  listDeliveryContainers, createDeliveryContainer,
+  renameDeliveryContainer, deleteDeliveryContainer,
+  listDeliverables, createDeliverable, updateDeliverableConfig,
+} from '@/modules/deliverables/domain';
+import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+import { seedStudio, seedRow } from './seed';
+import { PURGE_ORDER } from './purge';
+
+describe('the studio’s delivery containers', () => {
+  beforeAll(async () => {
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Container Studio' });
+  }, 120000);
+
+  afterAll(async () => {
+    await supabaseAdmin.from('delivery_containers').delete().eq('organization_id', TEST_ORG_ID);
+    for (const table of PURGE_ORDER) {
+      await supabaseAdmin.from(table).delete().eq('organization_id', TEST_ORG_ID);
+    }
+    await supabaseAdmin.from('organizations').delete().eq('id', TEST_ORG_ID);
+  });
+
+  it('starts with none, and adds one that comes back', async () => {
+    expect(await listDeliveryContainers(), 'a new studio already has containers').toEqual([]);
+
+    const { containerId } = await createDeliveryContainer('Google Drive folder');
+    expect(containerId, 'nothing was created').toBeTruthy();
+
+    const all = await listDeliveryContainers();
+    expect(all.length, 'the container did not come back from the list').toBe(1);
+    expect(all[0].name).toBe('Google Drive folder');
+  });
+
+  it('does not create a second one under the same name', async () => {
+    const first = await createDeliveryContainer('USB stick');
+    // Case-insensitive equality, per kernel/naming — a studio typing the same
+    // vessel differently twice has one vessel, not two.
+    const again = await createDeliveryContainer('usb STICK');
+    expect(again.containerId, 'the same vessel was created twice').toBe(first.containerId);
+  });
+
+  it('renames in place and removes for good', async () => {
+    const { containerId } = await createDeliveryContainer('Temporary');
+
+    await renameDeliveryContainer(containerId, 'Renamed vessel');
+    let all = await listDeliveryContainers();
+    expect(all.find((c) => c.id === containerId)?.name, 'the rename did not stick')
+      .toBe('Renamed vessel');
+
+    await deleteDeliveryContainer(containerId);
+    all = await listDeliveryContainers();
+    expect(all.some((c) => c.id === containerId), 'the container survived removal').toBe(false);
+  });
+
+  it('refuses a container with no name', async () => {
+    await expect(createDeliveryContainer('   '), 'a nameless vessel was accepted')
+      .rejects.toThrow();
+  });
+
+  it('carries a spec schema from the kind through to every reader', async () => {
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Framing' }, 'the domain');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Framed print',
+    });
+
+    // Exactly the shape the editor now writes: label kept for people, key for
+    // storage, options only where the answer is a choice.
+    await updateDeliverableConfig(outputTypeId, {
+      default_unit: 'print',
+      spec_schema: [
+        { key: 'size', label: 'Size', type: 'select', options: ['20x30', '16x20'] },
+        { key: 'frame', label: 'Frame', type: 'text' },
+      ] as any,
+      spec_values: { size: '20x30' },
+    });
+
+    const found = (await listDeliverables()).find((d) => d.id === outputTypeId);
+    const schema = found!.spec_schema as any;
+    expect(Array.isArray(schema), 'the schema did not survive as a list').toBe(true);
+    expect(schema.length, 'the declared fields did not come back').toBe(2);
+    expect(schema[0].label, 'the studio’s own word for the field was lost').toBe('Size');
+    expect(schema[0].options, 'the permitted answers were lost').toEqual(['20x30', '16x20']);
+
+    // The usual answer is a DEFAULT, not a lock. Both readers take it as one.
+    expect((found!.spec_values as any).size).toBe('20x30');
+  }, 60000);
+
+  it('returns the spec columns it promises, instead of undefined', async () => {
+    /*
+     * listDeliverables mapped d.default_unit, d.spec_schema and d.spec_values
+     * onto every row while the .select() asked for none of them — so all three
+     * arrived undefined, always. Its signature did not mention them either, so
+     * the type system had nothing to disagree with and no caller could see the
+     * fields existed.
+     *
+     * The columns are all null on real data today, which is exactly why this
+     * went unnoticed: undefined and null read the same at a glance. So this
+     * writes a value and insists it survives the round trip.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Printing' }, 'the domain');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Framed print',
+    });
+
+    await supabaseAdmin.from('deliverables')
+      .update({ default_unit: 'print', spec_values: { size: '20x30' } })
+      .eq('id', outputTypeId).eq('organization_id', TEST_ORG_ID);
+
+    const found = (await listDeliverables()).find((d) => d.id === outputTypeId);
+    expect(found, 'the output type is not in the list at all').toBeTruthy();
+    expect(found!.default_unit, 'default_unit came back undefined again').toBe('print');
+    expect((found!.spec_values as any)?.size, 'spec_values came back undefined again')
+      .toBe('20x30');
+    // A row that genuinely has no spec says null, not undefined — the shape a
+    // caller can test against.
+    expect(found!.spec_schema, 'an unset spec schema is not null').toBeNull();
+  }, 60000);
+});
+
+/*
+ * One sentence for a deliverable, everywhere it is read.
+ *
+ * Pure — no studio, no database — which is why it sits in its own block. A
+ * describe that needs seeded rows must live inside the one that seeds them, or
+ * it runs after that block's afterAll has already purged the organization.
+ */
+describe('how a deliverable reads', () => {
+  it('reads the same sentence everywhere, through one formatter', async () => {
+    // A package's own answer wins over the kind's usual one; the formatter is
+    // what every page uses, so they cannot phrase it differently.
+    expect(formatDeliverable({
+      name: 'Framed print', quantity: 2, spec_values: { size: '16x20' },
+    })).toBe('2 Framed print · 16x20');
+
+    expect(formatDeliverable({
+      name: 'video', quantity: 30, unit: 'second',
+    })).toBe('30 seconds video');
+
+    // Nothing declared is still a deliverable — the simple end of the range.
+    expect(formatDeliverable({ name: 'Edited photograph' })).toBe('Edited photograph');
+  });
+});
