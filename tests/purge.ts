@@ -22,6 +22,7 @@ export const PURGE_ORDER = [
   // Narrowings hang off package_services and go with it, so they need no line.
   'package_variable_values',
   'packages',
+  'service_deliverable_options',
   'service_deliverables', 'variables', 'service_dimension_values',
   'services',
   // Was 'blueprints', which no longer exists — that table became these three in

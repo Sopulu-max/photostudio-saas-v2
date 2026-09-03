@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
 import { findByName } from '@/kernel/naming';
+import { DELIVERABLE_REF } from './shape';
 
 type Facet = { id: string; name: string; position: number };
 
@@ -764,4 +765,135 @@ export async function removeDeliverableVariable(variableId: string) {
   revalidatePath('/deliverables');
   revalidatePath('/packages');
   return { ok: true };
+}
+
+/*
+ * ─── WHAT A SERVICE NARROWS ────────────────────────────────────────────────
+ *
+ * A deliverable declares the possibilities — softcopy or hardcopy, 20x30 or
+ * 16x20. A service is often narrower than that: Digital Retouching produces
+ * edited photographs and only ever as softcopy. That is a fact about the WORK,
+ * not about how a package sells it.
+ *
+ * possibility → restriction → fact, which is the chain the ontology already
+ * describes for classifications. This is the middle step for a deliverable's
+ * questions, and it was missing: every package bundling a digital-only service
+ * had to be trusted to pick softcopy, and a client left to choose could pick
+ * hardcopy from a service that does not print.
+ *
+ * It hangs off the CAPABILITY row, not off (service, variable), because
+ * service_deliverables already says "this service produces this kind" and the
+ * narrowing qualifies exactly that sentence. Remove the capability and the
+ * narrowing goes with it.
+ *
+ * No rows means no narrowing. Every option the deliverable declares stays
+ * available — which is what every service that has never been narrowed means.
+ */
+
+/**
+ * What this service produces, as the capability rows themselves.
+ *
+ * listDeliverableIdsForService answers "which kinds", which is enough for most
+ * callers. Narrowing needs the ROW — a narrowing hangs off the capability, not
+ * off the kind — so this returns it named, and a page assembling that screen
+ * does not have to reach past this module for the join.
+ */
+export async function listServiceCapabilities(serviceId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('service_deliverables')
+    .select(`id, deliverable_id, ${DELIVERABLE_REF}`)
+    .eq('organization_id', orgId)
+    .eq('service_id', serviceId);
+  return ((data || []) as any[]).map((r) => ({
+    serviceDeliverableId: r.id as string,
+    deliverableId: r.deliverable_id as string,
+    deliverableName: (r.deliverable?.name as string) || 'Output',
+  }));
+}
+
+/** What each capability permits, keyed `<serviceDeliverableId>:<variableId>`. */
+export async function listServiceDeliverableOptions(serviceDeliverableIds: string[]) {
+  if (serviceDeliverableIds.length === 0) return {};
+  const { orgId } = await getAuthOrgId();
+  const { data } = await supabaseAdmin
+    .from('service_deliverable_options')
+    .select('service_deliverable_id, variable_id, value')
+    .eq('organization_id', orgId)
+    .in('service_deliverable_id', serviceDeliverableIds);
+
+  const out: Record<string, string[]> = {};
+  for (const r of ((data || []) as any[])) {
+    const key = `${r.service_deliverable_id}:${r.variable_id}`;
+    (out[key] ||= []).push(r.value);
+  }
+  return out;
+}
+
+/**
+ * Say which answers this service permits for one of a deliverable's questions.
+ *
+ * An empty list clears the narrowing rather than permitting nothing — a service
+ * that permits no answer at all could never be sold, and "I changed my mind, it
+ * does both again" is the thing an operator is actually doing when they clear
+ * every box.
+ *
+ * Values are checked against what the deliverable declares, so a narrowing can
+ * never permit an answer the question does not offer.
+ */
+export async function setServiceDeliverableOptions(input: {
+  serviceDeliverableId: string;
+  variableId: string;
+  values: string[];
+}) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: capability } = await supabaseAdmin
+    .from('service_deliverables').select('id, deliverable_id')
+    .eq('id', input.serviceDeliverableId).eq('organization_id', orgId).maybeSingle();
+  if (!capability) throw new Error('That service does not produce this.');
+
+  const { data: variable } = await supabaseAdmin
+    .from('variables').select('id, options, deliverable_id')
+    .eq('id', input.variableId).eq('organization_id', orgId).maybeSingle();
+  if (!variable) throw new Error('That question no longer exists.');
+  if (variable.deliverable_id !== capability.deliverable_id) {
+    throw new Error('That question belongs to a different deliverable.');
+  }
+
+  const declared: string[] = Array.isArray(variable.options) ? variable.options : [];
+  const wanted = [...new Set((input.values || []).map((v) => String(v).trim()).filter(Boolean))];
+  const stray = wanted.find((v) => declared.length > 0 && !declared.includes(v));
+  if (stray) throw new Error(`“${stray}” is not one of the answers this question offers.`);
+
+  await supabaseAdmin
+    .from('service_deliverable_options').delete()
+    .eq('organization_id', orgId)
+    .eq('service_deliverable_id', input.serviceDeliverableId)
+    .eq('variable_id', input.variableId);
+
+  // Every declared answer permitted is the same as no narrowing at all, and
+  // storing it would be a restriction that restricts nothing.
+  if (wanted.length === 0 || (declared.length > 0 && wanted.length === declared.length)) {
+    revalidatePath('/services');
+    revalidatePath('/packages');
+    return { ok: true, narrowed: false };
+  }
+
+  const { error } = await supabaseAdmin.from('service_deliverable_options').insert(
+    wanted.map((value) => ({
+      organization_id: orgId,
+      service_deliverable_id: input.serviceDeliverableId,
+      variable_id: input.variableId,
+      value,
+    })),
+  );
+  if (error) {
+    console.error('Failed to narrow what this service produces:', error);
+    throw new Error('Could not save that');
+  }
+
+  revalidatePath('/services');
+  revalidatePath('/packages');
+  return { ok: true, narrowed: true };
 }

@@ -55,7 +55,7 @@ const PURGE_ORDER = [
   'package_tasks', 'package_deliverables', 'package_delivery_containers', 'package_services',
   'package_variable_values',
   'packages',
-  'service_deliverables', 'service_variables', 'service_dimension_values',
+  'service_deliverable_options', 'service_deliverables', 'variables', 'service_dimension_values',
   'services',
   'workflow_tasks', 'workflows', 'workflow_templates',
   'employee_roles', 'employees', 'clients',

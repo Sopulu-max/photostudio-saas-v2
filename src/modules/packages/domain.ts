@@ -14,8 +14,9 @@ import {
 } from '@/modules/deliverables/shape';
 // A link to a deliverable is written by the module that defines one.
 import {
-  setPackageDeliverables, copyPackageDeliverables,
+  setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions,
 } from '@/modules/deliverables/domain';
+import { narrowOptions } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
 
 /**
@@ -1478,9 +1479,11 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       service:services(
         id, name,
         variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
-        service_dimension_values(dimension_value:dimension_values(id, dimension_id))
+        service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
+        service_deliverables(id, deliverable_id)
       ),
       package_service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
+      package_deliverables(deliverable_id),
       package_variable_values(variable_id, answered_by)
     `)
     .eq('package_id', packageId)
@@ -1519,6 +1522,34 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
+    .order('position')).data || [];
+
+  /*
+   * AND WHAT THE DELIVERABLES BRING WITH THEM.
+   *
+   * A framed print has a size; edited photographs may be softcopy or hardcopy.
+   * Declared once on the KIND, exactly as an occasion's date is declared once
+   * on the classification — so a package promising that deliverable carries the
+   * question whether or not anybody added it to the service.
+   *
+   * This was missing. A deliverable could declare a variable and a package
+   * could fix it, but leaving it OPEN asked nobody: the client's form gathers
+   * its questions here, and here only knew about services and classifications.
+   * A studio would have set a question to "the client decides" and no client
+   * would ever have seen it.
+   */
+  const deliverableIds = new Set<string>();
+  for (const row of ((rows || []) as any[])) {
+    for (const pd of ((row.package_deliverables || []) as any[])) {
+      if (pd.deliverable_id) deliverableIds.add(pd.deliverable_id);
+    }
+  }
+
+  const deliverableVariables = deliverableIds.size === 0 ? [] : (await supabaseAdmin
+    .from('variables')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, deliverable_id, deliverable:deliverables(id, name)')
+    .eq('organization_id', orgId)
+    .in('deliverable_id', [...deliverableIds])
     .order('position')).data || [];
 
   /*
@@ -1607,6 +1638,62 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       asked: decidedAnywhere.get(v.id) === 'client',
     });
   }
+
+  /*
+   * AND THE DELIVERABLE'S OWN, ATTRIBUTED TO THE DELIVERABLE.
+   *
+   * Same treatment and for the same reason: "Type: softcopy or hardcopy" is
+   * asked because of WHAT IS BEING PRODUCED, not because of which service
+   * produces it or how the work is classified. Stamping it with a service
+   * would tell an operator it came from somewhere it did not.
+   */
+  /*
+   * WHAT THE SERVICES IN THIS BUNDLE ACTUALLY PERMIT.
+   *
+   * A deliverable declares softcopy or hardcopy; a digital-only service
+   * narrows that to softcopy. A package promising edited photographs through
+   * that service must not offer hardcopy — to its operator or to its client.
+   *
+   * Intersected across the services that produce it, never unioned: a bundle
+   * with a digital-only and a print-only service can promise what both make,
+   * but only in a form both can actually produce.
+   */
+  const permitted = await listServiceDeliverableOptions(
+    ((rows || []) as any[])
+      .flatMap((r) => (r.service?.service_deliverables || []) as any[])
+      .map((sd) => sd.id),
+  );
+
+  for (const v of (deliverableVariables as any[])) {
+    if (all.some((x) => x.id === v.id)) continue;
+    const declared: string[] = Array.isArray(v.options) ? v.options : [];
+    const byService = ((rows || []) as any[])
+      .flatMap((r) => (r.service?.service_deliverables || []) as any[])
+      .filter((sd) => sd.deliverable_id === v.deliverable_id)
+      .map((sd) => permitted[`${sd.id}:${v.id}`] || []);
+
+    all.push({
+      id: v.id,
+      serviceId: null,
+      serviceName: null,
+      dimensionId: null,
+      dimensionName: null,
+      deliverableId: v.deliverable_id ?? v.deliverable?.id ?? null,
+      deliverableName: v.deliverable?.name ?? null,
+      key: v.key,
+      label: v.label,
+      kind: v.kind,
+      unit: v.unit ?? null,
+      options: narrowOptions(declared, byService),
+      defaultValue: v.default_value ?? null,
+      min: v.min_value ?? null,
+      max: v.max_value ?? null,
+      position: 2000 + (v.position ?? 0),
+      fixed: decidedAnywhere.get(v.id) === 'studio',
+      asked: decidedAnywhere.get(v.id) === 'client',
+    });
+  }
+
   return all.sort((a, b) => a.position - b.position);
 }
 

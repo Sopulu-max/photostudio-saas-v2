@@ -35,9 +35,10 @@ import {
   listDeliverables, createDeliverable, updateDeliverableConfig,
   declareDeliverableVariable, listVariablesForDeliverables, removeDeliverableVariable,
   deleteDeliverable, setDeliverablesForService,
+  listServiceCapabilities, setServiceDeliverableOptions,
 } from '@/modules/deliverables/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
-import { createPackage, duplicatePackage } from '@/modules/packages/domain';
+import { createPackage, duplicatePackage, getPackageVariables } from '@/modules/packages/domain';
 
 import { seedStudio, seedRow } from './seed';
 import { PURGE_ORDER } from './purge';
@@ -158,6 +159,141 @@ describe('the studio’s delivery containers', () => {
     // Still there, with its capability intact.
     expect((await listDeliverables()).some((d) => d.id === heldId),
       'the refusal did not actually keep it').toBe(true);
+  }, 90000);
+
+  it('asks the client a deliverable’s question when the package leaves it open', async () => {
+    /*
+     * THE CHAIN HAS TO REACH THE END, OR "LEAVE IT TO THE CLIENT" IS A SETTING
+     * THAT DOES NOTHING.
+     *
+     * A deliverable declares "Type: softcopy or hardcopy". A package promising
+     * edited photographs can fix it — or leave it open, meaning the client
+     * chooses at booking. The client's form gathers its questions from
+     * getPackageVariables, and that gatherer knew only about services and
+     * classifications: a studio could set a deliverable's question to "the
+     * client decides" and no client would ever have seen it.
+     *
+     * Asked because of WHAT IS PRODUCED, not who produces it — so it carries
+     * the deliverable that owns it rather than being stamped with a service.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Copy Types' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Retouching', service_domain_id: domain.id }, 'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Edited Photographs',
+    });
+
+    await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Type', kind: 'choice', options: ['Softcopy', 'Hardcopy'] },
+    });
+
+    const { packageId } = await createPackage({
+      name: 'Retouch Package',
+      serviceIds: [service.id],
+      deliverables: [{ serviceId: service.id, deliverableId: outputTypeId, quantity: 10 }],
+    });
+
+    const asked = await getPackageVariables(packageId);
+    const typeQ: any = asked.find((v: any) => v.label === 'Type');
+
+    expect(typeQ, 'the deliverable’s question never reached the client’s form').toBeTruthy();
+    expect(typeQ.options, 'the permitted answers were lost on the way')
+      .toEqual(['Softcopy', 'Hardcopy']);
+    // Attributed to what produces it, not to whoever happens to make it.
+    expect(typeQ.deliverableName, 'the question was stamped with the wrong owner')
+      .toBe('Edited Photographs');
+    expect(typeQ.serviceId, 'a deliverable’s question was blamed on a service').toBeNull();
+  }, 90000);
+
+  it('offers only what the service does, when the service is narrower than the kind', async () => {
+    /*
+     * possibility → restriction → fact.
+     *
+     * "Edited Photographs" may be Softcopy or Hardcopy — the possibility. But
+     * Digital Retouching only ever produces softcopy, which is a fact about the
+     * WORK and not about how any package sells it. Without somewhere to say so,
+     * every package bundling that service had to be trusted to pick softcopy,
+     * and a client left to choose could pick hardcopy from a service that does
+     * not print.
+     *
+     * The narrowing hangs off the CAPABILITY row — this service producing this
+     * kind — because that is the sentence it qualifies.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Digital Only' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Digital Retouching', service_domain_id: domain.id },
+      'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Retouched Photographs',
+    });
+    const typeVar: any = await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Type', kind: 'choice', options: ['Softcopy', 'Hardcopy'] },
+    });
+
+    await setDeliverablesForService({
+      serviceId: service.id, serviceDomainId: domain.id, names: ['Retouched Photographs'],
+    });
+    const [capability] = await listServiceCapabilities(service.id);
+    expect(capability, 'the service produces nothing').toBeTruthy();
+
+    const { packageId } = await createPackage({
+      name: 'Retouch Only',
+      serviceIds: [service.id],
+      deliverables: [{ serviceId: service.id, deliverableId: outputTypeId, quantity: 5 }],
+    });
+
+    // Before narrowing, both answers stand.
+    let asked: any = (await getPackageVariables(packageId)).find((v: any) => v.id === typeVar.id);
+    expect(asked.options, 'the declared answers did not reach the form')
+      .toEqual(['Softcopy', 'Hardcopy']);
+
+    await setServiceDeliverableOptions({
+      serviceDeliverableId: capability.serviceDeliverableId,
+      variableId: typeVar.id,
+      values: ['Softcopy'],
+    });
+
+    asked = (await getPackageVariables(packageId)).find((v: any) => v.id === typeVar.id);
+    expect(asked.options, 'a service that does not print was still offering hardcopy')
+      .toEqual(['Softcopy']);
+
+    // Clearing it means "it does both again", not "it does nothing" — a service
+    // permitting no answer could never be sold.
+    await setServiceDeliverableOptions({
+      serviceDeliverableId: capability.serviceDeliverableId,
+      variableId: typeVar.id,
+      values: [],
+    });
+    asked = (await getPackageVariables(packageId)).find((v: any) => v.id === typeVar.id);
+    expect(asked.options, 'clearing the narrowing left the service able to do nothing')
+      .toEqual(['Softcopy', 'Hardcopy']);
+  }, 120000);
+
+  it('refuses to permit an answer the question does not offer', async () => {
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Strict' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Strict service', service_domain_id: domain.id },
+      'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Strict output',
+    });
+    const v: any = await declareDeliverableVariable({
+      deliverableId: outputTypeId,
+      variable: { label: 'Finish', kind: 'choice', options: ['Matte', 'Gloss'] },
+    });
+    await setDeliverablesForService({
+      serviceId: service.id, serviceDomainId: domain.id, names: ['Strict output'],
+    });
+    const [cap] = await listServiceCapabilities(service.id);
+
+    await expect(setServiceDeliverableOptions({
+      serviceDeliverableId: cap.serviceDeliverableId, variableId: v.id, values: ['Neon'],
+    }), 'a narrowing permitted an answer the question never offered').rejects.toThrow(/not one of the answers/i);
   }, 90000);
 
   it('returns the columns it promises — the unit a deliverable is counted in', async () => {

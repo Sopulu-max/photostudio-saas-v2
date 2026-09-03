@@ -8,10 +8,14 @@ import {
   buildDeliverableSuggestions, buildDimensionSuggestions, buildServiceSuggestions,
   buildVariableSuggestions,
 } from '@/modules/services/interface';
-import { listDeliverablesByDomain } from '@/modules/deliverables/interface';
+import {
+  listDeliverablesByDomain, listVariablesForDeliverables,
+  listServiceCapabilities, listServiceDeliverableOptions,
+} from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
+import { ServiceNarrowings } from '../ServiceNarrowings';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +34,36 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
     listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(),
     listServices(), listServiceVariables(params.id), listRoles()
   ]);
+
+  /*
+   * WHAT THIS SERVICE COULD NARROW.
+   *
+   * Its outputs, the questions each of them declares, and what this service has
+   * already said it does of them. Assembled here rather than in the editor
+   * because it is three reads across two modules, and a client component that
+   * fetched them itself would do it on every keystroke.
+   */
+  const capabilities = await listServiceCapabilities(params.id);
+  const deliverableQuestions = await listVariablesForDeliverables(
+    capabilities.map((c) => c.deliverableId),
+  );
+  const permitted = await listServiceDeliverableOptions(
+    capabilities.map((c) => c.serviceDeliverableId),
+  );
+  const narrowable = capabilities.map((r) => ({
+    serviceDeliverableId: r.serviceDeliverableId,
+    deliverableName: r.deliverableName,
+    questions: (deliverableQuestions as any[])
+      .filter((v) => v.deliverable_id === r.deliverableId)
+      // Only a question with a list of answers can be narrowed to some of them.
+      .filter((v) => Array.isArray(v.options) && v.options.length > 1)
+      .map((v) => ({
+        id: v.id as string,
+        label: v.label as string,
+        options: v.options as string[],
+        permitted: permitted[`${r.serviceDeliverableId}:${v.id}`] || [],
+      })),
+  }));
 
   // The same knowledge the create form gets — editing a service should narrow
   // exactly as defining one does.
@@ -62,6 +96,12 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
           <h1 className="q-page-title">{service.name}</h1>
         </div>
       </header>
+
+      {/*
+        * possibility → restriction → fact. The outputs declare what they allow;
+        * this is where a service says what it actually does of that.
+        */}
+      <ServiceNarrowings capabilities={narrowable} />
 
       <ServiceFieldsEditor
         mode="edit"

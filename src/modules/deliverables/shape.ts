@@ -2,8 +2,11 @@
  * What a deliverable link looks like, in one place, for everyone who reads one.
  *
  * A plain module rather than `'use server'`, for the same reason
- * packages/deliverableSpec is one: these are values, imported and interpolated
- * into a query, not actions to call.
+ * packages/deliverableSpec is one: these are values and rules, imported and
+ * used in place, not actions to call. A `'use server'` file may only export
+ * async functions — the build refuses anything else — so pure logic lives here
+ * beside the fragments rather than being made async to fit a file it does not
+ * belong in.
  *
  * WHY THIS EXISTS. Moving the WRITES into this module stopped three callers
  * inserting different column lists. It did nothing about the reads: nine nested
@@ -48,3 +51,27 @@ export const SERVICE_OFFERS = `service_deliverables(${DELIVERABLE_REF})`;
 
 /** Which promises a delivery closes out. */
 export const DELIVERY_FULFILS = `delivery_deliverables(${DELIVERABLE_REF})`;
+/**
+ * The answers still available for a deliverable's question, given the services
+ * producing it in this bundle.
+ *
+ * Intersected, not unioned. A package bundling a digital-only service and a
+ * print-only service can promise a deliverable both produce, but the answer has
+ * to be one they can BOTH make — offering the union would let a package sell a
+ * combination nothing in it performs.
+ */
+export function narrowOptions(declared: string[], permittedByEachService: string[][]): string[] {
+  let out = declared;
+  for (const permitted of permittedByEachService) {
+    if (permitted.length === 0) continue; // that service narrows nothing
+    out = out.filter((v) => permitted.includes(v));
+  }
+  /*
+   * A bundle whose services agree on nothing leaves the question unanswerable,
+   * and an empty dropdown tells an operator nothing about why. Falling back to
+   * what the deliverable declares keeps the form usable and puts the
+   * contradiction where it belongs — in what the studio said its services do —
+   * rather than in a control that silently cannot be filled.
+   */
+  return out.length > 0 ? out : declared;
+}
