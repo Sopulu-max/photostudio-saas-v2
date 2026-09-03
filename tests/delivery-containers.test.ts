@@ -34,6 +34,7 @@ import {
   renameDeliveryContainer, deleteDeliveryContainer,
   listDeliverables, createDeliverable, updateDeliverableConfig,
   declareDeliverableVariable, listVariablesForDeliverables, removeDeliverableVariable,
+  deleteDeliverable, setDeliverablesForService,
 } from '@/modules/deliverables/domain';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { createPackage, duplicatePackage } from '@/modules/packages/domain';
@@ -100,6 +101,52 @@ describe('the studio’s delivery containers', () => {
     await expect(createDeliveryContainer('   '), 'a nameless vessel was accepted')
       .rejects.toThrow();
   });
+
+  it('refuses to delete a deliverable anything is standing on', async () => {
+    /*
+     * DEFINED ONCE, REFERENCED EVERYWHERE — SO IT CANNOT SIMPLY GO.
+     *
+     * Every reference to a deliverable is ON DELETE CASCADE. A bare delete
+     * therefore took every service's claim to produce it, every package's
+     * promise of it, and — because a booking's package instance points at the
+     * same row — the RECORD OF WHAT A CLIENT WAS PROMISED. On the real studio
+     * that was six promises, three of them on live bookings, with no warning.
+     *
+     * The rule is the one deleteDimension already follows: it does not go while
+     * anything is filed under it. And it says what is holding it, because
+     * "cannot delete" with no subject is an instruction to go hunting.
+     */
+    const domain = await seedRow('service_domains',
+      { organization_id: TEST_ORG_ID, name: 'Guarded' }, 'the domain');
+    const service = await seedRow('services',
+      { organization_id: TEST_ORG_ID, name: 'Guarded service', service_domain_id: domain.id },
+      'the service');
+    const { outputTypeId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Guarded output',
+    });
+
+    // Nothing stands on it yet, so it may go — and a fresh one takes its place.
+    await deleteDeliverable(outputTypeId);
+    expect((await listDeliverables()).some((d) => d.id === outputTypeId),
+      'an unreferenced deliverable could not be removed').toBe(false);
+
+    const { outputTypeId: heldId } = await createDeliverable({
+      serviceDomainId: domain.id, name: 'Held output',
+    });
+    await setDeliverablesForService({
+      serviceId: service.id, serviceDomainId: domain.id, names: ['Held output'],
+    });
+
+    await expect(deleteDeliverable(heldId), 'a deliverable in use was deleted anyway')
+      .rejects.toThrow(/still in use/i);
+
+    // And it names what is holding it rather than only refusing.
+    await expect(deleteDeliverable(heldId)).rejects.toThrow(/produces it/i);
+
+    // Still there, with its capability intact.
+    expect((await listDeliverables()).some((d) => d.id === heldId),
+      'the refusal did not actually keep it').toBe(true);
+  }, 90000);
 
   it('returns the columns it promises — the unit a deliverable is counted in', async () => {
     const domain = await seedRow('service_domains',

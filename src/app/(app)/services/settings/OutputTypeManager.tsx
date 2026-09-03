@@ -121,11 +121,25 @@ export function OutputTypeManager({
                   {t.name}
                 </button>
               )}
+              {/*
+                * SAYS WHAT IT DOES, WHICH IS MORE THAN IT USED TO.
+                *
+                * "Remove from Photography?" reads as unlinking, and this is not
+                * that: a deliverable belongs to exactly one domain, so removing
+                * it from the domain removes it from the studio.
+                *
+                * It is also no longer able to do the damage it implied. The
+                * delete refuses while any service produces it, any package
+                * promises it, or any booking was promised it — and says which,
+                * so an operator who meant to retire a word learns where it is
+                * still being used rather than discovering later that a client's
+                * record went with it.
+                */}
               <ConfirmButton
                 className="q-btn-ghost q-btn-xs"
                 disabled={isPending}
-                confirmLabel={`Remove from ${domainName}?`}
-                title={`Remove ${t.name} from ${domainName}`}
+                confirmLabel={`Delete ${t.name} everywhere?`}
+                title={`Delete ${t.name} from this studio. Refused while anything still uses it.`}
                 onConfirm={() => run(() => deleteDeliverable(t.id))}
               >
                 &times;

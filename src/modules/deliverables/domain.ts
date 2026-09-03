@@ -177,7 +177,88 @@ export async function createDeliverable(input: { serviceDomainId: string; name: 
 }
 
 export async function renameDeliverable(id: string, name: string) { return renameNamed('deliverables', id, name, 'deliverable'); }
-export async function deleteDeliverable(id: string) { return deleteNamed('deliverables', id, 'deliverable'); }
+/**
+ * Remove a deliverable from the studio's vocabulary — but only if nothing is
+ * standing on it.
+ *
+ * DEFINED ONCE, REFERENCED EVERYWHERE, DELETED ONLY WHEN NOTHING REFERS. That
+ * is the bargain of a vocabulary: a studio names "Edited photographs" once and
+ * every service, package and booking points at that one row. The price of the
+ * bargain is that the row cannot simply go.
+ *
+ * This was a bare delete. Every reference is ON DELETE CASCADE, so removing a
+ * word from the vocabulary silently took every service's claim to produce it,
+ * every package's promise of it, and — because a booking's package instance
+ * points at the same row — every RECORD OF WHAT A CLIENT WAS PROMISED. On this
+ * studio, deleting "Edited photographs" would have destroyed six promises,
+ * three of them on real bookings, with no warning and nothing to undo it.
+ *
+ * The rule is the one deleteDimension already follows, in its own words:
+ * "It still does not go if anything is filed under it — a service or a package
+ * classified by one of its values would lose that classification without anyone
+ * having said so." A deliverable is the same kind of thing and gets the same
+ * treatment.
+ *
+ * It says what is holding it rather than only refusing, because "cannot delete"
+ * with no subject is an instruction to go hunting.
+ */
+export async function deleteDeliverable(id: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: existing } = await supabaseAdmin
+    .from('deliverables').select('name')
+    .eq('id', id).eq('organization_id', orgId).maybeSingle();
+  if (!existing) throw new Error('That deliverable no longer exists.');
+
+  const [services, promises, deliveries, declared] = await Promise.all([
+    supabaseAdmin.from('service_deliverables')
+      .select('service_id', { count: 'exact', head: true })
+      .eq('organization_id', orgId).eq('deliverable_id', id),
+    supabaseAdmin.from('package_deliverables')
+      .select('package_service_id, package_service:package_services(package:packages(instance_of))')
+      .eq('organization_id', orgId).eq('deliverable_id', id),
+    supabaseAdmin.from('delivery_deliverables')
+      .select('delivery_id', { count: 'exact', head: true })
+      .eq('organization_id', orgId).eq('deliverable_id', id),
+    supabaseAdmin.from('variables')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId).eq('deliverable_id', id),
+  ]);
+
+  const serviceCount = services.count ?? 0;
+  const promiseRows = (promises.data || []) as any[];
+  const deliveryCount = deliveries.count ?? 0;
+
+  /*
+   * A promise on a booking's own copy of a package is not an offer that can be
+   * withdrawn — it is the record of what somebody was sold. Counted separately
+   * because it is the half an operator most needs to hear about.
+   */
+  const booked = promiseRows.filter((r) => r.package_service?.package?.instance_of).length;
+  const offered = promiseRows.length - booked;
+
+  const holding: string[] = [];
+  if (serviceCount > 0) holding.push(`${serviceCount} service${serviceCount === 1 ? '' : 's'} produce${serviceCount === 1 ? 's' : ''} it`);
+  if (offered > 0) holding.push(`${offered} package${offered === 1 ? '' : 's'} promise${offered === 1 ? 's' : ''} it`);
+  if (booked > 0) holding.push(`${booked} booking${booked === 1 ? '' : 's'} ${booked === 1 ? 'was' : 'were'} promised it`);
+  if (deliveryCount > 0) holding.push(`${deliveryCount} deliver${deliveryCount === 1 ? 'y has' : 'ies have'} closed it out`);
+
+  if (holding.length > 0) {
+    throw new Error(
+      `“${existing.name}” is still in use — ${holding.join(', ')}. ` +
+      'Take it off those first, and it can go.',
+    );
+  }
+
+  // Nothing stands on it. Its own declarations go with it, which is the one
+  // cascade that is genuinely its own business.
+  if ((declared.count ?? 0) > 0) {
+    await supabaseAdmin.from('variables').delete()
+      .eq('organization_id', orgId).eq('deliverable_id', id);
+  }
+
+  return deleteNamed('deliverables', id, 'deliverable');
+}
 
 export async function updateDeliverableConfig(id: string, input: {
   default_unit?: string | null;
