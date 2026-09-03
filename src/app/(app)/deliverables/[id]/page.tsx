@@ -1,8 +1,9 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listDeliverables,  } from '@/modules/deliverables/interface';
+import { listDeliverables, listVariablesForDeliverables } from '@/modules/deliverables/interface';
 import { EditDeliverableForm } from './EditDeliverableForm';
+import { DeliverableNeeds } from './DeliverableNeeds';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,13 @@ export default async function EditDeliverablePage(props: { params: Promise<{ id:
     redirect('/deliverables');
   }
 
+  /* What this kind declares — real variables, the same as a service's. */
+  const needs = (await listVariablesForDeliverables([id])).map((v: any) => ({
+    id: v.id, label: v.label, kind: v.kind,
+    unit: v.unit ?? null,
+    options: Array.isArray(v.options) ? v.options : [],
+  }));
+
   return (
     <div className="q-page-narrow">
       <header className="q-page-header">
@@ -46,6 +54,24 @@ export default async function EditDeliverablePage(props: { params: Promise<{ id:
         </div>
       </header>
       <EditDeliverableForm id={id} type={type as 'output' | 'container'} initialName={initialName} initialOutput={initialOutput} />
+
+      {/*
+        * WHAT THIS KIND NEEDS SETTLING.
+        *
+        * Its own section rather than a field on the form above, because it
+        * saves as you go: declaring a variable is an act in itself, not a
+        * pending edit to a name. The same shape a classification's "what you
+        * need to know" already has on the Services settings page — one
+        * mechanism, so one way of editing it.
+        */}
+      <section className="q-card q-section" style={{ marginTop: '24px' }}>
+        <h2 className="q-section-title">What has to be settled about it</h2>
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          Declared once here. Every package promising this deliverable is asked these, and can
+          either fix an answer or leave it for the client.
+        </p>
+        <DeliverableNeeds deliverableId={id} variables={needs} />
+      </section>
     </div>
   );
 }

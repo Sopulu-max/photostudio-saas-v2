@@ -34,7 +34,7 @@ describe('splitVariables', () => {
 
   it('a dimension-owned variable is found even though it is in no service list', () => {
     // The reported bug. "Location address" belongs to Context, so it never
-    // appears in service_variables — which is why filtering the declared list
+    // appears in variables — which is why filtering the declared list
     // could not rescue it and it showed as a fact with an empty value.
     const { fixed, asked } = splitVariables(
       [answer({ serviceVariableId: 'dv-address', label: 'Location address', kind: 'text', value: null, answeredBy: 'client' })],

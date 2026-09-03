@@ -42,16 +42,23 @@ export const variableIsNumeric = (kind: ServiceVariableKind) => kind === 'number
 export type ServiceVariable = {
   id: string;
   /**
-   * Exactly one owner, and this is one of the two.
+   * Exactly one owner, and this is one of the three.
    *
    * A variable owned by a SERVICE is what varies about the work — outfits,
    * coverage hours. One owned by a DIMENSION is what follows from a
-   * classification — the date of the occasion. Same shape, same types, same
-   * decision about who answers it; only the thing it hangs off differs, which
-   * is why this is one type rather than two parallel stacks.
+   * classification — the date of the occasion. One owned by a DELIVERABLE is
+   * what a kind of output needs specifying — a print's size, an album's cover.
+   *
+   * Same shape, same types, same decision about who answers it; only the thing
+   * it hangs off differs, which is why this is one type rather than three
+   * parallel stacks. The deliverable owner replaced a jsonb `spec_schema` that
+   * was exactly such a stack, built smaller and worse: three field types
+   * against eight, no unit, no bounds, no default, and no share of the one
+   * parser below.
    */
   serviceId: string | null;
   dimensionId?: string | null;
+  deliverableId?: string | null;
   key: string;
   label: string;
   kind: ServiceVariableKind;

@@ -22,7 +22,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   if (!pkg) notFound();
 
   const { listDimensionsByDomain, listVariablesForServices, listVariablesForDimensions } = await import('@/modules/services/interface');
-  const { listDeliverables } = await import('@/modules/deliverables/interface');
+  const { listDeliverables, listVariablesForDeliverables } = await import('@/modules/deliverables/interface');
   const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, dimensionsByDomain] = await Promise.all([
     listActiveServices(), listRoles(), getStudioCurrency(),
     getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(),
@@ -48,6 +48,21 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
    */
   const dimensionVariables = await listVariablesForDimensions(
     Object.values(dimensionsByDomain).flat().map((d: any) => d.id),
+  );
+
+  /*
+   * And what the deliverables themselves need settling.
+   *
+   * A framed print has a size; an album has a cover material. Declared once on
+   * the KIND, so every package promising one is asked — the same arrangement a
+   * classification's variables already have, because it is the same mechanism
+   * with a third owner rather than a third mechanism.
+   *
+   * Loaded for every deliverable rather than only the promised ones: what a
+   * package promises changes while this form is open.
+   */
+  const deliverableVariables = await listVariablesForDeliverables(
+    (allDeliverables as any[]).map((d) => d.id),
   );
 
   return (
@@ -80,7 +95,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           status={pkg.status}
           currencyCode={currencyCode}
           allServices={allServices as any}
-          allVariables={[...allVariables, ...dimensionVariables] as any}
+          allVariables={[...allVariables, ...dimensionVariables, ...deliverableVariables] as any}
           allDeliverables={allDeliverables as any}
           dimensionsByDomain={dimensionsByDomain}
           roleOptions={(roles as any[]).map((r) => r.name)}

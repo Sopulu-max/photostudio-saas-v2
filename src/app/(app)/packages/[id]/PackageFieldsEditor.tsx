@@ -1043,9 +1043,22 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         .filter((d: any) => d.values.some((v: any) => valuesInPlay.includes(v.id)))
         .map((d: any) => d.id),
     );
+    /*
+     * What this bundle row actually promises, so a deliverable's own questions
+     * are asked only where that deliverable is being sold. A studio that
+     * declared "cover material" on Bound album should not be asked it on a
+     * package that promises photographs.
+     */
+    const promisedHere = new Set(
+      promises.filter((p) => p.serviceId === s.id).map((p) => p.deliverableId),
+    );
     const vars = [
       ...allVariables.filter((v) => v.serviceId === s.id),
       ...allVariables.filter((v: any) => v.dimensionId && dimsInPlay.has(v.dimensionId)),
+      // The third owner. A deliverable declares what it needs settling once, on
+      // the kind; every package promising it inherits the question here, and
+      // answers it through exactly the machinery the other two use.
+      ...allVariables.filter((v: any) => v.deliverableId && promisedHere.has(v.deliverableId)),
       ...declaredVars.filter((v) => v.serviceId === s.id && !allVariables.some((a) => a.id === v.id)),
     ];
     return (
@@ -1262,69 +1275,21 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 />
               </div>
 
-              {/* Dynamic Deliverable Form */}
-              {(() => {
-                const def = (allDeliverables as any[]).find((d) => d.id === p.deliverableId);
-                if (!def) return null;
-                
-                /*
-                 * ONE MEANING PER COLUMN.
-                 *
-                 * This read spec_values on the KIND as "locked SKU — show no
-                 * form", while formatDeliverable read the same column as
-                 * defaults to fall back on. Two meanings for one field, and the
-                 * stricter one won here: any deliverable whose studio had
-                 * recorded a usual answer became uneditable on every package,
-                 * including for fields it had said nothing about.
-                 *
-                 * A kind's values are what it usually is. A package may say
-                 * something different — that is the whole reason a package
-                 * exists. So the form always draws, pre-filled from the kind.
-                 */
-                const schema = def.spec_schema;
-                if (!schema || !Array.isArray(schema) || schema.length === 0) return null;
-                
-                // What this package said, falling back to what the kind
-                // usually is — the same precedence formatDeliverable uses, so
-                // the form and the sentence under it cannot disagree.
-                const currentVals = { ...(def.spec_values || {}), ...(p.specValues || {}) };
-
-                return (
-                  <div className="q-stack q-stack-sm" style={{ paddingLeft: '16px', borderLeft: '2px solid var(--q-color-neutral-300)' }}>
-                    {schema.map((field: any, i: number) => {
-                      if (!field.key) return null;
-                      
-                      const setVal = (v: any) => patchPromise(s.id, p.deliverableId, { specValues: { ...currentVals, [field.key]: v } });
-                      
-                      return (
-                        <div key={i} className="q-field">
-                          {/* The label the studio typed; the key is storage. */}
-                          <label className="q-label q-label-sm">{field.label || field.key}</label>
-                          {field.type === 'select' && field.options ? (
-                            <select 
-                              className="q-select q-select-sm" 
-                              value={(currentVals[field.key] as string) || ''} 
-                              onChange={(e) => setVal(e.target.value)}
-                            >
-                              <option value="">Select...</option>
-                              {field.options.map((opt: string) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input 
-                              type="text" 
-                              className="q-input q-input-sm" 
-                              value={(currentVals[field.key] as string) || ''} 
-                              onChange={(e) => setVal(e.target.value)} 
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              {/*
+                * THE SPEC FORM MOVED, IT DID NOT DISAPPEAR.
+                *
+                * A block here read def.spec_schema — a jsonb column carrying a
+                * field shape invented for this screen — and drew inputs from
+                * it. That was a second variable system: three field types
+                * against the eight the real one checks, no unit, no bounds, no
+                * default, and no share of the one parser.
+                *
+                * A deliverable declares real variables now, owned the way a
+                * service's and a classification's are. So its questions appear
+                * with all the others in the section above, asked by the same
+                * control, answered through the same values, and fixed-or-open
+                * by the same decision. There is nothing left to draw here.
+                */}
 
               <span className="q-meta-sm" style={{ opacity: 0.8 }}>
                 Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, spec_values: p.specValues || (allDeliverables as any[]).find((d) => d.id === p.deliverableId)?.spec_values })}
