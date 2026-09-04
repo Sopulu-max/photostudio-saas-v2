@@ -36,6 +36,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 import { createService, saveWorkflow } from '@/modules/services/domain';
 import { createPackage } from '@/modules/packages/domain';
+import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
 import { createBooking } from '@/modules/bookings/domain';
 import {
   addToBookingTeam, getBookingTeam, removeFromBookingTeam,
@@ -145,6 +146,46 @@ describe('Tasks flow from a package onto a booking', () => {
     expect((tasks ?? []).every((t: any) => t.role_id), 'a booking task lost its role').toBe(true);
     expect((tasks ?? []).every((t: any) => !t.assignee_id), 'a task arrived already assigned').toBe(true);
   }, 90000);
+
+
+  it('and onto a booking taken from the public page, which got none at all', async () => {
+    /*
+     * EVERY PUBLIC BOOKING LANDED WITH AN EMPTY WORK BOARD.
+     *
+     * Two silent causes. copyPackage carried a package's services, promises,
+     * narrowings and fixed variables but not its package_tasks — so the private
+     * instance a public booking points at had no work to give. And
+     * createBookingFromIntake inserts its line by hand, having no session to
+     * call addBookingLine with, and copied no tasks onto it either.
+     *
+     * Nothing errored either time. The studio received a job with nobody
+     * assigned and nothing to tick off, and the only way to see it was to put
+     * it beside a booking an operator had taken by hand — which is exactly what
+     * this file already does above.
+     */
+    const { bookingId: publicBookingId } = await submitBookingForm(TEST_ORG_ID, packageId, {
+      firstName: 'Uche', lastName: 'Public',
+      email: `uche+${Math.random().toString(36).slice(2, 8)}@example.com`,
+      phone: '', customFields: {},
+    } as any);
+
+    const { data: line } = await supabaseAdmin
+      .from('booking_lines').select('id, package_id').eq('booking_id', publicBookingId).single();
+
+    // Its own copy of the package, and that copy carries the work.
+    expect(line!.package_id, 'the public booking points at the catalogue').not.toBe(packageId);
+    const { data: bundle } = await supabaseAdmin
+      .from('package_services').select('package_tasks(id)').eq('package_id', line!.package_id!);
+    expect((bundle || []).flatMap((b: any) => b.package_tasks || []).length,
+      'the booking’s own copy of the package carries no work').toBeGreaterThan(0);
+
+    // And the work reached the booking, where anyone would look for it.
+    const { data: tasks } = await supabaseAdmin
+      .from('booking_tasks').select('name').eq('booking_id', publicBookingId);
+    expect((tasks ?? []).map((t: any) => t.name).sort(),
+      'a booking taken from the public page arrived with an empty work board')
+      .toEqual(['Cull', 'Edit', 'Shoot']);
+  }, 120000);
 
   it('puts someone on every task waiting for their role, in one move', async () => {
     const added = await addToBookingTeam({ bookingId, employeeId, roleId: photographerRoleId });

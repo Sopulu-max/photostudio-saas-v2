@@ -789,9 +789,24 @@ async function copyPackage(
   const originalIds = original.map((s) => s.id);
   const rekey = (packageServiceId: string) => copyRowOf.get(serviceOfOriginal.get(packageServiceId) as string);
 
-  const [narrowings, fixed] = await Promise.all([
+  const [narrowings, fixed, tasks] = await Promise.all([
     supabaseAdmin.from('package_service_dimension_values').select('package_service_id, dimension_value_id').eq('organization_id', orgId).in('package_service_id', originalIds),
     supabaseAdmin.from('package_variable_values').select('package_service_id, variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
+    /*
+     * AND THE WORK IT TAKES TO DELIVER IT.
+     *
+     * This was missing, and it was not cosmetic. A booking's tasks are read off
+     * the package its line points at, so an instance with no package_tasks is a
+     * booking with an empty work board — nobody assigned, nothing to tick off,
+     * no sign anything is wrong. Every booking taken through the public link
+     * arrived that way, because that path instantiates and this copier is what
+     * it instantiates with.
+     *
+     * is_active comes across too: a package that switched a stage off did so
+     * deliberately, and a copy that quietly switched it back on would put work
+     * on the board that the studio had already decided it does not do.
+     */
+    supabaseAdmin.from('package_tasks').select('package_service_id, workflow_task_id, name, role_id, position, is_active').eq('organization_id', orgId).in('package_service_id', originalIds),
   ]);
 
   /*
@@ -819,6 +834,11 @@ async function copyPackage(
     copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap }),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
     carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, variable_id: r.variable_id, value: r.value })),
+    carry('package_tasks', tasks.data, (r, to) => ({
+      organization_id: orgId, package_service_id: to,
+      workflow_task_id: r.workflow_task_id, name: r.name,
+      role_id: r.role_id, position: r.position, is_active: r.is_active,
+    })),
   ]);
 
   return made;
@@ -855,6 +875,56 @@ export async function duplicatePackage(packageId: string) {
  *   the org resolved from its slug. Self-consistency is still checked: the
  *   package must belong to the studio whose page was filled in.
  */
+/**
+ * The package a booking should actually point at.
+ *
+ * A booking points at its own private copy so the studio can go on editing its
+ * catalogue without rewriting what a client was already quoted. That rule was
+ * written inside NewBookingForm, so only bookings made on that screen obeyed
+ * it; then it was written again in the public booking path. A package added to
+ * an existing booking obeyed neither, and pointed straight at the catalogue
+ * row — the third time the same rule has been missed by a caller that did not
+ * know it existed.
+ *
+ * So it lives here now, and asks the only question that matters: is this
+ * already somebody's private copy? If it is, it is handed back untouched —
+ * which is what makes this safe to call on every path, including the ones that
+ * instantiate for themselves. If it is a catalogue row, a copy is made.
+ *
+ * Idempotent on purpose. A caller should never have to know which kind it
+ * holds, because needing to know is precisely what went wrong three times.
+ */
+export async function ensureInstanceForBooking(input: {
+  packageId: string;
+  organizationId?: string;
+}): Promise<{ packageId: string; created: boolean }> {
+  let orgId = input.organizationId;
+  if (orgId) {
+    await assertOurs(orgId, [{ table: 'packages', id: input.packageId, label: 'package' }]);
+  } else {
+    orgId = (await getAuthOrgId()).orgId;
+  }
+
+  const { data: pkg } = await supabaseAdmin
+    .from('packages')
+    .select('id, status, instance_of')
+    .eq('id', input.packageId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!pkg) throw new Error('Package not found');
+
+  // Already private to some booking. Handed back as-is.
+  if ((pkg as any).instance_of || (pkg as any).status === 'custom') {
+    return { packageId: input.packageId, created: false };
+  }
+
+  const instance = await instantiatePackageForBooking({
+    packageId: input.packageId,
+    organizationId: input.organizationId,
+  });
+  return { packageId: instance.packageId as string, created: true };
+}
+
 export async function instantiatePackageForBooking(input: {
   packageId: string;
   organizationId?: string;

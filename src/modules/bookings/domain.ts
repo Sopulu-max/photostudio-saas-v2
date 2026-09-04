@@ -396,6 +396,22 @@ export async function createBookingFromIntake(input: {
       source: 'client',
       organizationId: orgId,
     });
+
+    /*
+     * AND THE WORK, which this never did.
+     *
+     * A booking taken by an operator gets its tasks because addBookingLine
+     * copies them. This path inserts its line by hand — it has no session to
+     * call addBookingLine with — and copied nothing, so every booking that came
+     * through the public link landed with an empty work board. Not an error
+     * anywhere: just a job nobody was assigned to and nothing to tick off.
+     *
+     * The duplication is the cause and it is still here: two places create a
+     * booking line and only one of them knew about the work. The lasting fix is
+     * for this path to go through addBookingLine, which needs it to accept an
+     * organization the way the rest of the public path does.
+     */
+    await copyPackageTasksToBookingLine(orgId, input.packageId, intakeLine.id, booking.id);
   }
 
   await logEvent({
@@ -668,24 +684,27 @@ export async function giveLineItsOwnPackage(input: { bookingId: string; lineId: 
 
   const { data: line } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, package_id, package:packages(id, status, instance_of)')
+    .select('id, package_id')
     .eq('id', input.lineId)
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!line || !line.package_id) throw new Error('This line has no package to copy.');
 
-  const pkg = line.package as any;
-  // Already private. Returned rather than thrown: two operators clicking it at
-  // once is not an error, and the second one gets what they wanted.
-  if (pkg?.instance_of || pkg?.status === 'custom') {
-    return { packageId: line.package_id as string, alreadyPrivate: true };
-  }
-
-  const { instantiatePackageForBooking } = await import('@/modules/packages/interface');
-  const instance = await instantiatePackageForBooking({
+  /*
+   * The same rule addBookingLine now obeys, asked the same way.
+   *
+   * It answers idempotently, so an already-private copy comes back untouched:
+   * two operators pressing this at once is not an error, and the second one
+   * gets what they wanted.
+   */
+  const { ensureInstanceForBooking } = await import('@/modules/packages/interface');
+  const instance = await ensureInstanceForBooking({
     packageId: line.package_id as string,
     organizationId: orgId,
   });
+  if (!instance.created) {
+    return { packageId: instance.packageId, alreadyPrivate: true };
+  }
 
   const { error } = await supabaseAdmin
     .from('booking_lines')
@@ -806,12 +825,31 @@ export async function addBookingLine(input: {
     { table: 'packages', id: input.packageId, label: 'package' },
   ]);
 
+  /*
+   * A LINE POINTS AT THE BOOKING'S OWN COPY, WHOEVER ADDS IT.
+   *
+   * This pointed at whatever id it was handed. So a package added to an
+   * existing booking — the ordinary way to correct one — pointed straight at
+   * the catalogue row, and a later catalogue edit silently rewrote what a
+   * client had already been quoted. The same failure the public booking path
+   * had, and the new-booking form before it, in a third place.
+   *
+   * Asked of Packages, which owns the rule and answers idempotently: an id that
+   * is already a private copy comes back untouched, so the callers that
+   * instantiate for themselves are unaffected.
+   */
+  let packageId = input.packageId ?? null;
+  if (packageId) {
+    const { ensureInstanceForBooking } = await import('@/modules/packages/interface');
+    packageId = (await ensureInstanceForBooking({ packageId })).packageId;
+  }
+
   // If seeded from a package, snapshot its pricing/title now — asked of the
   // Packages module, not read from its tables.
   let title = (input.title || '').trim();
   let price = input.price ?? {};
-  if (input.packageId) {
-    const pkg = await getPackageForBooking(input.packageId);
+  if (packageId) {
+    const pkg = await getPackageForBooking(packageId);
     if (pkg) {
       if (!title) title = pkg.name;
       if (!input.price) {
@@ -828,7 +866,7 @@ export async function addBookingLine(input: {
     .insert({
       organization_id: orgId,
       booking_id: input.bookingId,
-      package_id: input.packageId ?? null,
+      package_id: packageId,
       title,
       price,
       quantity: input.quantity ?? 1,
@@ -843,7 +881,8 @@ export async function addBookingLine(input: {
 
   // A line added from a package inherits that package's scope immediately, so
   // the booking says what was sold without waiting for anyone to confirm it.
-  if (input.packageId) {
+  // Read off the copy the line actually points at, never the catalogue row.
+  if (packageId) {
     await setLineConfiguration({ 
       bookingId: input.bookingId, 
       lineId: line.id, 
@@ -851,7 +890,7 @@ export async function addBookingLine(input: {
       source: 'studio', 
       organizationId: orgId 
     });
-    await copyPackageTasksToBookingLine(orgId, input.packageId, line.id, input.bookingId);
+    await copyPackageTasksToBookingLine(orgId, packageId, line.id, input.bookingId);
   }
 
   await logEvent({

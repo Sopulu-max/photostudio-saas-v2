@@ -212,6 +212,45 @@ describe('A booking gets its own package', () => {
   });
 
 
+
+
+  it('a package added to an existing booking gets its own copy too', async () => {
+    /*
+     * THE THIRD TIME THIS RULE WAS MISSED.
+     *
+     * It was written inside NewBookingForm, so only bookings made on that
+     * screen obeyed it. Then again in the public booking path. addBookingLine —
+     * the ordinary way to correct a booking after the fact, and the only way
+     * available on the edit page — obeyed neither, and pointed the line
+     * straight at the catalogue row. A later catalogue edit then rewrote what a
+     * client had already been quoted, which is the exact failure this whole
+     * file exists to prevent.
+     */
+    const { bookingId } = await createBooking({ brief: 'Corrected after the fact' });
+    await addBookingLine({ bookingId, packageId: catalogPackageId, title: 'Golden Hour Portrait' });
+
+    const { data: line } = await supabaseAdmin
+      .from('booking_lines')
+      .select('package_id, package:packages(status, instance_of, price)')
+      .eq('booking_id', bookingId).single();
+
+    expect(line!.package_id, 'a package added later still points at the catalogue row')
+      .not.toBe(catalogPackageId);
+    expect((line!.package as any).instance_of, 'the copy does not say what it came from')
+      .toBe(catalogPackageId);
+    expect((line!.package as any).status).toBe('custom');
+    // And it was sold at the catalogue's price, not at nothing.
+    expect(Number((line!.package as any).price?.base_price))
+      .toBe(Number(CATALOG_PRICE.base_price));
+
+    // A second line of the same package is its own copy again, not a shared one.
+    await addBookingLine({ bookingId, packageId: catalogPackageId, title: 'Second sitting' });
+    const { data: both } = await supabaseAdmin
+      .from('booking_lines').select('package_id').eq('booking_id', bookingId);
+    const ids = (both || []).map((l: any) => l.package_id);
+    expect(new Set(ids).size, 'two lines ended up sharing one package').toBe(2);
+  }, 120000);
+
   it('gives a line pointing at the catalogue its own copy, on request', async () => {
     /*
      * BOOKINGS TAKEN BEFORE THE RULE EXISTED.
@@ -227,8 +266,20 @@ describe('A booking gets its own package', () => {
      * has to leave the catalogue untouched while making the line editable.
      */
     const { bookingId } = await createBooking({ brief: 'An old booking' });
-    // Straight at the catalogue, which is the shape being repaired.
-    await addBookingLine({ bookingId, packageId: catalogPackageId, title: 'Golden Hour Portrait' });
+    /*
+     * Written straight into the table, because addBookingLine will not make one
+     * of these any more — that is the fix. This is what the rows left behind by
+     * the old behaviour look like, and they are the reason this operation
+     * exists at all.
+     */
+    const { error: legacyError } = await supabaseAdmin.from('booking_lines').insert({
+      organization_id: TEST_ORG_ID,
+      booking_id: bookingId,
+      package_id: catalogPackageId,
+      title: 'Golden Hour Portrait',
+      price: {},
+    });
+    expect(legacyError, 'could not seed a legacy catalogue-pointing line').toBeFalsy();
 
     const { data: before } = await supabaseAdmin
       .from('booking_lines').select('id, package_id').eq('booking_id', bookingId).single();

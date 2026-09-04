@@ -138,7 +138,18 @@ describe('a client who did not pick a package', () => {
      */
     const lines = await linesOf(bookingId);
     expect(lines.length, 'building a package did not put it on the booking').toBe(1);
-    expect(lines[0].package_id, 'the line still points at no package').toBe(packageId);
+    expect(lines[0].package_id, 'the line still points at no package').toBeTruthy();
+
+    /*
+     * At its OWN COPY of what was built, not at the built package itself.
+     * addBookingLine gives every line a private copy now, so the studio can
+     * edit "Custom: Wedding" in the catalogue afterwards without rewriting the
+     * booking that caused it to exist.
+     */
+    const { data: onLine } = await supabaseAdmin
+      .from('packages').select('instance_of, status').eq('id', lines[0].package_id).single();
+    expect(onLine!.instance_of, 'the line did not get its own copy of what was built').toBe(packageId);
+    expect(onLine!.status).toBe('custom');
 
     // And the package carries what the client actually chose, through its service.
     const { data: pkg } = await supabaseAdmin

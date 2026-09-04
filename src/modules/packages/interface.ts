@@ -23,6 +23,8 @@ export {
   syncPackageTasksForWorkflow,
   // The package a booking keeps for itself, insulated from later catalog edits.
   // Both booking paths go through this — it is the rule, not a helper.
+  // The package a booking should point at — its own copy, made if needed
+  ensureInstanceForBooking,
   instantiatePackageForBooking,
   listPackages, listPackagesPublic, listPackagesPublicWithDimensions, getPackage, getPackageForBooking, getPackagePublic,
   // Backwards: where is this service sold? The edge lives here, so the read does.
