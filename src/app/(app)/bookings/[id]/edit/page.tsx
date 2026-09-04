@@ -11,6 +11,13 @@ import { AddLineForm } from '../AddLineForm';
 import { LineActions } from '../LineActions';
 import { LineConfigForm } from '../LineConfigForm';
 import { EnquiryPanel } from '../EnquiryPanel';
+import { LinePackageEditor } from './LinePackageEditor';
+/*
+ * The same loader /packages/[id]/edit uses. A booking line points at a package
+ * instance, so configuring what this booking is for IS editing a package — and
+ * it must be the same editor, handed the same catalogues, or the two drift.
+ */
+import { loadPackageEditorCatalogs, loadPackageForEditor } from '../../../packages/[id]/editorData';
 import { DeleteBookingButton } from '../BookingHeaderActions';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +51,21 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   // Configuration is per line, so it's fetched per line.
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
+
+  /*
+   * And what each line's package actually IS.
+   *
+   * The catalogues are loaded once for the page; the instance behind each line
+   * is read per line, because that is what the editor edits. A line whose
+   * package has been removed simply gets no editor rather than an empty one.
+   */
+  const editorCatalogs = await loadPackageEditorCatalogs();
+  const packageByLine: Record<string, any> = {};
+  for (const l of booking.lines as any[]) {
+    if (!l.package_id) continue;
+    const loaded = await loadPackageForEditor(l.package_id);
+    if (loaded) packageByLine[l.id] = loaded;
+  }
 
   // Archived clients aren't offered for a new assignment — same rule as retired packages.
   // Phone and email come along, because they are how an operator tells two
@@ -118,8 +140,15 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             <div className="q-stack">
               {booking.lines.map((l: any) => {
                 const w = work[l.id];
-                const pkg = (packageRows as any[]).find((p) => p.id === l.package_id);
-                const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
+                /*
+                 * Read off the line's own instance, not the catalogue.
+                 * listPackages does not return instances — they are status
+                 * 'custom' — so this lookup found nothing for every booking
+                 * made from a package, and the line showed no services at all.
+                 */
+                const linePkg = packageByLine[l.id]?.pkg
+                  ?? (packageRows as any[]).find((p) => p.id === l.package_id);
+                const svcNames = ((linePkg?.services || []) as any[]).map((s: any) => s.name).filter(Boolean);
                 return (
                   <div key={l.id} className="q-tile">
                     <div className="q-row q-row-between">
@@ -139,6 +168,28 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                         hasWork={!!w}
                       />
                     </div>
+                    {packageByLine[l.id] && (
+                      <LinePackageEditor
+                        bookingId={booking.id}
+                        lineId={l.id}
+                        /* Its own copy, or the catalogue row itself. A booking
+                           taken before instancing existed points at the latter,
+                           and must not be edited from here. */
+                        isOwnCopy={
+                          !!packageByLine[l.id].pkg.instance_of
+                          || packageByLine[l.id].pkg.status === 'custom'
+                        }
+                        packageId={l.package_id}
+                        status={packageByLine[l.id].pkg.status}
+                        catalogs={editorCatalogs as any}
+                        initial={packageByLine[l.id].initial}
+                        /* What it is an instance OF, so the editor states what
+                           the package is rather than asking it again. */
+                        derivedFrom={packageByLine[l.id].derivedFrom}
+                        derivedServiceIds={packageByLine[l.id].derivedServiceIds}
+                      />
+                    )}
+
                     {w && (
                       <div className="q-meta-sm q-tile-sub">
                         Work has started on this one — {w.completed}/{w.total} done. Removing it takes the work too.

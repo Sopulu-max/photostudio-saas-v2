@@ -646,6 +646,71 @@ export async function getLineConfigurationForm(lineId: string) {
  * contact, not at a Client record: someone can be on a booking before the studio
  * has decided they're a client at all.
  */
+/**
+ * Give a line its own copy of the package it points at.
+ *
+ * A booking line is supposed to point at a private INSTANCE, so the studio can
+ * go on editing its catalogue without rewriting what a client was already
+ * quoted. Bookings taken before that rule existed point straight at the
+ * catalogue row, and this database still holds one of them.
+ *
+ * That was harmless while nothing could edit a booking's package. It stops
+ * being harmless the moment the booking's own edit page can: an operator
+ * changing "what this booking includes" would silently rewrite the package
+ * every future booking is sold from, and the screen would give no hint of it.
+ * So the editor refuses to open on a catalogue row, and offers this instead.
+ *
+ * Asked of Packages rather than done here — instancing is its rule, including
+ * freezing the list price the discount is derived against.
+ */
+export async function giveLineItsOwnPackage(input: { bookingId: string; lineId: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+
+  const { data: line } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, package_id, package:packages(id, status, instance_of)')
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!line || !line.package_id) throw new Error('This line has no package to copy.');
+
+  const pkg = line.package as any;
+  // Already private. Returned rather than thrown: two operators clicking it at
+  // once is not an error, and the second one gets what they wanted.
+  if (pkg?.instance_of || pkg?.status === 'custom') {
+    return { packageId: line.package_id as string, alreadyPrivate: true };
+  }
+
+  const { instantiatePackageForBooking } = await import('@/modules/packages/interface');
+  const instance = await instantiatePackageForBooking({
+    packageId: line.package_id as string,
+    organizationId: orgId,
+  });
+
+  const { error } = await supabaseAdmin
+    .from('booking_lines')
+    .update({ package_id: instance.packageId })
+    .eq('id', input.lineId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to repoint a line at its own package:', error);
+    throw new Error('The package could not be copied onto this booking.');
+  }
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'line_instanced',
+    actorId: actorId ?? undefined,
+    payload: { lineId: input.lineId, fromPackageId: line.package_id, packageId: instance.packageId },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath(`/bookings/${input.bookingId}/edit`);
+  return { packageId: instance.packageId as string, alreadyPrivate: false };
+}
+
 export async function setBookingClient(input: { bookingId: string; contactId: string | null }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 

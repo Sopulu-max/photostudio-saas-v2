@@ -37,7 +37,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createService } from '@/modules/services/domain';
 import { createPackage, updatePackage, listPackages, instantiatePackageForBooking } from '@/modules/packages/domain';
 import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
-import { updateBookingLine } from '@/modules/bookings/domain';
+import { updateBookingLine, giveLineItsOwnPackage, addBookingLine, createBooking } from '@/modules/bookings/domain';
 import { PURGE_ORDER } from './purge';
 
 const CATALOG_PRICE = { base_price: 200000, currency: 'NGN' };
@@ -210,6 +210,56 @@ describe('A booking gets its own package', () => {
       });
     }, 60000);
   });
+
+
+  it('gives a line pointing at the catalogue its own copy, on request', async () => {
+    /*
+     * BOOKINGS TAKEN BEFORE THE RULE EXISTED.
+     *
+     * A line is supposed to point at a private instance. Bookings made before
+     * that point straight at the catalogue row, and this database still holds
+     * one. Harmless while nothing could edit a booking's package — and not
+     * harmless at all now that the booking's own edit page can, because
+     * changing "what this booking includes" would rewrite the package every
+     * future booking is sold from.
+     *
+     * So the editor refuses to open on a catalogue row and offers this, which
+     * has to leave the catalogue untouched while making the line editable.
+     */
+    const { bookingId } = await createBooking({ brief: 'An old booking' });
+    // Straight at the catalogue, which is the shape being repaired.
+    await addBookingLine({ bookingId, packageId: catalogPackageId, title: 'Golden Hour Portrait' });
+
+    const { data: before } = await supabaseAdmin
+      .from('booking_lines').select('id, package_id').eq('booking_id', bookingId).single();
+    expect(before!.package_id, 'the line did not start on the catalogue row').toBe(catalogPackageId);
+
+    const { packageId: instanceId, alreadyPrivate } = await giveLineItsOwnPackage({
+      bookingId, lineId: before!.id,
+    });
+    expect(alreadyPrivate, 'a catalogue row was mistaken for a private copy').toBe(false);
+    expect(instanceId, 'the line was left on the catalogue row').not.toBe(catalogPackageId);
+
+    const { data: after } = await supabaseAdmin
+      .from('booking_lines').select('package_id').eq('id', before!.id).single();
+    expect(after!.package_id, 'the line was not repointed at its own copy').toBe(instanceId);
+
+    const { data: copy } = await supabaseAdmin
+      .from('packages').select('status, instance_of').eq('id', instanceId).single();
+    expect(copy!.status, 'the copy went into the catalogue').toBe('custom');
+    expect(copy!.instance_of, 'the copy does not say what it came from').toBe(catalogPackageId);
+
+    // The catalogue row is untouched, which is the entire point.
+    const catalog = await readCatalog();
+    expect(catalog.status, 'the catalogue package was altered').toBe('active');
+    expect(catalog.name).toBe('Golden Hour Portrait');
+
+    // And asking twice is not an error — two operators clicking it at once is
+    // not a failure, and the second one gets what they wanted.
+    const again = await giveLineItsOwnPackage({ bookingId, lineId: before!.id });
+    expect(again.alreadyPrivate, 'a private copy was copied again').toBe(true);
+    expect(again.packageId).toBe(instanceId);
+  }, 120000);
 
   it('refuses to instantiate a package from another studio', async () => {
     const otherOrg = randomUUID();

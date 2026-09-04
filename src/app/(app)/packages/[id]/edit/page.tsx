@@ -1,12 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getPackage, getIntakeQuestions, getLockedQuestionIds } from '@/modules/packages/interface';
-import { listActiveServices } from '@/modules/services/interface';
-import { listRoles } from '@/modules/team/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
 import { PackageFieldsEditor } from '../PackageFieldsEditor';
-import { PackageVariablesEditor } from '../PackageVariablesEditor';
+// What this editor needs, and how a package reads back into it, live next to
+// the editor rather than in each of the three screens that render it.
+import { loadPackageEditorCatalogs, loadPackageForEditor } from '../editorData';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,52 +16,11 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
     redirect('/login');
   }
 
-  const pkg = await getPackage(params.id);
-  if (!pkg) notFound();
+  const loaded = await loadPackageForEditor(params.id);
+  if (!loaded) notFound();
+  const { pkg, questions, lockedQuestionIds, initial } = loaded;
 
-  const { listDimensionsByDomain, listVariablesForServices, listVariablesForDimensions } = await import('@/modules/services/interface');
-  const { listDeliverables, listVariablesForDeliverables } = await import('@/modules/deliverables/interface');
-  const [allServices, roles, currencyCode, questions, lockedIds, allDeliverables, dimensionsByDomain] = await Promise.all([
-    listActiveServices(), listRoles(), getStudioCurrency(),
-    getIntakeQuestions(params.id), getLockedQuestionIds(params.id), listDeliverables(),
-    listDimensionsByDomain(),
-  ]);
-
-  const allVariables = (await listVariablesForServices(allServices.map((s: any) => s.id)))
-    .map((v: any) => {
-      const sName = (allServices as any[]).find(s => s.id === v.serviceId)?.name || 'Service';
-
-      return { ...v, serviceName: sName };
-    });
-
-  /*
-   * And what the studio's questions say follows from their answers.
-   *
-   * An Occasion has a date. Every dimension the studio asks contributes its
-   * variables here, so a package classified by Occasion can fix that date or
-   * leave it to the client, exactly as it does with a service's own variables.
-   * Loaded for every dimension rather than only the ones in play: which
-   * dimensions apply depends on what the operator bundles, and that changes
-   * while the form is open.
-   */
-  const dimensionVariables = await listVariablesForDimensions(
-    Object.values(dimensionsByDomain).flat().map((d: any) => d.id),
-  );
-
-  /*
-   * And what the deliverables themselves need settling.
-   *
-   * A framed print has a size; an album has a cover material. Declared once on
-   * the KIND, so every package promising one is asked — the same arrangement a
-   * classification's variables already have, because it is the same mechanism
-   * with a third owner rather than a third mechanism.
-   *
-   * Loaded for every deliverable rather than only the promised ones: what a
-   * package promises changes while this form is open.
-   */
-  const deliverableVariables = await listVariablesForDeliverables(
-    (allDeliverables as any[]).map((d) => d.id),
-  );
+  const catalogs = await loadPackageEditorCatalogs();
 
   return (
     <div className="q-page-narrow">
@@ -93,57 +50,17 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           mode="edit"
           packageId={pkg.id}
           status={pkg.status}
-          currencyCode={currencyCode}
-          allServices={allServices as any}
-          allVariables={[...allVariables, ...dimensionVariables, ...deliverableVariables] as any}
-          allDeliverables={allDeliverables as any}
-          dimensionsByDomain={dimensionsByDomain}
-          roleOptions={(roles as any[]).map((r) => r.name)}
+          currencyCode={catalogs.currencyCode}
+          allServices={catalogs.allServices as any}
+          allVariables={catalogs.allVariables as any}
+          allDeliverables={catalogs.allDeliverables as any}
+          dimensionsByDomain={catalogs.dimensionsByDomain}
+          roleOptions={catalogs.roleOptions}
           // Edited inside the one form now, rather than by a second editor below
           // its Save button that saved them separately.
           questions={questions}
-          lockedQuestionIds={lockedIds}
-          initial={{
-            name: pkg.name,
-            description: (pkg as any).description,
-            // Already normalised to { amount, currency } by the module, which is
-            // the only shape any screen should see. Omitting it here is what
-            // opened every package with an empty price box.
-            price: (pkg as any).price,
-            coverUrl: (pkg as any).cover_url ?? null,
-            coverPosition: (pkg as any).cover_position ?? null,
-            durationMinutes: (pkg as any).duration_minutes,
-            serviceIds: ((pkg as any).services || []).map((s: any) => s.id),
-            // Read back off each bundled service, which is where they are held.
-            deliverables: (((pkg as any).services || []) as any[]).flatMap((s) =>
-              ((s.deliverables || []) as any[]).map((d) => ({
-                serviceId: s.id as string, deliverableId: d.id as string,
-                quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null,
-              }))),
-            narrowings: (((pkg as any).services || []) as any[]).flatMap((s) =>
-              ((s.narrowedTo || []) as { values: { id: string }[] }[])
-                .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
-            extraStages: ((pkg as any).extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
-            variableValues: ((pkg as any).variableValues || []).map((v: any) => ({
-              serviceVariableId: v.serviceVariableId,
-              value: v.value,
-              // Which of the two classes it is in, so the form opens showing the
-              // decision rather than inferring one from an empty box.
-              answeredBy: v.answeredBy,
-            })),
-            tasks: (((pkg as any).services || []) as any[]).flatMap((s) =>
-              ((s.tasks || []) as any[]).map((t) => ({
-                serviceId: s.id as string,
-                taskId: t.id as string,
-                workflowTaskId: t.workflowTaskId as string,
-                name: t.name as string,
-                roleId: t.roleId as string | null,
-                roleName: t.roleName as string | null,
-                isActive: t.isActive as boolean,
-              }))
-            ),
-            services: (pkg as any).services,
-          }}
+          lockedQuestionIds={lockedQuestionIds}
+          initial={initial}
         />
       </div>
     </div>
