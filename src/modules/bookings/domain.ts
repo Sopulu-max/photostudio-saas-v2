@@ -811,6 +811,63 @@ async function copyPackageTasksToBookingLine(orgId: string, packageId: string, b
   }
 }
 
+/**
+ * Bring in the work a booking's packages call for, when it has none.
+ *
+ * A booking's tasks are copied from its packages at the moment a line is added,
+ * which is right: the work is what was sold, fixed at the time it was sold.
+ * But that is the ONLY moment it has ever happened, so a booking can end up
+ * with an empty work board and no way back:
+ *
+ *   — every booking taken through the public link, until copyPackage carried
+ *     package_tasks and createBookingFromIntake copied them onto its line;
+ *   — any booking taken before the studio wrote the workflow, which is the
+ *     ordinary order of things for a studio still setting itself up. Syncing a
+ *     workflow reaches the PACKAGES built from it, and stops there.
+ *
+ * Neither shows as an error. The studio sees a job with nobody assigned and
+ * nothing to tick off, and nothing anywhere says why.
+ *
+ * ONLY ONTO LINES THAT HAVE NOTHING. A line already carrying work has been
+ * worked on — reassigned, ticked off, had steps dropped deliberately — and
+ * topping it up from the package would resurrect exactly the tasks somebody
+ * decided not to do. So this fills empty boards and refuses to touch the rest,
+ * which also makes it safe to press twice.
+ */
+export async function restoreWorkForBooking(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings').select('id').eq('id', bookingId).eq('organization_id', orgId).maybeSingle();
+  if (!booking) throw new Error('Booking not found');
+
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines').select('id, package_id')
+    .eq('booking_id', bookingId).eq('organization_id', orgId);
+
+  const { data: held } = await supabaseAdmin
+    .from('booking_tasks').select('booking_line_id')
+    .eq('booking_id', bookingId).eq('organization_id', orgId);
+  const worked = new Set(((held || []) as any[]).map((t) => t.booking_line_id));
+
+  let filled = 0;
+  for (const l of ((lines || []) as any[])) {
+    if (!l.package_id || worked.has(l.id)) continue;
+    const before = filled;
+    await copyPackageTasksToBookingLine(orgId, l.package_id, l.id, bookingId);
+    const { count } = await supabaseAdmin
+      .from('booking_tasks').select('id', { count: 'exact', head: true })
+      .eq('booking_line_id', l.id).eq('organization_id', orgId);
+    filled = before + (count ?? 0);
+  }
+
+  if (filled > 0) {
+    revalidatePath(`/bookings/${bookingId}`);
+    revalidatePath('/tasks');
+  }
+  return { tasksAdded: filled };
+}
+
 export async function addBookingLine(input: {
   bookingId: string;
   packageId?: string | null;

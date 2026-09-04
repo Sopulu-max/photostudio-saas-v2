@@ -37,6 +37,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createService, saveWorkflow } from '@/modules/services/domain';
 import { createPackage } from '@/modules/packages/domain';
 import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
+import { restoreWorkForBooking } from '@/modules/bookings/domain';
 import { createBooking } from '@/modules/bookings/domain';
 import {
   addToBookingTeam, getBookingTeam, removeFromBookingTeam,
@@ -185,6 +186,55 @@ describe('Tasks flow from a package onto a booking', () => {
     expect((tasks ?? []).map((t: any) => t.name).sort(),
       'a booking taken from the public page arrived with an empty work board')
       .toEqual(['Cull', 'Edit', 'Shoot']);
+  }, 120000);
+
+
+  it('fills an empty board, and refuses to touch one already worked on', async () => {
+    /*
+     * A BOOKING CAN STILL END UP WITH NO WORK, AND HAD NO WAY BACK.
+     *
+     * Tasks are copied from the package when a line is added, and until now
+     * that was the ONLY moment it ever happened. So a booking taken before the
+     * studio wrote its workflow has an empty board for good: syncing a workflow
+     * reaches the packages built from it and stops there. That is the ordinary
+     * order of things for a studio still setting itself up, not an edge case.
+     *
+     * The second half matters more than the first. A line already carrying work
+     * has been worked on — reassigned, ticked off, had steps dropped on purpose
+     * — and topping it up from the package would resurrect exactly the tasks
+     * somebody decided not to do.
+     */
+    const stripped = await createBooking({
+      title: 'Board wiped',
+      contactId: TEST_PERSON_ID,
+      lines: [{ packageId, title: 'Golden Hour Portrait' }],
+    });
+    await supabaseAdmin.from('booking_tasks').delete().eq('booking_id', stripped.bookingId);
+
+    const { tasksAdded } = await restoreWorkForBooking(stripped.bookingId);
+    expect(tasksAdded, 'an empty board stayed empty').toBeGreaterThan(0);
+
+    const { data: back } = await supabaseAdmin
+      .from('booking_tasks').select('name').eq('booking_id', stripped.bookingId);
+    expect((back ?? []).map((t: any) => t.name).sort()).toEqual(['Cull', 'Edit', 'Shoot']);
+
+    // Pressed again, it adds nothing — the board is no longer empty.
+    const again = await restoreWorkForBooking(stripped.bookingId);
+    expect(again.tasksAdded, 'work was duplicated onto a board that already had it').toBe(0);
+    const { count } = await supabaseAdmin
+      .from('booking_tasks').select('id', { count: 'exact', head: true })
+      .eq('booking_id', stripped.bookingId);
+    expect(count, 'the task list grew on a second run').toBe(3);
+
+    // And a step the studio deliberately dropped is not resurrected.
+    const { data: one } = await supabaseAdmin
+      .from('booking_tasks').select('id').eq('booking_id', stripped.bookingId).limit(1).single();
+    await supabaseAdmin.from('booking_tasks').delete().eq('id', one!.id);
+    await restoreWorkForBooking(stripped.bookingId);
+    const { count: afterDrop } = await supabaseAdmin
+      .from('booking_tasks').select('id', { count: 'exact', head: true })
+      .eq('booking_id', stripped.bookingId);
+    expect(afterDrop, 'a deliberately dropped task came back').toBe(2);
   }, 120000);
 
   it('puts someone on every task waiting for their role, in one move', async () => {

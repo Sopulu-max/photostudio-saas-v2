@@ -98,6 +98,11 @@ export function AddLineForm({
             {isPending ? 'Adding…' : custom.trim() ? 'Add charge' : 'Add package'}
           </button>
         )}
+        {/* Says why it will not go, rather than sitting greyed out in silence.
+            The same answer the new-booking form gives to the same question. */}
+        {!variant && !packageId && !custom.trim() && (
+          <span className="q-meta-sm">Choose a package, or name a one-off charge.</span>
+        )}
       </div>
 
       {variant && (

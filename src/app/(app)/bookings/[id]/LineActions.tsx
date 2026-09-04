@@ -50,12 +50,24 @@ export function LineActions({
         <input className="q-input" type="number" min="0" step="0.5" value={qty} onChange={(e) => setQty(e.target.value)}
           placeholder="qty" title={unit ? `How many ${unit}s` : 'How many'} style={{ width: '6rem' }} />
         {unit && <span className="q-meta-sm">{unit}s</span>}
-        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
-          onClick={() => t.trim() && run(
+        {/*
+          * REFUSED VISIBLY, NOT SILENTLY.
+          *
+          * This was `disabled={isPending}` with the real condition hidden in
+          * the handler as `t.trim() && run(...)`. So with the name emptied the
+          * button looked perfectly alive, and pressing it did nothing at all —
+          * no save, no error, no explanation. A dead control that presents
+          * itself as working is worse than one that is plainly unavailable,
+          * because the operator concludes the app is broken rather than that
+          * they have left a field blank.
+          */}
+        <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending || !t.trim()}
+          onClick={() => run(
             () => updateBookingLine({ lineId, bookingId, title: t, basePrice: p === '' ? null : parseFloat(p), currency, quantity: parseFloat(qty) || 1 }),
             () => setEditing(false))}>
           Save
         </button>
+        {!t.trim() && <span className="q-meta-sm">It needs a name.</span>}
         <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => { setEditing(false); setT(title); setP(basePrice == null ? '' : String(basePrice)); setQty(String(quantity ?? 1)); }}>
           Cancel
         </button>

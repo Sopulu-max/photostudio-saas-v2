@@ -39,6 +39,8 @@ export {
   getBookingByShareToken,
   setBookingSchedule,
   suggestedDurationForBooking,
+  // A booking whose work never arrived, or predates its workflow
+  restoreWorkForBooking,
   // A line pointing at the catalogue gets its own copy before it is edited
   giveLineItsOwnPackage,
   // A custom enquiry: what the client described, and whether it can be built on

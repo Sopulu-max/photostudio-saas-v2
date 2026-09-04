@@ -230,6 +230,19 @@ export function BookingRecordForm({
         </span>
       </div>
 
+      {/*
+        * A DISABLED BUTTON SAYS WHY IT IS DISABLED.
+        *
+        * This said the opposite of what was needed: the only line of text
+        * appeared when the button WORKED ("Unsaved changes") and there was
+        * nothing at all when it did not. So an operator opening the page met a
+        * greyed-out Save with no explanation, which reads as a broken screen
+        * rather than as a form with nothing in it to save.
+        *
+        * The new-booking form settled this already — it refuses until there is
+        * something to record and says in the same breath what to add. Same
+        * pattern here, because it is the same question being asked.
+        */}
       <div className="q-row">
         <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !dirty} onClick={save}>
           {isPending ? 'Saving…' : 'Save changes'}
@@ -239,9 +252,14 @@ export function BookingRecordForm({
           disabled={isPending}
           onClick={() => router.push(`/bookings/${bookingId}`)}
         >
-          Cancel
+          {/* Named for what it actually does. With nothing changed there is
+              nothing to cancel, and calling it Cancel invites the worry that
+              leaving will undo something. */}
+          {dirty ? 'Discard changes' : 'Back to the booking'}
         </button>
-        {dirty && <span className="q-meta-sm">Unsaved changes</span>}
+        <span className="q-meta-sm">
+          {dirty ? 'Unsaved changes' : 'Nothing changed yet.'}
+        </span>
       </div>
     </div>
   );

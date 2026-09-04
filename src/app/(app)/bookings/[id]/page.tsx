@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
-import { CreateContractButton } from './BookingActions';
+import { CreateContractButton, RestoreWorkButton } from './BookingActions';
 import { EnquiryPanel } from './EnquiryPanel';
 
 import { listClients } from '@/modules/clients/interface';
@@ -542,6 +542,25 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           * longer decides how the list is organised.
           */}
         <Section title="Tasks">
+          {/*
+            * A booking whose packages call for work but whose board is empty.
+            *
+            * It happens two ways, neither of which shows as an error: a booking
+            * taken before the studio wrote its workflow (syncing a workflow
+            * reaches the packages built from it and stops there), and — until
+            * this was fixed — every booking taken through the public link. The
+            * work is copied from the package when a line is added, and that was
+            * the only moment it ever happened, so there was no way back.
+            */}
+          {bookingTasks.length === 0 && lines.some((l: any) => l.package_id) && (
+            <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+              <span className="q-meta-sm">
+                Nothing is on this board, though what was booked calls for work.
+                That happens to bookings taken before the workflow was written.
+              </span>
+              <RestoreWorkButton bookingId={booking.id} />
+            </div>
+          )}
           <BookingTasks
             bookingId={booking.id}
             tasks={bookingTasks as any}
