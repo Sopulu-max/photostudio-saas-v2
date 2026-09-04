@@ -11,6 +11,7 @@ import { listRoles, listEmployees } from '@/modules/team/interface';
 // this is where the terms live.
 import { getContractTermsTemplate } from '@/modules/contracts/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
+import { studioTimezone } from '@/kernel/studioHours';
 // The studio's tax position. The invoice raised below is snapshotted with it,
 // so the form has to know it to show what the client will actually be asked for.
 import { getTaxRate } from '@/modules/finances/interface';
@@ -20,8 +21,9 @@ export const dynamic = 'force-dynamic';
 export default async function NewBookingPage(
   props: { searchParams: Promise<{ package?: string }> },
 ) {
+  let orgId: string;
   try {
-    await getAuthOrgId();
+    orgId = (await getAuthOrgId()).orgId;
   } catch {
     redirect('/login');
   }
@@ -59,6 +61,8 @@ export default async function NewBookingPage(
    * another, with nothing anywhere saying so.
    */
   const taxRate = await getTaxRate();
+  // Whose clock the date field and the day's other bookings are on.
+  const timeZone = await studioTimezone(orgId);
 
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
     .map((v: any) => {
@@ -143,6 +147,7 @@ export default async function NewBookingPage(
         // document rather than a setting.
         termsTemplate={termsTemplate}
         taxRate={taxRate}
+        timeZone={timeZone}
       />
     </div>
   );

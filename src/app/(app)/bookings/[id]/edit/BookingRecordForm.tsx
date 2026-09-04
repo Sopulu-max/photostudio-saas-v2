@@ -8,6 +8,7 @@ import { ClientPicker, clientEdits, type ClientOption, type ClientSelection } fr
 import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
 import { wallClockIn } from '@/kernel/wallClock';
+import { DayContext } from '@/components/DayContext';
 import { ImageUpload } from '@/components/ImageUpload';
 
 /*
@@ -250,6 +251,16 @@ export function BookingRecordForm({
               ? `What's booked suggests about ${formatDuration(suggestedMinutes)}.`
               : 'Without a date it stays off the calendar, which is fine for an enquiry.'}
         </span>
+        {/*
+          * Whether the studio is open, and what is already on that day.
+          *
+          * The new-booking form has asked both since it was written; this page
+          * asked neither — though rescheduling happens HERE, and a clash
+          * matters far more when moving a shoot onto a day that already has one
+          * than when first writing it down. Excluding this booking, which would
+          * otherwise report itself as the thing it clashes with.
+          */}
+        <DayContext when={when} timeZone={timeZone} exceptBookingId={bookingId} />
       </div>
 
       {/*

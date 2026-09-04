@@ -36,7 +36,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
   }),
 }));
 
-import { createBooking, updateBookingRecord } from '@/modules/bookings/domain';
+import { createBooking, updateBookingRecord, whatElseIsOn, studioDay } from '@/modules/bookings/domain';
 import { wallClockIn, isWallClock } from '@/kernel/wallClock';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
@@ -119,6 +119,70 @@ describe('when a booking is', () => {
     expect(new Date(after!).getTime(), 'the booking drifted when nothing was changed')
       .toBe(new Date(first!).getTime());
   }, 180000);
+
+
+  it('says what else is on that day, by the studio’s day and not the server’s', async () => {
+    /*
+     * THE QUESTION THE EDIT PAGE NEVER ASKED.
+     *
+     * The new-booking form has warned about clashes since it was written and
+     * the edit page did not — though rescheduling happens there, and a clash
+     * matters far more when moving a shoot onto an occupied day than when
+     * first writing one down.
+     *
+     * The boundary is the part worth pinning. "That day" has to mean the day
+     * the STUDIO is having: 23:30 in Lagos is 22:30 UTC, and a naive UTC window
+     * would file an evening shoot under the wrong date — which is precisely
+     * when a clash goes unseen.
+     */
+    const DAY = '2026-10-10';
+
+    const morning = await createBooking({ title: 'Morning shoot' });
+    await updateBookingRecord({ bookingId: morning.bookingId, title: 'Morning shoot', scheduledFor: `${DAY}T09:00` });
+
+    const lateEvening = await createBooking({ title: 'Late evening shoot' });
+    await updateBookingRecord({ bookingId: lateEvening.bookingId, title: 'Late evening shoot', scheduledFor: `${DAY}T23:30` });
+
+    // 00:30 the NEXT day in Lagos — 23:30 UTC on DAY. It belongs to the day
+    // after, and a UTC-shaped window would wrongly pull it into this one.
+    const justAfter = await createBooking({ title: 'After midnight' });
+    await updateBookingRecord({ bookingId: justAfter.bookingId, title: 'After midnight', scheduledFor: '2026-10-11T00:30' });
+
+    const onDay = await whatElseIsOn(DAY);
+    const titles = onDay.map((b) => b.title).sort();
+    expect(titles, 'the studio’s own day is not what was counted')
+      .toEqual(['Late evening shoot', 'Morning shoot']);
+
+    // And each is reported at the instant it actually sits at.
+    const late = onDay.find((b) => b.title === 'Late evening shoot')!;
+    expect(new Date(late.at).toISOString()).toBe(`${DAY}T22:30:00.000Z`);
+  }, 180000);
+
+  it('does not report a booking as clashing with itself', async () => {
+    /*
+     * The edit page asks this about the booking being edited, so without the
+     * exclusion every rescheduling would warn that the day already holds the
+     * very booking being moved — a false alarm on every single edit, which
+     * teaches an operator to ignore the real ones.
+     */
+    const DAY = '2026-10-12';
+    const only = await createBooking({ title: 'The only one that day' });
+    await updateBookingRecord({ bookingId: only.bookingId, title: 'The only one that day', scheduledFor: `${DAY}T11:00` });
+
+    expect((await whatElseIsOn(DAY)).map((b) => b.title), 'it was not found at all')
+      .toEqual(['The only one that day']);
+
+    expect(await whatElseIsOn(DAY, only.bookingId), 'a booking reported itself as a clash')
+      .toEqual([]);
+  }, 180000);
+
+  it('answers what the studio’s day looks like', async () => {
+    // Read through the same call the field uses. A studio that has said nothing
+    // about a day constrains nothing, which is the answer it gives everywhere.
+    const day = await studioDay('2026-10-10');
+    expect(day, 'the day could not be described at all').toBeTruthy();
+    expect(typeof day.closed, 'a day did not say whether it is closed').toBe('boolean');
+  }, 120000);
 
   it('leaves an instant alone rather than reading it as a wall clock', async () => {
     /*
