@@ -7,14 +7,19 @@ import { updateClient } from '@/modules/clients/interface';
 import { ClientPicker, clientEdits, type ClientOption, type ClientSelection } from '@/components/ClientPicker';
 import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
+import { wallClockIn } from '@/kernel/wallClock';
 import { ImageUpload } from '@/components/ImageUpload';
 
-const toLocalInput = (iso: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+/*
+ * THE WALL CLOCK BELONGS TO THE STUDIO, NOT TO WHOEVER IS LOOKING.
+ *
+ * This read the stored instant with getHours(), which answers in the BROWSER's
+ * timezone. An operator in a different zone from the studio was shown the wrong
+ * time — and then this form sent that displayed time back with
+ * `new Date(when).toISOString()`, so opening a booking and pressing Save moved
+ * it. The public booking form settled this already: the time is a wall clock in
+ * the studio's zone, and the server is what resolves it.
+ */
 
 /**
  * The booking's own record: the fields that live on the booking row.
@@ -39,6 +44,7 @@ export function BookingRecordForm({
   coverPosition: initialCoverPosition,
   suggestedMinutes,
   clients,
+  timeZone,
 }: {
   bookingId: string;
   title: string;
@@ -51,11 +57,18 @@ export function BookingRecordForm({
   coverPosition: string | null;
   suggestedMinutes: number | null;
   clients: ClientOption[];
+  /**
+   * The studio's own timezone, which is whose wall clock this is.
+   *
+   * Passed in rather than read from the browser: a booking at 10:00 is at 10:00
+   * in the studio, whoever happens to be looking at it and from where.
+   */
+  timeZone: string;
 }) {
   const initial = {
     title,
     contactId: contactId || '',
-    when: toLocalInput(scheduledFor),
+    when: wallClockIn(scheduledFor, timeZone),
     dur: durationMinutes ?? 0,
     brief: brief || '',
   };
@@ -121,7 +134,16 @@ export function BookingRecordForm({
           bookingId,
           title: t,
           contactId: cid || null,
-          scheduledFor: when ? new Date(when).toISOString() : null,
+          /*
+           * Sent exactly as typed — "2026-08-29T10:00", no zone.
+           *
+           * new Date() here read it in the BROWSER's zone and handed the server
+           * an instant, whose UTC time the server then re-read as a studio wall
+           * clock. For a studio in Lagos that moved every booking an hour
+           * earlier, and again on each save after that. The server resolves the
+           * wall clock against the studio's own timezone instead.
+           */
+          scheduledFor: when || null,
           durationMinutes: dur > 0 ? dur : null,
           brief: briefText,
         });

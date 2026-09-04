@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { assertOurs } from '@/kernel/tenancy';
 import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHours';
+import { isWallClock } from '@/kernel/wallClock';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
@@ -52,11 +53,23 @@ async function resolveScheduledFor(
   const raw = (value || '').trim();
   if (!raw) return null;
 
-  // "2026-08-29T10:00" — a wall clock, no zone. Anything else (a Z, an offset)
-  // is already an instant and is taken as given.
-  const wall = raw.match(/^(\d{4}-\d{2}-\d{2})T([012]\d:[0-5]\d)/);
-  if (!wall) return raw;
-  const [, date, time] = wall;
+  /*
+   * "2026-08-29T10:00" — a wall clock, no zone. Anything else (a Z, an offset)
+   * is already an instant and is taken as given.
+   *
+   * THAT SENTENCE WAS TRUE OF THE INTENT AND FALSE OF THE CODE. The match was
+   * unanchored, so "2026-08-29T09:00:00.000Z" matched on its PREFIX and its UTC
+   * time was then re-read as a wall clock in the studio's zone. Every caller
+   * that sent a real instant had its booking shifted by the studio's offset —
+   * an hour earlier each time for a studio in Lagos — and shifted again on
+   * every subsequent save, because the output was fed back in next time.
+   *
+   * Anchored now, so the check answers the question the comment asks. The
+   * pattern is shared with the browser, which has to draw the same line when it
+   * decides what to send.
+   */
+  if (!isWallClock(raw)) return raw;
+  const [, date, time] = raw.match(/^(\d{4}-\d{2}-\d{2})T([012]\d:[0-5]\d)/)!;
 
   if (opts.enforceHours) {
     const hours = await studioHoursFor(orgId, date);
@@ -1607,13 +1620,28 @@ export async function updateBookingRecord(input: {
   // Compared as instants, not strings: the form sends a datetime-local value
   // and the column holds a timestamptz, so the same moment spells differently.
   const t = (v: string | null | undefined) => (v ? new Date(v).getTime() : null);
-  const dateMoved = input.scheduledFor !== undefined && t(input.scheduledFor) !== t(current.scheduled_for);
+  /*
+   * Compared as two instants, which means resolving the incoming one first.
+   *
+   * What arrives from a form is a wall clock — "2026-08-29T10:00", no zone —
+   * and what is stored is an instant. `new Date()` on the wall clock answers in
+   * the SERVER's zone (UTC in production), so a Lagos booking that had not
+   * moved at all compared as an hour different from itself, and every save
+   * logged a schedule change that never happened.
+   *
+   * Resolved here rather than left to setBookingSchedule, which resolves it
+   * again harmlessly: an instant passed back in is now returned untouched.
+   */
+  const incoming = input.scheduledFor !== undefined
+    ? await resolveScheduledFor(orgId, input.scheduledFor, { enforceHours: false })
+    : undefined;
+  const dateMoved = incoming !== undefined && t(incoming) !== t(current.scheduled_for);
   const durationMoved = input.durationMinutes !== undefined
     && (input.durationMinutes ?? null) !== (current.duration_minutes ?? null);
   if (dateMoved || durationMoved) {
     await setBookingSchedule({
       bookingId: input.bookingId,
-      scheduledFor: input.scheduledFor !== undefined ? input.scheduledFor : current.scheduled_for,
+      scheduledFor: incoming !== undefined ? incoming : current.scheduled_for,
       durationMinutes: input.durationMinutes !== undefined ? input.durationMinutes : current.duration_minutes,
     });
     changed.push('schedule');

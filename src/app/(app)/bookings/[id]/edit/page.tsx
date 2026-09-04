@@ -5,6 +5,7 @@ import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getE
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
+import { studioTimezone } from '@/kernel/studioHours';
 import { formatMoney } from '@/kernel/currency';
 import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
@@ -29,8 +30,9 @@ export const dynamic = 'force-dynamic';
  */
 export default async function EditBookingPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  let orgId: string;
   try {
-    await getAuthOrgId();
+    orgId = (await getAuthOrgId()).orgId;
   } catch {
     redirect('/login');
   }
@@ -39,13 +41,15 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   if (!booking) notFound();
 
   const lineIds = booking.lines.map((l: any) => l.id);
-  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry] = await Promise.all([
+  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry, timeZone] = await Promise.all([
     listClients(),
     listPackages(),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     Promise.resolve({} as Record<string, any>),
     getEnquiryForBooking(booking.id),
+    // Whose wall clock the date field shows and sends.
+    studioTimezone(orgId),
   ]);
 
   // Configuration is per line, so it's fetched per line.
@@ -116,6 +120,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           coverPosition={(booking as any).cover_position ?? null}
           suggestedMinutes={suggestedMinutes}
           clients={clientOptions}
+          timeZone={timeZone}
         />
 
         {/*
