@@ -121,7 +121,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           suggestedMinutes={suggestedMinutes}
           clients={clientOptions}
           timeZone={timeZone}
-        />
+        >
 
         {/*
           Lines are child records with their own lifecycle, so they commit as
@@ -228,6 +228,28 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             currencyCode={currencyCode}
           />
         </div>
+        </BookingRecordForm>
+
+        {/*
+          * WHERE THE REST OF THE JOB IS.
+          *
+          * Taking a booking internally runs through six sections — the record,
+          * the packages, the work, the invoice, the contract, the client's
+          * confirmation. Editing one shows the first two, and an operator who
+          * came here to change something reasonably wonders where the other
+          * four went.
+          *
+          * They are on the booking itself, deliberately: they are how the work
+          * is going rather than what was agreed, and they are all things you
+          * should be able to do without opening an editor first. What was
+          * missing was anybody saying so — the same sentence the new-booking
+          * form ends with, for the same reason.
+          */}
+        <p className="q-meta-sm">
+          Crew, tasks, deliveries, invoices and the contract live on{' '}
+          <Link href={`/bookings/${booking.id}`} className="q-plain-link">the booking itself</Link>,
+          where they can be changed without coming through here.
+        </p>
 
         {/* Deleting is the one thing here with nothing to undo it, so it sits
             apart from the fields rather than beside a Save button. */}

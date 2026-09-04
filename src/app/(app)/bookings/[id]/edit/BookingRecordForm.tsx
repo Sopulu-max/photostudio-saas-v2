@@ -46,6 +46,7 @@ export function BookingRecordForm({
   suggestedMinutes,
   clients,
   timeZone,
+  children,
 }: {
   bookingId: string;
   title: string;
@@ -65,6 +66,13 @@ export function BookingRecordForm({
    * in the studio, whoever happens to be looking at it and from where.
    */
   timeZone: string;
+  /**
+   * What else this page edits, rendered between the record's own fields and the
+   * button that ends the page. Passed in rather than reached for, because those
+   * sections are server-rendered and commit as you go — they are not this
+   * form's to save, only to sit above.
+   */
+  children?: React.ReactNode;
 }) {
   const initial = {
     title,
@@ -160,6 +168,21 @@ export function BookingRecordForm({
     : null;
 
   return (
+    /*
+     * THE SAVE BUTTON GOES LAST, BECAUSE IT IS LAST.
+     *
+     * This card used to end with Save, and the whole "What they're booking"
+     * section came AFTER it — so the page's primary action sat halfway down
+     * with an entire editable section beneath it. An operator who filled in the
+     * top, pressed Save and left never saw the packages at all; and Save being
+     * above them implied, wrongly, that it had anything to do with them.
+     *
+     * So the record's own fields keep their card, whatever else the page is
+     * showing renders next, and the action row closes the page. The internal
+     * booking form has always read this way — its sections run in order and its
+     * button is the last thing on the page.
+     */
+    <div className="q-stack q-stack-lg">
     <div className="q-card q-section q-stack q-stack-lg">
       <div className="q-stack q-stack-sm">
         <label className="q-label" htmlFor="booking-title">What this booking is called</label>
@@ -262,6 +285,12 @@ export function BookingRecordForm({
           */}
         <DayContext when={when} timeZone={timeZone} exceptBookingId={bookingId} />
       </div>
+
+      </div>
+
+      {/* Whatever else this page is editing — the packages, above the button
+          that ends the page rather than below it. */}
+      {children}
 
       {/*
         * A DISABLED BUTTON SAYS WHY IT IS DISABLED.
