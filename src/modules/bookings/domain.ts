@@ -2209,8 +2209,19 @@ async function resolveEnquiry(orgId: string, metadata: any): Promise<{
 export async function getEnquiryForBooking(bookingId: string): Promise<{
   message: string | null;
   chosen: { dimension: string; value: string }[];
-  /** Whether a service and package could actually be built from this. */
-  extractable: boolean;
+  /*
+   * NO `resolvable` FLAG, DELIBERATELY.
+   *
+   * There was one — `extractable`, computed as "did they answer anything" —
+   * and it was the enquiry asserting something about itself that only the
+   * relation can say. An enquiry can answer three questions and still have
+   * nothing that admits it; another can answer one and be covered twice over.
+   *
+   * Being able is the medium through which an enquiry shows itself resolvable,
+   * so the two lists below ARE the answer. A caller that wants to know whether
+   * anything can be done reads whether anything came back, which cannot drift
+   * from the truth because it is not a second copy of it.
+   */
   /** Offers that already cover what they described, best fit first. */
   offers: { id: string; name: string; price: any; serviceNames: string[]; carried: number }[];
   /** Capabilities that could deliver it, if no offer does. */
@@ -2253,7 +2264,6 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
   return {
     message,
     chosen: chosen.map((c) => ({ dimension: c.dimension, value: c.value })),
-    extractable: chosen.length > 0,
     offers: offers as any[],
     capabilities: (capabilities as any[]).map((c) => ({
       id: c.id, name: c.name, domainName: c.domainName, carried: c.carried,

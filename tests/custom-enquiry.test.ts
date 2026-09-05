@@ -62,7 +62,7 @@ describe('a client who did not pick a package', () => {
     /*
      * A service defines the domain's vocabulary, which is what the public
      * enquiry form asks with. Without one there are no dimensions to offer and
-     * the extractable case cannot be reached.
+     * nothing can be resolved against.
      */
     const seeded = await createService({
       name: 'Portrait Session',
@@ -120,7 +120,13 @@ describe('a client who did not pick a package', () => {
     // Resolved into the studio's vocabulary, not handed back as UUIDs.
     expect(enquiry!.chosen, 'the answers did not resolve to what the studio calls them')
       .toEqual([{ dimension: 'Occasion', value: 'Wedding' }]);
-    expect(enquiry!.extractable).toBe(true);
+    /*
+     * Resolvable because something CAN do it, not because they answered. There
+     * was a flag saying "they answered something", which is the enquiry
+     * asserting about itself what only the relation can say.
+     */
+    expect(enquiry!.capabilities.map((c) => c.name),
+      'nothing the studio does was found to admit this').toContain('Portrait Session');
   }, 120000);
 
   it('is assembled from what the studio already does, never invented', async () => {
@@ -261,7 +267,6 @@ describe('a client who did not pick a package', () => {
 
     const enquiry = await getEnquiryForBooking(bookingId);
     expect(enquiry!.message).toBe('Just some pictures');
-    expect(enquiry!.extractable, 'a button was offered that has nothing to build from').toBe(false);
 
     // Nothing to test against, so nothing is offered to build from either.
     expect(enquiry!.capabilities, 'capabilities were offered for an empty enquiry').toEqual([]);
