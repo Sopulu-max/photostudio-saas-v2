@@ -258,7 +258,9 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             dimensions={[...new Map(
               Object.values(dimensionsByDomain).flat().map((d: any) => [d.id, d]),
             ).values()] as any}
-            onBooking={(id: string) => booking.lines.filter((l: any) => l.package_id === id).length}
+            /* The ids themselves, not a function over them — this page is a
+               server component and a closure cannot cross into a client one. */
+            packagesOnBooking={booking.lines.map((l: any) => l.package_id).filter(Boolean)}
             variantsByPackage={variantsByPackage}
             currencyCode={currencyCode}
           />

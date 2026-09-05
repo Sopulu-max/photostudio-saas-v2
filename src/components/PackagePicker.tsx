@@ -328,20 +328,30 @@ export function PackagePicker({
                           </div></div>
 
                           {/*
-                            * Creating is always offered, not only when the list
-                            * comes back empty: an operator often knows before
-                            * they look that this one is bespoke. The name they
-                            * typed and the classifications they narrowed by both
-                            * carry into the new package, which is why the query
-                            * has to come back out of the filter.
+                            * Creating is always offered WHERE IT IS ON OFFER,
+                            * not only when the list comes back empty: an
+                            * operator often knows before they look that this
+                            * one is bespoke. The name they typed and the
+                            * classifications they narrowed by both carry into
+                            * the new package, which is why the query has to
+                            * come back out of the filter.
+                            *
+                            * Absent entirely where the host cannot do it. It
+                            * was rendered unconditionally and called an
+                            * optional prop, so on the booking's edit page it
+                            * appeared and did nothing at all — a dead control
+                            * presenting itself as working, which is worse than
+                            * one that is plainly not there.
                             */}
-                          <button
-                            type="button"
-                            className="q-btn q-btn-secondary"
-                            onClick={() => onCreateBespoke?.(query)}
-                          >
-                            {query ? `Create package: “${query}”` : 'Create a new package'}
-                          </button>
+                          {onCreateBespoke && (
+                            <button
+                              type="button"
+                              className="q-btn q-btn-secondary"
+                              onClick={() => onCreateBespoke(query)}
+                            >
+                              {query ? `Create package: “${query}”` : 'Create a new package'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </CatalogFilter>

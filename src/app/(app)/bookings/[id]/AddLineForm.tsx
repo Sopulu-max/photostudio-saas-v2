@@ -14,7 +14,7 @@ export function AddLineForm({
   bookingId,
   packages,
   dimensions = [],
-  onBooking = () => 0,
+  packagesOnBooking = [],
   variantsByPackage = {},
   currencyCode = 'USD',
 }: {
@@ -23,8 +23,16 @@ export function AddLineForm({
   packages: any[];
   /** Every classification the studio uses, for narrowing the catalogue. */
   dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
-  /** How many of a package are already on this booking. */
-  onBooking?: (packageId: string) => number;
+  /**
+   * The package each existing line points at.
+   *
+   * DATA, NOT A CALLBACK. This was `(packageId) => number`, handed down from
+   * the edit page — which is a server component, so React could not serialise
+   * it and the whole page failed to render with "Event handlers cannot be
+   * passed to Client Component props". A closure cannot cross that boundary;
+   * the list it would have closed over can.
+   */
+  packagesOnBooking?: string[];
   variantsByPackage?: Record<string, Variant | null>;
   currencyCode?: string;
 }) {
@@ -118,7 +126,7 @@ export function AddLineForm({
         values={values}
         onValuesChange={setValues}
         onChoose={(id: string) => addPackageById(id)}
-        alreadyOn={onBooking}
+        alreadyOn={(id: string) => packagesOnBooking.filter((p) => p === id).length}
         currencyCode={currencyCode}
       />
 
