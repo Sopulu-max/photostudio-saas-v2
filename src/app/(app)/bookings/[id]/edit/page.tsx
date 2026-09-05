@@ -6,6 +6,7 @@ import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { studioTimezone } from '@/kernel/studioHours';
+import { listDimensionsByDomain } from '@/modules/services/interface';
 import { formatMoney } from '@/kernel/currency';
 import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
@@ -41,7 +42,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   if (!booking) notFound();
 
   const lineIds = booking.lines.map((l: any) => l.id);
-  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry, timeZone] = await Promise.all([
+  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry, timeZone, dimensionsByDomain] = await Promise.all([
     listClients(),
     listPackages(),
     suggestedDurationForBooking(booking.id),
@@ -50,6 +51,8 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     getEnquiryForBooking(booking.id),
     // Whose wall clock the date field shows and sends.
     studioTimezone(orgId),
+    // What the catalogue can be narrowed by — the studio's own vocabulary.
+    listDimensionsByDomain(),
   ]);
 
   // Configuration is per line, so it's fetched per line.
@@ -84,10 +87,22 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     }))
     .filter((c: { id: string }) => !!c.id);
 
+  /*
+   * The whole package, not an id and a name.
+   *
+   * This was flattened to `{ id, name }` because a <select> was all that read
+   * it. The picker shows what the new-booking form shows — cover, price,
+   * services, what it promises — and narrows by classification, so it needs the
+   * row rather than a label.
+   */
   const packageOptions = (packageRows as any[])
     .filter((p) => p.status !== 'retired')
-    .map((p) => ({ id: p.id as string, name: p.name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map((p) => ({
+      ...p,
+      coverUrl: (p.cover_url ?? null) as string | null,
+      coverPosition: (p.cover_position ?? null) as string | null,
+    }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
   const variantsByPackage: Record<string, any> = {};
   for (const p of packageRows as any[]) {
@@ -138,15 +153,6 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           {booking.lines.length === 0 ? (
             <div className="q-stack q-stack-sm">
               <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
-              {/* A custom enquiry said something; this is where it gets acted on. */}
-              {enquiry && <ResolveEnquiry
-                bookingId={booking.id}
-                chosen={enquiry.chosen}
-                message={enquiry.message}
-                offers={enquiry.offers}
-                capabilities={enquiry.capabilities}
-                currencyCode={currencyCode}
-              />}
             </div>
           ) : (
             <div className="q-stack">
@@ -228,9 +234,31 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             </div>
           )}
 
+          {/* What the client described, and what can answer it — whether or
+              not something is already on the booking. */}
+          {enquiry && (
+            <div style={{ marginBottom: '16px' }}>
+              <ResolveEnquiry
+                bookingId={booking.id}
+                chosen={enquiry.chosen}
+                message={enquiry.message}
+                offers={enquiry.offers}
+                capabilities={enquiry.capabilities}
+                currencyCode={currencyCode}
+                alreadyOn={booking.lines.length > 0}
+              />
+            </div>
+          )}
+
           <AddLineForm
             bookingId={booking.id}
             packages={packageOptions}
+            /* Deduplicated across domains: the same dimension offered by two
+               domains is one question, not two. */
+            dimensions={[...new Map(
+              Object.values(dimensionsByDomain).flat().map((d: any) => [d.id, d]),
+            ).values()] as any}
+            onBooking={(id: string) => booking.lines.filter((l: any) => l.package_id === id).length}
             variantsByPackage={variantsByPackage}
             currencyCode={currencyCode}
           />

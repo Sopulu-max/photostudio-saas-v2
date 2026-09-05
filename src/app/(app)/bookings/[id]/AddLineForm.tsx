@@ -5,28 +5,58 @@ import { useRouter } from 'next/navigation';
 import { addBookingLine } from '@/modules/bookings/interface';
 import { formatMoney } from '@/kernel/currency';
 import { toast } from '@/components/Toast';
+// The same catalogue the new-booking form shows. This was a dropdown of names.
+import { PackagePicker } from '@/components/PackagePicker';
 
 type Variant = { axis_label: string; tiers: { label: string; price: number }[] };
 
 export function AddLineForm({
   bookingId,
   packages,
+  dimensions = [],
+  onBooking = () => 0,
   variantsByPackage = {},
   currencyCode = 'USD',
 }: {
   bookingId: string;
   /** What a client can book — Packages, never raw Services. */
-  packages: { id: string; name: string }[];
+  packages: any[];
+  /** Every classification the studio uses, for narrowing the catalogue. */
+  dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
+  /** How many of a package are already on this booking. */
+  onBooking?: (packageId: string) => number;
   variantsByPackage?: Record<string, Variant | null>;
   currencyCode?: string;
 }) {
   const [packageId, setPackageId] = useState('');
   const [custom, setCustom] = useState('');
+  /** The catalogue's own narrowing, which belongs to the catalogue. */
+  const [values, setValues] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const [addingTier, setAddingTier] = useState<number | null>(null);
   const router = useRouter();
 
   const variant = packageId ? variantsByPackage[packageId] : null;
+
+  /*
+   * A package with priced tiers asks which one before it goes on. Everything
+   * else goes on at once — the click IS the decision, and a second confirming
+   * step for a choice already made is the "Add another package" button the new
+   * booking form deleted.
+   */
+  const addPackageById = (id: string) => {
+    if (variantsByPackage[id]) { setPackageId(id); return; }
+    startTransition(async () => {
+      try {
+        await addBookingLine({ bookingId, packageId: id, title: '' });
+        setPackageId('');
+        router.refresh();
+      } catch (e) {
+        console.error(e);
+        toast.bad('Failed to add it.');
+      }
+    });
+  };
 
   const add = () => {
     if (!packageId && !custom.trim()) return;
@@ -71,38 +101,51 @@ export function AddLineForm({
   };
 
   return (
-    <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
+    <div className="q-stack q-stack-md" style={{ marginTop: '16px' }}>
+      {/*
+        * THE CATALOGUE, NOT A LIST OF NAMES.
+        *
+        * This was a <select> of package names — no picture, no price, no
+        * services, no way to narrow by what the job actually is — while the
+        * new-booking form showed the same catalogue as cards you could filter
+        * by classification and search. One catalogue, two screens, two
+        * completely different experiences of choosing from it, and the thinner
+        * one was on the page you reach when correcting a booking.
+        */}
+      <PackagePicker
+        packages={packages}
+        dimensions={dimensions}
+        values={values}
+        onValuesChange={setValues}
+        onChoose={(id: string) => addPackageById(id)}
+        alreadyOn={onBooking}
+        currencyCode={currencyCode}
+      />
+
+      {/*
+        * A one-off charge is not a package and never was.
+        *
+        * Travel, an extra hour, a print run billed at cost — these have no
+        * services, no deliverables and no work, and forcing them through the
+        * catalogue would mean inventing a package to hold a number. Kept
+        * separate, and plainly named.
+        */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-        <select
-          className="q-select"
-          value={packageId}
-          onChange={(e) => { setPackageId(e.target.value); if (e.target.value) setCustom(''); }}
-          style={{ minWidth: '12rem' }}
-        >
-          <option value="">Add a package…</option>
-          {packages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <span style={{ fontSize: '0.8rem', color: 'var(--q-color-ink-400)' }}>or</span>
         <input
           className="q-input"
-          placeholder="a one-off charge, e.g. Travel"
+          placeholder="or a one-off charge, e.g. Travel"
           value={custom}
-          onChange={(e) => { setCustom(e.target.value); if (e.target.value) setPackageId(''); }}
-          style={{ minWidth: '12rem' }}
+          onChange={(e) => setCustom(e.target.value)}
+          style={{ minWidth: '14rem' }}
         />
-        {!variant && (
-          // The label names what you're actually adding — a package or a
-          // one-off charge — rather than "line", which is the shape the two
-          // share, not a thing anyone books.
-          <button className="q-btn q-btn-secondary" onClick={add} disabled={isPending || (!packageId && !custom.trim())}>
-            {isPending ? 'Adding…' : custom.trim() ? 'Add charge' : 'Add package'}
-          </button>
-        )}
-        {/* Says why it will not go, rather than sitting greyed out in silence.
-            The same answer the new-booking form gives to the same question. */}
-        {!variant && !packageId && !custom.trim() && (
-          <span className="q-meta-sm">Choose a package, or name a one-off charge.</span>
-        )}
+        <button
+          className="q-btn q-btn-secondary"
+          onClick={add}
+          disabled={isPending || !custom.trim()}
+        >
+          {isPending ? 'Adding…' : 'Add charge'}
+        </button>
+        {!custom.trim() && <span className="q-meta-sm">Name a one-off charge to add one.</span>}
       </div>
 
       {variant && (
