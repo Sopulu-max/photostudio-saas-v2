@@ -352,14 +352,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">add a package</Link>{' '}
                 whenever you know what they want.
               </p>
-              {enquiry && <ResolveEnquiry
-                bookingId={booking.id}
-                chosen={enquiry.chosen}
-                message={enquiry.message}
-                offers={enquiry.offers}
-                capabilities={enquiry.capabilities}
-                currencyCode={currencyCode}
-              />}
             </div>
           ) : (
             <div className="q-stack">
@@ -440,6 +432,25 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               })}
             </div>
           )}
+          {/*
+            * What the client described, kept in view whether or not anything
+            * has been put on the booking yet. It used to vanish the moment a
+            * line existed, taking the rest of their request with it.
+            */}
+          {enquiry && (
+            <div style={{ marginTop: lines.length > 0 ? '16px' : 0 }}>
+              <ResolveEnquiry
+                bookingId={booking.id}
+                chosen={enquiry.chosen}
+                message={enquiry.message}
+                offers={enquiry.offers}
+                capabilities={enquiry.capabilities}
+                currencyCode={currencyCode}
+                alreadyOn={lines.length > 0}
+              />
+            </div>
+          )}
+
           {/*
             * NO TASK LIST HERE, DELIBERATELY. The work is in the Tasks section
             * below, as one list, with the package each step came from shown

@@ -36,6 +36,7 @@ export function ResolveEnquiry({
   offers,
   capabilities,
   currencyCode,
+  alreadyOn,
 }: {
   bookingId: string;
   chosen: { dimension: string; value: string }[];
@@ -43,10 +44,24 @@ export function ResolveEnquiry({
   offers: { id: string; name: string; price: any; serviceNames: string[]; carried: number }[];
   capabilities: { id: string; name: string; domainName: string | null; carried: number }[];
   currencyCode: string;
+  /**
+   * Whether something is already on the booking.
+   *
+   * This used to render only on an empty booking, so the moment one package
+   * went on, what the client had actually asked for disappeared — along with
+   * any way to act on the rest of it. A client who described a wedding wants
+   * photography AND video more often than not, and the second half of that
+   * request should not vanish because the first half was answered.
+   *
+   * So it stays, and steps back: folded away, under a heading that says what it
+   * is, rather than presenting itself as the thing to do next.
+   */
+  alreadyOn: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [picked, setPicked] = useState<string[]>([]);
+  const [open, setOpen] = useState(!alreadyOn);
 
   const run = (fn: () => Promise<unknown>) => startTransition(async () => {
     try { await fn(); router.refresh(); }
@@ -58,9 +73,18 @@ export function ResolveEnquiry({
 
   return (
     <div className="q-tile q-stack q-stack-md">
-      <div>
-        <strong className="q-strong">What they asked for</strong>
-        <span className="q-meta-sm"> · nothing chosen yet</span>
+      <div className="q-row q-row-between">
+        <div>
+          <strong className="q-strong">What they asked for</strong>
+          <span className="q-meta-sm">
+            {alreadyOn ? ' · already partly answered' : ' · nothing chosen yet'}
+          </span>
+        </div>
+        {alreadyOn && (
+          <button type="button" className="q-btn-ghost q-btn-xs" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Hide' : 'Add more of what they asked for'}
+          </button>
+        )}
       </div>
 
       {message && <p className="q-text-body q-prewrap">{message}</p>}
@@ -78,7 +102,7 @@ export function ResolveEnquiry({
       )}
 
       {/* 1. Something already sold that covers it. */}
-      {offers.length > 0 && (
+      {open && offers.length > 0 && (
         <div className="q-stack q-stack-sm">
           <strong className="q-strong">You already sell this</strong>
           <span className="q-meta-sm">Best fit first. Adding one puts this booking&rsquo;s own copy of it on the booking.</span>
@@ -90,6 +114,16 @@ export function ResolveEnquiry({
                   {o.serviceNames.join(' + ') || 'No services'}
                   {o.price?.base_price != null && ` · ${formatMoney(o.price.base_price, o.price.currency || currencyCode)}`}
                 </div>
+                {/* Why it is here, said out loud — the same reading shown
+                    against a capability. An offer ranked without saying why is
+                    a recommendation the operator has to take on trust. */}
+                {chosen.length > 0 && (
+                  <div className="q-meta-sm">
+                    {o.carried > 0
+                      ? `Covers ${o.carried} of ${chosen.length} ${chosen.length === 1 ? 'answer' : 'answers'} outright`
+                      : 'Does not rule any of it out'}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -105,7 +139,7 @@ export function ResolveEnquiry({
       )}
 
       {/* 2. Nothing sold, but something the studio does. */}
-      {capabilities.length > 0 && (
+      {open && capabilities.length > 0 && (
         <div className="q-stack q-stack-sm">
           <strong className="q-strong">
             {offers.length > 0 ? 'Or put something together' : 'You can do this'}
@@ -154,7 +188,7 @@ export function ResolveEnquiry({
       )}
 
       {/* 3. Genuinely new. */}
-      {offers.length === 0 && capabilities.length === 0 && (
+      {open && offers.length === 0 && capabilities.length === 0 && (
         <p className="q-meta-sm">
           Nothing you offer or do covers this yet. If it is work you want to take on, define it
           in <Link href="/services" className="q-plain-link">Services</Link> first — that is a
