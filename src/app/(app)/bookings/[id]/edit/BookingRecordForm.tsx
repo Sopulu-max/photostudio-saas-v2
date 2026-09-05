@@ -46,6 +46,7 @@ export function BookingRecordForm({
   suggestedMinutes,
   clients,
   timeZone,
+  atPremises,
   children,
 }: {
   bookingId: string;
@@ -66,6 +67,8 @@ export function BookingRecordForm({
    * in the studio, whoever happens to be looking at it and from where.
    */
   timeZone: string;
+  /** Whether what is booked needs the studio's building — see DayContext. */
+  atPremises?: boolean | null;
   /**
    * What else this page edits, rendered between the record's own fields and the
    * button that ends the page. Passed in rather than reached for, because those
@@ -283,7 +286,7 @@ export function BookingRecordForm({
           * than when first writing it down. Excluding this booking, which would
           * otherwise report itself as the thing it clashes with.
           */}
-        <DayContext when={when} timeZone={timeZone} exceptBookingId={bookingId} />
+        <DayContext when={when} timeZone={timeZone} exceptBookingId={bookingId} atPremises={atPremises} />
       </div>
 
       </div>

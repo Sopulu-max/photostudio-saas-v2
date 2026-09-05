@@ -37,6 +37,9 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createBooking, updateBookingRecord, whatElseIsOn, studioDay } from '@/modules/bookings/domain';
+import { createService, setValueAtPremises, needsPremises, getPublicIntakeDimensions } from '@/modules/services/domain';
+import { createPackage } from '@/modules/packages/domain';
+import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
 import { wallClockIn, isWallClock } from '@/kernel/wallClock';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
@@ -183,6 +186,81 @@ describe('when a booking is', () => {
     expect(day, 'the day could not be described at all').toBeTruthy();
     expect(typeof day.closed, 'a day did not say whether it is closed').toBe('boolean');
   }, 120000);
+
+
+  it('opening hours constrain work at the studio, and nothing else', async () => {
+    /*
+     * OPENING HOURS ARE A FACT ABOUT A BUILDING.
+     *
+     * They constrain a session held in it and say nothing whatever about a
+     * wedding at somebody else's venue. The public path enforced them on
+     * everything, so a studio opening at 13:00 on Sundays refused a Sunday
+     * MORNING WEDDING through its own booking link, because the office was
+     * shut. For a photography business that is most of the weddings.
+     *
+     * The studio already draws this distinction in its own words; what it now
+     * also does is say which of those words mean the building. Nothing infers
+     * that from a name — another studio will call them something else, and
+     * guessing meaning from names is what once promoted a classification value
+     * to a service and filed it under the wrong domain.
+     */
+    const DAY = '2026-11-15';
+    const { error: hoursError } = await supabaseAdmin.from('studio_hours').insert({
+      organization_id: TEST_ORG_ID, on_date: DAY, opens_at: '13:00:00', closes_at: '20:00:00', closed: false,
+    });
+    expect(hoursError, 'could not publish hours for the test day').toBeFalsy();
+
+    // The studio's own vocabulary for where work happens.
+    const atOurs = await createService({
+      name: 'Sitting', serviceDomain: 'Photography',
+      dimensions: [{ name: 'Where', values: ['At ours', 'At theirs'] }],
+    });
+    const config = await getPublicIntakeDimensions(TEST_ORG_ID);
+    const where = config.find((d) => d.name === 'Where')!;
+    const ours = where.values.find((v) => v.name === 'At ours')!;
+    const theirs = where.values.find((v) => v.name === 'At theirs')!;
+
+    // Nothing declared yet: unknown must not close a door.
+    expect(await needsPremises([ours.id]), 'silence was read as a building').toBeNull();
+
+    await setValueAtPremises({ valueId: ours.id, atPremises: true });
+    expect(await needsPremises([ours.id]), 'the declared value does not need the building').toBe(true);
+    expect(await needsPremises([theirs.id]), 'a value that is not the building claims to be').toBe(false);
+
+    const studioPkg = await createPackage({
+      name: 'Studio sitting', serviceIds: [atOurs.serviceId],
+      narrowings: [{ serviceId: atOurs.serviceId, valueId: ours.id }],
+    });
+    const awayPkg = await createPackage({
+      name: 'On location', serviceIds: [atOurs.serviceId],
+      narrowings: [{ serviceId: atOurs.serviceId, valueId: theirs.id }],
+    });
+
+    // 09:00, four hours before the studio opens.
+    const morning = `${DAY}T09:00`;
+
+    // The one held at the studio is refused, which is right — nobody is there.
+    await expect(submitBookingForm(TEST_ORG_ID, studioPkg.packageId, {
+      firstName: 'Uche', lastName: 'Studio', email: 'uche.studio@example.com', phone: '',
+      customFields: {}, scheduledFor: morning,
+    } as any), 'a studio session was accepted before the studio opens').rejects.toThrow();
+
+    /*
+     * And the one at the client's venue goes through. This is the booking the
+     * studio was losing: the work does not happen in the building, so when the
+     * building opens has nothing to do with it.
+     */
+    const away = await submitBookingForm(TEST_ORG_ID, awayPkg.packageId, {
+      firstName: 'Uche', lastName: 'Away', email: 'uche.away@example.com', phone: '',
+      customFields: {}, scheduledFor: morning,
+    } as any);
+    expect(away.bookingId, 'a shoot at the client’s venue was refused for the studio’s hours').toBeTruthy();
+
+    const { data: booked } = await supabaseAdmin
+      .from('bookings').select('scheduled_for').eq('id', away.bookingId).single();
+    expect(wallClockIn(booked!.scheduled_for, STUDIO_TZ),
+      'the accepted booking did not land at the time that was asked for').toBe(morning);
+  }, 300000);
 
   it('leaves an instant alone rather than reading it as a wall clock', async () => {
     /*

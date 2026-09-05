@@ -1443,3 +1443,176 @@ export async function servicesAdmitting(answers: { dimensionId: string; valueId:
 
   return rankByFit(candidates, answers).map(({ item, carried }) => ({ ...item, carried }));
 }
+
+/**
+ * WHETHER WORK CLASSIFIED THIS WAY NEEDS THE STUDIO'S OWN PREMISES.
+ *
+ * Opening hours are a fact about a building. They constrain a session in it and
+ * say nothing about a wedding at somebody's venue — but the public booking path
+ * enforced them on everything, so a studio opening at 13:00 on Sundays refused
+ * a Sunday morning wedding because its office was shut.
+ *
+ * The studio already draws this distinction in its own vocabulary; what it now
+ * also does is SAY which of its values mean the building. Nothing here infers
+ * that from a name: a dimension called Context and a value called Studio are
+ * Glamour's words, another studio will use different ones, and guessing meaning
+ * from names is what promoted a classification value to a service.
+ *
+ * UNKNOWN IS NOT FALSE, AND THE CALLER MUST TELL THEM APART. `null` means the
+ * studio has said nothing about any of these values, which is different from
+ * having said "not the building". The first must not close a door; the second
+ * may.
+ */
+export async function needsPremises(valueIds: string[]): Promise<boolean | null> {
+  if (valueIds.length === 0) return null;
+  const { orgId } = await getAuthOrgId();
+  return needsPremisesFor(orgId, valueIds);
+}
+
+/**
+ * The same question, for the paths that have no session — a stranger on the
+ * public booking page, whose organization comes from the URL's slug.
+ */
+export async function needsPremisesFor(orgId: string, valueIds: string[]): Promise<boolean | null> {
+  if (valueIds.length === 0) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id, at_premises')
+    .eq('organization_id', orgId)
+    .in('id', valueIds);
+  if (error) {
+    console.error('Failed to read which work needs the premises:', error);
+    return null;
+  }
+
+  const rows = (data || []) as { id: string; at_premises: boolean }[];
+  if (rows.length === 0) return null;
+  // Any one of them needing the building is enough: a booking that includes a
+  // studio session has to happen when the studio is open, whatever else it
+  // also includes.
+  if (rows.some((r) => r.at_premises)) return true;
+
+  /*
+   * Every value is known and none needs the building — but only if the studio
+   * has actually declared this somewhere. A studio that has never marked
+   * anything has not said "none of it", it has said nothing, and the two must
+   * not read the same.
+   */
+  const { count } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .eq('at_premises', true);
+  return (count ?? 0) > 0 ? false : null;
+}
+
+/** Mark a value as work that happens at the studio's own premises, or not. */
+export async function setValueAtPremises(input: { valueId: string; atPremises: boolean }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('dimension_values')
+    .update({ at_premises: input.atPremises })
+    .eq('id', input.valueId)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to say whether that needs the premises:', error);
+    throw new Error('That could not be changed.');
+  }
+  revalidatePath('/services/settings');
+  revalidatePath('/services/classifications');
+  return { ok: true };
+}
+
+/**
+ * Every value the studio has said means its own premises.
+ *
+ * Handed to the browser as plain data so a form can decide, as packages are
+ * chosen and unchosen, whether the studio's hours are anything to do with what
+ * is being booked. A list crosses that boundary; a question asked per keystroke
+ * would be a round trip per keystroke.
+ */
+export async function premisesValueIds(): Promise<string[]> {
+  const { orgId } = await getAuthOrgId();
+  return premisesValueIdsFor(orgId);
+}
+
+/** The same, for the public path, which has a slug rather than a session. */
+export async function premisesValueIdsFor(orgId: string): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from('dimension_values')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('at_premises', true);
+  return ((data || []) as { id: string }[]).map((r) => r.id);
+}
+
+/**
+ * WHICH VALUES A VARIABLE IS ASKED FOR.
+ *
+ * A variable declared on a classification is asked whenever a booking carries
+ * that classification, which is right for some and wrong for others. An
+ * Occasion has a date whichever occasion it is; a Location Address is a
+ * question about work held somewhere else, and asking it of a studio sitting
+ * asks for something choosing "Studio" already answered.
+ *
+ * Returned as ids per variable, and a variable absent from the map applies to
+ * EVERY value of its dimension. Silence is permission — the same rule the
+ * classification kernel keeps, and the reason nothing needed backfilling.
+ */
+export async function variableValueNarrowings(
+  variableIds: string[],
+): Promise<Record<string, string[]>> {
+  if (variableIds.length === 0) return {};
+  const { orgId } = await getAuthOrgId();
+  return variableValueNarrowingsFor(orgId, variableIds);
+}
+
+/** The same, for the public path, which has a slug rather than a session. */
+export async function variableValueNarrowingsFor(
+  orgId: string,
+  variableIds: string[],
+): Promise<Record<string, string[]>> {
+  if (variableIds.length === 0) return {};
+  const { data } = await supabaseAdmin
+    .from('variable_dimension_values')
+    .select('variable_id, dimension_value_id')
+    .eq('organization_id', orgId)
+    .in('variable_id', variableIds);
+
+  const out: Record<string, string[]> = {};
+  for (const r of ((data || []) as any[])) {
+    (out[r.variable_id] ||= []).push(r.dimension_value_id);
+  }
+  return out;
+}
+
+
+/** Say which values of its dimension a variable is asked for. Empty means all. */
+export async function setVariableAskedFor(input: { variableId: string; valueIds: string[] }) {
+  const { orgId } = await getAuthOrgId();
+
+  const { error: clearError } = await supabaseAdmin
+    .from('variable_dimension_values')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('variable_id', input.variableId);
+  if (clearError) {
+    console.error('Failed to clear where a question is asked:', clearError);
+    throw new Error('That could not be changed.');
+  }
+
+  const rows = [...new Set(input.valueIds)].map((dimension_value_id) => ({
+    organization_id: orgId, variable_id: input.variableId, dimension_value_id,
+  }));
+  if (rows.length > 0) {
+    const { error } = await supabaseAdmin.from('variable_dimension_values').insert(rows);
+    if (error) {
+      console.error('Failed to say where a question is asked:', error);
+      throw new Error('That could not be changed.');
+    }
+  }
+
+  revalidatePath('/services/settings');
+  return { ok: true };
+}

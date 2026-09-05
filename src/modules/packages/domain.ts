@@ -1580,6 +1580,15 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
    * classification the package does not carry.
    */
   const dimensionIds = new Set<string>();
+  /*
+   * The values themselves, not only which questions they belong to.
+   *
+   * A variable declared on a classification may be asked for only SOME of its
+   * values — Location Address belongs to Context, and choosing Studio answers
+   * it rather than raising it. Deciding that needs to know which values are
+   * actually in play, not merely which dimensions.
+   */
+  const valueIdsInPlay = new Set<string>();
   for (const row of ((rows || []) as any[])) {
     const narrowed = ((row.package_service_dimension_values || []) as any[])
       .map((l) => l.dimension_value).filter(Boolean);
@@ -1587,15 +1596,32 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       .map((l) => l.dimension_value).filter(Boolean);
     for (const v of (narrowed.length > 0 ? narrowed : inherited)) {
       if (v.dimension_id) dimensionIds.add(v.dimension_id);
+      if (v.id) valueIdsInPlay.add(v.id);
     }
   }
 
-  const dimensionVariables = dimensionIds.size === 0 ? [] : (await supabaseAdmin
+  const declaredOnDimensions = dimensionIds.size === 0 ? [] : (await supabaseAdmin
     .from('variables')
     .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
     .order('position')).data || [];
+
+  /*
+   * Dropped where the classification has already settled them.
+   *
+   * A studio sitting was asked for its Location Address, because the variable
+   * hangs off Context and Context was in play — so the form asked for something
+   * choosing "Studio" had answered. A variable that has named no values is
+   * asked always, which is why nothing already declared changes behaviour.
+   */
+  const { variableValueNarrowingsFor } = await import('@/modules/services/interface');
+  const { variableApplies } = await import('@/kernel/classification');
+  const askedFor = await variableValueNarrowingsFor(
+    orgId, (declaredOnDimensions as any[]).map((v) => v.id),
+  );
+  const dimensionVariables = (declaredOnDimensions as any[])
+    .filter((v) => variableApplies(askedFor[v.id], valueIdsInPlay));
 
   /*
    * AND WHAT THE DELIVERABLES BRING WITH THEM.
@@ -2078,4 +2104,30 @@ export async function packagesAdmitting(answers: { dimensionId: string; valueId:
   });
 
   return rankByFit(candidates, answers).map(({ item, carried }) => ({ ...item, carried }));
+}
+
+/**
+ * Every classification value a package narrows itself to, flat.
+ *
+ * Asked when something needs to know what a booking of this package IS —
+ * whether it needs the studio's own building, above all. The narrowing lives on
+ * each bundled service; the question is about the package, so they come back
+ * together.
+ *
+ * Takes the organization explicitly, because the caller is often the public
+ * booking path, which has a slug rather than a session.
+ */
+export async function packageNarrowingValueIds(orgId: string, packageId: string): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from('packages')
+    .select('id, package_services(package_service_dimension_values(dimension_value_id))')
+    .eq('organization_id', orgId)
+    .eq('id', packageId)
+    .maybeSingle();
+  if (error || !data) return [];
+
+  return [...new Set(((data as any).package_services || [])
+    .flatMap((ps: any) => (ps.package_service_dimension_values || [])
+      .map((l: any) => l.dimension_value_id))
+    .filter(Boolean))] as string[];
 }

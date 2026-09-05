@@ -28,6 +28,7 @@ export function DayContext({
   when,
   timeZone,
   exceptBookingId,
+  atPremises,
 }: {
   /** The datetime-local value being chosen — "2026-08-29T10:00", or ''. */
   when: string;
@@ -40,6 +41,19 @@ export function DayContext({
   timeZone: string;
   /** The booking being edited, so it does not report itself as a clash. */
   exceptBookingId?: string;
+  /**
+   * Whether this booking needs the studio's own building.
+   *
+   * Opening hours constrain a session held at the studio and say nothing about
+   * a wedding at somebody else's venue, so they are only shown when they mean
+   * something here. `null` is silence — nothing booked yet, or the studio has
+   * never said which of its work needs the building — and silence says nothing
+   * rather than asserting the hours are relevant.
+   *
+   * WHAT ELSE IS ON THAT DAY IS SHOWN REGARDLESS. Two weddings on one Saturday
+   * is a crew problem whether or not either is at the studio.
+   */
+  atPremises?: boolean | null;
 }) {
   const [dayHours, setDayHours] = useState<
     { opensAt: string | null; closesAt: string | null; closed: boolean; label: string | null } | null
@@ -68,7 +82,7 @@ export function DayContext({
 
   return (
     <>
-      {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
+      {atPremises === true && dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
         // Compared as wall clocks within one studio day, so no timezone
         // arithmetic reaches the decision — the same rule the server applies.
         const t = when.slice(11, 16);

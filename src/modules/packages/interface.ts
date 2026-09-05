@@ -25,6 +25,8 @@ export {
   // Both booking paths go through this — it is the rule, not a helper.
   // Which offers already cover what somebody described
   packagesAdmitting,
+  // What a package narrows itself to, for anything that must know what it IS
+  packageNarrowingValueIds,
   // The package a booking should point at — its own copy, made if needed
   ensureInstanceForBooking,
   instantiatePackageForBooking,

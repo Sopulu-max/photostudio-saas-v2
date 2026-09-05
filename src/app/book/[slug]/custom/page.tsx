@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getStudioBySlug } from '@/kernel/organizations';
-import { getPublicIntakeDimensions } from '@/modules/services/interface';
+import { getPublicIntakeDimensions, premisesValueIdsFor } from '@/modules/services/interface';
 import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
 import { BookingForm } from '../[packageId]/BookingForm';
 
@@ -14,9 +14,12 @@ export default async function CustomBookingPage(props: {
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const [dimensionConfig, packages] = await Promise.all([
+  const [dimensionConfig, packages, premisesValues] = await Promise.all([
     getPublicIntakeDimensions(org.id),
     listPackagesPublicWithDimensions(org.id),
+    // So the date field never tells somebody booking a wedding at their own
+    // venue that the studio's office is shut that day.
+    premisesValueIdsFor(org.id),
   ]);
 
   return (
@@ -45,6 +48,7 @@ export default async function CustomBookingPage(props: {
             currencyCode={org.currency || 'USD'}
             dimensionConfig={dimensionConfig}
             availablePackages={packages}
+            premisesValueIds={premisesValues}
             triggerLabel="Start booking"
           />
         </div>

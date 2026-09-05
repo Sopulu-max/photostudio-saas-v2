@@ -123,6 +123,7 @@ export function NewBookingForm({
   taxRate,
   initialPackageId,
   timeZone,
+  premisesValueIds = [],
 }: {
   clients: Option[]; 
   packages: PackageOption[];
@@ -158,6 +159,14 @@ export function NewBookingForm({
   initialPackageId?: string;
   /** The studio's own zone — whose clock a booking's time is on. */
   timeZone: string;
+  /**
+   * The values the studio has said mean its own premises.
+   *
+   * Plain data rather than a question asked per keystroke: whether the hours
+   * apply changes as packages are chosen and unchosen, and a round trip for
+   * each would be a round trip per click.
+   */
+  premisesValueIds?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -351,6 +360,27 @@ export function NewBookingForm({
    * refused is worse than one taken with open eyes.
    */
   const [catalogueValues, setCatalogueValues] = useState<Record<string, string>>({});
+
+  /*
+   * Whether what is being booked needs the studio's own building.
+   *
+   * Opening hours constrain a session held at the studio and say nothing about
+   * a wedding at somebody else's venue. Read from the packages chosen so far,
+   * plus whatever the catalogue is being narrowed by — and null while nothing
+   * has been chosen, because silence is not "no building".
+   */
+  const atPremises = React.useMemo(() => {
+    if (premisesValueIds.length === 0) return null;
+    const marked = new Set(premisesValueIds);
+    const chosenValueIds = [
+      ...lines.flatMap((l) => ((l.selectedPackageDeep?.services || []) as any[])
+        .flatMap((sv: any) => ((sv.narrowedTo || []) as any[])
+          .flatMap((d: any) => (d.values || []).map((v: any) => v.id)))),
+      ...Object.values(catalogueValues).filter(Boolean),
+    ];
+    if (chosenValueIds.length === 0) return null;
+    return chosenValueIds.some((id) => marked.has(id));
+  }, [lines, catalogueValues, premisesValueIds]);
   /** Which package lines arrived since the last render. See useArrivals. */
   const arrived = useArrivals(lines.map((l) => l.id));
 
@@ -1139,7 +1169,7 @@ export function NewBookingForm({
               This is what puts the booking on the calendar. Leave it empty while it is unsettled.
             </span>
 
-            <DayContext when={when} timeZone={timeZone} />
+            <DayContext when={when} timeZone={timeZone} atPremises={atPremises} />
           </div>
           <ClientPicker clients={clients} value={client} onChange={setClient} />
 

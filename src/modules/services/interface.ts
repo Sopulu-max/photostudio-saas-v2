@@ -41,6 +41,11 @@ export {
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
   // Which capabilities can do what somebody described
   servicesAdmitting,
+  // Which work needs the studio's own building, and so its opening hours
+  needsPremises, needsPremisesFor, setValueAtPremises,
+  premisesValueIds, premisesValueIdsFor,
+  // Which values of its dimension a variable is actually asked for
+  variableValueNarrowings, variableValueNarrowingsFor, setVariableAskedFor,
 } from './domain';
 export type { WorkflowInput } from './domain';
 export { listWorkflowsByDomain, saveWorkflow, deleteWorkflow } from './domain';

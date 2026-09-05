@@ -6,7 +6,8 @@ import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { studioTimezone } from '@/kernel/studioHours';
-import { listDimensionsByDomain } from '@/modules/services/interface';
+import { listDimensionsByDomain, needsPremises } from '@/modules/services/interface';
+import { packageNarrowingValueIds } from '@/modules/packages/interface';
 import { formatMoney } from '@/kernel/currency';
 import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
@@ -54,6 +55,25 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     // What the catalogue can be narrowed by — the studio's own vocabulary.
     listDimensionsByDomain(),
   ]);
+
+  /*
+   * Whether this booking needs the studio's own building.
+   *
+   * Read from what is on it — each line's package narrowing, plus what the
+   * client answered if it is still an enquiry. Opening hours constrain a
+   * session held at the studio and say nothing about a wedding at somebody
+   * else's venue, so the date field only mentions them when they apply.
+   */
+  const bookedValueIds = [
+    ...(await Promise.all(
+      (booking.lines as any[]).filter((l) => l.package_id)
+        .map((l) => packageNarrowingValueIds(orgId, l.package_id)),
+    )).flat(),
+    ...Object.values(
+      ((booking as any).metadata?.form_responses?.dimensions ?? {}) as Record<string, string>,
+    ).filter(Boolean),
+  ];
+  const atPremises = await needsPremises(bookedValueIds);
 
   // Configuration is per line, so it's fetched per line.
   const configByLine: Record<string, any[]> = {};
@@ -136,6 +156,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           suggestedMinutes={suggestedMinutes}
           clients={clientOptions}
           timeZone={timeZone}
+          atPremises={atPremises}
         >
 
         {/*

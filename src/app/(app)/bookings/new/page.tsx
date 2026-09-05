@@ -12,6 +12,7 @@ import { listRoles, listEmployees } from '@/modules/team/interface';
 import { getContractTermsTemplate } from '@/modules/contracts/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { studioTimezone } from '@/kernel/studioHours';
+import { premisesValueIds } from '@/modules/services/interface';
 // The studio's tax position. The invoice raised below is snapshotted with it,
 // so the form has to know it to show what the client will actually be asked for.
 import { getTaxRate } from '@/modules/finances/interface';
@@ -63,6 +64,9 @@ export default async function NewBookingPage(
   const taxRate = await getTaxRate();
   // Whose clock the date field and the day's other bookings are on.
   const timeZone = await studioTimezone(orgId);
+  // Which of the studio's own values mean its building, so the date field only
+  // mentions opening hours when they apply to what is being booked.
+  const premisesValues = await premisesValueIds();
 
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
     .map((v: any) => {
@@ -148,6 +152,7 @@ export default async function NewBookingPage(
         termsTemplate={termsTemplate}
         taxRate={taxRate}
         timeZone={timeZone}
+        premisesValueIds={premisesValues}
       />
     </div>
   );

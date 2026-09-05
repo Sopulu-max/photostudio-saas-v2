@@ -6,7 +6,11 @@ import {
   listDimensionsForDomain, createDimension, setDimensionActive,
   deleteDimension, addDimensionValue, removeDimensionValue, setValueParent,
   listVariablesForDimensions, declareDimensionVariable, removeDimensionVariable,
+  // Which values of its dimension a question is actually asked for
+  variableValueNarrowings, setVariableAskedFor,
   moveDimension,
+  // Which of the studio's own words mean its building
+  setValueAtPremises,
 } from '@/modules/services/interface';
 import type { StudioDimension, StudioQuestion, DimensionSuggestions } from '@/modules/services/interface';
 import { dimensionKey, narrowFor } from '@/modules/services/interface';
@@ -59,6 +63,7 @@ export function DimensionManager({
    * every screen that only wants the vocabulary pay for them.
    */
   const [vars, setVars] = useState<Record<string, any[]>>({});
+  const [askedFor, setAskedFor] = useState<Record<string, string[]>>({});
   const [newVar, setNewVar] = useState<Record<string, { label: string; kind: string; options?: string }>>({});
   const [dims, setDims] = useState<StudioDimension[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,11 +84,23 @@ export function DimensionManager({
   }, []);
 
   const loadVars = React.useCallback(async (list: { id: string }[]) => {
-    if (list.length === 0) { setVars({}); return; }
+    if (list.length === 0) { setVars({}); setAskedFor({}); return; }
     const all = await listVariablesForDimensions(list.map((d) => d.id));
     const by: Record<string, any[]> = {};
     for (const v of all as any[]) (by[v.dimensionId] ||= []).push(v);
     setVars(by);
+    /*
+     * Loaded together, because a question and where it is asked are one fact.
+     * Fetched apart they can be a render out of step, and a checkbox showing
+     * the wrong state is worse than one that has not appeared yet.
+     */
+    setAskedFor(await variableValueNarrowings((all as any[]).map((v) => v.id)));
+  }, []);
+
+  const loadAskedFor = React.useCallback(async (list: { id: string }[]) => {
+    if (list.length === 0) { setAskedFor({}); return; }
+    const all = await listVariablesForDimensions(list.map((d) => d.id));
+    setAskedFor(await variableValueNarrowings((all as any[]).map((v) => v.id)));
   }, []);
 
   useEffect(() => { load(domainId); }, [domainId, load]);
@@ -218,8 +235,38 @@ export function DimensionManager({
                       * row of identical crosses does not say which one is
                       * armed.
                       */}
-                    <span className="q-badge q-badge-neutral">
+                    <span className={parent.atPremises ? 'q-badge q-badge-accent' : 'q-badge q-badge-neutral'}>
                       {parent.name}
+                      {/*
+                        * WHETHER WORK CLASSIFIED THIS WAY HAPPENS HERE.
+                        *
+                        * The studio's opening hours are a fact about its
+                        * building. They constrain a session held in it and say
+                        * nothing about a wedding at somebody else's venue — but
+                        * the public booking page enforced them on everything,
+                        * so a studio opening at 13:00 on Sundays refused a
+                        * Sunday morning wedding through its own link.
+                        *
+                        * Only the studio can say which of its words mean the
+                        * building. Nothing infers it: a dimension called
+                        * Context and a value called Studio are one studio's
+                        * vocabulary, and guessing meaning from names is what
+                        * once turned a classification into a service.
+                        */}
+                      <button
+                        className="q-btn-ghost"
+                        style={{ padding: '0 4px' }}
+                        disabled={isPending}
+                        aria-pressed={Boolean(parent.atPremises)}
+                        title={parent.atPremises
+                          ? `${parent.name} happens at your premises, so your opening hours apply. Click to say it does not.`
+                          : `Say that ${parent.name} happens at your premises, so your opening hours apply to it.`}
+                        onClick={() => run(() => setValueAtPremises({
+                          valueId: parent.id, atPremises: !parent.atPremises,
+                        }))}
+                      >
+                        {parent.atPremises ? '⌂' : '⌂̸'}
+                      </button>
                       <ConfirmButton
                         className="q-btn-ghost"
                         confirmLabel={`Remove ${parent.name}?`}
@@ -328,23 +375,70 @@ export function DimensionManager({
                     package classified this way asks for it.
                   </span>
                 )}
-                {(vars[d.id] || []).map((v: any) => (
-                  <div key={v.id} className="q-row q-row-between q-tile">
-                    <span className="q-meta-plain">{v.label}</span>
-                    <span className="q-row q-row-sm">
-                      <span className="q-meta-sm">{variableKindLabel(v.kind)}</span>
-                      <ConfirmButton
-                        className="q-btn-ghost q-btn-xs"
-                        disabled={isPending}
-                        confirmLabel={`Remove ${v.label}?`}
-                        title={`Stop asking for ${v.label} whenever ${d.name} is answered`}
-                        onConfirm={() => run(() => removeDimensionVariable(v.id), () => loadVars(dims))}
-                      >
-                        &times;
-                      </ConfirmButton>
-                    </span>
+                {(vars[d.id] || []).map((v: any) => {
+                  const asked = askedFor[v.id] || [];
+                  return (
+                  <div key={v.id} className="q-tile q-stack q-stack-sm">
+                    <div className="q-row q-row-between">
+                      <span className="q-meta-plain">{v.label}</span>
+                      <span className="q-row q-row-sm">
+                        <span className="q-meta-sm">{variableKindLabel(v.kind)}</span>
+                        <ConfirmButton
+                          className="q-btn-ghost q-btn-xs"
+                          disabled={isPending}
+                          confirmLabel={`Remove ${v.label}?`}
+                          title={`Stop asking for ${v.label} whenever ${d.name} is answered`}
+                          onConfirm={() => run(() => removeDimensionVariable(v.id), () => loadVars(dims))}
+                        >
+                          &times;
+                        </ConfirmButton>
+                      </span>
+                    </div>
+
+                    {/*
+                      * WHICH ANSWERS ACTUALLY RAISE IT.
+                      *
+                      * A question declared here is asked whenever the dimension
+                      * is answered, which is right for some and wrong for
+                      * others. An occasion has a date whichever occasion it is.
+                      * A location address is a question about work held
+                      * somewhere else — and asking it of a studio sitting asks
+                      * for something that choosing "Studio" already answered.
+                      *
+                      * Nothing ticked means every answer, so a question that has
+                      * never been narrowed goes on behaving exactly as it did.
+                      */}
+                    <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                      {d.values.map((val: any) => {
+                        const on = asked.includes(val.id);
+                        return (
+                          <label key={val.id} className="q-row q-row-sm q-meta-sm" style={{ cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              disabled={isPending}
+                              style={{ accentColor: 'var(--q-color-accent)' }}
+                              onChange={() => {
+                                const next = on ? asked.filter((x) => x !== val.id) : [...asked, val.id];
+                                run(
+                                  () => setVariableAskedFor({ variableId: v.id, valueIds: next }),
+                                  () => loadAskedFor(dims),
+                                );
+                              }}
+                            />
+                            {val.name}
+                          </label>
+                        );
+                      })}
+                      <span className="q-meta-sm" style={{ opacity: 0.7 }}>
+                        {asked.length === 0
+                          ? '— asked for every answer'
+                          : `— asked only for ${asked.length === 1 ? 'this one' : 'these'}`}
+                      </span>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div className="q-row q-row-sm">
                   <input
                     className="q-input q-input-sm"

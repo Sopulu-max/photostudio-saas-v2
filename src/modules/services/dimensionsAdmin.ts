@@ -28,7 +28,11 @@ export type StudioDimension = {
   example: string | null;
   isActive: boolean;
   position: number;
-  values: { id: string; name: string; position: number; parentId: string | null }[];
+  values: {
+    id: string; name: string; position: number; parentId: string | null;
+    /** Work classified this way happens at the studio's own premises. */
+    atPremises: boolean;
+  }[];
 };
 
 /**
@@ -43,7 +47,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('service_domain_dimensions')
-    .select('position, is_active, dimension:dimensions(id, name, question, example, position, dimension_values(id, name, position, parent_id))')
+    .select('position, is_active, dimension:dimensions(id, name, question, example, position, dimension_values(id, name, position, parent_id, at_premises))')
     .eq('organization_id', orgId)
     .eq('service_domain_id', serviceDomainId);
   if (error) {
@@ -64,7 +68,7 @@ export async function listDimensionsForDomain(serviceDomainId: string): Promise<
     // here, which is the fault this change exists to remove.
     position: row.dimension.position ?? 0,
     values: (row.dimension.dimension_values || [])
-      .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0, parentId: v.parent_id ?? null }))
+      .map((v: any) => ({ id: v.id, name: v.name, position: v.position ?? 0, parentId: v.parent_id ?? null, atPremises: Boolean(v.at_premises) }))
       .sort((a: any, b: any) => a.position - b.position || a.name.localeCompare(b.name)),
   }))
   // Sorted here rather than by the query: the order lives on the dimension, and

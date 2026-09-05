@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { formatMoney } from '@/kernel/currency';
 import { getStudioBySlug } from '@/kernel/organizations';
-import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic } from '@/modules/packages/interface';
+import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic, packageNarrowingValueIds } from '@/modules/packages/interface';
+import { premisesValueIdsFor } from '@/modules/services/interface';
 import { BookingForm } from './BookingForm';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,16 @@ export default async function BookingPage(props: {
    * and nothing is asked.
    */
   const openClassifications = await getOpenClassificationsForPackagePublic(org.id, params.packageId);
+
+  /*
+   * Whether booking THIS package needs the studio's building, so the date field
+   * only mentions opening hours when they apply. A wedding at the client's own
+   * venue has nothing to do with when the office is open.
+   */
+  const [premisesValues, packageValues] = await Promise.all([
+    premisesValueIdsFor(org.id),
+    packageNarrowingValueIds(org.id, params.packageId),
+  ]);
 
   const currencyCode = org.currency;
   const services = pkg.serviceNames;
@@ -73,6 +84,8 @@ export default async function BookingPage(props: {
               formSchema={pkg.formSchema}
               openVariables={openVariables}
               openClassifications={openClassifications}
+                            premisesValueIds={premisesValues}
+              packageValueIds={packageValues}
                             currencyCode={currencyCode}
             />
           </div>

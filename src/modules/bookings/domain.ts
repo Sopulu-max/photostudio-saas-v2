@@ -343,10 +343,39 @@ export async function createBookingFromIntake(input: {
 
   /*
    * A stranger picked this time on a public page, so it is checked against the
-   * hours the studio published. Before the stage is chosen and before anything
-   * is written, so a refusal leaves nothing behind.
+   * hours the studio published — BUT ONLY WHEN THOSE HOURS MEAN ANYTHING HERE.
+   *
+   * Opening hours are a fact about a building. They constrain a session held in
+   * it and say nothing whatever about a wedding at somebody else's venue. This
+   * enforced them on everything, so a studio opening at 13:00 on Sundays
+   * refused a Sunday morning wedding through its own booking link because the
+   * office was shut. For a photography business that is most of the weddings.
+   *
+   * What is being booked already says which it is: the package's narrowing, or
+   * the values the client themselves chose on the custom path. What the studio
+   * adds is what those values MEAN for the building, which it declares on its
+   * own vocabulary rather than anything inferring it from a name.
+   *
+   * UNKNOWN NEVER REFUSES. `null` — nothing marked, or nothing chosen yet — is
+   * not "no building"; it is silence, and the same rule the classification
+   * kernel keeps applies: silence is permission. Refusing a client on a guess
+   * is worse than taking a booking somebody later moves.
+   *
+   * Still before the stage is chosen and before anything is written, so a
+   * refusal leaves nothing behind.
    */
-  const scheduledFor = await resolveScheduledFor(orgId, input.scheduledFor, { enforceHours: true });
+  const { needsPremisesFor } = await import('@/modules/services/interface');
+  const { packageNarrowingValueIds } = await import('@/modules/packages/interface');
+  const bookedValueIds = [
+    ...(input.packageId ? await packageNarrowingValueIds(orgId, input.packageId) : []),
+    // What they answered themselves, which is all a custom enquiry has.
+    ...Object.values(((input.answers as any)?.dimensions ?? {}) as Record<string, string>).filter(Boolean),
+  ];
+  const atPremises = await needsPremisesFor(orgId, bookedValueIds);
+
+  const scheduledFor = await resolveScheduledFor(orgId, input.scheduledFor, {
+    enforceHours: atPremises === true,
+  });
 
   // The module's own naming, so an intake booking reads like every other one —
   // and title_custom stays false, so it keeps improving as facts arrive.

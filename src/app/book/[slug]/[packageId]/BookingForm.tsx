@@ -90,6 +90,16 @@ interface BookingFormProps {
   triggerLabel?: string;
   dimensionConfig?: IntakeDimension[];
   availablePackages?: PackageWithDimensions[];
+  /**
+   * The values this studio has said mean its own premises.
+   *
+   * Opening hours are a fact about a building. Telling somebody booking a
+   * wedding at their own venue that "we are closed that day" is a statement
+   * about the studio's office and nothing to do with their shoot.
+   */
+  premisesValueIds?: string[];
+  /** What the package on this page narrows itself to, when there is one. */
+  packageValueIds?: string[];
 }
 
 export function BookingForm({
@@ -104,6 +114,8 @@ export function BookingForm({
   triggerLabel = 'Book this package',
   dimensionConfig,
   availablePackages,
+  premisesValueIds = [],
+  packageValueIds = [],
 }: BookingFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -188,6 +200,27 @@ export function BookingForm({
     document.body.style.overflow = isOpen ? 'hidden' : 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
+
+  /*
+   * Whether what is being booked needs the studio's own building.
+   *
+   * From the package being booked, or from the values the visitor themselves
+   * chose on the custom path — and from a match once they pick one. Null while
+   * nothing is known, because silence is not "no building" and a client should
+   * never be told the studio is shut for work that does not happen there.
+   */
+  const atPremises = useMemo(() => {
+    if (premisesValueIds.length === 0) return null;
+    const marked = new Set(premisesValueIds);
+    const matched = (availablePackages || []).find((p) => p.id === resolvedPackageId);
+    const ids = [
+      ...packageValueIds,
+      ...(matched?.dimensions || []).map((d) => d.valueId),
+      ...Object.values(dimensionSelections).filter(Boolean),
+    ];
+    if (ids.length === 0) return null;
+    return ids.some((id) => marked.has(id));
+  }, [premisesValueIds, packageValueIds, availablePackages, resolvedPackageId, dimensionSelections]);
 
   const isCustom = packageId === 'custom';
   const hasFormSchema = formSchema && formSchema.length > 0;
@@ -597,7 +630,7 @@ export function BookingForm({
                         Choose the date and time you want the session to happen. The studio will confirm it.
                       </p>
                       <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
-                      {dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
+                      {atPremises === true && dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
                         const t = scheduledFor.slice(11, 16);
                         const early = dayHours.opensAt && t && t < dayHours.opensAt;
                         const late = dayHours.closesAt && t && t >= dayHours.closesAt;
