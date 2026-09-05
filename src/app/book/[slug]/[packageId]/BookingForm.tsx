@@ -11,6 +11,9 @@ import { submitBookingForm, getPackageIntakePublic } from './actions';
 import { studioDayPublic } from '@/modules/bookings/interface';
 import { createPortal } from 'react-dom';
 import { toast } from '@/components/Toast';
+// One rule for "does this cover what they asked?", shared with the studio's own
+// screens so the two cannot answer differently.
+import { admits, specificity, narrowingFrom } from '@/kernel/classification';
 
 /**
  * A question this studio asks about its own work — whatever its domains
@@ -32,20 +35,33 @@ type PackageWithDimensions = {
     duration_minutes: number | null;
       services: { id: string; name: string }[];
   dimensionValueIds: string[];
+  /** Each narrowed value with the question it answers — what the rule needs. */
+  dimensions?: { valueId: string; dimensionId: string }[];
 };
 
 /**
- * How well a package answers what the client described.
+ * How a package answers what the client described.
  *
- * Plain co-occurrence over values: how many of the things they chose does this
- * package already carry. Which dimension each value came from never enters the
- * arithmetic — a value already knows which question it answers.
+ * THE SAME RULE THE STUDIO'S OWN SCREENS USE, which it was not. This counted
+ * how many chosen values a package carried and stopped there — it ranked, but
+ * it never RULED ANYTHING OUT. So a package that had narrowed Occasion to
+ * Wedding was still offered to somebody asking for a maternity shoot, merely
+ * scored zero and greyed a little, and could be picked. Meanwhile resolution on
+ * the studio's side excluded exactly those. Two answers to one question, and
+ * the client got the looser one.
+ *
+ * admits decides whether it can cover this at all — including that a dimension
+ * the package never narrowed accepts any value of it — and specificity decides
+ * what to show first. Both live in the kernel, so neither side can drift.
  */
-function scorePackage(pkg: PackageWithDimensions, selections: Record<string, string>): number {
-  return Object.values(selections).reduce((score, valueId) => {
-    if (!valueId) return score;
-    return pkg.dimensionValueIds.includes(valueId) ? score + 1 : score;
-  }, 0);
+function fitOf(pkg: PackageWithDimensions, selections: Record<string, string>) {
+  const narrowing = narrowingFrom(
+    (pkg.dimensions || []).map((d) => ({ dimensionId: d.dimensionId, valueId: d.valueId })),
+  );
+  const answers = Object.entries(selections)
+    .filter(([, valueId]) => Boolean(valueId))
+    .map(([dimensionId, valueId]) => ({ dimensionId, valueId }));
+  return { covers: admits(narrowing, answers), carried: specificity(narrowing, answers) };
 }
 
 interface BookingFormProps {
@@ -274,12 +290,18 @@ export function BookingForm({
   const scoredPackages = useMemo(() => {
     if (!availablePackages || !availablePackages.length) return [];
     return [...availablePackages]
-      .map(pkg => ({ ...pkg, score: scorePackage(pkg, dimensionSelections) }))
-      .sort((a, b) => b.score - a.score);
+      .map((pkg) => ({ ...pkg, ...fitOf(pkg, dimensionSelections) }))
+      /*
+       * What can cover this first, most specific of those first. What cannot
+       * still appears — browsing the catalogue is a legitimate thing to do, and
+       * refusing to show it would be worse than showing it honestly — but it is
+       * never presented as a match.
+       */
+      .sort((a, b) => Number(b.covers) - Number(a.covers) || b.carried - a.carried);
   }, [availablePackages, dimensionSelections]);
 
   const hasSelections = Object.values(dimensionSelections).some(v => v);
-  const hasMatches = scoredPackages.some(p => p.score > 0);
+  const hasMatches = scoredPackages.some((p) => p.covers && p.carried > 0);
 
   const hasOpenVariables = !isCustom && openVariables.length > 0;
   const steps: { title: string; id: string }[] = [{ title: 'You', id: 'personal' }];
@@ -612,7 +634,9 @@ export function BookingForm({
                   <div className="q-stack q-stack-md">
                     {scoredPackages.map(pkg => {
                       const isSelected = resolvedPackageId === pkg.id;
-                      const isDimmed = hasSelections && hasMatches && pkg.score === 0;
+                      // Dimmed when it cannot cover what they described, not
+                      // merely when it carries none of it outright.
+                      const isDimmed = hasSelections && !pkg.covers;
                       return (
                         <button
                           key={pkg.id}
