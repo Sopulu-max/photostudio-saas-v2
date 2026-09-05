@@ -99,3 +99,30 @@ export function rankByFit<T>(
     .map((c) => ({ item: c.item, carried: specificity(c.narrowing, answers) }))
     .sort((a, b) => b.carried - a.carried);
 }
+
+/**
+ * Whether a question is asked of work narrowed to these values.
+ *
+ * A variable declared on a classification is asked whenever a booking carries
+ * that classification, which is right for some and wrong for others. An
+ * Occasion has a date whichever occasion it is; a Location Address is a
+ * question about work held somewhere else, and asking it of a studio sitting
+ * asks for what choosing "Studio" already answered.
+ *
+ * SILENCE IS PERMISSION, the same rule `admits` keeps one level up: a variable
+ * that has named no values is asked for all of them. Which is why adding this
+ * needed no backfill — every question already declared goes on being asked
+ * exactly as it was.
+ *
+ * Here rather than in Services because it is pure and both sides need it: a
+ * 'use server' module may only export async functions, and a rule that has to
+ * be evaluated in a browser cannot be a round trip.
+ */
+export function variableApplies(
+  askedFor: string[] | undefined,
+  valueIdsInPlay: Iterable<string>,
+): boolean {
+  if (!askedFor || askedFor.length === 0) return true;
+  const inPlay = new Set(valueIdsInPlay);
+  return askedFor.some((id) => inPlay.has(id));
+}
