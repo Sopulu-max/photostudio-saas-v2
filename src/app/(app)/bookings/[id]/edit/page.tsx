@@ -11,7 +11,7 @@ import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
 import { LineActions } from '../LineActions';
 import { LineConfigForm } from '../LineConfigForm';
-import { EnquiryPanel } from '../EnquiryPanel';
+import { ResolveEnquiry } from '../ResolveEnquiry';
 import { LinePackageEditor } from './LinePackageEditor';
 /*
  * The same loader /packages/[id]/edit uses. A booking line points at a package
@@ -139,7 +139,14 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             <div className="q-stack q-stack-sm">
               <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
               {/* A custom enquiry said something; this is where it gets acted on. */}
-              {enquiry && <EnquiryPanel bookingId={booking.id} enquiry={enquiry} />}
+              {enquiry && <ResolveEnquiry
+                bookingId={booking.id}
+                chosen={enquiry.chosen}
+                message={enquiry.message}
+                offers={enquiry.offers}
+                capabilities={enquiry.capabilities}
+                currencyCode={currencyCode}
+              />}
             </div>
           ) : (
             <div className="q-stack">

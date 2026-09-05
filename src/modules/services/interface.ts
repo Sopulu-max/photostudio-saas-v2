@@ -39,6 +39,8 @@ export {
   // Services — the specific transformation
   createService, updateService, duplicateService, setServiceStatus,
   listServices, listActiveServices, getService, getPublicIntakeDimensions,
+  // Which capabilities can do what somebody described
+  servicesAdmitting,
 } from './domain';
 export type { WorkflowInput } from './domain';
 export { listWorkflowsByDomain, saveWorkflow, deleteWorkflow } from './domain';

@@ -1388,3 +1388,58 @@ export async function deleteWorkflow(workflowId: string) {
   revalidatePath('/services/settings');
   return { ok: true };
 }
+
+/**
+ * WHICH OF THE STUDIO'S CAPABILITIES CAN DO WHAT SOMEBODY DESCRIBED.
+ *
+ * The question nothing asked. A client's answers are values in the studio's own
+ * vocabulary, and a service says which values it covers — so "can we do this?"
+ * is a set test against `service_dimension_values`, not a judgement.
+ *
+ * It went unasked, and the cost was concrete: an enquiry for a maternity shoot
+ * caused a SERVICE called "Maternity" to be invented and filed under
+ * Videography, while Portrait Photography — which lists Maternity among its
+ * occasions — sat in the catalogue unconsulted. A classification value became a
+ * capability, which collapses two of the three planes the ontology keeps apart.
+ *
+ * Ranked by how squarely each answers rather than filtered to one: Maternity
+ * alone fits both Portrait Photography and Studio Portrait Photography, and
+ * which is right is the studio's call — unless the client also said Studio, in
+ * which case their own answers have already settled it.
+ */
+export async function servicesAdmitting(answers: { dimensionId: string; valueId: string }[]) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('services')
+    .select(`id, name, status, domain:service_domains(id, name), ${SERVICE_DIMENSION_SELECT}`)
+    .eq('organization_id', orgId)
+    .eq('status', 'active');
+  if (error) {
+    console.error('Failed to read what the studio can do:', error);
+    return [];
+  }
+
+  const { narrowingFrom, rankByFit } = await import('@/kernel/classification');
+
+  const candidates = ((data || []) as any[]).map((s) => ({
+    item: {
+      id: s.id as string,
+      name: s.name as string,
+      domainId: (s.domain?.id ?? null) as string | null,
+      domainName: (s.domain?.name ?? null) as string | null,
+      /** Everything it is classified as, for showing why it was offered. */
+      covers: shapeServiceDimensions(s),
+    },
+    narrowing: narrowingFrom(
+      ((s.service_dimension_values || []) as any[])
+        .map((l) => ({
+          dimensionId: l?.dimension_value?.dimension?.id as string,
+          valueId: l?.dimension_value?.id as string,
+        }))
+        .filter((r) => r.dimensionId && r.valueId),
+    ),
+  }));
+
+  return rankByFit(candidates, answers).map(({ item, carried }) => ({ ...item, carried }));
+}

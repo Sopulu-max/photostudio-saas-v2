@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { CreateContractButton, RestoreWorkButton } from './BookingActions';
-import { EnquiryPanel } from './EnquiryPanel';
+import { ResolveEnquiry } from './ResolveEnquiry';
 
 import { listClients } from '@/modules/clients/interface';
 import { listEmployees, listRoles } from '@/modules/team/interface';
@@ -352,7 +352,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">add a package</Link>{' '}
                 whenever you know what they want.
               </p>
-              {enquiry && <EnquiryPanel bookingId={booking.id} enquiry={enquiry} />}
+              {enquiry && <ResolveEnquiry
+                bookingId={booking.id}
+                chosen={enquiry.chosen}
+                message={enquiry.message}
+                offers={enquiry.offers}
+                capabilities={enquiry.capabilities}
+                currencyCode={currencyCode}
+              />}
             </div>
           ) : (
             <div className="q-stack">

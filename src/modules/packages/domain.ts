@@ -2007,3 +2007,75 @@ async function writePackageTasks(
   const { error } = await supabaseAdmin.from('package_tasks').insert(toInsert);
   if (error) { console.error('Failed to add package tasks:', error); throw new Error('Failed to save the tasks'); }
 }
+
+/**
+ * WHICH OF THE STUDIO'S OFFERS ALREADY COVER WHAT SOMEBODY DESCRIBED.
+ *
+ * The same test Services runs over its own classification, run here over the
+ * narrowing a package applies to each service it bundles. One rule, two tables:
+ * a client's answer is comparable against either because both point at the same
+ * `dimension_values` rows.
+ *
+ * The public match step has always done this in the browser. Doing it here as
+ * well is not duplication of the RULE — that lives in the kernel and both call
+ * it — but it is where resolution needs the answer: an operator looking at an
+ * enquiry has to be told "you already sell this" before being invited to build
+ * anything.
+ *
+ * CATALOGUE ONLY. Instances are somebody's private copy of an offer and are not
+ * on sale, so they are never candidates.
+ */
+export async function packagesAdmitting(answers: { dimensionId: string; valueId: string }[]) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('packages')
+    .select(`
+      id, name, price, status,
+      package_services(
+        id,
+        service:services(id, name),
+        package_service_dimension_values(
+          dimension_value:dimension_values(id, dimension:dimensions(id, name))
+        )
+      )
+    `)
+    .eq('organization_id', orgId)
+    .is('instance_of', null)
+    .eq('status', 'active');
+  if (error) {
+    console.error('Failed to read what the studio offers:', error);
+    return [];
+  }
+
+  const { narrowingFrom, rankByFit } = await import('@/kernel/classification');
+
+  const candidates = ((data || []) as any[]).map((p) => {
+    /*
+     * Gathered across the whole bundle. A narrowing belongs to a service inside
+     * the package, but the question being asked is of the package as a whole —
+     * "does what you sell cover this?" — so a value narrowed on any bundled
+     * service counts for the package.
+     */
+    const rows = ((p.package_services || []) as any[]).flatMap((ps) =>
+      ((ps.package_service_dimension_values || []) as any[])
+        .map((l) => ({
+          dimensionId: l?.dimension_value?.dimension?.id as string,
+          valueId: l?.dimension_value?.id as string,
+        }))
+        .filter((r) => r.dimensionId && r.valueId));
+
+    return {
+      item: {
+        id: p.id as string,
+        name: p.name as string,
+        price: p.price ?? null,
+        serviceNames: ((p.package_services || []) as any[])
+          .map((ps) => ps.service?.name).filter(Boolean) as string[],
+      },
+      narrowing: narrowingFrom(rows),
+    };
+  });
+
+  return rankByFit(candidates, answers).map(({ item, carried }) => ({ ...item, carried }));
+}

@@ -2174,7 +2174,7 @@ export async function listBookingsForDimensionValue(valueId: string) {
  */
 async function resolveEnquiry(orgId: string, metadata: any): Promise<{
   message: string | null;
-  chosen: { dimension: string; value: string; domainName: string | null }[];
+  chosen: { dimensionId: string; valueId: string; dimension: string; value: string; domainName: string | null }[];
 }> {
   const answers = metadata?.form_responses;
   const message = (answers?.message || '').trim() || null;
@@ -2184,12 +2184,17 @@ async function resolveEnquiry(orgId: string, metadata: any): Promise<{
   const { getPublicIntakeDimensions } = await import('@/modules/services/interface');
   const config = await getPublicIntakeDimensions(orgId);
 
-  const chosen: { dimension: string; value: string; domainName: string | null }[] = [];
+  const chosen: { dimensionId: string; valueId: string; dimension: string; value: string; domainName: string | null }[] = [];
   for (const [dimensionId, valueId] of Object.entries(dimensions as Record<string, string>)) {
     if (!valueId) continue;
     const dim = config.find((d) => d.id === dimensionId);
     const value = dim?.values.find((v) => v.id === valueId);
-    if (dim && value) chosen.push({ dimension: dim.name, value: value.name, domainName: dim.domainName });
+    if (dim && value) {
+      chosen.push({
+        dimensionId: dim.id, valueId: value.id,
+        dimension: dim.name, value: value.name, domainName: dim.domainName,
+      });
+    }
   }
   return { message, chosen };
 }
@@ -2206,6 +2211,10 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
   chosen: { dimension: string; value: string }[];
   /** Whether a service and package could actually be built from this. */
   extractable: boolean;
+  /** Offers that already cover what they described, best fit first. */
+  offers: { id: string; name: string; price: any; serviceNames: string[]; carried: number }[];
+  /** Capabilities that could deliver it, if no offer does. */
+  capabilities: { id: string; name: string; domainName: string | null; carried: number }[];
 } | null> {
   const { orgId } = await getAuthOrgId();
 
@@ -2220,71 +2229,137 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
   const { message, chosen } = await resolveEnquiry(orgId, booking.metadata);
   if (!message && chosen.length === 0) return null;
 
+  /*
+   * DECONSTRUCT, DESCENDING ONLY AS FAR AS NEEDED.
+   *
+   * Their answers are values in the studio's own vocabulary, so both questions
+   * are set tests rather than judgements — asked through the modules that own
+   * each table, and answered by one rule living in the kernel.
+   *
+   * Offers first: if the studio already sells this, nothing should be built.
+   * Capabilities second: if it can do it but does not sell it as such, there is
+   * something to assemble FROM. Only when both come back empty is anything
+   * genuinely new required, and that is a catalogue decision rather than a
+   * derivation.
+   */
+  const answers = chosen.map((c) => ({ dimensionId: c.dimensionId, valueId: c.valueId }));
+  const [offers, capabilities] = answers.length > 0
+    ? await Promise.all([
+        (await import('@/modules/packages/interface')).packagesAdmitting(answers),
+        (await import('@/modules/services/interface')).servicesAdmitting(answers),
+      ])
+    : [[], []];
+
   return {
     message,
     chosen: chosen.map((c) => ({ dimension: c.dimension, value: c.value })),
     extractable: chosen.length > 0,
+    offers: offers as any[],
+    capabilities: (capabilities as any[]).map((c) => ({
+      id: c.id, name: c.name, domainName: c.domainName, carried: c.carried,
+    })),
   };
 }
 
-export async function extractPackageFromEnquiry(bookingId: string) {
+export async function buildPackageForBooking(input: {
+  bookingId: string;
+  /** Which of the studio's capabilities deliver this. Chosen, never invented. */
+  serviceIds: string[];
+}) {
   const { orgId } = await getAuthOrgId();
 
   const { data: booking } = await supabaseAdmin
     .from('bookings')
-    .select('id, metadata')
-    .eq('id', bookingId)
+    .select('id, metadata, title')
+    .eq('id', input.bookingId)
     .eq('organization_id', orgId)
-    .single();
-
+    .maybeSingle();
   if (!booking) throw new Error('Booking not found');
+  if (input.serviceIds.length === 0) throw new Error('Choose at least one service this booking needs.');
 
   const { chosen } = await resolveEnquiry(orgId, booking.metadata);
-  if (chosen.length === 0) {
-    throw new Error('This enquiry has nothing the studio recognises to build a package from.');
+  const answers = chosen.map((c) => ({ dimensionId: c.dimensionId, valueId: c.valueId }));
+
+  /*
+   * ASSEMBLED FROM WHAT ALREADY EXISTS, NEVER INVENTED.
+   *
+   * This replaces a step that created a SERVICE named after whatever the client
+   * had chosen — so an enquiry for a maternity shoot produced a service called
+   * "Maternity", filed under Videography, carrying no deliverable, no workflow
+   * and no variables, while Portrait Photography sat in the catalogue already
+   * listing Maternity among its occasions. A classification value became a
+   * capability, and an empty one, so the booking built on it inherited nothing.
+   *
+   * Everything a package needs is already declared by the services it bundles:
+   * what it promises, what it leaves open, what work it takes. The client's
+   * answers supply the narrowing. The one thing that cannot be derived is the
+   * price, so that is the one thing left for the studio to say.
+   */
+  const { servicesAdmitting } = await import('@/modules/services/interface');
+  const capable = await servicesAdmitting(answers);
+  const chosenServices = (capable as any[]).filter((c) => input.serviceIds.includes(c.id));
+  if (chosenServices.length !== input.serviceIds.length) {
+    /*
+     * Refused rather than silently narrowed. A service that cannot do what was
+     * asked would produce a package promising work the studio does not do —
+     * and the caller passed an id, so this is a bug or a stale screen, not a
+     * choice to honour.
+     */
+    throw new Error('One of those services cannot do what this client described.');
   }
 
-  // Named from what they described, in the order the studio asks its questions.
-  const serviceName = chosen.map((c) => c.value).join(' ') || 'Custom Service';
-
-  // The domain the answers already point at — a value belongs to one, so the
-  // service being extracted belongs there too rather than to a guess.
-  const serviceDomain = chosen.find((c) => c.domainName)?.domainName || null;
-
-  // One entry per dimension, values gathered — the same shape the service form
-  // sends, so an extracted service is indistinguishable from a defined one.
-  const byDimension = new Map<string, string[]>();
-  for (const c of chosen) {
-    if (!byDimension.has(c.dimension)) byDimension.set(c.dimension, []);
-    byDimension.get(c.dimension)!.push(c.value);
+  /*
+   * Each service is narrowed only to the values IT declares. A booking that
+   * answered Occasion and Context should not narrow a service by a Context it
+   * never claimed — the narrowing is a fact about a service inside a package,
+   * so it has to be true of that service.
+   */
+  const narrowings: { serviceId: string; valueId: string }[] = [];
+  for (const svc of chosenServices) {
+    const declared = new Set<string>(
+      ((svc.covers || []) as any[]).flatMap((d: any) => (d.values || []).map((v: any) => v.id)),
+    );
+    for (const a of answers) if (declared.has(a.valueId)) narrowings.push({ serviceId: svc.id, valueId: a.valueId });
   }
 
-  // Create the Service
-  const { createService } = await import('@/modules/services/interface');
-  const { serviceId } = await createService({
-    name: serviceName,
-    serviceDomain,
-    dimensions: [...byDimension.entries()].map(([name, values]) => ({ name, values })),
-  });
+  // What those services already say they produce becomes what this promises.
+  const { listServiceCapabilities } = await import('@/modules/deliverables/interface');
+  const deliverables: { serviceId: string; deliverableId: string }[] = [];
+  for (const svc of chosenServices) {
+    for (const cap of await listServiceCapabilities(svc.id)) {
+      deliverables.push({ serviceId: svc.id, deliverableId: cap.deliverableId });
+    }
+  }
 
-  // Create the Package
+  /*
+   * Named for what it is rather than for the client's answers. "Custom:
+   * Maternity" described the enquiry; this describes the work, which is what an
+   * invoice line and a booking title end up showing.
+   */
+  const name = chosenServices.map((s: any) => s.name).join(' + ');
+
   const { createPackage } = await import('@/modules/packages/interface');
   const { packageId } = await createPackage({
-    name: `Custom: ${serviceName}`,
-    serviceIds: [serviceId],
+    name,
+    serviceIds: chosenServices.map((s: any) => s.id),
+    narrowings,
+    deliverables,
+    /*
+     * Private to this booking. `true` means built from nothing off the shelf,
+     * so Packages gives it status 'custom' and it never appears in the
+     * catalogue — 02-ONTOLOGY's rule that booking facts never define the layers
+     * above, kept by construction rather than by remembering to.
+     */
+    instanceOf: true,
   });
 
-  // Add the package line to the booking
-  await addBookingLine({
-    bookingId: booking.id,
-    packageId,
-    title: `Custom: ${serviceName}`,
-  });
+  await addBookingLine({ bookingId: booking.id, packageId, title: name });
 
   revalidatePath('/bookings');
   revalidatePath(`/bookings/${booking.id}`);
-  return { packageId };
+  return { packageId, name };
 }
+
 
 /**
  * Who this booking needs, derived from what was actually booked.

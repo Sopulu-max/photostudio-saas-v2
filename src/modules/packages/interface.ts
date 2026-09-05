@@ -23,6 +23,8 @@ export {
   syncPackageTasksForWorkflow,
   // The package a booking keeps for itself, insulated from later catalog edits.
   // Both booking paths go through this — it is the rule, not a helper.
+  // Which offers already cover what somebody described
+  packagesAdmitting,
   // The package a booking should point at — its own copy, made if needed
   ensureInstanceForBooking,
   instantiatePackageForBooking,

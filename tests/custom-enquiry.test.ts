@@ -40,12 +40,13 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 
 import { createService, getPublicIntakeDimensions } from '@/modules/services/domain';
 import { submitBookingForm, getPackageIntakePublic } from '@/app/book/[slug]/[packageId]/actions';
-import { getEnquiryForBooking, extractPackageFromEnquiry, getBooking } from '@/modules/bookings/domain';
+import { getEnquiryForBooking, buildPackageForBooking, getBooking } from '@/modules/bookings/domain';
 import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 /** The studio's own vocabulary, which is what a client's answers resolve against. */
 let occasionDimensionId = '';
+let portraitServiceId = '';
 let weddingValueId = '';
 
 const linesOf = async (bookingId: string) => {
@@ -63,11 +64,13 @@ describe('a client who did not pick a package', () => {
      * enquiry form asks with. Without one there are no dimensions to offer and
      * the extractable case cannot be reached.
      */
-    await createService({
+    const seeded = await createService({
       name: 'Portrait Session',
       serviceDomain: 'Photography',
       dimensions: [{ name: 'Occasion', values: ['Wedding', 'Birthday'] }],
+      deliverables: ['Edited photographs'],
     });
+    portraitServiceId = seeded.serviceId;
 
     const config = await getPublicIntakeDimensions(TEST_ORG_ID);
     const occasion = config.find((d) => d.name === 'Occasion');
@@ -120,7 +123,21 @@ describe('a client who did not pick a package', () => {
     expect(enquiry!.extractable).toBe(true);
   }, 120000);
 
-  it('can be built into a package, and then behaves like any other booking', async () => {
+  it('is assembled from what the studio already does, never invented', async () => {
+    /*
+     * THE ERROR THIS REPLACES.
+     *
+     * Building from an enquiry used to CREATE A SERVICE named after whatever
+     * the client had chosen — so "Occasion: Maternity" produced a service
+     * called "Maternity", filed under the wrong domain, carrying no
+     * deliverable, no workflow and no variables. A classification value became
+     * a capability, and an empty one, so everything built on it inherited
+     * nothing. Meanwhile the service that actually lists Maternity among its
+     * occasions sat in the catalogue unconsulted.
+     *
+     * Capabilities are chosen now, not conjured, and what the package carries
+     * is inherited from them.
+     */
     const { bookingId } = await submitBookingForm(TEST_ORG_ID, 'custom', {
       firstName: 'Chidi', lastName: 'Eze', email: 'chidi@example.com', phone: '',
       customFields: { message: '', dimensions: { [occasionDimensionId]: weddingValueId } },
@@ -128,34 +145,108 @@ describe('a client who did not pick a package', () => {
 
     expect(await linesOf(bookingId), 'it started with something on it').toEqual([]);
 
-    const { packageId } = await extractPackageFromEnquiry(bookingId);
-    expect(packageId, 'nothing was built').toBeTruthy();
+    // The capability query — the question nothing used to ask.
+    const enquiry = await getEnquiryForBooking(bookingId);
+    expect(enquiry!.capabilities.map((c) => c.name),
+      'the service that does weddings was not offered').toContain('Portrait Session');
 
-    /*
-     * The point of the whole exercise: the booking now has a line POINTING AT A
-     * PACKAGE. That is the join everything downstream reads through, so this is
-     * the assertion that says the enquiry made it across.
-     */
+    const { packageId } = await buildPackageForBooking({
+      bookingId, serviceIds: [portraitServiceId],
+    });
+
+    // It belongs to this booking and nowhere else.
+    const { data: built } = await supabaseAdmin
+      .from('packages').select('name, status, instance_of').eq('id', packageId).single();
+    expect(built!.status, 'the built package went into the catalogue').toBe('custom');
+    expect(built!.instance_of, 'it claims to be a copy of something').toBeNull();
+    expect(built!.name, 'it was not named for the work').toBe('Portrait Session');
+
+    // It bundles the chosen capability, narrowed to what they answered.
+    const { data: bundle } = await supabaseAdmin
+      .from('package_services')
+      .select('id, service_id, package_service_dimension_values(dimension_value_id), package_deliverables(deliverable_id)')
+      .eq('package_id', packageId);
+    expect((bundle || []).length).toBe(1);
+    expect(bundle![0].service_id, 'it bundled a different service').toBe(portraitServiceId);
+    expect(((bundle![0] as any).package_service_dimension_values || []).map((n: any) => n.dimension_value_id),
+      'it was not narrowed to what the client chose').toEqual([weddingValueId]);
+    // And promises what that service already produces.
+    expect(((bundle![0] as any).package_deliverables || []).length,
+      'it promised nothing, though the service produces something').toBeGreaterThan(0);
+
+    // NOTHING was added to the catalogue — no invented service, no offer.
+    const { data: services } = await supabaseAdmin
+      .from('services').select('name').eq('organization_id', TEST_ORG_ID);
+    expect((services || []).map((x: any) => x.name).sort(),
+      'building invented a service').toEqual(['Portrait Session']);
+
+    const { data: catalogue } = await supabaseAdmin
+      .from('packages').select('id').eq('organization_id', TEST_ORG_ID)
+      .is('instance_of', null).eq('status', 'active');
+    expect((catalogue || []).length, 'building added an offer to the catalogue').toBe(0);
+
     const lines = await linesOf(bookingId);
-    expect(lines.length, 'building a package did not put it on the booking').toBe(1);
-    expect(lines[0].package_id, 'the line still points at no package').toBeTruthy();
+    expect(lines.length).toBe(1);
+    expect(lines[0].package_id).toBe(packageId);
+  }, 240000);
 
+  it('refuses a capability that cannot do what was asked', async () => {
     /*
-     * At its OWN COPY of what was built, not at the built package itself.
-     * addBookingLine gives every line a private copy now, so the studio can
-     * edit "Custom: Wedding" in the catalogue afterwards without rewriting the
-     * booking that caused it to exist.
+     * A service is chosen from a list of what admits the answers, so an id that
+     * does not is a stale screen or a bug. Refused rather than quietly
+     * honoured: a package narrowed to work the studio does not do would promise
+     * something nobody can deliver.
      */
-    const { data: onLine } = await supabaseAdmin
-      .from('packages').select('instance_of, status').eq('id', lines[0].package_id).single();
-    expect(onLine!.instance_of, 'the line did not get its own copy of what was built').toBe(packageId);
-    expect(onLine!.status).toBe('custom');
+    const { serviceId: unrelated } = await createService({
+      name: 'Framing', serviceDomain: 'Printing',
+      dimensions: [{ name: 'Occasion', values: ['Convocation'] }],
+    });
 
-    // And the package carries what the client actually chose, through its service.
-    const { data: pkg } = await supabaseAdmin
-      .from('packages').select('name').eq('id', packageId).single();
-    expect(pkg!.name, 'the package was not named from what they asked for').toContain('Wedding');
+    const { bookingId } = await submitBookingForm(TEST_ORG_ID, 'custom', {
+      firstName: 'Nkem', lastName: 'Obi', email: 'nkem@example.com', phone: '',
+      customFields: { message: '', dimensions: { [occasionDimensionId]: weddingValueId } },
+    } as any);
+
+    await expect(buildPackageForBooking({ bookingId, serviceIds: [unrelated] }),
+      'a service that cannot do this was accepted').rejects.toThrow();
+    expect(await linesOf(bookingId), 'a refused build still wrote a line').toEqual([]);
   }, 180000);
+
+  it('can be built again after the line was taken off, polluting nothing', async () => {
+    /*
+     * PRESSED TWICE, WHICH IS ORDINARY — and used to be fatal.
+     *
+     * The old step created a service unconditionally, and services carry
+     * UNIQUE (organization_id, name), so the second attempt collided with the
+     * one the first had made. It happened for real: a studio built from an
+     * enquiry, removed the line, and from then on only ever saw "Something
+     * went wrong" — the reason unreachable, because Next redacts a thrown
+     * message in production.
+     *
+     * Nothing enters the catalogue now, so there is nothing to collide with.
+     */
+    const { bookingId } = await submitBookingForm(TEST_ORG_ID, 'custom', {
+      firstName: 'Ify', lastName: 'Nwosu', email: 'ify@example.com', phone: '',
+      customFields: { message: '', dimensions: { [occasionDimensionId]: weddingValueId } },
+    } as any);
+
+    await buildPackageForBooking({ bookingId, serviceIds: [portraitServiceId] });
+    const line = (await linesOf(bookingId))[0];
+    expect(line, 'the first build put nothing on the booking').toBeTruthy();
+
+    const { removeBookingLine } = await import('@/modules/bookings/domain');
+    await removeBookingLine({ lineId: line.id, bookingId });
+    expect(await linesOf(bookingId), 'the line did not come off').toEqual([]);
+
+    // This threw before.
+    await buildPackageForBooking({ bookingId, serviceIds: [portraitServiceId] });
+    expect((await linesOf(bookingId)).length, 'the second build put nothing on the booking').toBe(1);
+
+    const { data: catalogue } = await supabaseAdmin
+      .from('packages').select('id').eq('organization_id', TEST_ORG_ID)
+      .is('instance_of', null).eq('status', 'active');
+    expect((catalogue || []).length, 'repeated builds leaked into the catalogue').toBe(0);
+  }, 240000);
 
   it('does not offer to build from an enquiry with nothing in it', async () => {
     /*
@@ -172,7 +263,9 @@ describe('a client who did not pick a package', () => {
     expect(enquiry!.message).toBe('Just some pictures');
     expect(enquiry!.extractable, 'a button was offered that has nothing to build from').toBe(false);
 
-    await expect(extractPackageFromEnquiry(bookingId)).rejects.toThrow();
+    // Nothing to test against, so nothing is offered to build from either.
+    expect(enquiry!.capabilities, 'capabilities were offered for an empty enquiry').toEqual([]);
+    expect(enquiry!.offers, 'offers were suggested for an empty enquiry').toEqual([]);
   }, 120000);
 
 
