@@ -160,7 +160,7 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">Where it stands</h2>
+          <h2 className="q-section-title">Status</h2>
           <div className="q-grid-3">
             <div className="q-panel">
               <div className="q-stat-label">Invoiced</div>

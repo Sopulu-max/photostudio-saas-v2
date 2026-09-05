@@ -63,7 +63,7 @@ export function OutputTypeManager({
   return (
     <div className="q-stack q-stack-md">
       <div className="q-field">
-        <label className="q-label">Which domain?</label>
+        <label className="q-label">Domain</label>
         <select className="q-select" value={domainId} onChange={(e) => setDomainId(e.target.value)}>
           {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>

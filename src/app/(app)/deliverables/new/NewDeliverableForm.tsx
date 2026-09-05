@@ -120,7 +120,7 @@ export function NewDeliverableForm({
   return (
     <form className="q-form q-stack q-stack-lg" onSubmit={submit}>
       <div className="q-card q-section">
-        <h2 className="q-section-title">What are you adding?</h2>
+        <h2 className="q-section-title">Type</h2>
         <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
           {CHOICES.map((c) => (
             <label
@@ -149,7 +149,7 @@ export function NewDeliverableForm({
       <div className="q-card q-section q-stack q-stack-md">
         {kind === 'deliverable' && (
           <div className="q-field">
-            <label className="q-label">Which domain produces it?</label>
+            <label className="q-label">Domain</label>
             <select
               className="q-select"
               value={domainId}
@@ -222,7 +222,7 @@ export function NewDeliverableForm({
               * paying for.
               */}
             <div className="q-field">
-              <label className="q-label">What it needs settling (optional)</label>
+              <label className="q-label">Variables (optional)</label>
               <p className="q-help">
                 Every package promising this is asked these, and can fix an answer or leave it to
                 the client. A service can later say it only does some of the answers.

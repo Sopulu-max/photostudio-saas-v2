@@ -65,7 +65,7 @@ export default async function EditDeliverablePage(props: { params: Promise<{ id:
         * mechanism, so one way of editing it.
         */}
       <section className="q-card q-section" style={{ marginTop: '24px' }}>
-        <h2 className="q-section-title">What has to be settled about it</h2>
+        <h2 className="q-section-title">Variables</h2>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
           Declared once here. Every package promising this deliverable is asked these, and can
           either fix an answer or leave it for the client.

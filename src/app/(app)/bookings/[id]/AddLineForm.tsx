@@ -141,7 +141,7 @@ export function AddLineForm({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
         <input
           className="q-input"
-          placeholder="or a one-off charge, e.g. Travel"
+          placeholder="One-off charge, e.g. Travel"
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
           style={{ minWidth: '14rem' }}
@@ -153,7 +153,7 @@ export function AddLineForm({
         >
           {isPending ? 'Adding…' : 'Add charge'}
         </button>
-        {!custom.trim() && <span className="q-meta-sm">Name a one-off charge to add one.</span>}
+        {!custom.trim() && <span className="q-meta-sm">Enter a description to add a charge.</span>}
       </div>
 
       {variant && (

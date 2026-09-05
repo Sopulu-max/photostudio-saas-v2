@@ -150,7 +150,7 @@ export function DimensionManager({
   return (
     <div className="q-stack q-stack-md">
       <div className="q-field">
-        <label className="q-label">Which domain?</label>
+        <label className="q-label">Domain</label>
         <select className="q-select" value={domainId} onChange={(e) => setDomainId(e.target.value)}>
           {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
@@ -367,7 +367,7 @@ export function DimensionManager({
                 * same rule.
                 */}
               <div className="q-stack q-stack-sm q-tile-sub">
-                <span className="q-eyebrow">What you need to know</span>
+                <span className="q-eyebrow">Required information</span>
                 {(vars[d.id] || []).length === 0 && (
                   <span className="q-meta-sm">
                     Nothing yet. If knowing {d.name.toLowerCase()} means you also need something — an

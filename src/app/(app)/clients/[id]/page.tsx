@@ -54,7 +54,7 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
         </div>
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">At a glance</h2>
+          <h2 className="q-section-title">Summary</h2>
           <div className="q-grid-3">
             <div className="q-panel">
               <div className="q-stat-label">Bookings</div>

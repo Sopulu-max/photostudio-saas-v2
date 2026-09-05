@@ -75,14 +75,14 @@ export function ResolveEnquiry({
     <div className="q-tile q-stack q-stack-md">
       <div className="q-row q-row-between">
         <div>
-          <strong className="q-strong">What they asked for</strong>
+          <strong className="q-strong">Client request</strong>
           <span className="q-meta-sm">
-            {alreadyOn ? ' · already partly answered' : ' · nothing chosen yet'}
+            {alreadyOn ? ' · partly fulfilled' : ' · no package selected'}
           </span>
         </div>
         {alreadyOn && (
           <button type="button" className="q-btn-ghost q-btn-xs" onClick={() => setOpen((v) => !v)}>
-            {open ? 'Hide' : 'Add more of what they asked for'}
+            {open ? 'Hide' : 'Show options'}
           </button>
         )}
       </div>
@@ -104,8 +104,8 @@ export function ResolveEnquiry({
       {/* 1. Something already sold that covers it. */}
       {open && offers.length > 0 && (
         <div className="q-stack q-stack-sm">
-          <strong className="q-strong">You already sell this</strong>
-          <span className="q-meta-sm">Best fit first. Adding one puts this booking&rsquo;s own copy of it on the booking.</span>
+          <strong className="q-strong">Matching packages</strong>
+          <span className="q-meta-sm">Ranked by fit. Adding one creates this booking&rsquo;s copy of it.</span>
           {offers.slice(0, 4).map((o) => (
             <div key={o.id} className="q-row q-row-between q-tile-sub">
               <div>
@@ -120,8 +120,8 @@ export function ResolveEnquiry({
                 {chosen.length > 0 && (
                   <div className="q-meta-sm">
                     {o.carried > 0
-                      ? `Covers ${o.carried} of ${chosen.length} ${chosen.length === 1 ? 'answer' : 'answers'} outright`
-                      : 'Does not rule any of it out'}
+                      ? `Matches ${o.carried} of ${chosen.length} ${chosen.length === 1 ? 'classification' : 'classifications'}`
+                      : 'No conflicting classifications'}
                   </div>
                 )}
               </div>
@@ -131,7 +131,7 @@ export function ResolveEnquiry({
                 disabled={isPending}
                 onClick={() => run(() => addBookingLine({ bookingId, packageId: o.id, title: '' }))}
               >
-                Put this on the booking
+                Add
               </button>
             </div>
           ))}
@@ -142,12 +142,12 @@ export function ResolveEnquiry({
       {open && capabilities.length > 0 && (
         <div className="q-stack q-stack-sm">
           <strong className="q-strong">
-            {offers.length > 0 ? 'Or put something together' : 'You can do this'}
+            {offers.length > 0 ? 'Build a package' : 'Available services'}
           </strong>
           <span className="q-meta-sm">
             {offers.length > 0
-              ? 'Build a package for this booking alone, from what you already do.'
-              : 'No package covers this, but these do. Choosing them builds a package for this booking alone — it does not go in your catalogue.'}
+              ? 'Create a package for this booking from existing services. It is not added to the catalogue.'
+              : 'No package covers this request. These services do. Selecting them creates a package for this booking only \u2014 it is not added to the catalogue.'}
           </span>
           {capabilities.map((c) => (
             <label key={c.id} className="q-row q-tile-sub" style={{ gap: '10px', cursor: 'pointer' }}>
@@ -165,7 +165,7 @@ export function ResolveEnquiry({
                     outright, as opposed to merely not ruling out. */}
                 {c.carried > 0 && (
                   <div className="q-meta-sm">
-                    Covers {c.carried} of {chosen.length} {chosen.length === 1 ? 'answer' : 'answers'} outright
+                    Matches {c.carried} of {chosen.length} {chosen.length === 1 ? 'classification' : 'classifications'}
                   </div>
                 )}
               </span>
@@ -178,10 +178,10 @@ export function ResolveEnquiry({
               disabled={isPending || picked.length === 0}
               onClick={() => run(() => buildPackageForBooking({ bookingId, serviceIds: picked }))}
             >
-              {isPending ? 'Putting it together…' : 'Build it for this booking'}
+              {isPending ? 'Creating…' : 'Create package'}
             </button>
             {picked.length === 0 && (
-              <span className="q-meta-sm">Choose what delivers this.</span>
+              <span className="q-meta-sm">Select at least one service.</span>
             )}
           </div>
         </div>
@@ -190,9 +190,8 @@ export function ResolveEnquiry({
       {/* 3. Genuinely new. */}
       {open && offers.length === 0 && capabilities.length === 0 && (
         <p className="q-meta-sm">
-          Nothing you offer or do covers this yet. If it is work you want to take on, define it
-          in <Link href="/services" className="q-plain-link">Services</Link> first — that is a
-          decision about your catalogue, and it should not be made by one enquiry.
+          No package or service covers this request. Define the service in{' '}
+          <Link href="/services" className="q-plain-link">Services</Link> before booking it.
         </p>
       )}
     </div>

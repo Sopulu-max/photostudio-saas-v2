@@ -188,7 +188,7 @@ export function BookingRecordForm({
     <div className="q-stack q-stack-lg">
     <div className="q-card q-section q-stack q-stack-lg">
       <div className="q-stack q-stack-sm">
-        <label className="q-label" htmlFor="booking-title">What this booking is called</label>
+        <label className="q-label" htmlFor="booking-title">Name</label>
         <input
           id="booking-title"
           className="q-input"
@@ -221,7 +221,7 @@ export function BookingRecordForm({
         * eventually answer it rarely say everything it did.
         */}
       <div className="q-stack q-stack-sm">
-        <label className="q-label" htmlFor="booking-brief">What they asked for</label>
+        <label className="q-label" htmlFor="booking-brief">Client request</label>
         <textarea
           id="booking-brief"
           className="q-textarea"
@@ -323,7 +323,7 @@ export function BookingRecordForm({
           {dirty ? 'Discard changes' : 'Back to the booking'}
         </button>
         <span className="q-meta-sm">
-          {dirty ? 'Unsaved changes' : 'Nothing changed yet.'}
+          {dirty ? 'Unsaved changes' : 'No changes'}
         </span>
       </div>
     </div>

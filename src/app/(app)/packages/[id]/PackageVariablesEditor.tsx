@@ -64,7 +64,7 @@ export function PackageVariablesEditor({ packageId, variables, initial }: Props)
   if (variables.length === 0) {
     return (
       <div className="q-card q-section">
-        <h2 className="q-section-title">What&rsquo;s included</h2>
+        <h2 className="q-section-title">Included</h2>
         <p className="q-empty">
           The services in this package don&rsquo;t declare anything that varies yet. Add what can vary on the service itself, and it becomes selectable here.
         </p>
@@ -83,7 +83,7 @@ export function PackageVariablesEditor({ packageId, variables, initial }: Props)
     <div className="q-card q-section">
       <div className="q-row q-row-between">
         <div>
-          <h2 className="q-section-title">What&rsquo;s included</h2>
+          <h2 className="q-section-title">Included</h2>
           <p className="q-meta" style={{ marginBottom: 0 }}>
             Fix what this package covers. Anything you leave blank stays open and is asked at booking.
           </p>

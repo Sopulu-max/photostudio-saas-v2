@@ -71,7 +71,7 @@ export default async function SettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">Where you are</h2>
+          <h2 className="q-section-title">Address</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             Which day a morning belongs to. Attendance files every check-in against the studio&rsquo;s own
             day, so at UTC an evening in Lagos lands on tomorrow.
@@ -92,7 +92,7 @@ export default async function SettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">On your invoices</h2>
+          <h2 className="q-section-title">Invoices</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What clients see on every invoice and receipt you send them &mdash; including how to pay you.
           </p>
@@ -126,7 +126,7 @@ export default async function SettingsPage() {
         </section>
 
         <section className="q-card q-section">
-          <h2 className="q-section-title">Settings that live elsewhere</h2>
+          <h2 className="q-section-title">Other settings</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             Each app keeps its own configuration, so it sits with the thing it affects.
           </p>

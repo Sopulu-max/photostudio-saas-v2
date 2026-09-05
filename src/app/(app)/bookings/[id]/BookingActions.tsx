@@ -42,7 +42,7 @@ export function RestoreWorkButton({ bookingId }: { bookingId: string }) {
       style={{ alignSelf: 'flex-start' }}
       onClick={() => run(() => restoreWorkForBooking(bookingId))}
     >
-      {isPending ? 'Bringing it in…' : 'Bring in the work from its packages'}
+      {isPending ? 'Adding…' : 'Add tasks from packages'}
     </button>
   );
 }

@@ -47,7 +47,7 @@ export default async function TransactionDetailPage(props: { params: Promise<{ i
       <div className="q-stack q-stack-lg">
 
         <div className="q-card q-section">
-          <h2 className="q-section-title">At a glance</h2>
+          <h2 className="q-section-title">Summary</h2>
           <div className="q-grid-3">
             <div className="q-panel">
               <div className="q-stat-label">Amount</div>

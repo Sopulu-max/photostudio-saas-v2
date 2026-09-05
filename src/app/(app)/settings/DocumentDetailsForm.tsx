@@ -87,7 +87,7 @@ export function DocumentDetailsForm({
       </div>
 
       <div className="q-field">
-        <label className="q-label">How clients pay you</label>
+        <label className="q-label">Payment terms</label>
         <textarea className="q-input" rows={3} value={payment} onChange={(e) => setPayment(e.target.value)}
           placeholder={'Bank name\nAccount name\nAccount number'} />
         <span className="q-meta-sm">

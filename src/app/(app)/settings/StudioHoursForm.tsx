@@ -226,7 +226,7 @@ export function StudioHoursForm({
         ) : (
           <div className="q-tile q-stack q-stack-sm">
             <div className="q-field">
-              <label className="q-label">What to call it</label>
+              <label className="q-label">Name</label>
               <input
                 className="q-input" value={label} autoFocus style={{ maxWidth: '20rem' }}
                 onChange={(e) => setLabel(e.target.value)}
@@ -238,7 +238,7 @@ export function StudioHoursForm({
             </div>
 
             <div className="q-field">
-              <label className="q-label">Which days</label>
+              <label className="q-label">Days</label>
               <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                 <select className="q-select" value={scope} disabled={isPending}
                   onChange={(e) => setScope(e.target.value as 'weekday' | 'date')}>
@@ -266,7 +266,7 @@ export function StudioHoursForm({
             </div>
 
             <div className="q-field">
-              <label className="q-label">What happens</label>
+              <label className="q-label">Hours</label>
               <div className="q-row" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
                 <label className="q-row q-meta-sm" style={{ gap: '6px', alignItems: 'center' }}>
                   <input type="checkbox" checked={exClosed} disabled={isPending}

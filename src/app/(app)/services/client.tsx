@@ -193,7 +193,7 @@ export function ServicesClient({
             </>
           ) : (
             <>
-              <h3 className="q-section-title">Create your first service</h3>
+              <h3 className="q-section-title">No services yet</h3>
               <p className="q-meta">
                 A service is a transformation — Portrait Photography, Album Design. Create one, and it becomes something
                 a Package can bundle and sell.

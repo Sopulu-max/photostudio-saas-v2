@@ -1163,7 +1163,7 @@ export function NewBookingForm({
               * it is the only thing that puts a booking on a calendar, and it
               * pairs with duration_minutes to make a block with a length.
               */}
-            <label className="q-label">When the session happens (optional)</label>
+            <label className="q-label">Session date and time (optional)</label>
             <input className="q-input" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} />
             <span className="q-meta-sm">
               This is what puts the booking on the calendar. Leave it empty while it is unsettled.
@@ -1197,7 +1197,7 @@ export function NewBookingForm({
             * exists to solve.
             */}
           <div className="q-field">
-            <label className="q-label">What they asked for (optional)</label>
+            <label className="q-label">Client request (optional)</label>
             <textarea
               className="q-textarea"
               rows={3}

@@ -77,7 +77,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
             doesn't silently drift if the booking changes later. */}
         {lineItems.length > 0 && (
           <div className="q-card">
-            <h3 className="q-section-title">What&rsquo;s included</h3>
+            <h3 className="q-section-title">Included</h3>
             <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
               {lineItems.map((li, i) => (
                 <div key={i} className="q-tile q-row q-row-between">

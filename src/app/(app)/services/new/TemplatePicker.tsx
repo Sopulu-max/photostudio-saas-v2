@@ -148,7 +148,7 @@ export function TemplatePicker({
     <div className="q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Start a new service</h1>
+          <h1 className="q-page-title">New service</h1>
           <p className="q-page-subtitle">Pick the closest starting point — everything about it is yours to change.</p>
         </div>
         <button className="q-btn q-btn-secondary" onClick={() => setCustom(true)}>None of these — create a custom service</button>

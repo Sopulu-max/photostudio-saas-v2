@@ -166,7 +166,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           log. The form above owns the single booking row; this owns a list.
         */}
         <div className="q-card q-section">
-          <h2 className="q-section-title">What they&rsquo;re booking</h2>
+          <h2 className="q-section-title">Packages</h2>
           <p className="q-meta" style={{ marginBottom: '14px' }}>
             Changes here apply straight away — each package added or removed is its own change.
           </p>
@@ -304,15 +304,14 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
           * form ends with, for the same reason.
           */}
         <p className="q-meta-sm">
-          Crew, tasks, deliveries, invoices and the contract live on{' '}
-          <Link href={`/bookings/${booking.id}`} className="q-plain-link">the booking itself</Link>,
-          where they can be changed without coming through here.
+          Crew, tasks, deliveries, invoices and contracts are managed on{' '}
+          <Link href={`/bookings/${booking.id}`} className="q-plain-link">the booking</Link>.
         </p>
 
         {/* Deleting is the one thing here with nothing to undo it, so it sits
             apart from the fields rather than beside a Save button. */}
         <div className="q-card q-section">
-          <h2 className="q-section-title">If this booking shouldn&rsquo;t exist</h2>
+          <h2 className="q-section-title">Delete booking</h2>
           <p className="q-meta" style={{ marginBottom: '14px' }}>
             If the job simply isn&rsquo;t happening, move it to a cancelled stage instead — that keeps the record.
             Deleting is for bookings created by mistake.

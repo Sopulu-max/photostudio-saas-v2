@@ -123,7 +123,7 @@ export default async function FinancesPage() {
         )}
       </div>
 
-      <h2 className="q-section-title">Every movement</h2>
+      <h2 className="q-section-title">All transactions</h2>
       {transactions.length === 0 ? (
         <div className="q-card" style={{ textAlign: 'center', padding: 'clamp(44px, 7vw, 76px) 24px', color: 'var(--q-color-ink-500)' }}>
           No money recorded yet. Invoices raised from a booking will show up here.

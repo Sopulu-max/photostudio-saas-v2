@@ -573,8 +573,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           {bookingTasks.length === 0 && lines.some((l: any) => l.package_id) && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
               <span className="q-meta-sm">
-                Nothing is on this board, though what was booked calls for work.
-                That happens to bookings taken before the workflow was written.
+                No tasks on this booking, though its packages define work. This affects
+                bookings created before the workflow was defined.
               </span>
               <RestoreWorkButton bookingId={booking.id} />
             </div>

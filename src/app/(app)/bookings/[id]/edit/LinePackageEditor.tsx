@@ -120,7 +120,7 @@ export function LinePackageEditor({
   const makeOwnCopy = () => startTransition(async () => {
     try {
       await giveLineItsOwnPackage({ bookingId, lineId });
-      toast.ok('This booking now has its own copy.');
+      toast.ok('Copy created.');
       router.refresh();
     } catch (e) {
       toast.bad(readableError(e, 'That could not be copied.'));
@@ -131,9 +131,8 @@ export function LinePackageEditor({
     return (
       <div className="q-tile-sub q-stack q-stack-sm" style={{ marginTop: '10px' }}>
         <span className="q-meta-sm">
-          This line points at the catalogue package itself, not at a copy of it — so changing
-          what it includes would change it for every future booking too. Give this booking its
-          own copy and it becomes editable here.
+          This line points at the catalogue package. Editing it would affect every future
+          booking of it. Create a copy for this booking to edit it here.
         </span>
         <button
           type="button"
@@ -142,7 +141,7 @@ export function LinePackageEditor({
           onClick={makeOwnCopy}
           style={{ alignSelf: 'flex-start' }}
         >
-          {isPending ? 'Copying…' : 'Give this booking its own copy'}
+          {isPending ? 'Creating…' : 'Create copy for this booking'}
         </button>
       </div>
     );
@@ -158,12 +157,12 @@ export function LinePackageEditor({
         style={{ alignSelf: 'flex-start' }}
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        {open ? 'Done configuring' : 'Configure this package'}
+        {open ? 'Close' : 'Configure package'}
       </button>
 
       {!open && (
         <span className="q-meta-sm">
-          What it includes, promises, is classified as, and leaves open.
+          Services, deliverables, classifications, variables and price.
         </span>
       )}
 
@@ -171,8 +170,8 @@ export function LinePackageEditor({
         <div className="q-card q-section">
           <p className="q-meta" style={{ marginBottom: '14px' }}>
             {derivedFrom
-              ? <>This booking&rsquo;s own copy of <strong className="q-strong">{derivedFrom}</strong>. Changes here apply to this booking only — the catalogue package is untouched.</>
-              : <>Put together for this booking. It is not in the catalogue, so nothing else uses it.</>}
+              ? <>Copy of <strong className="q-strong">{derivedFrom}</strong> for this booking. Changes do not affect the catalogue package.</>
+              : <>Created for this booking. Not in the catalogue.</>}
           </p>
           <PackageFieldsEditor
             mode="edit"

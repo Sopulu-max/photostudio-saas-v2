@@ -1156,7 +1156,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           <div className="q-tile q-stack q-stack-sm">
             <div className="q-row">
               <div className="q-field" style={{ flex: 1, minWidth: '10rem' }}>
-                <label className="q-label">What varies</label>
+                <label className="q-label">Variables</label>
                 <input
                   className="q-input"
                   value={newVar.label}
@@ -1380,7 +1380,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
              * editable here anyway, fixing something meant nothing.
              */
             <div className="q-field">
-              <span className="q-eyebrow">From your catalogue</span>
+              <span className="q-eyebrow">Catalogue</span>
               <p className="q-lead" style={{ margin: '2px 0 0' }}>{effectiveName}</p>
               {description && <p className="q-meta" style={{ margin: '6px 0 0' }}>{description}</p>}
               <span className="q-meta-sm" style={{ marginTop: '6px' }}>

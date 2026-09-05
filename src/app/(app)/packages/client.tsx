@@ -358,7 +358,7 @@ export function PackagesClient({
             </>
           ) : (
             <>
-              <h3 className="q-section-title">Build your first package</h3>
+              <h3 className="q-section-title">No packages yet</h3>
               <p className="q-meta">A package bundles one or more services into something a client can buy. Create your services first, then bundle them here.</p>
               <Link href="/packages/new" className="q-btn q-btn-primary">Build package</Link>
             </>

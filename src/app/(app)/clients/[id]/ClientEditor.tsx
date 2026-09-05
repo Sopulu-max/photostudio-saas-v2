@@ -77,7 +77,7 @@ export function ClientEditor({
       </div>
 
       <div className="q-field">
-        <label className="q-label">How they found you</label>
+        <label className="q-label">Source</label>
         <input className="q-input" value={source} onChange={(e) => setSource(e.target.value)}
           placeholder="e.g. Instagram, referral, walk-in" list="source-suggestions" />
         <datalist id="source-suggestions">
