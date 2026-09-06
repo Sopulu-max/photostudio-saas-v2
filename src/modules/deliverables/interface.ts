@@ -21,7 +21,7 @@ import {
   listDeliverableIdsForService, setDeliverablesForService,
   copyDeliverablesBetweenServices,
   listVariablesForDeliverables, declareDeliverableVariable, removeDeliverableVariable,
-  listServiceDeliverableOptions, setServiceDeliverableOptions, listServiceCapabilities,
+  listServiceDeliverableOptions, listServiceDeliverableOptionsFor, setServiceDeliverableOptions, listServiceCapabilities,
 } from './domain';
 export { narrowOptions } from './shape';
 export type { Deliverable } from './domain';
@@ -46,5 +46,5 @@ export {
    * service narrows them to what it actually does, a package fixes one or
    * leaves the client to choose from what is left.
    */
-  listServiceDeliverableOptions, setServiceDeliverableOptions, listServiceCapabilities,
+  listServiceDeliverableOptions, listServiceDeliverableOptionsFor, setServiceDeliverableOptions, listServiceCapabilities,
 };

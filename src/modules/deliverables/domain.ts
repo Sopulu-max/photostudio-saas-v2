@@ -816,6 +816,26 @@ export async function listServiceCapabilities(serviceId: string) {
 export async function listServiceDeliverableOptions(serviceDeliverableIds: string[]) {
   if (serviceDeliverableIds.length === 0) return {};
   const { orgId } = await getAuthOrgId();
+  return listServiceDeliverableOptionsFor(orgId, serviceDeliverableIds);
+}
+
+/**
+ * The same, for a caller with no session.
+ *
+ * A CLIENT LOOKING AT A PACKAGE HAS NO SESSION, and this was reached from
+ * getPackageVariablesPublic — the sessionless path — through a function that
+ * demanded one. So opening a package on the public booking page threw "No
+ * organization found. Please complete studio setup" at a stranger, and had
+ * done since the narrowing was added.
+ *
+ * Nothing caught it: every test mocks getAuthOrgId, so in a test there is
+ * always a session and the public path never runs the way a client runs it.
+ */
+export async function listServiceDeliverableOptionsFor(
+  orgId: string,
+  serviceDeliverableIds: string[],
+) {
+  if (serviceDeliverableIds.length === 0) return {};
   const { data } = await supabaseAdmin
     .from('service_deliverable_options')
     .select('service_deliverable_id, variable_id, value')
