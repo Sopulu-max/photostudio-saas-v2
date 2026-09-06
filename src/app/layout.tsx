@@ -40,8 +40,17 @@ export default function RootLayout({
           * because the dark tokens live in one block keyed on data-theme rather
           * than in a prefers-color-scheme query. One place to change a colour,
           *
-          * We use next/script with strategy="beforeInteractive" which is the
-          * modern Next.js way to handle early-running scripts without warnings.
+          * REACT WARNS ABOUT THIS, AND THE WARNING IS WRONG HERE. "Scripts
+          * inside React components are never executed when rendering on the
+          * client" is true and irrelevant: this one runs from the
+          * server-rendered HTML while the browser parses the head, which is the
+          * only moment that can prevent the flash. It never needs to run again.
+          * Silencing it means going back to a mechanism that paints light
+          * first, which trades something a client sees for something only a
+          * developer sees.
+          *
+          * (This paragraph previously claimed the file used next/script. It
+          * does not, for the reason set out above.)
           */}
         <script
           id="theme-script"
