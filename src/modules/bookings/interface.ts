@@ -59,7 +59,15 @@ export {
   updateStage,
   deleteStage,
   setDefaultStage,
+  /*
+   * The calendar's three readings of a booking's dates. It owns no data of its
+   * own and composes layers from whoever does — so all three come through
+   * here: when the work happens, when the agreement was made, and when the
+   * thing the work is about happens.
+   */
   listBookingsInRange,
+  listBookingsPlacedInRange,
+  listClassificationDatesInRange,
   listBookingsForContact,
   getAnsweredQuestionIdsForPackage,
   getIntakeAnswersForBooking,

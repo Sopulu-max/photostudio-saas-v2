@@ -1297,6 +1297,140 @@ export async function listBookings() {
  * Bookings scheduled within a window — the calendar's shoot layer. Carries just
  * enough context to be readable without opening the booking.
  */
+/**
+ * WHEN THE AGREEMENT WAS MADE, as opposed to when the work happens.
+ *
+ * A booking has three dates and they are three different kinds of fact. This
+ * is the record's own: nobody answers it, it is produced by the act of
+ * booking, and it never moves. Reading it onto the calendar answers "what came
+ * in that week?", which is a question about the studio's trade rather than
+ * about its schedule — and it is the only one of the three every booking is
+ * guaranteed to have.
+ *
+ * Deliberately NOT filtered to bookings that have been scheduled: an enquiry
+ * that never got a date was still taken on a day, and leaving those out would
+ * quietly under-report exactly the ones worth noticing.
+ */
+export async function listBookingsPlacedInRange(fromISO: string, toISO: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, created_at, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name)')
+    .eq('organization_id', orgId)
+    .gte('created_at', fromISO)
+    .lte('created_at', toISO)
+    .order('created_at');
+  if (error) {
+    console.error('Failed to list bookings placed in range:', error);
+    throw new Error('Failed to load the calendar');
+  }
+
+  return ((data || []) as any[]).map((b) => ({
+    kind: 'placed' as const,
+    at: b.created_at as string,
+    bookingId: b.id as string,
+    title: b.title as string,
+    client: b.contact?.display_name || null,
+    stage: b.stage?.name || null,
+    stageKind: b.stage?.kind || null,
+    stageColor: b.stage?.color || null,
+    /* So the day panel can say what became of it — booked on the 3rd, shooting
+       on the 20th — without a second read per row. */
+    scheduledFor: (b.scheduled_for ?? null) as string | null,
+  }));
+}
+
+/**
+ * THE DATE OF THE THING THE WORK IS ABOUT.
+ *
+ * The third date, and the only one that is not the booking's own: a birthday
+ * belongs to the birthday. It lives where it belongs — a variable declared on
+ * a classification, answered per booking — and this reads it back out onto the
+ * calendar beside the shoot.
+ *
+ * WHICH MATTERS BECAUSE THE TWO NEED NOT COINCIDE. A wedding is covered on the
+ * wedding day; a birthday portrait is taken the week before. Seeing both on
+ * one calendar is how an operator notices that the shoot for the 14th is
+ * booked for the 7th and has to be delivered in between.
+ *
+ * IDENTIFIED STRUCTURALLY, NOT BY NAME. Any date declared on a DIMENSION is
+ * one of these — this does not look for a variable called "occasion date",
+ * because the studio owns its vocabulary and may classify by Season or Project
+ * and call the date whatever it likes. A date declared on a SERVICE is a
+ * different kind of thing and is not swept up.
+ */
+export async function listClassificationDatesInRange(fromISO: string, toISO: string) {
+  const { orgId } = await getAuthOrgId();
+
+  /*
+   * Compared as calendar days, not instants — and QUOTED, because the column
+   * is jsonb.
+   *
+   * A variable's answer is stored as JSON whatever its kind, so a date sits
+   * there as the JSON string "2026-09-06". Handing Postgres a bare 2026-09-01
+   * to compare against it is not a wrong answer, it is a hard error —
+   * `invalid input syntax for type json: Token "-09" is invalid` — because it
+   * parses the operand as JSON first and 2026-09-01 is arithmetic.
+   *
+   * Comparing jsonb strings orders them lexicographically, which for ISO dates
+   * is the same as ordering them chronologically. That is why this works, and
+   * it is worth saying out loud: it would NOT work for a date written any
+   * other way round.
+   */
+  const fromDay = JSON.stringify(fromISO.slice(0, 10));
+  const toDay = JSON.stringify(toISO.slice(0, 10));
+
+  const { data, error } = await supabaseAdmin
+    .from('booking_line_variable_values')
+    .select(`
+      value,
+      variable:variables!inner(id, label, kind, dimension:dimensions(id, name)),
+      line:booking_lines!inner(id, title, booking:bookings!inner(id, title, scheduled_for, contact:contacts(display_name)))
+    `)
+    .eq('organization_id', orgId)
+    .eq('variable.kind', 'date')
+    .not('variable.dimension_id', 'is', null)
+    .gte('value', fromDay)
+    .lte('value', toDay);
+  if (error) {
+    console.error('Failed to list classification dates in range:', error);
+    throw new Error('Failed to load the calendar');
+  }
+
+  const rows = ((data || []) as any[]).filter((r) => r.variable?.dimension && r.line?.booking);
+
+  /*
+   * One entry per booking per day. A booking bundling two services that both
+   * carry the same classification answers the question once, but the answer is
+   * recorded against each line — so without this the calendar would show the
+   * same birthday twice on the same day.
+   */
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const r of rows) {
+    const day = String(r.value).slice(0, 10);
+    const key = `${r.line.booking.id}:${r.variable.id}:${day}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      kind: 'occasion' as const,
+      at: day,
+      bookingId: r.line.booking.id as string,
+      bookingTitle: r.line.booking.title as string,
+      client: r.line.booking.contact?.display_name || null,
+      /** The studio's own name for the question — "Occasion", or whatever they call it. */
+      dimensionName: r.variable.dimension.name as string,
+      /** And its label, which by now names the answer: "Birthday Date". */
+      title: r.variable.label as string,
+      /* The shoot, so the panel can say how far apart the two are — which is
+         the whole reason for showing this date at all. */
+      scheduledFor: (r.line.booking.scheduled_for ?? null) as string | null,
+    });
+  }
+  return out;
+}
+
 export async function listBookingsInRange(fromISO: string, toISO: string) {
   const { orgId } = await getAuthOrgId();
 
