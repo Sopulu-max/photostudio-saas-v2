@@ -57,20 +57,69 @@ export default async function BookingPage(props: {
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)', padding: 'clamp(32px, 6vw, 80px) 24px' }}>
       <div style={{ width: '100%', maxWidth: '640px', margin: '0 auto' }}>
 
-        {/* Studio + back */}
+        {/*
+          * BACK TO THE PAGE THEY CAME FROM.
+          *
+          * This pointed at /storefront/[slug] — a second public catalogue that
+          * exists but that no client is ever sent to. The link a studio copies
+          * and hands out is /book/[slug], so "back" was landing people on a
+          * page they had never seen, with a different list on it.
+          */}
         <div style={{ marginBottom: '40px' }}>
-          <a href={`/storefront/${params.slug}`} className="q-plain-link" style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--q-color-ink-500)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <a href={`/book/${params.slug}`} className="q-plain-link" style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--q-color-ink-500)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>&larr;</span> {org.name}
           </a>
         </div>
 
-        {/* Package summary — what they're requesting */}
+        {/*
+          * THE PICTURE, WITH THE NAME ON IT.
+          *
+          * This page opened with a heading on a plain card and never showed the
+          * cover at all — so the one image the studio chose for the thing being
+          * sold appeared on the catalogue and vanished the moment somebody
+          * asked to see more. And the page a client reaches to decide showed
+          * less than the card that sent them.
+          *
+          * The name sits on the picture because they are one statement. Stacked,
+          * the page began with a label and then, separately, showed the thing it
+          * was labelling.
+          */}
+        <div
+          className={pkg.coverUrl ? 'q-hero' : 'q-hero q-hero-blank'}
+          style={pkg.coverUrl
+            ? { backgroundImage: `url(${pkg.coverUrl})`, backgroundPosition: pkg.coverPosition || undefined }
+            : undefined}
+        >
+          {/* The figure, in the same place and the same shape as on the card
+              that sent them here. Absent when the studio has not priced it. */}
+          {pkg.price && (
+            <span className="q-hero-price">
+              {formatMoney(pkg.price.amount, pkg.price.currency || currencyCode)}
+              {pkg.priceUnit && <span className="q-poster-price-unit">/{pkg.priceUnit}</span>}
+            </span>
+          )}
+          <h1 className="q-hero-title">{pkg.name}</h1>
+          {/* The line written for a card, where there is one — the paragraph
+              below is the full account and does not belong on the picture. */}
+          {pkg.shortDescription && <p className="q-hero-note">{pkg.shortDescription}</p>}
+          {(durationLabel || deliverables.length > 0) && (
+            <div className="q-hero-tags">
+              {durationLabel && <span className="q-hero-tag">{durationLabel}</span>}
+              {deliverables.map((d) => (
+                <span key={d} className="q-hero-tag">{d}</span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="q-card" style={{ marginBottom: '32px', padding: '32px', borderRadius: '16px' }}>
-          <h1 style={{ margin: '0 0 8px', fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 700, color: 'var(--q-color-ink-900)', letterSpacing: '-0.02em' }}>
-            {pkg.name}
-          </h1>
+          {/*
+            * The full account, in full. It was clamped nowhere and shown here
+            * as the only thing on the page; now the card carries a summary and
+            * this carries what the studio actually wrote.
+            */}
           {pkg.description && (
-            <p style={{ margin: '0 0 24px', color: 'var(--q-color-ink-500)', fontSize: '1rem', lineHeight: 1.6 }}>
+            <p className="q-text-body q-prewrap" style={{ margin: '0 0 24px', lineHeight: 1.65 }}>
               {pkg.description}
             </p>
           )}
@@ -84,32 +133,18 @@ export default async function BookingPage(props: {
               formSchema={pkg.formSchema}
               openVariables={openVariables}
               openClassifications={openClassifications}
-                            premisesValueIds={premisesValues}
+              premisesValueIds={premisesValues}
               packageValueIds={packageValues}
-                            currencyCode={currencyCode}
+              currencyCode={currencyCode}
             />
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '32px', padding: '24px 0', borderTop: '1px solid var(--q-color-ink-100)' }}>
-
-            {durationLabel && (
-              <div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--q-color-ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>Duration</div>
-                <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--q-color-ink-900)' }}>{durationLabel}</div>
-              </div>
-            )}
           </div>
 
           {services.length > 0 && (
             <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '20px' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--q-color-ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
-                What&rsquo;s included
-              </div>
+              <div className="q-eyebrow" style={{ marginBottom: '12px' }}>Services included</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {services.map((s) => (
-                  <span key={s} style={{ fontSize: '0.85rem', fontWeight: 500, padding: '4px 12px', background: 'var(--q-color-ink-100)', borderRadius: '24px', color: 'var(--q-color-ink-700)' }}>
-                    {s}
-                  </span>
+                  <span key={s} className="q-fact">{s}</span>
                 ))}
               </div>
             </div>
@@ -117,16 +152,19 @@ export default async function BookingPage(props: {
 
           {deliverables.length > 0 && (
             <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '20px', marginTop: services.length > 0 ? '20px' : 0 }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--q-color-ink-400)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
-                You&rsquo;ll receive
-              </div>
+              <div className="q-eyebrow" style={{ marginBottom: '12px' }}>What you receive</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {deliverables.map((d) => (
-                  <span key={d} style={{ fontSize: '0.85rem', fontWeight: 500, padding: '4px 12px', background: 'color-mix(in srgb, var(--q-color-accent) 8%, transparent)', borderRadius: '24px', color: 'var(--q-color-accent-hi)' }}>
-                    {d}
-                  </span>
+                  <span key={d} className="q-fact">{d}</span>
                 ))}
               </div>
+            </div>
+          )}
+
+          {durationLabel && (
+            <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '20px', marginTop: '20px' }}>
+              <div className="q-eyebrow" style={{ marginBottom: '6px' }}>Duration</div>
+              <div className="q-strong">{durationLabel}</div>
             </div>
           )}
         </div>
