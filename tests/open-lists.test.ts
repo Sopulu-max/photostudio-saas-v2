@@ -49,6 +49,7 @@ import {
 } from '@/modules/services/domain';
 import { createPackage, updatePackage, getPackage } from '@/modules/packages/domain';
 import { createDimension, addDimensionValue, listDimensionsForDomain } from '@/modules/services/dimensionsAdmin';
+import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 const DOMAIN = 'Photography';
@@ -58,12 +59,7 @@ let contextDimensionId = '';
 
 describe('A package adds to what a service left open', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Open Lists Studio', status: 'active',
-    });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Open Lists Owner',
-    });
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Open Lists Studio', stages: false });
 
     const created = await createService({
       name: 'Portrait Photography', serviceDomain: DOMAIN, primaryDeliverable: 'Edited image',

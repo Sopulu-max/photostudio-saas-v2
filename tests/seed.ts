@@ -24,9 +24,18 @@ export async function seedStudio(input: {
   name: string;
   /** Most suites need somewhere for a booking to land. */
   stages?: boolean;
+  /**
+   * A public handle, for suites that go in the way a client does.
+   *
+   * Only the public path needs one: a stranger has no session, so the studio is
+   * resolved from the slug in the URL and nothing else. A suite that only calls
+   * domain functions never looks it up.
+   */
+  slug?: string;
 }) {
   const { error: orgError } = await supabaseAdmin.from('organizations').insert({
     id: input.orgId, name: input.name, status: 'active',
+    ...(input.slug ? { slug: input.slug } : {}),
   });
   if (orgError) throw new Error(`Could not seed the studio "${input.name}": ${orgError.message}`);
 

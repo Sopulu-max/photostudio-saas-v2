@@ -34,6 +34,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import { createService, updateService, getService, listServices } from '@/modules/services/domain';
+import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 let serviceId = '';
@@ -41,12 +42,7 @@ const PICTURE = 'https://example.test/cover-a.webp';
 
 describe('A service can be seen', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Cover Studio', status: 'active',
-    });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Cover Owner',
-    });
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Cover Studio', stages: false });
     const created = await createService({
       name: 'Portrait Session',
       serviceDomain: 'Photography',

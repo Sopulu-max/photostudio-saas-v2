@@ -38,6 +38,7 @@ import { createService } from '@/modules/services/domain';
 import { createPackage, updatePackage, listPackages, instantiatePackageForBooking } from '@/modules/packages/domain';
 import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
 import { updateBookingLine, giveLineItsOwnPackage, addBookingLine, createBooking } from '@/modules/bookings/domain';
+import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 const CATALOG_PRICE = { base_price: 200000, currency: 'NGN' };
@@ -53,19 +54,30 @@ const readCatalog = async () => {
 
 describe('A booking gets its own package', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Instancing Studio', slug: `instancing-${randomUUID().slice(0, 8)}`, status: 'active',
+    /*
+     * SEEDED THROUGH THE ONE HELPER, WHICH CHECKS EVERY INSERT.
+     *
+     * The organization and the contact were written here by hand and neither
+     * was checked, and that cost a full-suite run to diagnose. When the contact
+     * insert failed — a dropped connection against a shared remote database is
+     * enough — nothing said so; the run carried on and died forty lines later
+     * inside createService with:
+     *
+     *   Key (actor_id)=(…) is not present in table "contacts"
+     *
+     * which reads like a bug in the event log rather than a seed that never
+     * landed. The file passed in isolation, so it looked like flakiness in
+     * whatever it happened to run beside.
+     *
+     * seedStudio exists for exactly this and six other suites had already
+     * drifted off it the same way.
+     */
+    await seedStudio({
+      orgId: TEST_ORG_ID,
+      actorId: TEST_PERSON_ID,
+      name: 'Instancing Studio',
+      slug: `instancing-${randomUUID().slice(0, 8)}`,
     });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Instancing Owner',
-    });
-    // Same keys in every object, or PostgREST answers PGRST102 and the failure
-    // surfaces much later as "this studio has no booking stages configured".
-    const { error: stageError } = await supabaseAdmin.from('booking_stages').insert([
-      { organization_id: TEST_ORG_ID, name: 'Enquiry', kind: 'enquiry', position: 0, is_default: true },
-      { organization_id: TEST_ORG_ID, name: 'Booked', kind: 'booked', position: 1, is_default: false },
-    ]);
-    if (stageError) throw new Error(`Could not seed booking stages: ${stageError.message}`);
 
     const { serviceId } = await createService({
       name: 'Portrait Session', serviceDomain: 'Photography', primaryDeliverable: 'Edited image',

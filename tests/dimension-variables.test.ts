@@ -52,6 +52,7 @@ import {
   getOpenClassificationsForPackagePublic, answerPackageClassifications, getPackage,
   getOpenQuestionsForPackage,
 } from '@/modules/packages/domain';
+import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 const DOMAIN = 'Photography';
@@ -63,12 +64,7 @@ let dateVariableId = '';
 
 describe('A dimension says what follows from its answers', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Occasion Date Studio', status: 'active',
-    });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Owner',
-    });
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Occasion Date Studio', stages: false });
 
     const created = await createService({
       name: 'Portrait Photography', serviceDomain: DOMAIN, primaryDeliverable: 'Edited image',

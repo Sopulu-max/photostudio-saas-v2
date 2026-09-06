@@ -42,24 +42,12 @@ import {
   createInvoiceForBooking, getBookingBilling, setTaxRate, getTaxRate,
 } from '@/modules/finances/invoices';
 import { createTransaction, settleTransaction, getReceiptForTransaction, getReceiptByToken } from '@/modules/finances/domain';
+import { seedStudio } from './seed';
 import { PURGE_ORDER } from './purge';
 
 describe('A booking, all the way to paid', () => {
   beforeAll(async () => {
-    await supabaseAdmin.from('organizations').insert({
-      id: TEST_ORG_ID, name: 'Money Path Studio', status: 'active',
-    });
-    await supabaseAdmin.from('contacts').insert({
-      id: TEST_PERSON_ID, organization_id: TEST_ORG_ID, display_name: 'Money Path Owner',
-    });
-    // Every object in a bulk insert must carry the SAME keys — PostgREST
-    // answers PGRST102 "All object keys must match" otherwise, and an ignored
-    // error here reads later as "no booking stages configured".
-    const { error: stageError } = await supabaseAdmin.from('booking_stages').insert([
-      { organization_id: TEST_ORG_ID, name: 'Enquiry', kind: 'enquiry', position: 0, is_default: true },
-      { organization_id: TEST_ORG_ID, name: 'Booked', kind: 'booked', position: 1, is_default: false },
-    ]);
-    if (stageError) throw new Error(`Could not seed booking stages: ${stageError.message}`);
+    await seedStudio({ orgId: TEST_ORG_ID, actorId: TEST_PERSON_ID, name: 'Money Path Studio' });
   });
 
   afterAll(async () => {
