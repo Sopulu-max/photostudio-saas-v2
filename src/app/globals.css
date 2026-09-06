@@ -1115,6 +1115,28 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/*
+ * The same pill, when it is something to CHOOSE rather than to read.
+ *
+ * The services cards state a service's classifications as pills; the public
+ * booking form asks which kinds of work a client wants. Same shape, because it
+ * is the same vocabulary — a checkbox row said "form field" where the rest of
+ * the app says "tag", and a client picking photography and video is picking
+ * the same things a service card displays.
+ */
+.q-fact-pick {
+  cursor: pointer;
+  transition: background var(--q-dur-1) var(--q-ease), border-color var(--q-dur-1) var(--q-ease), color var(--q-dur-1) var(--q-ease);
+  user-select: none;
+}
+.q-fact-pick:hover { border-color: var(--q-color-ink-300); }
+.q-fact-pick:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 1px; }
+.q-fact-on {
+  background: var(--q-color-accent-subtle);
+  border-color: var(--q-color-accent);
+  color: var(--q-color-accent-hi);
+}
+
 .q-fact-key {
   font-family: var(--q-font-mono);
   font-size: 0.58rem;
@@ -1817,6 +1839,247 @@ body {
 /* A form card that stays narrow but must not clip its own popovers. */
 .q-card-narrow-lg { width: 100%; max-width: 520px; overflow: visible; position: relative; }
 
+
+/* ---- Poster card: the picture IS the card --------------------------------- */
+/*
+ * A package on the client-facing booking page. The studio has already chosen a
+ * picture for it, and a client deciding between three of them recognises one
+ * faster than they read a name — so the cover fills the card and everything
+ * else sits on top of it.
+ *
+ * A GRID, NOT A STACK. These were full-width rows, one per package, so three
+ * packages filled the page and ten would have been a scroll with no shape. The
+ * grid wraps at whatever width there is and stays legible on a phone.
+ *
+ * #fff here rather than a token, deliberately: the scrim below is dark in BOTH
+ * themes, so this text is not on the page's ground and must not follow it. The
+ * same reason .q-lp-cta and .q-btn-danger do it.
+ */
+.q-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.q-poster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 250px;
+  padding: 14px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  /* The catalogue renders these as links; the picker as buttons. Stated here
+     so the card looks the same whichever element carries it. */
+  text-decoration: none;
+  background-color: var(--q-color-ink-800, var(--q-color-ink-900));
+  background-size: cover;
+  background-position: center;
+  transition: transform var(--q-dur-1) var(--q-ease), border-color var(--q-dur-1) var(--q-ease);
+}
+.q-poster:hover { transform: translateY(-2px); }
+.q-poster:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+.q-poster-on { border-color: var(--q-color-accent); }
+/* Without a picture the card still has to read, so it takes the accent wash
+   the empty cover uses rather than sitting as a black rectangle. */
+.q-poster-blank { background-image: linear-gradient(150deg, var(--q-color-accent) 0%, var(--q-color-ink-900) 78%); }
+/* The scrim. Bottom-heavy, because that is where the words are. */
+.q-poster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.58) 44%, rgba(0, 0, 0, 0.1) 100%);
+  pointer-events: none;
+}
+.q-poster > * { position: relative; z-index: 1; }
+.q-poster-title { color: #fff; font-weight: 640; font-size: 0.98rem; line-height: 1.25; }
+.q-poster-note { color: rgba(255, 255, 255, 0.72); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
+.q-poster-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
+.q-poster-tag {
+  font-size: 0.67rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  white-space: nowrap;
+}
+/* Something the studio sells that cannot cover what was asked. Shown, because
+   browsing is legitimate — never presented as a match. */
+.q-poster-dim { opacity: 0.42; }
+/* A way into the package's own page, without leaving the booking. */
+.q-poster-link {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  font-size: 0.67rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+}
+.q-poster-link:hover { background: rgba(0, 0, 0, 0.78); border-color: rgba(255, 255, 255, 0.5); }
+
+/*
+ * The catalogue's own poster: the same card, given room.
+ *
+ * The picker's 210px squares sit inside a booking dialog beside a form. The
+ * studio's public catalogue IS the page, so the same cards get a wider column
+ * and more height — one poster idea, two sizes, rather than a second card.
+ */
+.q-poster-grid-lg { grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 20px; }
+.q-poster-tall { min-height: 340px; padding: 18px; }
+.q-poster-tall .q-poster-title { font-size: 1.12rem; }
+.q-poster-tall .q-poster-note { font-size: 0.82rem; }
+
+/* The price, top-right, opposite the name. On the scrim rather than under the
+   card, because the picture is the card. */
+.q-poster-price {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  font-weight: 650;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+.q-poster-price-unit { font-weight: 500; opacity: 0.7; margin-left: 1px; }
+
+/* Not a package — the other door. Deliberately not a poster: nothing is being
+   sold here, so it carries no picture and no weight. */
+.q-poster-else {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 340px;
+  padding: 18px;
+  border: 1px dashed var(--q-color-ink-300);
+  border-radius: 14px;
+  text-decoration: none;
+  transition: border-color var(--q-dur-1) var(--q-ease), transform var(--q-dur-1) var(--q-ease);
+}
+.q-poster-else:hover { border-color: var(--q-color-accent); transform: translateY(-2px); }
+.q-poster-else-title { font-weight: 640; font-size: 1.12rem; color: var(--q-color-ink-900); }
+.q-poster-else-note { font-size: 0.82rem; line-height: 1.45; color: var(--q-color-ink-500); }
+
+/* The chosen one says so on the picture, where the eye already is. */
+.q-poster-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--q-color-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  z-index: 2;
+}
+
+/* ---- Package hero: the picture, with the name on it ----------------------- */
+/*
+ * A package's own page. The cover was not shown at all — the page opened with
+ * a heading on a card, so the one image the studio had chosen for the thing
+ * being sold appeared on the catalogue and then vanished at the moment
+ * somebody asked to see more.
+ *
+ * The name sits ON the picture rather than above it: the two are one statement,
+ * and stacking them made the page start with a label and then, separately,
+ * show what it was labelling.
+ *
+ * Same scrim reasoning as the poster cards, including #fff — the ground here is
+ * dark in both themes and must not follow the page.
+ */
+.q-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 260px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border-radius: var(--q-card-radius, 16px);
+  overflow: hidden;
+  background-color: var(--q-color-ink-900);
+  background-size: cover;
+  background-position: center;
+}
+.q-hero-blank { background-image: linear-gradient(150deg, var(--q-color-accent) 0%, var(--q-color-ink-900) 78%); }
+.q-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 46%, rgba(0, 0, 0, 0.08) 100%);
+  pointer-events: none;
+}
+.q-hero > * { position: relative; z-index: 1; }
+/*
+ * The price on the hero, in the same corner and the same pill as on the card
+ * that sent them here.
+ *
+ * Written as `.q-hero > .q-hero-price` on purpose: `.q-hero > *` above sets
+ * every child to position:relative at equal specificity, and it wins on order.
+ * A plain class here would be silently overridden and the pill would land in
+ * the text flow instead of the corner.
+ */
+.q-hero > .q-hero-price {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  font-weight: 650;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  white-space: nowrap;
+}
+.q-hero-title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.q-hero-note {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1rem;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+.q-hero-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.q-hero-tag {
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
 
 /* ---- Command Center layout ------------------------------------------------ */
 /* The main two-column split: wide content + narrow sidebar. Collapses on

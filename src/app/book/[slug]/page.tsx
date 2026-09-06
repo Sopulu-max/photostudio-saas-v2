@@ -1,19 +1,39 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { listPackagesPublic } from '@/modules/packages/interface';
-import { formatMoney } from '@/kernel/currency';
+import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
 import { getStudioBySlug } from '@/kernel/organizations';
+import { Catalogue } from './Catalogue';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StorefrontPage(props: { params: Promise<{ slug: string }> }) {
+/**
+ * THE PAGE A STUDIO HANDS OUT.
+ *
+ * This is the link the packages screen tells an operator to copy, so it is the
+ * first thing every prospective client sees. It was also the least finished
+ * public surface in the app, in ways that all cost the studio money:
+ *
+ * 1. IT SHOWED NO PRICES. It read `pkg.pricing?.base_price`, and `pricing` is
+ *    an empty legacy column on every row — the figure is in `price`. So every
+ *    package in every studio read "Custom quote" to a client while the studio
+ *    had priced it. Glamour's three are ₦200,000, ₦20,000 and ₦10,000.
+ * 2. IT SHOWED NO COVERS. The picture a studio chose for a package appeared in
+ *    the picker inside the booking form and nowhere on the page that sells it.
+ * 3. IT DUMPED THE FULL DESCRIPTION into every card, so three packages were
+ *    three paragraphs and the page had no shape.
+ * 4. IT COULD NOT BE NARROWED. /storefront/[slug] could, and no client was
+ *    ever sent there.
+ *
+ * The cards are the same poster cards the booking form's picker draws, from
+ * the same loader, so there is one idea of what a package looks like to a
+ * client rather than two that drift.
+ */
+export default async function StudioCataloguePage(props: { params: Promise<{ slug: string }> }) {
   const params = await props.params;
 
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const packages = await listPackagesPublic(org.id);
-  const currencyCode = org.currency;
+  const packages = await listPackagesPublicWithDimensions(org.id);
   const meta = org.metadata;
 
   return (
@@ -21,77 +41,32 @@ export default async function StorefrontPage(props: { params: Promise<{ slug: st
       {meta.cover_url && (
         <div style={{ width: '100%', height: '240px', backgroundImage: `url(${meta.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
       )}
-      
-      <header style={{ padding: meta.cover_url ? '32px 24px 64px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
+
+      <header style={{ padding: meta.cover_url ? '32px 24px 48px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
         {meta.logo_url && (
           <div style={{ width: '96px', height: '96px', borderRadius: '50%', backgroundColor: 'var(--q-color-paper)', border: '4px solid var(--q-color-paper-subtle)', backgroundImage: `url(${meta.logo_url})`, backgroundSize: 'cover', backgroundPosition: 'center', margin: meta.cover_url ? '-80px auto 24px' : '0 auto 24px', boxShadow: 'var(--q-shadow-md)' }} />
         )}
-        <h1 style={{ margin: 0, fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--q-color-ink-900)' }}>
-          {org.name}
-        </h1>
-        <p style={{ margin: '12px auto 0', fontSize: '1.1rem', color: 'var(--q-color-ink-500)', maxWidth: '480px', lineHeight: 1.5 }}>
-          Explore our offerings and book a session. We&rsquo;ll review your request and get back to you to confirm the details.
+        <h1 className="q-page-title">{org.name}</h1>
+        {/* Was "Explore our offerings and book a session. We'll review your
+            request and get back to you to confirm the details." — a sentence
+            in the studio's first person that this software has no standing to
+            write for them. This states what the page is. */}
+        <p className="q-page-subtitle" style={{ margin: '12px auto 0', maxWidth: '480px' }}>
+          Packages available to book.
         </p>
       </header>
 
-      <main style={{ maxWidth: '960px', margin: '0 auto', padding: '0 24px 80px' }}>
+      <main style={{ maxWidth: '1040px', margin: '0 auto', padding: '0 24px 80px' }}>
         {packages.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 24px', color: 'var(--q-color-ink-400)', backgroundColor: 'var(--q-color-paper)', borderRadius: '16px', border: '1px solid var(--q-color-ink-100)' }}>
-            Nothing available to book right now — check back soon.
+            No packages are currently available to book.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-            {packages.map((pkg: any) => {
-              const services: string[] = (pkg.services || []).map((s: any) => s.name).filter(Boolean);
-              return (
-                <Link key={pkg.id} href={`/book/${params.slug}/${pkg.id}`} className="q-card q-card-interactive q-plain-link" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px', borderRadius: '16px' }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 8px', fontSize: '1.25rem', fontWeight: 600, color: 'var(--q-color-ink-900)', letterSpacing: '-0.01em' }}>{pkg.name}</h3>
-                    {pkg.description && (
-                      <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--q-color-ink-500)', lineHeight: 1.5 }}>{pkg.description}</p>
-                    )}
-                  </div>
-
-                  {services.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {services.map((s) => (
-                        <span key={s} style={{ fontSize: '0.75rem', fontWeight: 500, padding: '3px 10px', background: 'var(--q-color-ink-100)', borderRadius: '20px', color: 'var(--q-color-ink-600)' }}>
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--q-color-ink-100)' }}>
-                    <div>
-                      <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--q-color-ink-900)', fontVariantNumeric: 'tabular-nums' }}>
-                        {pkg.pricing?.base_price != null
-                          ? formatMoney(pkg.pricing.base_price, pkg.pricing.currency || currencyCode)
-                          : 'Custom quote'}
-                      </span>
-                      {pkg.price_unit && (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-400)', marginLeft: '4px' }}>/{pkg.price_unit}</span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--q-color-accent)' }}>Book →</span>
-                  </div>
-                </Link>
-              );
-            })}
-
-            {/* Open booking — client describes what they need */}
-            <Link href={`/book/${params.slug}/custom`} className="q-card q-card-interactive q-plain-link" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px', borderRadius: '16px', border: '1px dashed var(--q-color-ink-300)', backgroundColor: 'transparent' }}>
-              <div>
-                <h3 style={{ margin: '0 0 8px', fontSize: '1.25rem', fontWeight: 600, color: 'var(--q-color-ink-900)', letterSpacing: '-0.01em' }}>Something else?</h3>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--q-color-ink-500)', lineHeight: 1.5 }}>
-                  Don&rsquo;t see what you&rsquo;re looking for? Tell us what you need and we&rsquo;ll build it around you.
-                </p>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 'auto', paddingTop: '16px' }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--q-color-ink-500)' }}>Book it &rarr;</span>
-              </div>
-            </Link>
-          </div>
+          <Catalogue
+            packages={packages as any}
+            slug={params.slug}
+            currencyCode={org.currency}
+          />
         )}
       </main>
     </div>

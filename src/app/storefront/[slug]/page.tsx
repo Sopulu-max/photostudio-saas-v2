@@ -1,46 +1,21 @@
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { getStudioBySlug } from '@/kernel/organizations';
-import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
-import StorefrontExplorer from './StorefrontExplorer';
+import { permanentRedirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default async function StorefrontPage(props: { params: Promise<{ slug: string }> }) {
-  const params = await props.params;
-
-  const org = await getStudioBySlug(params.slug);
-  if (!org) notFound();
-
-  const packages = await listPackagesPublicWithDimensions(org.id);
-  const currencyCode = org.currency || 'USD';
-  const meta = (org.metadata || {}) as Record<string, any>;
-
-  return (
-    <div className="q-app-surface">
-      {meta.cover_url && (
-        <div style={{ width: '100%', height: '240px', backgroundImage: `url(${meta.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-      )}
-      
-      <header className="q-page-header" style={{ padding: meta.cover_url ? '32px 24px 64px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', flexDirection: 'column', alignItems: 'center' }}>
-        {meta.logo_url && (
-          <div style={{ width: '96px', height: '96px', borderRadius: '50%', backgroundColor: 'var(--q-color-paper)', border: '4px solid var(--q-color-paper-subtle)', backgroundImage: `url(${meta.logo_url})`, backgroundSize: 'cover', backgroundPosition: 'center', margin: meta.cover_url ? '-80px auto 24px' : '0 auto 24px', boxShadow: 'var(--q-shadow-md)' }} />
-        )}
-        <h1 className="q-page-title">
-          {org.name}
-        </h1>
-        <p className="q-page-subtitle" style={{ maxWidth: '480px', margin: '12px auto 0' }}>
-          Explore our offerings and book a session. We&rsquo;ll review your request and get back to you to confirm the details.
-        </p>
-      </header>
-
-      <main className="q-page-narrow">
-        <StorefrontExplorer 
-          packages={packages} 
-          slug={params.slug} 
-          currencyCode={currencyCode} 
-        />
-      </main>
-    </div>
-  );
+/**
+ * THERE IS ONE PUBLIC CATALOGUE, AND IT IS /book/[slug].
+ *
+ * This route was the second one. It could be narrowed by the studio's
+ * vocabulary, which /book/[slug] could not — but it showed no covers, read no
+ * prices at all (every package said "Custom quote", hardcoded), and no client
+ * was ever sent here: the link the packages screen tells an operator to copy
+ * is /book/[slug]. So a studio had two shop windows, each missing half of what
+ * a client needs, and only ever handed out one of them.
+ *
+ * The filtering moved to /book/[slug]. This stays as a redirect rather than a
+ * 404 because a URL may already be in somebody's address bar, an old message,
+ * or the contract-signing hand-off — none of which this app can reach back and
+ * edit. The redirect is permanent, which is what it is.
+ */
+export default async function RetiredStorefrontPage(props: { params: Promise<{ slug: string }> }) {
+  const { slug } = await props.params;
+  permanentRedirect(`/book/${slug}`);
 }
