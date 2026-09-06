@@ -28,6 +28,49 @@ type IntakeDimension = {
   values: { id: string; name: string }[];
 };
 
+/**
+ * Answers a client already gave, turned into this form's own state.
+ *
+ * They narrowed the public catalogue by dimension values and then asked for
+ * something it did not have. Those values answer the questions step one asks,
+ * so the form opens with them filled in.
+ *
+ * EVERY ID IS CHECKED AGAINST THE STUDIO'S OWN VOCABULARY. They arrive in a
+ * query string, which means they are whatever the visitor typed; one that
+ * names no declared value is dropped rather than seeded. There is no way to
+ * put a value into this form that the studio has not declared.
+ *
+ * THE DOMAIN FOLLOWS, BUT ONLY WHEN IT IS UNAMBIGUOUS. Choosing a Photography
+ * occasion says the client is booking photography, so the domain question has
+ * been answered too and asking it again would be asking twice. But a dimension
+ * can be shared — Glamour's Photography and Videography both ask Occasion, with
+ * the same values — and there the value says nothing about which, so the
+ * question stands and the client answers it.
+ */
+function seedFromCarried(
+  dimensionConfig: IntakeDimension[] | undefined,
+  carriedValueIds: string[],
+): { selections: Record<string, string>; domains: string[] } {
+  const selections: Record<string, string> = {};
+  const domains = new Set<string>();
+  if (!dimensionConfig || carriedValueIds.length === 0) return { selections, domains: [] };
+
+  for (const valueId of carriedValueIds) {
+    const rows = dimensionConfig.filter((d) => d.values.some((v) => v.id === valueId));
+    if (rows.length === 0) continue;              // not this studio's — dropped
+
+    // One answer per question: a second value for a dimension already settled
+    // is a contradiction, and the first one wins rather than the last.
+    if (selections[rows[0].id]) continue;
+    selections[rows[0].id] = valueId;
+
+    const offeredBy = new Set(rows.map((d) => d.domainName).filter(Boolean) as string[]);
+    if (offeredBy.size === 1) domains.add([...offeredBy][0]);
+  }
+
+  return { selections, domains: [...domains] };
+}
+
 type PackageWithDimensions = {
   id: string;
   name: string;
@@ -37,6 +80,13 @@ type PackageWithDimensions = {
   dimensionValueIds: string[];
   /** Each narrowed value with the question it answers — what the rule needs. */
   dimensions?: { valueId: string; dimensionId: string }[];
+  /** The studio's own picture for it, shown on the card. */
+  cover_url?: string | null;
+  cover_position?: string | null;
+  /** What it promises, by name — what the client is actually buying. */
+  deliverables?: { id: string; name: string; quantity: number | null }[];
+  /** One line for the card. Falls back to the full description, trimmed. */
+  short_description?: string | null;
 };
 
 /**
@@ -100,6 +150,25 @@ interface BookingFormProps {
   premisesValueIds?: string[];
   /** What the package on this page narrows itself to, when there is one. */
   packageValueIds?: string[];
+  /**
+   * The studio's public handle, so a package can be opened on its own page.
+   *
+   * Only the custom path needs it: that is where packages are browsed. A
+   * package page showing this form is already the detail page.
+   */
+  studioSlug?: string;
+  /**
+   * Dimension values the client already chose, before this form opened.
+   *
+   * They narrowed the catalogue by them and then asked for something it did
+   * not have. Those are answers to the questions this form's first step asks,
+   * so it starts from them rather than asking again.
+   *
+   * UNTRUSTED: they arrive in a query string. Each is looked up in the
+   * studio's own dimensionConfig below and anything not found there is
+   * dropped, so no value can be seeded that the studio did not declare.
+   */
+  carriedValueIds?: string[];
 }
 
 export function BookingForm({
@@ -116,6 +185,8 @@ export function BookingForm({
   availablePackages,
   premisesValueIds = [],
   packageValueIds = [],
+  studioSlug,
+  carriedValueIds = [],
 }: BookingFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -155,7 +226,13 @@ export function BookingForm({
   // free-form form fields, and they are stored somewhere different.
   const [variableAnswers, setVariableAnswers] = useState<Record<string, string>>({});
   const [tierIndex, setTierIndex] = useState<number | null>(variant ? 0 : null);
-  const [dimensionSelections, setDimensionSelections] = useState<Record<string, string>>({});
+  /* Resolved once, and only used as the opening state — a client who then
+     changes an answer is not overruled by the URL they arrived on. */
+  const carried = useMemo(
+    () => seedFromCarried(dimensionConfig, carriedValueIds),
+    [dimensionConfig, carriedValueIds.join('|')],
+  );
+  const [dimensionSelections, setDimensionSelections] = useState<Record<string, string>>(carried.selections);
   /*
    * Which one of the several this package offers. Kept apart from
    * dimensionSelections, which is the custom path describing what a visitor
@@ -175,9 +252,15 @@ export function BookingForm({
    * A studio operating in one domain never sees the question — there is nothing
    * to disambiguate, so nothing is asked.
    */
-  const [intakeDomain, setIntakeDomain] = useState('');
+  const [intakeDomainList, setIntakeDomainList] = useState<string[]>(carried.domains);
   const [resolvedPackageId, setResolvedPackageId] = useState<string | null>(null);
   const [resolvedPackageName, setResolvedPackageName] = useState<string | null>(null);
+
+  /** Choosing a package, or unchoosing the one already chosen. */
+  const choose = (id: string, name: string) => {
+    setResolvedPackageId((current) => (current === id ? null : id));
+    setResolvedPackageName((current) => (resolvedPackageId === id ? null : name));
+  };
   /*
    * What the package they matched asks of them.
    *
@@ -229,8 +312,13 @@ export function BookingForm({
     () => [...new Set((dimensionConfig || []).map(d => d.domainName).filter(Boolean))] as string[],
     [dimensionConfig]
   );
-  const singleDomain = intakeDomains.length === 1 ? intakeDomains[0] : '';
-  const activeDomain = intakeDomain || singleDomain;
+  /*
+   * A studio working in one domain never chooses — there is nothing to
+   * disambiguate, so nothing is asked and its own domain is simply active.
+   */
+  const activeDomains = intakeDomainList.length > 0
+    ? intakeDomainList
+    : (intakeDomains.length === 1 ? [intakeDomains[0]] : []);
   /**
    * How many domains offer each dimension.
    *
@@ -249,7 +337,9 @@ export function BookingForm({
   }, [dimensionConfig]);
 
   const askedDimensions = useMemo(() => {
-    const rows = (dimensionConfig || []).filter(d => !activeDomain || d.domainName === activeDomain);
+    const rows = (dimensionConfig || []).filter(
+      (d) => activeDomains.length === 0 || (d.domainName ? activeDomains.includes(d.domainName) : true),
+    );
     /*
      * ASKED ONCE, however many domains ask it.
      *
@@ -268,7 +358,7 @@ export function BookingForm({
       seen.add(d.id);
       return true;
     });
-  }, [dimensionConfig, activeDomain]);
+  }, [dimensionConfig, activeDomains.join('|')]);
   const hasDimensions = isCustom && !!dimensionConfig && dimensionConfig.length > 0;
   const hasMatchStep = isCustom && !!availablePackages && availablePackages.length > 0;
 
@@ -474,12 +564,24 @@ export function BookingForm({
           {isSuccess ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 24px', background: 'var(--q-color-success)', color: 'var(--q-color-accent-text)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>✓</div>
-              <h2 className="q-page-title" style={{ marginBottom: '12px' }}>Request received</h2>
+              {/*
+                * WHAT ACTUALLY HAPPENED, AND NOTHING MORE.
+                *
+                * This screen used to say "keep an eye on {email} for next
+                * steps", which told a client to watch an inbox nothing sends
+                * to. The request lands in the studio's dashboard and a person
+                * follows it up; there is no confirmation email in this system.
+                *
+                * So it states the fact — the request was submitted, and where
+                * the studio will reach them — rather than making a promise on
+                * the studio's behalf that the software does not keep.
+                */}
+              <h2 className="q-page-title" style={{ marginBottom: '12px' }}>Request submitted</h2>
               <p className="q-page-subtitle" style={{ margin: '0 auto 24px' }}>
-                We&rsquo;ve got your request for <strong className="q-doc-strong">{displayPackageName}</strong>. We&rsquo;ll review the details and reach out to confirm everything.
+                Your request for <strong className="q-doc-strong">{displayPackageName}</strong> has been sent to the studio.
               </p>
               <div className="q-card" style={{ display: 'inline-block', backgroundColor: 'var(--q-color-ink-50)' }}>
-                <p className="q-meta" style={{ margin: 0, color: 'var(--q-color-ink-600)' }}>Keep an eye on <strong>{email}</strong> for next steps.</p>
+                <p className="q-meta" style={{ margin: 0, color: 'var(--q-color-ink-600)' }}>The studio will contact you at <strong>{email}</strong>.</p>
               </div>
               <div style={{ marginTop: '40px' }}>
                 <button onClick={() => setIsOpen(false)} className="q-btn q-btn-secondary">Done</button>
@@ -497,8 +599,11 @@ export function BookingForm({
               {/* Step: Personal */}
               {activeStep.id === 'personal' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Let&rsquo;s start with you.</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>What should we call you and how can we reach you?</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Your details</h3>
+                  {/* Was "What should we call you and how can we reach you?" —
+                      the software speaking as the studio, to a stranger. The
+                      fields are labelled; this says what the step is for. */}
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Name and contact details.</p>
                   <div className="q-stack q-stack-lg">
                     <div className="q-grid-2">
                       <div>
@@ -525,8 +630,8 @@ export function BookingForm({
               {/* Step: Details */}
               {activeStep.id === 'details' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>The details.</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Tell us a bit more about what you&rsquo;re looking for.</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Requirements</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>All optional. Anything you leave blank, the studio will ask about.</p>
                   <div className="q-stack q-stack-xl">
                     {isCustom ? (
                       <>
@@ -535,21 +640,46 @@ export function BookingForm({
                             {intakeDomains.length > 1 && (
                               <div>
                                 <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                                  What are you booking?
+                                  Service
                                   <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
                                 </label>
-                                <select
-                                  className="q-select q-input-lg"
-                                  value={intakeDomain}
-                                  onChange={(e) => {
-                                    // Answers belong to the domain that asked them.
-                                    setIntakeDomain(e.target.value);
-                                    setDimensionSelections({});
-                                  }}
-                                >
-                                  <option value="">Not sure yet</option>
-                                  {intakeDomains.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
+                                {/*
+                                  * MORE THAN ONE, BECAUSE PEOPLE BOOK MORE THAN
+                                  * ONE. This was a single select, so a client
+                                  * wanting photography AND video for the same
+                                  * wedding could not say so — the nearest thing
+                                  * on offer was "Not sure yet", which is a
+                                  * statement about their certainty rather than
+                                  * about the job.
+                                  */}
+                                {/*
+                                  * Pills, as the services cards state the same
+                                  * vocabulary. A checkbox row reads as a form
+                                  * field; these are the studio's own kinds of
+                                  * work, and they look the same wherever they
+                                  * appear.
+                                  */}
+                                <div className="q-fact-values">
+                                  {intakeDomains.map((d) => {
+                                    const on = intakeDomainList.includes(d);
+                                    return (
+                                      <button
+                                        key={d}
+                                        type="button"
+                                        aria-pressed={on}
+                                        className={`q-fact q-fact-pick${on ? ' q-fact-on' : ''}`}
+                                        onClick={() => {
+                                          // Answers belong to the domain that asked them.
+                                          setIntakeDomainList((prev) =>
+                                            prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
+                                          setDimensionSelections({});
+                                        }}
+                                      >
+                                        {d}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
                             <div className="q-grid-2">
@@ -563,7 +693,7 @@ export function BookingForm({
                                         labelling it with whichever domain
                                         happened to come first would say
                                         something untrue about the other. */}
-                                    {!activeDomain && dim.domainName && (domainsPerDimension.get(dim.id)?.size ?? 1) === 1 && (
+                                    {activeDomains.length !== 1 && dim.domainName && (domainsPerDimension.get(dim.id)?.size ?? 1) === 1 && (
                                       <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>
                                         ({dim.domainName})
                                       </span>
@@ -594,7 +724,7 @@ export function BookingForm({
                           <textarea
                             className="q-textarea q-input-lg"
                             rows={5}
-                            placeholder="Tell us about the shoot, event, or project you have in mind — the more detail the better."
+                            placeholder="Anything the studio should know about the work."
                             value={customFields['message'] || ''}
                             onChange={(e) => setCustomFields({ ...customFields, message: e.target.value })}
                           />
@@ -616,7 +746,7 @@ export function BookingForm({
 
                     <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '32px' }}>
                       <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                        When would you like it?
+                        Date and time
                         <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
                       </label>
                       {/* This writes to the same column the studio's own
@@ -627,7 +757,7 @@ export function BookingForm({
                           column holding a wish. So it asks plainly, and says
                           who confirms. */}
                       <p className="q-meta" style={{ marginBottom: '16px' }}>
-                        Choose the date and time you want the session to happen. The studio will confirm it.
+                        The studio confirms this before it is fixed.
                       </p>
                       <input type="datetime-local" className="q-input q-input-lg" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} />
                       {atPremises === true && dayHours && (dayHours.closed || dayHours.opensAt || dayHours.closesAt) && (() => {
@@ -655,68 +785,141 @@ export function BookingForm({
               {/* Step: Match */}
               {activeStep.id === 'match' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>What fits?</h3>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Packages</h3>
                   <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
                     {hasSelections && hasMatches
-                      ? 'Based on what you described, these packages match — best fit first. Pick one or skip to continue with your request.'
+                      ? 'Ranked by fit. Select one, or skip and the studio will put something together.'
                       : hasSelections && !hasMatches
-                        ? "No exact matches yet. Here's everything we offer — pick one or skip to let us put something together."
-                        : "Here's what we offer. Pick one that fits, or skip and describe what you need."}
+                        ? 'No package matches exactly. Select the closest, or skip and the studio will put something together.'
+                        : 'Select a package, or skip and the studio will put something together.'}
                   </p>
 
-                  <div className="q-stack q-stack-md">
+                  {/*
+                    * A GRID OF POSTERS, NOT A STACK OF ROWS.
+                    *
+                    * These were full-width rows carrying the whole description,
+                    * so three packages filled the page and ten would have been
+                    * a scroll with no shape. And the studio's own picture — the
+                    * thing a client recognises faster than they read a name —
+                    * sat in a thumbnail beside the text.
+                    *
+                    * The picture is the card now. Everything else sits on it
+                    * over a scrim, the description is trimmed to two lines
+                    * because it is a hint rather than the sell, and what the
+                    * package actually PROMISES is named rather than counted.
+                    */}
+                  <div className="q-poster-grid">
                     {scoredPackages.map(pkg => {
                       const isSelected = resolvedPackageId === pkg.id;
-                      // Dimmed when it cannot cover what they described, not
-                      // merely when it carries none of it outright.
-                      const isDimmed = hasSelections && !pkg.covers;
+                      /*
+                       * Dimmed only when something ELSE covers this and it does
+                       * not. Dimming on `!covers` alone greyed out the entire
+                       * list the moment nothing matched exactly — so a page
+                       * whose whole purpose is "we still sell things, just not
+                       * this exactly" rendered every option as unavailable.
+                       */
+                      const isDimmed = hasSelections && hasMatches && !pkg.covers;
+                      const cover = pkg.cover_url || null;
+                      const promises = pkg.deliverables || [];
                       return (
-                        <button
+                        <div
                           key={pkg.id}
-                          type="button"
-                          className={`q-tile q-card-interactive ${isSelected ? 'q-selected' : ''}`}
-                          style={{
-                            textAlign: 'left',
-                            width: '100%',
-                            border: `2px solid ${isSelected ? 'var(--q-color-accent)' : 'var(--q-color-ink-200)'}`,
-                            background: isSelected ? 'var(--q-color-accent-subtle)' : 'var(--q-color-paper)',
-                            padding: '20px 24px',
-                            borderRadius: '12px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            opacity: isDimmed ? 0.45 : 1,
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={isSelected}
+                          className={[
+                            'q-poster',
+                            cover ? '' : 'q-poster-blank',
+                            isSelected ? 'q-poster-on' : '',
+                            isDimmed ? 'q-poster-dim' : '',
+                          ].filter(Boolean).join(' ')}
+                          style={cover
+                            ? { backgroundImage: `url(${cover})`, backgroundPosition: pkg.cover_position || undefined }
+                            : undefined}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(pkg.id, pkg.name); }
                           }}
-                          onClick={() => {
-                            if (isSelected) {
-                              setResolvedPackageId(null);
-                              setResolvedPackageName(null);
-                            } else {
-                              setResolvedPackageId(pkg.id);
-                              setResolvedPackageName(pkg.name);
-                            }
-                          }}
+                          onClick={() => choose(pkg.id, pkg.name)}
                         >
-                          <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
-                            <div>
-                              <div className="q-strong" style={{ fontSize: '1.1rem' }}>{pkg.name}</div>
-                              {pkg.description && (
-                                <div className="q-meta" style={{ marginTop: '6px' }}>{pkg.description}</div>
+                          {isSelected && <span className="q-poster-check">&#10003;</span>}
+
+                          {/*
+                            * The package's own page, WITHOUT LOSING THE FORM.
+                            *
+                            * Everything typed so far — name, contact, what they
+                            * described — is state in this dialog, so navigating
+                            * away would throw it out and start the booking
+                            * again. A new tab lets somebody read the full
+                            * description and come back to a form still filled
+                            * in. stopPropagation because the card behind this
+                            * selects.
+                            */}
+                          {studioSlug && (
+                            <a
+                              className="q-poster-link"
+                              href={`/book/${studioSlug}/${pkg.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Open ${pkg.name} in a new tab`}
+                            >
+                              Details
+                            </a>
+                          )}
+
+                          <span className="q-poster-title">{pkg.name}</span>
+
+                          {/* The line written for a card, or the paragraph
+                              trimmed to fit — which is what happened before
+                              there was anywhere to write the line. */}
+                          {(pkg.short_description || pkg.description) && (
+                            <span className="q-poster-note q-clamp-2">
+                              {pkg.short_description || pkg.description}
+                            </span>
+                          )}
+
+                          {/*
+                            * What they get, named. A count told a client "2
+                            * deliverables" and left them to guess which two —
+                            * and this is the thing they are buying.
+                            */}
+                          {promises.length > 0 && (
+                            <span className="q-poster-tags">
+                              {promises.slice(0, 3).map((d) => (
+                                <span key={d.id} className="q-poster-tag">
+                                  {d.quantity ? `${d.quantity} × ${d.name}` : d.name}
+                                </span>
+                              ))}
+                              {promises.length > 3 && (
+                                <span className="q-poster-tag">+{promises.length - 3}</span>
                               )}
-                              <div className="q-meta-sm" style={{ marginTop: '12px', display: 'flex', gap: '12px', color: 'var(--q-color-ink-500)', flexWrap: 'wrap' }}>
-                                {pkg.duration_minutes ? <span>⏱ {pkg.duration_minutes} minutes</span> : null}
-                                {(pkg as any).deliverablesCount ? (
-                                  <span>📦 {(pkg as any).deliverablesCount} deliverable{(pkg as any).deliverablesCount === 1 ? '' : 's'}</span>
-                                ) : null}
-                                {pkg.services && pkg.services.length > 0 ? (
-                                  <span>🛠 {pkg.services.length} service{pkg.services.length === 1 ? '' : 's'}</span>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div style={{ marginLeft: '16px' }}>
-                              <div className={`q-radio ${isSelected ? 'checked' : ''}`} />
-                            </div>
-                          </div>
-                        </button>
+                            </span>
+                          )}
+
+                          {promises.length === 0 && pkg.duration_minutes ? (
+                            <span className="q-poster-tags">
+                              <span className="q-poster-tag">{pkg.duration_minutes} minutes</span>
+                            </span>
+                          ) : null}
+
+                          {/*
+                            * WHAT IT ACTUALLY INCLUDES, once it is chosen.
+                            *
+                            * Selecting a package used to change nothing on
+                            * screen except a radio and a button reading
+                            * "Loading…", so the one moment a client wants to
+                            * know more showed them less than before they
+                            * clicked.
+                            */}
+                          {isSelected && pkg.services && pkg.services.length > 0 && (
+                            <span className="q-poster-tags q-appear">
+                              {pkg.services.map((sv) => (
+                                <span key={sv.id} className="q-poster-tag">{sv.name}</span>
+                              ))}
+                              {loadingIntake && <span className="q-poster-tag">Checking&hellip;</span>}
+                            </span>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -733,9 +936,9 @@ export function BookingForm({
                 */}
               {activeStep.id === 'package-details' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>About {resolvedPackageName}.</h3>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>{resolvedPackageName}</h3>
                   <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>
-                    A few things this package needs to know.
+                    Additional details for this package.
                   </p>
                   <PackageQuestions
                     openClassifications={effectiveOpenClassifications}
@@ -754,8 +957,8 @@ export function BookingForm({
               {/* Step: Review */}
               {activeStep.id === 'review' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Review & Submit</h3>
-                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Just to make sure we got everything right.</p>
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Review</h3>
+                  <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>Check these before submitting.</p>
                   <div className="q-card" style={{ backgroundColor: 'var(--q-color-ink-50)', marginBottom: '32px' }}>
 
                     <div style={{ marginBottom: '24px' }}>
@@ -890,7 +1093,7 @@ export function BookingForm({
               {currentStep === totalSteps - 1
                 ? (isSubmitting ? 'Submitting…' : 'Submit Request')
                 : activeStep.id === 'match' && loadingIntake
-                  ? 'Loading…'
+                  ? 'Checking\u2026'
                   /* Only when the next thing really is the review. With
                      questions still to answer this said "Book this package"
                      over a button that opened another step. */

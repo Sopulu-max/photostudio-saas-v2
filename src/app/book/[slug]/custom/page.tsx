@@ -8,8 +8,28 @@ export const dynamic = 'force-dynamic';
 
 export default async function CustomBookingPage(props: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await props.params;
+
+  /*
+   * WHAT THEY ALREADY SAID, ON THE WAY IN.
+   *
+   * A client narrows the catalogue by the studio's own dimension values, finds
+   * nothing that fits, and asks for a quote. Those values are answers to the
+   * very questions this form opens with — so they arrive with it rather than
+   * being asked a second time.
+   *
+   * The old storefront built exactly this query string and this page never
+   * read it, so every answer a client gave on the way here was appended to a
+   * URL and thrown away. Read here, checked against the studio's real
+   * vocabulary in the form, and ignored if it names anything else: this is a
+   * query string, and a query string is whatever the visitor typed.
+   */
+  const searchParams = await props.searchParams;
+  const raw = searchParams.dimension_value_id;
+  const carriedValueIds = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+    .filter((v) => typeof v === 'string' && v.length > 0);
 
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
@@ -34,10 +54,10 @@ export default async function CustomBookingPage(props: {
 
         <div className="q-card" style={{ padding: '32px', borderRadius: '16px' }}>
           <h1 style={{ margin: '0 0 8px', fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 700, color: 'var(--q-color-ink-900)', letterSpacing: '-0.02em' }}>
-            Book something
+            Request a booking
           </h1>
           <p style={{ margin: '0 0 28px', color: 'var(--q-color-ink-500)', fontSize: '1rem', lineHeight: 1.6 }}>
-            Tell us what you&rsquo;re looking for and we&rsquo;ll match you to the right package — or put one together if we need to.
+            Describe what you need. The studio matches it to a package, or puts one together.
           </p>
 
           <BookingForm
@@ -49,6 +69,8 @@ export default async function CustomBookingPage(props: {
             dimensionConfig={dimensionConfig}
             availablePackages={packages}
             premisesValueIds={premisesValues}
+            studioSlug={params.slug}
+            carriedValueIds={carriedValueIds}
             triggerLabel="Start booking"
           />
         </div>
