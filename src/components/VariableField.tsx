@@ -46,7 +46,12 @@ export function VariableField({
   min?: number | null;
   max?: number | null;
   disabled?: boolean;
-  /** Shown as the blank option where one exists — "Ask the client", say. */
+  /**
+   * Shown as the blank option where one exists — "Ask the client", say.
+   *
+   * Where one exists: a select. It is not a placeholder, and typing boxes
+   * ignore it — see the note by the textarea below.
+   */
   emptyLabel?: string;
   width?: string;
 }) {
@@ -98,10 +103,22 @@ export function VariableField({
     );
   }
 
+  /*
+   * emptyLabel IS A BLANK OPTION, NOT A PLACEHOLDER.
+   *
+   * It says what an unset value MEANS where a control can offer that as a
+   * choice — "Ask the client" on a package, "Choose..." on a client's form.
+   * A box you type into has no such choice, and putting the word there said
+   * "Choose..." inside an empty address field, instructing somebody to pick
+   * from a list that does not exist.
+   *
+   * Numbers keep a dash, which is a mark for an empty figure rather than an
+   * instruction, and a url keeps its example.
+   */
   if (kind === 'textarea') {
     return (
       <textarea className="q-textarea" value={single} disabled={disabled} rows={3}
-        onChange={(e) => onChange(e.target.value)} placeholder={emptyLabel}
+        onChange={(e) => onChange(e.target.value)}
         style={{ minWidth: width || '16rem' }} />
     );
   }
@@ -111,7 +128,7 @@ export function VariableField({
       <span className="q-row" style={{ gap: '6px', alignItems: 'center' }}>
         <input className="q-input q-num" type="number" value={single} disabled={disabled}
           min={min ?? undefined} max={max ?? undefined}
-          onChange={(e) => onChange(e.target.value)} placeholder={emptyLabel ?? '—'}
+          onChange={(e) => onChange(e.target.value)} placeholder="—"
           style={{ width: width || '7rem' }} />
         {unit && <span className="q-meta-sm">{Number(single) === 1 ? unit : `${unit}s`}</span>}
       </span>
@@ -126,7 +143,7 @@ export function VariableField({
       value={single}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={kind === 'url' ? 'https://…' : emptyLabel}
+      placeholder={kind === 'url' ? 'https://…' : undefined}
       style={{ minWidth: width || '10rem' }}
     />
   );

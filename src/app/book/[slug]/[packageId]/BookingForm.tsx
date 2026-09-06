@@ -655,7 +655,11 @@ export function BookingForm({
               {/* Step: Details */}
               {activeStep.id === 'details' && (
                 <div style={{ animation: 'q-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Requirements</h3>
+                  {/* Was "Requirements", which to somebody filling in a form
+                      reads as a list of things THEY have to satisfy before the
+                      studio will take the booking. It is the opposite: these
+                      are the studio's questions, and every one is optional. */}
+                  <h3 className="q-page-title" style={{ marginBottom: '8px' }}>Details</h3>
                   <p className="q-page-subtitle" style={{ marginBottom: '40px' }}>All optional. Anything you leave blank, the studio will ask about.</p>
                   <div className="q-stack q-stack-xl">
                     {isCustom ? (
@@ -772,7 +776,19 @@ export function BookingForm({
 
                     <div style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '32px' }}>
                       <label className="q-label" style={{ fontSize: '1rem', marginBottom: '8px' }}>
-                        Date and time
+                        {/*
+                          * "Booking", because there is now more than one date
+                          * on this form.
+                          *
+                          * A classification can carry a date of its own — an
+                          * occasion has one — so a client booking a birthday
+                          * shoot is asked for the Birthday Date and, just
+                          * below, for this. Unqualified, "Date and time" does
+                          * not say which of the two is the appointment, and
+                          * the two are genuinely different: the shoot may be
+                          * the week before the birthday.
+                          */}
+                        Booking date and time
                         <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>(Optional)</span>
                       </label>
                       {/* This writes to the same column the studio's own
@@ -1219,23 +1235,47 @@ function PackageQuestions({
                         {(() => {
                           if (!openVariables || openVariables.length === 0) return null;
                           
+                          /*
+                           * GROUPED BY THE SERVICE, AND NOT BY THE DIMENSION.
+                           *
+                           * This headed a classification's questions with the
+                           * dimension's name, so a client booking an outdoor
+                           * shoot read a section called "Context" — a word
+                           * from this schema that means nothing to them — and
+                           * then a section called "Occasion", directly below
+                           * the question "What occasion is it for?" that they
+                           * had just answered. The same idea twice, under two
+                           * names, with an unrelated block in between.
+                           *
+                           * A dimension name is the studio's name for a
+                           * QUESTION. It belongs on the studio's screens,
+                           * where an operator knows their own vocabulary and
+                           * needs to see where a question came from. To a
+                           * client it is internal, and the field's own label
+                           * already says what is being asked — "Birthday
+                           * Date", "Location Address" — so the heading was
+                           * adding a schema word and nothing else.
+                           *
+                           * A SERVICE NAME IS NOT THE SAME KIND OF THING.
+                           * "Event Photography" is something the client is
+                           * buying, so questions belonging to a service still
+                           * group under it. Only the schema words go.
+                           */
                           const byService = new Map<string, any[]>();
                           for (const v of openVariables) {
-                            /* Grouped by what the question actually belongs
-                               to. A classification's variable has no service —
-                               it is asked because of how the work is
-                               classified — and grouping it under one of the
-                               services would tell the client it came from
-                               there. */
-                            const svcName = v.dimensionName || v.serviceName || 'Details';
-                            const list = byService.get(svcName) || [];
+                            const list = byService.get(v.serviceName || '') || [];
                             list.push(v);
-                            byService.set(svcName, list);
+                            byService.set(v.serviceName || '', list);
                           }
                           
                           return Array.from(byService.entries()).map(([serviceName, vars]) => (
                             <div key={serviceName} className="q-card q-stack q-stack-sm">
-                              <h3 className="q-section-title" style={{ margin: '0 0 16px' }}>{serviceName}</h3>
+                              {/* Headed only where the heading says something.
+                                  A classification's questions have no service
+                                  and now carry no heading at all. */}
+                              {serviceName && (
+                                <h3 className="q-section-title" style={{ margin: '0 0 16px' }}>{serviceName}</h3>
+                              )}
                               <div className="q-stack q-stack-md">
                                 {vars.map((v: any) => {
                                   const val = variableAnswers[v.id] ?? '';
