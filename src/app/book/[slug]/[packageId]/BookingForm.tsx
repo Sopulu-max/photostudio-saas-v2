@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import { toast } from '@/components/Toast';
 // One rule for "does this cover what they asked?", shared with the studio's own
 // screens so the two cannot answer differently.
-import { admits, specificity, narrowingFrom } from '@/kernel/classification';
+import { admits, specificity, narrowingFrom, labelledByAnswer } from '@/kernel/classification';
 
 /**
  * A question this studio asks about its own work — whatever its domains
@@ -403,6 +403,31 @@ export function BookingForm({
     ? (matchedIntake?.openClassifications ?? [])
     : openClassifications;
 
+  /*
+   * WHAT EACH QUESTION HAS BEEN ANSWERED AS, BY NAME.
+   *
+   * Gathered from both places an answer can come from, because a client
+   * reaches the same field by two routes: on the custom path they say
+   * Birthday at intake, before any package is chosen; on a package's own page
+   * they say it here, among the choices that package left open.
+   *
+   * The server has already done this for anything the PACKAGE settled — a
+   * package narrowed to Birthday arrives with its labels resolved — so this is
+   * only for answers given on this form, and finds nothing for the rest.
+   */
+  const answeredAs = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const c of effectiveOpenClassifications as any[]) {
+      const name = (c.values || []).find((v: any) => v.id === chosenClassifications[c.dimensionId])?.name;
+      if (name) out[c.dimensionId] = name;
+    }
+    for (const d of dimensionConfig || []) {
+      const name = d.values.find((v) => v.id === dimensionSelections[d.id])?.name;
+      if (name) out[d.id] = name;
+    }
+    return out;
+  }, [effectiveOpenClassifications, chosenClassifications, dimensionConfig, dimensionSelections]);
+
   /** Whether the matched package has anything of its own to ask. */
   const hasPackageStep = isCustom && !!resolvedPackageId && !loadingIntake && (
     effectiveFormSchema.length > 0
@@ -736,6 +761,7 @@ export function BookingForm({
                         chosenClassifications={chosenClassifications}
                         setChosenClassifications={setChosenClassifications}
                         openVariables={effectiveOpenVariables}
+                        answeredAs={answeredAs}
                         variableAnswers={variableAnswers}
                         setVariableAnswers={setVariableAnswers}
                         formSchema={effectiveFormSchema}
@@ -945,6 +971,7 @@ export function BookingForm({
                     chosenClassifications={chosenClassifications}
                     setChosenClassifications={setChosenClassifications}
                     openVariables={effectiveOpenVariables}
+                    answeredAs={answeredAs}
                     variableAnswers={variableAnswers}
                     setVariableAnswers={setVariableAnswers}
                     formSchema={effectiveFormSchema}
@@ -1133,6 +1160,7 @@ function PackageQuestions({
   chosenClassifications,
   setChosenClassifications,
   openVariables,
+  answeredAs,
   variableAnswers,
   setVariableAnswers,
   formSchema,
@@ -1143,6 +1171,8 @@ function PackageQuestions({
   chosenClassifications: Record<string, string>;
   setChosenClassifications: (v: Record<string, string>) => void;
   openVariables: any[];
+  /** What each dimension has been answered as, by name — see the note above. */
+  answeredAs: Record<string, string>;
   variableAnswers: Record<string, string>;
   setVariableAnswers: (v: Record<string, string>) => void;
   formSchema: any[];
@@ -1213,7 +1243,12 @@ function PackageQuestions({
                                   return (
                                     <div className="q-field" key={v.id}>
                                       <label className="q-label" style={{ fontSize: '0.95rem' }}>
-                                        {v.label}
+                                        {/* "Occasion Date" becomes "Birthday
+                                            Date" the moment they say Birthday.
+                                            Asking about the occasion under a
+                                            heading that still says Occasion
+                                            reads as a second, different one. */}
+                                        {labelledByAnswer(v.label, v.dimensionName, answeredAs[v.dimensionId])}
                                         {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
                                       </label>
                                       <VariableField

@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { assertAllOurs, assertOurs } from '@/kernel/tenancy';
 import { priceOf } from '@/kernel/money';
+import { labelledByAnswer } from '@/kernel/classification';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
@@ -1612,10 +1613,10 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       service:services(
         id, name,
         variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
-        service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
+        service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
         service_deliverables(id, deliverable_id)
       ),
-      package_service_dimension_values(dimension_value:dimension_values(id, dimension_id)),
+      package_service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
       package_deliverables(deliverable_id),
       package_variable_values(variable_id, answered_by)
     `)
@@ -1649,6 +1650,16 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
    * actually in play, not merely which dimensions.
    */
   const valueIdsInPlay = new Set<string>();
+  /*
+   * And which questions the package has already ANSWERED, by name.
+   *
+   * A dimension narrowed to exactly one value is settled: the studio has said
+   * this package is for a Birthday, and nobody is going to be asked. A
+   * dimension still holding several is a choice the client makes on the form.
+   * The first can name the fields that follow from it; the second cannot yet,
+   * which is why this counts rather than just collecting.
+   */
+  const valueNamesByDimension = new Map<string, Set<string>>();
   for (const row of ((rows || []) as any[])) {
     const narrowed = ((row.package_service_dimension_values || []) as any[])
       .map((l) => l.dimension_value).filter(Boolean);
@@ -1657,7 +1668,17 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     for (const v of (narrowed.length > 0 ? narrowed : inherited)) {
       if (v.dimension_id) dimensionIds.add(v.dimension_id);
       if (v.id) valueIdsInPlay.add(v.id);
+      if (v.dimension_id && v.name) {
+        const names = valueNamesByDimension.get(v.dimension_id) || new Set<string>();
+        names.add(v.name as string);
+        valueNamesByDimension.set(v.dimension_id, names);
+      }
     }
+  }
+  /** The answer, where there is exactly one — otherwise the question stands. */
+  const settledAs = new Map<string, string>();
+  for (const [dimensionId, names] of valueNamesByDimension) {
+    if (names.size === 1) settledAs.set(dimensionId, [...names][0]);
   }
 
   const declaredOnDimensions = dimensionIds.size === 0 ? [] : (await supabaseAdmin
@@ -1785,7 +1806,19 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       dimensionId: v.dimension_id ?? v.dimension?.id ?? null,
       dimensionName: v.dimension?.name ?? null,
       key: v.key,
-      label: v.label,
+      /*
+       * NAMED BY THE ANSWER WHERE THE PACKAGE HAS ALREADY GIVEN ONE.
+       *
+       * A package narrowed to Birthday asks for the "Birthday Date", not the
+       * "Occasion Date" — the occasion is not an open question here, it was
+       * settled when the studio built the package, and naming the field after
+       * the question says less than is already known.
+       *
+       * Where the package still offers a choice this leaves the label alone,
+       * and the form relabels it as soon as the client picks. Same rule, run
+       * wherever the answer happens to be known.
+       */
+      label: labelledByAnswer(v.label, v.dimension?.name, settledAs.get(v.dimension_id ?? v.dimension?.id)),
       kind: v.kind,
       unit: v.unit ?? null,
       options: Array.isArray(v.options) ? v.options : [],

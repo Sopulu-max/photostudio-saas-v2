@@ -126,3 +126,49 @@ export function variableApplies(
   const inPlay = new Set(valueIdsInPlay);
   return askedFor.some((id) => inPlay.has(id));
 }
+
+/**
+ * A question named by its answer, once it has one.
+ *
+ * A dimension is a question and its values are the answers. So a variable that
+ * follows from a dimension is named for the question while the question is
+ * open — "Occasion Date" — and the studio writes it that way because at the
+ * moment of declaring it, the occasion is not yet any particular occasion.
+ *
+ * But once somebody has said Birthday, "Occasion Date" is naming something
+ * less specific than what is already known. The field is the date of the
+ * birthday, and calling it that is not decoration: on a form where "What
+ * occasion is it for?" has just been answered, a following field still headed
+ * Occasion reads as though it were asking about a second, different occasion.
+ *
+ * DERIVED, NOT DECLARED. There is no per-value label anywhere and there must
+ * not be — a studio adding a value to Occasion would then have to remember to
+ * write a matching label for every variable the dimension carries, and the one
+ * they forgot would be the one a client saw. The label the studio wrote
+ * already contains the dimension's name; the answer takes its place.
+ *
+ * AND ONLY WHEN THE LABEL ACTUALLY NAMES THE DIMENSION. "Location Address"
+ * belongs to Context and says nothing about context, so answering Studio
+ * leaves it alone rather than inventing "Studio Address". A label that does
+ * not name its question is a label the studio wrote to stand on its own, and
+ * this has no business rewriting it.
+ */
+export function labelledByAnswer(
+  label: string,
+  dimensionName: string | null | undefined,
+  valueName: string | null | undefined,
+): string {
+  if (!label || !dimensionName || !valueName) return label;
+  if (dimensionName === valueName) return label;
+
+  /*
+   * Whole words only, and the boundaries are written out rather than using \b:
+   * a dimension may be named with a character \b does not treat as a word
+   * character, and "Occasion" must not match inside "Occasional".
+   */
+  const escaped = dimensionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'iu');
+  if (!pattern.test(label)) return label;
+
+  return label.replace(pattern, (_m, before: string) => `${before}${valueName}`);
+}

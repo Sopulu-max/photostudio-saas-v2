@@ -34,6 +34,9 @@ import {
 // into what is meant. The storefront draws the same questions with the same two,
 // so a shape that works for a client works here.
 import { VariableField } from '@/components/VariableField';
+// A question named by its answer, once it has one — the same rule the client's
+// booking form uses, so the two never call one field two different things.
+import { labelledByAnswer } from '@/kernel/classification';
 import { useArrivals } from '@/components/useArrivals';
 import { parseVariableValue, formatVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
@@ -1528,7 +1531,29 @@ export function NewBookingForm({
                             {q.variables.map((v: any) => (
                               <div className="q-field" key={v.id}>
                                 <label className="q-label">
-                                  {v.label}
+                                  {/*
+                                    * NAMED BY THE ANSWER, ONCE THERE IS ONE.
+                                    *
+                                    * "Occasion Date" is what the studio wrote,
+                                    * because when the question was declared the
+                                    * occasion was not yet any particular one.
+                                    * Once this booking says Birthday it is the
+                                    * birthday's date, and a field still headed
+                                    * Occasion beside a Birthday answer reads as
+                                    * a second, different occasion.
+                                    *
+                                    * The same kernel rule the client's form
+                                    * uses, so the operator and the client never
+                                    * see the same field called two things.
+                                    */}
+                                  {labelledByAnswer(
+                                    v.label,
+                                    v.dimensionName,
+                                    (q.classifications as any[])
+                                      .find((c: any) => c.dimensionId === v.dimensionId)
+                                      ?.values?.find((x: any) => x.id === line.chosenClassifications[v.dimensionId])
+                                      ?.name,
+                                  )}
                                   {v.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({v.unit}s)</span>}
                                   {/*
                                     * WHERE THE QUESTION COMES FROM, TRUTHFULLY.
