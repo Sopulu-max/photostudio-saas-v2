@@ -23,7 +23,15 @@ type Item =
  */
 const layersFor = (occasionLabel: string) => [
   { key: 'booking', label: 'Shoots', dot: 'var(--q-color-accent)' },
-  { key: 'placed', label: 'Booked', dot: 'var(--q-color-ink-400)' },
+  /*
+   * "Booked on", not "Booked" — a stage is called that.
+   *
+   * A booking's stage badge sits in this same panel, so a layer named Booked
+   * put the word inches from itself meaning something else entirely: one is a
+   * day, the other is where the work has got to. "Booked on" can only be read
+   * as a date.
+   */
+  { key: 'placed', label: 'Booked on', dot: 'var(--q-color-ink-400)' },
   { key: 'occasion', label: occasionLabel, dot: 'var(--q-color-warm-deep, var(--q-color-warm))' },
   { key: 'deadline', label: 'Deadlines', dot: 'var(--q-color-warm)' },
   { key: 'money', label: 'Money', dot: 'var(--q-color-success)' },
