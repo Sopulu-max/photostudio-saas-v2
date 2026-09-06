@@ -10,11 +10,11 @@ import { revalidatePath } from 'next/cache';
 import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
 // One definition of what a deliverable link looks like, shared by every reader.
 import {
-  SERVICE_OFFERS, PACKAGE_PROMISE, PACKAGE_PROMISE_COUNT, DELIVERABLE_REF,
+  SERVICE_OFFERS, PACKAGE_PROMISE, PACKAGE_PROMISE_COUNT, PACKAGE_PROMISE_NAMED, DELIVERABLE_REF,
 } from '@/modules/deliverables/shape';
 // A link to a deliverable is written by the module that defines one.
 import {
-  setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions,
+  setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions, listServiceDeliverableOptionsFor,
 } from '@/modules/deliverables/domain';
 import { narrowOptions, specFromAnswers, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
@@ -486,6 +486,8 @@ async function writePackageNarrowings(
 export async function createPackage(input: {
   name?: string;
   description?: string | null;
+  /** One line for a card, where the full description would be clipped. */
+  shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
   /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
@@ -572,6 +574,7 @@ export async function createPackage(input: {
       organization_id: orgId,
       name,
       description: input.description || null,
+      short_description: input.shortDescription || null,
       duration_minutes: input.durationMinutes ?? null,
       price: input.price || {},
       cover_url: input.coverUrl ?? null,
@@ -622,6 +625,8 @@ export async function updatePackage(input: {
   packageId: string;
   name?: string;
   description?: string | null;
+  /** One line for a card, where the full description would be clipped. */
+  shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
   /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
@@ -663,6 +668,7 @@ export async function updatePackage(input: {
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name.trim() || existing.name;
   if (input.description !== undefined) patch.description = input.description || null;
+  if (input.shortDescription !== undefined) patch.short_description = input.shortDescription || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.price !== undefined) patch.price = input.price || {};
   // Absent leaves the cover alone; null takes it off. The same distinction the
@@ -763,6 +769,7 @@ async function copyPackage(
       organization_id: orgId,
       name: as.name(existing.name),
       description: existing.description,
+      short_description: existing.short_description,
       duration_minutes: existing.duration_minutes,
       extra_stages: existing.extra_stages,
       form_schema: existing.form_schema,
@@ -1041,7 +1048,7 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, status, duration_minutes, extra_stages, price, instance_of, list_price, cover_url, cover_position, created_at,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, cover_url, cover_position, created_at,
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
@@ -1210,11 +1217,27 @@ export async function listPackagesPublic(orgId: string) {
 export async function listPackagesPublicWithDimensions(orgId: string) {
   const { data } = await supabaseAdmin
     .from('packages')
+    /*
+     * cover_url and cover_position are SELECTED, which they were not. The
+     * mapper below already returned them, so every caller has been handed null
+     * for the studio's own picture — the same shape of fault as a mapper
+     * reading spec columns it never asked for.
+     */
+    /*
+     * price and price_unit, which nothing public was reading.
+     *
+     * The catalogue page rendered `pkg.pricing?.base_price`, and `pricing` is
+     * an empty legacy column on every row — the real figure lives in `price`.
+     * So every package in every studio showed "Custom quote" to clients while
+     * the studio had actually priced it. Same fault as cover_url: a column the
+     * mapper spoke about but the query never asked for.
+     */
     .select(`
-      id, name, description, duration_minutes,
+      id, name, description, short_description, duration_minutes, cover_url, cover_position,
+      price, price_unit,
       package_services(id, service:services(
         id, name
-      ), ${PACKAGE_PROMISE_COUNT}, package_service_dimension_values(dimension_value:dimension_values(
+      ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
     `)
@@ -1228,11 +1251,36 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id: p.id as string,
       name: p.name as string,
       description: (p.description ?? null) as string | null,
+      short_description: (p.short_description ?? null) as string | null,
       cover_url: (p.cover_url ?? null) as string | null,
       cover_position: (p.cover_position ?? null) as string | null,
       duration_minutes: (p.duration_minutes ?? null) as number | null,
+      /* Parsed, not cast — null means unpriced, which is a normal state for a
+         package a studio quotes case by case. See kernel/money. */
+      price: priceOf(p.price),
+      price_unit: (p.price_unit ?? null) as string | null,
       services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
       deliverablesCount: (p.package_services || []).reduce((acc: number, ps: any) => acc + (ps.package_deliverables?.length || 0), 0),
+      /*
+       * WHAT IT PROMISES, BY NAME.
+       *
+       * This carried a count and nothing else, so a client choosing between
+       * packages was told "2 deliverables" and left to guess which two. The
+       * names are one join away and are the thing they are actually buying.
+       *
+       * Deduplicated: two bundled services both promising edited photographs
+       * is one thing as far as a client is concerned.
+       */
+      deliverables: [...new Map(
+        ((p.package_services || []) as any[])
+          .flatMap((ps: any) => (ps.package_deliverables || []) as any[])
+          .filter((d: any) => d.deliverable?.id)
+          .map((d: any) => [d.deliverable.id as string, {
+            id: d.deliverable.id as string,
+            name: d.deliverable.name as string,
+            quantity: (d.quantity ?? null) as number | null,
+          }] as const),
+      ).values()],
       dimensionValueIds: [...new Set(
         links.map((pv: any) => pv.dimension_value?.id).filter(Boolean)
       )] as string[],
@@ -1251,7 +1299,8 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, pricing_variant, duration_minutes, form_schema, cover_url, cover_position,
+      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, cover_url, cover_position,
+      price, price_unit,
       package_services(
         service:services(name),
         ${PACKAGE_PROMISE},
@@ -1280,9 +1329,20 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     id: p.id as string,
     name: p.name as string,
     description: (p.description ?? null) as string | null,
+    /** One line for a card. Falls back to the long one, trimmed. */
+    shortDescription: (p.short_description ?? null) as string | null,
     durationMinutes: (p.duration_minutes ?? null) as number | null,
     coverUrl: (p.cover_url ?? null) as string | null,
     coverPosition: (p.cover_position ?? null) as string | null,
+    /*
+     * WHAT IT COSTS.
+     *
+     * The page a client opens to decide showed no figure at all, while the
+     * catalogue card that sent them there showed one. Null stays null: a
+     * package the studio quotes case by case says nothing rather than "0".
+     */
+    price: priceOf(p.price),
+    priceUnit: (p.price_unit ?? null) as string | null,
     formSchema: (p.form_schema || []) as any[],
     serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
     // Specified, so the storefront says "6 edited photographs" rather than
@@ -1757,7 +1817,8 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
    * with a digital-only and a print-only service can promise what both make,
    * but only in a form both can actually produce.
    */
-  const permitted = await listServiceDeliverableOptions(
+  const permitted = await listServiceDeliverableOptionsFor(
+    orgId,
     ((rows || []) as any[])
       .flatMap((r) => (r.service?.service_deliverables || []) as any[])
       .map((sd) => sd.id),
