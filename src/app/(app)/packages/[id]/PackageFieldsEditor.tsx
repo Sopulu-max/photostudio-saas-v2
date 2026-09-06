@@ -34,6 +34,7 @@ type ServiceOption = {
   name: string; 
   domain?: { id?: string; name: string } | null;
   description?: string | null;
+  shortDescription?: string | null;
   deliverables?: { id: string; name: string }[];
   /** However many dimensions this service's domain asks, with what it carries. */
   dimensions?: { id: string; name: string; values: { id: string; name: string }[] }[];
@@ -126,6 +127,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   initial: {
     name?: string;
     description?: string | null;
+    /** One line for a card. Falls back to a trimmed description. */
+    shortDescription?: string | null;
     durationMinutes?: number | null;
     /** Public URL of the cover image, when this form is being shown it. */
     coverUrl?: string | null;
@@ -285,6 +288,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [nameTouched, setNameTouched] = useState(!!initial.name);
   const [name, setName] = useState(initial.name || '');
   const [description, setDescription] = useState(initial.description ?? '');
+  const [shortDescription, setShortDescription] = useState(initial.shortDescription ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>(initial.serviceIds || []);
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
   
@@ -737,6 +741,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     return {
       name: effectiveName,
       description: description.trim() || null,
+      shortDescription: shortDescription.trim() || null,
       durationMinutes: duration > 0 ? duration : null,
       // base_price, not amount. This wrote { amount } and read { amount } back,
       // so it agreed with itself and looked right on screen — while every
@@ -1397,9 +1402,33 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                   onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
                 <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled below — type here to give it a name of your own.'}</span>
               </div>
+              {/*
+                * TWO DESCRIPTIONS, BECAUSE THEY DO TWO JOBS.
+                *
+                * There was one, and it had to be both: clamped to two lines on
+                * a card where it trailed off mid-sentence, and the only thing
+                * on the package's own page. So writing for the card produced
+                * something too thin to sell with, and writing for the page
+                * produced an ellipsis on the card.
+                *
+                * The short one is optional — left empty, a card trims the long
+                * one, which is exactly what happened before.
+                */}
+              <div className="q-field">
+                <label className="q-label">Summary</label>
+                <input
+                  className="q-input"
+                  value={shortDescription}
+                  onChange={(e) => setShortDescription(e.target.value)}
+                  placeholder="One line, shown on cards."
+                />
+                <span className="q-meta-sm">
+                  Optional. Left empty, cards trim the description below.
+                </span>
+              </div>
               <div className="q-field">
                 <label className="q-label">Description</label>
-                <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the client gets. Shown on the booking page." />
+                <textarea className="q-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="The full description, shown on the package's own page." />
               </div>
             </>
           )}

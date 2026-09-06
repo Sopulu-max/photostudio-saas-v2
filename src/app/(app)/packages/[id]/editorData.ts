@@ -72,6 +72,7 @@ export function packageEditorInitial(pkg: any) {
   return {
     name: pkg.name,
     description: pkg.description,
+    shortDescription: pkg.short_description ?? null,
     price: pkg.price,
     coverUrl: pkg.cover_url ?? null,
     coverPosition: pkg.cover_position ?? null,
