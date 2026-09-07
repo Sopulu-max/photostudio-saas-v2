@@ -68,9 +68,6 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   const understoodByDimension = Object.fromEntries(
     classification.map((c) => [c.dimensionId, c.valueId]),
   ) as Record<string, string>;
-  const submittedByDimension = Object.fromEntries(
-    (enquiry?.submitted || []).map((c: any) => [c.dimensionId, c.valueId]),
-  ) as Record<string, string>;
   /* Deduplicated across domains: one question offered by two domains is still
      one question, exactly as the catalogue picker treats it. */
   const askedDimensions = [...new Map(
@@ -289,7 +286,6 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                 bookingId={booking.id}
                 dimensions={askedDimensions}
                 current={understoodByDimension}
-                submitted={submittedByDimension}
               />
             </div>
           )}

@@ -142,13 +142,16 @@ describe('a client request the studio can correct', () => {
     ).toBe(maternityId);
   }, 90000);
 
-  it('resolves against the correction, and still shows what they said', async () => {
+  it('resolves against the correction, not against the submission', async () => {
     const enquiry = await getEnquiryForBooking(bookingId);
     expect(enquiry, 'the enquiry disappeared').toBeTruthy();
-    // What the lists are computed from: the studio's understanding.
+    /*
+     * The studio's understanding is what the offers are computed from. That
+     * the submission survives untouched is checked directly against the row
+     * in the test above — it is a guarantee about the record, not something
+     * this screen narrates.
+     */
     expect(enquiry!.chosen.map((c) => c.value)).toEqual(['Wedding']);
-    // And the record, so a correction can be seen as one.
-    expect(enquiry!.submitted.map((c) => c.value)).toEqual(['Maternity']);
   }, 90000);
 
   it('counts a booking under its classification before anything is sold', async () => {

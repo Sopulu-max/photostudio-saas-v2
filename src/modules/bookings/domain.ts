@@ -2587,14 +2587,6 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
    * anything can be done reads whether anything came back, which cannot drift
    * from the truth because it is not a second copy of it.
    */
-  /**
-   * What the client actually submitted, which the studio may have corrected.
-   *
-   * Carries ids as well as names: a correction is detected by comparing what
-   * was answered with what is understood, and comparing names would call two
-   * different values with the same label the same answer.
-   */
-  submitted: { dimension: string; value: string; dimensionId: string; valueId: string }[];
   /** Offers that already cover what they described, best fit first. */
   offers: { id: string; name: string; price: any; serviceNames: string[]; carried: number }[];
   /** Capabilities that could deliver it, if no offer does. */
@@ -2612,8 +2604,9 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
 
   /*
    * WHAT THE CLIENT SAID — the record, read from their submission and never
-   * rewritten. Shown so an operator can see the original beside the working
-   * copy, and so a correction is visible as a correction.
+   * rewritten. Not shown beside the corrected value: a mismatch usually means
+   * the form asked badly, and narrating it as "the client answered X" states
+   * an intent they did not have. It is read here to seed and to fall back on.
    */
   const { message, chosen } = await resolveEnquiry(orgId, booking.metadata);
 
@@ -2662,14 +2655,6 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
     message,
     /* What the studio understands it to be — what the lists below answer. */
     chosen: understood.map((c: any) => ({ dimension: c.dimension, value: c.value })),
-    /*
-     * And what was actually submitted, so a correction can be seen as one.
-     * Derived by comparison rather than stored: where these two agree there is
-     * nothing to say, and where they differ the difference IS the correction.
-     */
-    submitted: chosen.map((c) => ({
-      dimension: c.dimension, value: c.value, dimensionId: c.dimensionId, valueId: c.valueId,
-    })),
     offers: offers as any[],
     capabilities: (capabilities as any[]).map((c) => ({
       id: c.id, name: c.name, domainName: c.domainName, carried: c.carried,

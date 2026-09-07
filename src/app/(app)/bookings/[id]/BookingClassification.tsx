@@ -22,28 +22,27 @@ type Dimension = {
  * without falsifying the evidence — and the studio was left being offered
  * maternity packages for a wedding, with no way out of it.
  *
- * TWO FACTS, SHOWN AS TWO. What they submitted is history and is never
- * rewritten; this is the studio's working answer, seeded from theirs. Where the
- * two differ the difference is shown, because a booking filed as a wedding
- * against a form that says maternity should say so on its face rather than
- * leaving the next person to wonder.
+ * TWO FACTS, ONE SHOWN. What they submitted stays in metadata and is never
+ * rewritten; this is the studio's working answer, seeded from theirs.
  *
- * The difference is DERIVED by comparing the two, not stored as a third flag —
- * so it cannot fall out of step with either.
+ * THE DIFFERENCE IS NOT DISPLAYED, and that is a decision rather than an
+ * omission. This showed "Client answered Maternity" beside a corrected value,
+ * which reads as the client having meant it — when in practice the mismatch
+ * came from a form that was not asking clearly. Presenting an artefact of a
+ * broken question as a statement of intent tells the operator something untrue
+ * about their client. The submission is still on the record if it is ever
+ * wanted; it is simply not narrated here.
  */
 export function BookingClassification({
   bookingId,
   dimensions,
   current,
-  submitted,
 }: {
   bookingId: string;
   /** Every question this studio asks, with the answers it accepts. */
   dimensions: Dimension[];
   /** What the studio currently understands, by dimension id. */
   current: Record<string, string>;
-  /** What the client submitted, by dimension id — for showing a correction. */
-  submitted: Record<string, string>;
 }) {
   const [isPending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,19 +68,17 @@ export function BookingClassification({
     <div className="q-stack q-stack-sm">
       <div>
         <strong className="q-strong">What this booking is for</strong>
+        {/* "if they meant something else" carried the same implication the
+            removed line did — that a mismatch is the client's. Change it if it
+            is wrong, whatever made it wrong. */}
         <p className="q-meta" style={{ margin: '2px 0 0' }}>
-          Set from what the client answered. Change it if they meant something else.
+          Set from the booking request. Change it if it is wrong.
         </p>
       </div>
 
       <div className="q-facts">
         {dimensions.map((d) => {
           const chosen = current[d.id] || '';
-          const said = submitted[d.id];
-          /* Only a real disagreement counts. A question the client never
-             answered is not a correction, it is a blank being filled in. */
-          const corrected = !!said && !!chosen && said !== chosen;
-          const saidName = said ? d.values.find((v) => v.id === said)?.name : null;
 
           return (
             <div key={d.id} className="q-fact-group">
@@ -99,11 +96,6 @@ export function BookingClassification({
                     <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
                 </select>
-                {corrected && (
-                  <span className="q-meta-sm">
-                    Client answered {saidName}
-                  </span>
-                )}
               </span>
             </div>
           );
