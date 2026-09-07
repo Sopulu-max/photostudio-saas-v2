@@ -2546,7 +2546,6 @@ export async function setBookingClassification(input: {
         booking_id: input.bookingId,
         dimension_id: input.dimensionId,
         dimension_value_id: input.valueId,
-        updated_at: new Date().toISOString(),
       }, { onConflict: 'booking_id,dimension_id' });
     if (error) throw new Error(`Could not record that answer: ${error.message}`);
   }

@@ -425,7 +425,6 @@ export async function checkIn(employeeId: string, atLocalTime?: string) {
       const patch: Record<string, unknown> = {
         checked_out_at: null,
         recorded_by: actorId ?? null,
-        updated_at: new Date().toISOString(),
       };
       if (stampedAt) { patch.checked_in_at = stampedAt; at = stampedAt; }
       const { error } = await supabaseAdmin
@@ -483,7 +482,7 @@ export async function checkOut(employeeId: string, atLocalTime?: string) {
 
   const { data: updated, error } = await supabaseAdmin
     .from('attendance')
-    .update({ checked_out_at: leftAt, recorded_by: actorId ?? null, updated_at: new Date().toISOString() })
+    .update({ checked_out_at: leftAt, recorded_by: actorId ?? null })
     .eq('id', existing.id).eq('organization_id', orgId)
     .select('checked_in_at, checked_out_at')
     .single();
@@ -522,7 +521,7 @@ export async function setWorkingDays(input: { employeeId: string; days: number[]
 
   const { error } = await supabaseAdmin
     .from('employees')
-    .update({ working_days: days, updated_at: new Date().toISOString() })
+    .update({ working_days: days })
     .eq('id', input.employeeId)
     .eq('organization_id', orgId);
   if (error) { console.error('Failed to set working days:', error); throw new Error('Failed to save their week'); }
@@ -578,7 +577,6 @@ export async function adjustAttendance(input: {
 
   const patch: Record<string, unknown> = {
     recorded_by: actorId ?? null,
-    updated_at: new Date().toISOString(),
   };
 
   if (input.checkedInAt !== undefined) {

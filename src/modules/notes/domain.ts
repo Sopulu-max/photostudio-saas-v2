@@ -131,9 +131,16 @@ export async function updateNote(input: {
   body?: string;
 }) {
   const { orgId } = await getAuthOrgId();
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  /* updated_at is the database's to set — a trigger does it. Stamping it
+     here compared this machine's clock against the one that wrote every other
+     row, and a note edited on a slow clock sank instead of rising. */
+  const patch: Record<string, unknown> = {};
   if (input.title !== undefined) patch.title = (input.title || '').trim() || null;
   if (input.body !== undefined) patch.body = input.body;
+  /* Nothing said, nothing written. Previously the timestamp made every call a
+     write; without it an update of no fields is a malformed request, and a
+     save that changes nothing should not be one anyway. */
+  if (Object.keys(patch).length === 0) return { ok: true };
 
   const { error } = await supabaseAdmin
     .from('notes').update(patch)
@@ -222,7 +229,6 @@ export async function setNoteAbout(input: {
     .update({
       about_type: input.about?.type ?? null,
       about_id: input.about?.id ?? null,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', input.id).eq('organization_id', orgId);
   if (error) {
