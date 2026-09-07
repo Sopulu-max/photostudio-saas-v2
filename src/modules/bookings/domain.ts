@@ -390,6 +390,19 @@ export async function createBookingFromIntake(input: {
       title_custom: false,
       stage_id: landingStage.id,
       scheduled_for: scheduledFor,
+      /*
+       * THE CLIENT'S OWN WORDS, IN THE COLUMN BUILT FOR THEM.
+       *
+       * brief has existed all along — rendered on the booking, editable, and
+       * raising a brief_updated event when changed — and this never wrote it.
+       * So what a client typed went into metadata and the field a studio
+       * actually reads stayed null on every booking ever taken. Jozzy B wrote
+       * "Pre wedding pics" and nobody would have found it.
+       *
+       * metadata keeps the submission verbatim; this is the working copy the
+       * studio may correct.
+       */
+      brief: (((input.answers as any)?.message ?? '') as string).trim() || null,
       metadata: { source: input.source || 'public_booking_page', form_responses: input.answers || {} },
     })
     .select('id')
@@ -397,6 +410,45 @@ export async function createBookingFromIntake(input: {
   if (error || !booking) {
     console.error('Failed to create booking from intake:', error);
     throw new Error('Failed to create your booking request.');
+  }
+
+  /*
+   * WHAT THE BOOKING IS FOR, AS A FACT OF ITS OWN.
+   *
+   * Seeded from what the client answered and the studio's from here on. The
+   * answers stay in metadata as the record of the submission, so correcting
+   * the classification never falsifies what was actually said — which is the
+   * whole point: a client who ticks Maternity meaning a wedding must be
+   * correctable without anyone rewriting their form.
+   *
+   * Failure here does not lose the booking. The classification is a reading of
+   * something already recorded in metadata, so it can be repaired; refusing
+   * the booking over it would turn a convenience into a lost client.
+   */
+  const answeredValueIds = Object.values(
+    ((input.answers as any)?.dimensions ?? {}) as Record<string, string>,
+  ).filter(Boolean);
+  if (answeredValueIds.length > 0) {
+    const { data: values } = await supabaseAdmin
+      .from('dimension_values')
+      .select('id, dimension_id')
+      .eq('organization_id', orgId)
+      .in('id', answeredValueIds);
+    /* One row per question: the last answer for a dimension wins, which cannot
+       happen through the form but can through a hand-made request. */
+    const byDimension = new Map<string, string>();
+    for (const v of ((values || []) as any[])) byDimension.set(v.dimension_id, v.id);
+    if (byDimension.size > 0) {
+      const { error: classifyError } = await supabaseAdmin
+        .from('booking_dimension_values')
+        .insert([...byDimension.entries()].map(([dimensionId, valueId]) => ({
+          organization_id: orgId,
+          booking_id: booking.id,
+          dimension_id: dimensionId,
+          dimension_value_id: valueId,
+        })));
+      if (classifyError) console.error('Failed to classify the booking from intake:', classifyError);
+    }
   }
 
   /*
@@ -2273,13 +2325,17 @@ export async function listBookingsForDimensionValue(valueId: string) {
     ...((direct || []) as any[]).map((r) => r.package_service?.package_id).filter(Boolean),
     ...bundled.map((r) => r.package_id),
   ])];
-  if (packageIds.length === 0) return { bookings: [], total: 0 };
-
-  const { data: lines } = await supabaseAdmin
-    .from('booking_lines')
-    .select('id, title, price, quantity, package_id, booking:bookings(id, title, title_custom, scheduled_for, contact:contacts(display_name)), package:packages(name)')
-    .eq('organization_id', orgId)
-    .in('package_id', packageIds);
+  /* No early return on an empty package list: a booking can carry this
+     classification on its own, with nothing sold against it yet. */
+  /* Skipped rather than run with an empty list: `in.()` is not a query that
+     returns nothing, it is a malformed one. */
+  const { data: lines } = packageIds.length === 0
+    ? { data: [] as any[] }
+    : await supabaseAdmin
+        .from('booking_lines')
+        .select('id, title, price, quantity, package_id, booking:bookings(id, title, title_custom, scheduled_for, contact:contacts(display_name)), package:packages(name)')
+        .eq('organization_id', orgId)
+        .in('package_id', packageIds);
 
   // One row per booking, because a booking with two Birthday lines is one
   // birthday job, not two — but the money is the sum of the lines.
@@ -2307,6 +2363,42 @@ export async function listBookingsForDimensionValue(valueId: string) {
       clientName: b.contact?.display_name ?? null,
       packages: l.package?.name ? [l.package.name] : [],
       total: amount,
+    });
+  }
+
+  /*
+   * AND THE BOOKINGS THAT SAY SO THEMSELVES.
+   *
+   * Everything above reaches a booking THROUGH a package, which was the only
+   * way a booking could carry a classification. So an enquiry that named an
+   * occasion and had not been sold anything yet counted under nothing at all —
+   * Pius James said Maternity out loud and appeared under no occasion, which
+   * is the opposite of what a studio asking "how much maternity work do we
+   * take?" needs to know.
+   *
+   * Merged rather than replacing: a booking can be reached both ways and must
+   * be listed once. The package route also carries the money, so a booking
+   * already found there keeps its total and this adds nothing to it.
+   */
+  const { data: classified } = await supabaseAdmin
+    .from('booking_dimension_values')
+    .select('booking:bookings(id, title, title_custom, scheduled_for, contact:contacts(display_name))')
+    .eq('organization_id', orgId)
+    .in('dimension_value_id', narrowerIds);
+
+  for (const row of ((classified || []) as any[])) {
+    const b = row.booking;
+    if (!b || byBooking.has(b.id)) continue;
+    byBooking.set(b.id, {
+      id: b.id,
+      title: b.title_custom || b.title || 'Booking',
+      scheduledFor: b.scheduled_for ?? null,
+      clientName: b.contact?.display_name ?? null,
+      /* Nothing has been sold yet, so there is no package and no money — and
+         saying zero here is truthful rather than a gap: an enquiry has been
+         taken and not yet quoted. */
+      packages: [],
+      total: 0,
     });
   }
 
@@ -2369,6 +2461,117 @@ async function resolveEnquiry(orgId: string, metadata: any): Promise<{
  * Returns nothing for a booking that came in against a real package — that one
  * already knows what it is, and its answers read back as booking form answers.
  */
+/**
+ * WHAT THE STUDIO UNDERSTANDS THIS BOOKING TO BE FOR.
+ *
+ * Seeded from the client's answers at intake and the studio's to correct
+ * thereafter. Distinct from what is in metadata, which is the record of what
+ * was actually submitted and is never rewritten.
+ */
+export async function getBookingClassification(bookingId: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('booking_dimension_values')
+    .select('dimension_id, dimension_value:dimension_values(id, name, dimension:dimensions(id, name, question))')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+  if (error) {
+    console.error('Failed to read the booking classification:', error);
+    return [];
+  }
+  return ((data || []) as any[])
+    .filter((r) => r.dimension_value?.dimension)
+    .map((r) => ({
+      dimensionId: r.dimension_id as string,
+      dimensionName: r.dimension_value.dimension.name as string,
+      question: (r.dimension_value.dimension.question ?? null) as string | null,
+      valueId: r.dimension_value.id as string,
+      valueName: r.dimension_value.name as string,
+    }));
+}
+
+/**
+ * Correcting one of those answers, or clearing it.
+ *
+ * ONE ANSWER PER QUESTION, which the unique constraint enforces — so this is
+ * an upsert on (booking, dimension) rather than an insert, and a null value
+ * removes the answer entirely rather than storing an empty one. "Not said" and
+ * "said to be nothing" are different, and only the first exists here.
+ *
+ * The value is checked against the dimension it claims to answer. Without that
+ * an operator could file a booking under Studio for the question "what occasion
+ * is it for?", and every later read of the graph would carry the contradiction.
+ */
+export async function setBookingClassification(input: {
+  bookingId: string;
+  dimensionId: string;
+  valueId: string | null;
+}) {
+  const { orgId, contactId } = await getAuthOrgId();
+  await assertOurs(orgId, [{ table: 'bookings', id: input.bookingId, label: 'booking' }]);
+
+  const before = await supabaseAdmin
+    .from('booking_dimension_values')
+    .select('dimension_value:dimension_values(name)')
+    .eq('organization_id', orgId)
+    .eq('booking_id', input.bookingId)
+    .eq('dimension_id', input.dimensionId)
+    .maybeSingle();
+  const wasName = (before.data as any)?.dimension_value?.name ?? null;
+
+  if (!input.valueId) {
+    const { error } = await supabaseAdmin
+      .from('booking_dimension_values')
+      .delete()
+      .eq('organization_id', orgId)
+      .eq('booking_id', input.bookingId)
+      .eq('dimension_id', input.dimensionId);
+    if (error) throw new Error(`Could not clear that answer: ${error.message}`);
+  } else {
+    const { data: value } = await supabaseAdmin
+      .from('dimension_values')
+      .select('id, dimension_id, name')
+      .eq('organization_id', orgId)
+      .eq('id', input.valueId)
+      .maybeSingle();
+    if (!value) throw new Error('That answer is not one of this studio’s.');
+    if (value.dimension_id !== input.dimensionId) {
+      throw new Error('That answer belongs to a different question.');
+    }
+
+    const { error } = await supabaseAdmin
+      .from('booking_dimension_values')
+      .upsert({
+        organization_id: orgId,
+        booking_id: input.bookingId,
+        dimension_id: input.dimensionId,
+        dimension_value_id: input.valueId,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'booking_id,dimension_id' });
+    if (error) throw new Error(`Could not record that answer: ${error.message}`);
+  }
+
+  /*
+   * Logged, because this is the studio overruling what a client said. Six
+   * months on, "why is this filed as a wedding when the form says maternity?"
+   * has to have an answer, and the answer is whoever changed it.
+   */
+  const { data: after } = input.valueId
+    ? await supabaseAdmin.from('dimension_values').select('name').eq('id', input.valueId).maybeSingle()
+    : { data: null };
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'classification_changed',
+    actorId: contactId ?? undefined,
+    payload: { dimensionId: input.dimensionId, from: wasName, to: (after as any)?.name ?? null },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath(`/bookings/${input.bookingId}/edit`);
+}
+
 export async function getEnquiryForBooking(bookingId: string): Promise<{
   message: string | null;
   chosen: { dimension: string; value: string }[];
@@ -2385,6 +2588,14 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
    * anything can be done reads whether anything came back, which cannot drift
    * from the truth because it is not a second copy of it.
    */
+  /**
+   * What the client actually submitted, which the studio may have corrected.
+   *
+   * Carries ids as well as names: a correction is detected by comparing what
+   * was answered with what is understood, and comparing names would call two
+   * different values with the same label the same answer.
+   */
+  submitted: { dimension: string; value: string; dimensionId: string; valueId: string }[];
   /** Offers that already cover what they described, best fit first. */
   offers: { id: string; name: string; price: any; serviceNames: string[]; carried: number }[];
   /** Capabilities that could deliver it, if no offer does. */
@@ -2400,8 +2611,32 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
     .maybeSingle();
   if (!booking) return null;
 
+  /*
+   * WHAT THE CLIENT SAID — the record, read from their submission and never
+   * rewritten. Shown so an operator can see the original beside the working
+   * copy, and so a correction is visible as a correction.
+   */
   const { message, chosen } = await resolveEnquiry(orgId, booking.metadata);
-  if (!message && chosen.length === 0) return null;
+
+  /*
+   * AND WHAT THE BOOKING IS FOR — the studio's own, which is what everything
+   * below resolves against.
+   *
+   * This used to resolve against the client's answers directly, so a client
+   * who ticked Maternity meaning a wedding left the studio offering maternity
+   * packages with no way out: the only record of the classification was the
+   * record of the submission, and correcting one meant falsifying the other.
+   *
+   * Falling back to what they said covers bookings taken before the booking
+   * carried a classification of its own — though the migration backfilled
+   * those, so this is a floor rather than a path anything normally takes.
+   */
+  const own = await getBookingClassification(bookingId);
+  const understood = own.length > 0
+    ? own.map((c) => ({ dimension: c.dimensionName, value: c.valueName, dimensionId: c.dimensionId, valueId: c.valueId }))
+    : chosen;
+
+  if (!message && understood.length === 0 && chosen.length === 0) return null;
 
   /*
    * DECONSTRUCT, DESCENDING ONLY AS FAR AS NEEDED.
@@ -2416,7 +2651,7 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
    * genuinely new required, and that is a catalogue decision rather than a
    * derivation.
    */
-  const answers = chosen.map((c) => ({ dimensionId: c.dimensionId, valueId: c.valueId }));
+  const answers = understood.map((c: any) => ({ dimensionId: c.dimensionId, valueId: c.valueId }));
   const [offers, capabilities] = answers.length > 0
     ? await Promise.all([
         (await import('@/modules/packages/interface')).packagesAdmitting(answers),
@@ -2426,7 +2661,16 @@ export async function getEnquiryForBooking(bookingId: string): Promise<{
 
   return {
     message,
-    chosen: chosen.map((c) => ({ dimension: c.dimension, value: c.value })),
+    /* What the studio understands it to be — what the lists below answer. */
+    chosen: understood.map((c: any) => ({ dimension: c.dimension, value: c.value })),
+    /*
+     * And what was actually submitted, so a correction can be seen as one.
+     * Derived by comparison rather than stored: where these two agree there is
+     * nothing to say, and where they differ the difference IS the correction.
+     */
+    submitted: chosen.map((c) => ({
+      dimension: c.dimension, value: c.value, dimensionId: c.dimensionId, valueId: c.valueId,
+    })),
     offers: offers as any[],
     capabilities: (capabilities as any[]).map((c) => ({
       id: c.id, name: c.name, domainName: c.domainName, carried: c.carried,

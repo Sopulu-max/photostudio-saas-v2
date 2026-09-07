@@ -19,6 +19,15 @@ export {
   // The dimension graph's one crossing into real work: what was actually booked
   // under a classification. Lives here because the chain ends here.
   listBookingsForDimensionValue,
+  /*
+   * What the studio understands a booking to be for, and correcting it.
+   *
+   * Distinct from the client's submission, which stays in metadata as the
+   * record of what was actually said. Two facts, two homes — so a client who
+   * misread the form can be corrected without anyone falsifying their answer.
+   */
+  getBookingClassification,
+  setBookingClassification,
   // What a line is actually configured as — the offer plus the client's answers
   setLineConfiguration,
   getLineConfiguration,

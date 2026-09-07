@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking } from '@/modules/bookings/interface';
+import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking, getBookingClassification } from '@/modules/bookings/interface';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -14,6 +14,7 @@ import { AddLineForm } from '../AddLineForm';
 import { LineActions } from '../LineActions';
 import { LineConfigForm } from '../LineConfigForm';
 import { ResolveEnquiry } from '../ResolveEnquiry';
+import { BookingClassification } from '../BookingClassification';
 import { LinePackageEditor } from './LinePackageEditor';
 /*
  * The same loader /packages/[id]/edit uses. A booking line points at a package
@@ -55,6 +56,26 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     // What the catalogue can be narrowed by — the studio's own vocabulary.
     listDimensionsByDomain(),
   ]);
+
+  /*
+   * WHAT THE STUDIO UNDERSTANDS THIS BOOKING TO BE FOR.
+   *
+   * Its own fact, seeded from the client's answers and correctable — as
+   * opposed to what they submitted, which stays in metadata as the record.
+   * The editor needs both: one to show, one to compare against.
+   */
+  const classification = await getBookingClassification(booking.id);
+  const understoodByDimension = Object.fromEntries(
+    classification.map((c) => [c.dimensionId, c.valueId]),
+  ) as Record<string, string>;
+  const submittedByDimension = Object.fromEntries(
+    (enquiry?.submitted || []).map((c: any) => [c.dimensionId, c.valueId]),
+  ) as Record<string, string>;
+  /* Deduplicated across domains: one question offered by two domains is still
+     one question, exactly as the catalogue picker treats it. */
+  const askedDimensions = [...new Map(
+    Object.values(dimensionsByDomain).flat().map((d: any) => [d.id, d]),
+  ).values()] as any[];
 
   /*
    * Whether this booking needs the studio's own building.
@@ -252,6 +273,24 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                   (booking.lines[0]?.price as any)?.currency || currencyCode
                 )}
               </strong>
+            </div>
+          )}
+
+          {/*
+            * WHAT IT IS FOR, BEFORE WHAT CAN ANSWER IT.
+            *
+            * Above the resolver on purpose: the lists below are computed from
+            * this, so an operator who reads them and thinks "that is not what
+            * they wanted" needs the correction in front of them, not after.
+            */}
+          {askedDimensions.length > 0 && (
+            <div className="q-tile" style={{ marginBottom: '16px' }}>
+              <BookingClassification
+                bookingId={booking.id}
+                dimensions={askedDimensions}
+                current={understoodByDimension}
+                submitted={submittedByDimension}
+              />
             </div>
           )}
 
