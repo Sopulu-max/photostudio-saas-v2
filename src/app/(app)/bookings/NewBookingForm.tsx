@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { createBooking, addBookingLine, setLineConfiguration, createContractForBooking,
   // The document the client is sent, prepared at the moment it is wanted.
   shareBooking,
+  // The studio's own intake questions on a package. The public form could
+  // always record these; this screen had no route for them at all.
+  setBookingIntakeAnswers,
 } from '@/modules/bookings/interface';
 // What the studio's day is like, and what is already on it. Shared with the
 // edit page, which asked neither question while this lived in this file.
@@ -311,11 +314,20 @@ export function NewBookingForm({
      * taking the booking. Kept per line because they are answers about one
      * package: two lines on a booking leave different things open.
      */
-    openQuestions: { variables: any[]; classifications: any[] } | null;
+    openQuestions: { variables: any[]; classifications: any[]; formSchema: any[] } | null;
     /** Raw as typed; parsed once, on submit, by the one parser. */
     variableAnswers: Record<string, string>;
     /** One value per classification the package narrowed to more than one. */
     chosenClassifications: Record<string, string>;
+    /**
+     * The studio's OWN intake questions on this package.
+     *
+     * A third route a package can ask along, and the one the studio wrote
+     * itself. It was asked of clients booking online and never here — so the
+     * operator taking the same booking over the phone could not answer the
+     * questions their own studio composed.
+     */
+    intakeAnswers: Record<string, any>;
   };
 
   const freshLine = (): LineState => ({
@@ -329,6 +341,7 @@ export function NewBookingForm({
     openQuestions: null,
     variableAnswers: {},
     chosenClassifications: {},
+    intakeAnswers: {},
   });
 
   /*
@@ -492,7 +505,10 @@ export function NewBookingForm({
 
     Promise.all([
       getPackage(id),
-      getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [] })),
+      /* The fallback has to carry EVERY arm, or a failed load types itself
+         narrower than the state it lands in and the compiler is the only one
+         who notices. */
+      getOpenQuestionsForPackage(id).catch(() => ({ variables: [], classifications: [], formSchema: [] })),
     ]).then(([deep, open]) => {
       // Answered by the filter that found it, where the package allows that
       // answer. Anything already typed wins — this fills a blank, it never
@@ -938,7 +954,40 @@ export function NewBookingForm({
          * hand on the booking; throwing would leave an operator thinking nothing
          * happened when a booking exists.
          */
+        /*
+         * THE STUDIO'S OWN QUESTIONS, RECORDED — AFTER THE BOOKING EXISTS.
+         *
+         * They belong to the booking, not to the package instance, so unlike
+         * the classifications above this cannot run while the lines are being
+         * prepared: there is no booking to write them to yet. Written against
+         * the CATALOGUE package's id because intake questions live in
+         * form_schema and an instance is a copy carrying the same ones, keyed
+         * by question id either way.
+         *
+         * Not fatal, for the same reason the contract and invoice below are
+         * not: the booking is already saved, and an answer that failed to
+         * record can be added on its page. Throwing here would leave an
+         * operator believing nothing happened when a booking exists.
+         */
+        const intakeProblems: string[] = [];
+        for (const line of lines) {
+          if (!line.packageId || Object.keys(line.intakeAnswers).length === 0) continue;
+          try {
+            await setBookingIntakeAnswers({
+              bookingId,
+              packageId: line.packageId,
+              values: line.intakeAnswers,
+            });
+          } catch (e) {
+            console.error('Could not record the intake answers:', e);
+            intakeProblems.push(line.selectedPackageDeep?.name || 'a package');
+          }
+        }
+
         const failed: string[] = [];
+        if (intakeProblems.length > 0) {
+          failed.push(`the questions on ${intakeProblems.join(' and ')}`);
+        }
         if (classificationProblems.length > 0) {
           failed.push(`what ${classificationProblems.join(' and ')} is for`);
         }
@@ -1501,7 +1550,16 @@ export function NewBookingForm({
                         */}
                       {(() => {
                         const q = line.openQuestions;
-                        if (!q || (q.variables.length === 0 && q.classifications.length === 0)) return null;
+                        /* Every route a package can ask along. The formSchema
+                           arm was missing, so a package that asked ONLY the
+                           studio's own questions rendered nothing here. */
+                        const schema = (q?.formSchema || []) as any[];
+                        if (!q || (q.variables.length === 0 && q.classifications.length === 0 && schema.length === 0)) return null;
+                        const setIntake = (id: string, value: any) => setLines((prev) => {
+                          const next = [...prev];
+                          next[index] = { ...next[index], intakeAnswers: { ...next[index].intakeAnswers, [id]: value } };
+                          return next;
+                        });
                         const setAnswer = (id: string, raw: string) => setLines((prev) => {
                           const next = [...prev];
                           next[index] = { ...next[index], variableAnswers: { ...next[index].variableAnswers, [id]: raw } };
@@ -1525,6 +1583,49 @@ export function NewBookingForm({
                                   <option value="">Not said yet</option>
                                   {c.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                 </select>
+                              </div>
+                            ))}
+
+                            {/*
+                              * THE STUDIO'S OWN QUESTIONS.
+                              *
+                              * Written on the package by whoever built it, and
+                              * until now asked only of clients booking online.
+                              * An operator taking the same booking by phone had
+                              * no way to answer the questions their own studio
+                              * composed, and the booking arrived missing them
+                              * with nothing to say why.
+                              */}
+                            {schema.map((f: any) => (
+                              <div className="q-field" key={f.id}>
+                                <label className="q-label">
+                                  {f.label}
+                                  {f.required && <span className="q-danger" style={{ marginLeft: '4px' }}>*</span>}
+                                </label>
+                                {f.type === 'textarea' ? (
+                                  <textarea
+                                    className="q-textarea"
+                                    rows={3}
+                                    value={line.intakeAnswers[f.id] ?? ''}
+                                    onChange={(e) => setIntake(f.id, e.target.value)}
+                                  />
+                                ) : f.type === 'select' ? (
+                                  <select
+                                    className="q-select"
+                                    value={line.intakeAnswers[f.id] ?? ''}
+                                    onChange={(e) => setIntake(f.id, e.target.value)}
+                                  >
+                                    <option value="">Not said</option>
+                                    {(f.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                                  </select>
+                                ) : (
+                                  <input
+                                    className="q-input"
+                                    type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                                    value={line.intakeAnswers[f.id] ?? ''}
+                                    onChange={(e) => setIntake(f.id, e.target.value)}
+                                  />
+                                )}
                               </div>
                             ))}
 

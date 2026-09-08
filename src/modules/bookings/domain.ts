@@ -2200,6 +2200,75 @@ export async function getAnsweredQuestionIdsForPackage(packageId: string): Promi
  * Packages, so we ask for them per package; answers whose question has since
  * been removed are kept and marked, because a client genuinely said that.
  */
+/**
+ * RECORDING WHAT A PACKAGE'S OWN QUESTIONS WERE ANSWERED AS.
+ *
+ * The public form has always been able to do this — submitBookingForm runs the
+ * answers through storeAnswers and createBookingFromIntake writes them into
+ * metadata.form_responses. The studio's own screens could not, at all: nothing
+ * internal wrote form_responses and createBooking had no route for it. So a
+ * studio that wrote intake questions on a package had them asked of clients
+ * booking online and could not answer them itself while taking the same
+ * booking over the phone.
+ *
+ * MERGED, NOT REPLACED. A booking can carry more than one package and each may
+ * ask its own questions; writing the whole object would drop the other's
+ * answers. And the classifications a public client submitted live under the
+ * same key — see the migration on booking_dimension_values — so replacing
+ * wholesale would erase the record of what they said.
+ *
+ * Filtered through storeAnswers, which keeps only what the package actually
+ * asked. An answer to a question that has since been deleted is not preserved
+ * as a curiosity; it is dropped, exactly as it is on the public path.
+ */
+export async function setBookingIntakeAnswers(input: {
+  bookingId: string;
+  packageId: string;
+  values: Record<string, unknown>;
+}) {
+  const { orgId, contactId } = await getAuthOrgId();
+  await assertOurs(orgId, [
+    { table: 'bookings', id: input.bookingId, label: 'booking' },
+    { table: 'packages', id: input.packageId, label: 'package' },
+  ]);
+
+  const { getIntakeQuestions } = await import('@/modules/packages/interface');
+  const { storeAnswers } = await import('@/modules/services/fieldTypes');
+  const questions = await getIntakeQuestions(input.packageId);
+  if (questions.length === 0) return { ok: true };
+
+  const kept = storeAnswers(questions as any, input.values || {});
+
+  const { data: booking } = await supabaseAdmin
+    .from('bookings')
+    .select('metadata')
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+
+  const metadata = ((booking?.metadata as any) || {}) as Record<string, unknown>;
+  const responses = ((metadata.form_responses as any) || {}) as Record<string, unknown>;
+
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ metadata: { ...metadata, form_responses: { ...responses, ...kept } } })
+    .eq('id', input.bookingId)
+    .eq('organization_id', orgId);
+  if (error) throw new Error(`Could not record those answers: ${error.message}`);
+
+  await logEvent({
+    organizationId: orgId,
+    entityType: 'booking',
+    entityId: input.bookingId,
+    action: 'intake_answered',
+    actorId: contactId ?? undefined,
+    payload: { packageId: input.packageId, answered: Object.keys(kept).length },
+  });
+
+  revalidatePath(`/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
 export async function getIntakeAnswersForBooking(bookingId: string) {
   const { orgId } = await getAuthOrgId();
 

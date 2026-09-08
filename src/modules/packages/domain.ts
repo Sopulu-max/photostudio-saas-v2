@@ -1930,13 +1930,36 @@ export async function getOpenClassificationsForPackage(packageId: string) {
  * picked, mid-typing, and two round trips to draw one block is one more chance
  * for the block to appear half-built.
  */
+/**
+ * EVERYTHING A PACKAGE ASKS, IN ONE ANSWER.
+ *
+ * A package can ask along three separate routes, and they arrive from three
+ * different places: variables it left open, classifications it narrowed to
+ * more than one value, and the studio's OWN written intake questions in
+ * form_schema.
+ *
+ * This returned the first two. So a studio that wrote intake questions on a
+ * package had them asked of a client booking online and never asked when the
+ * studio booked that same package themselves — the questions the studio
+ * composed, skipped by the studio's own screen.
+ *
+ * That is the same fault twice over: every surface was assembling its own idea
+ * of what a package asks, and each one that forgot a route dropped it in
+ * silence. Nothing errors when a question is not asked; it simply never
+ * appears, and the answer is missing later with no trace of why.
+ *
+ * So this is the ONE answer, and every surface renders what it returns. A
+ * fourth route added later appears everywhere at once, because there is no
+ * second list to remember to update.
+ */
 export async function getOpenQuestionsForPackage(packageId: string) {
   const { orgId } = await getAuthOrgId();
-  const [variables, classifications] = await Promise.all([
+  const [variables, classifications, formSchema] = await Promise.all([
     getOpenVariablesForPackagePublic(orgId, packageId),
     getOpenClassificationsForPackagePublic(orgId, packageId),
+    getIntakeQuestionsPublic(packageId),
   ]);
-  return { variables, classifications };
+  return { variables, classifications, formSchema };
 }
 
 /**

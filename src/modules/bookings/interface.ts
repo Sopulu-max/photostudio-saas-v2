@@ -80,6 +80,9 @@ export {
   listBookingsForContact,
   getAnsweredQuestionIdsForPackage,
   getIntakeAnswersForBooking,
+  /* Recording those answers from the studio's own screens, which could not
+     before — the public form was the only thing that could. */
+  setBookingIntakeAnswers,
   setBookingClient,
   addBookingLine,
   updateBookingLine,
