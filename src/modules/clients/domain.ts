@@ -4,6 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Clients — who the studio sells to. A client specialises a kernel contact
@@ -26,7 +29,7 @@ export async function createClient(input: { name: string; email?: string; phone?
     .single();
   if (cErr || !contact) {
     console.error('Failed to create client (contact):', cErr);
-    throw new Error('Failed to create client');
+    throw dbError('Failed to create client', cErr);
   }
 
   const { data: client, error } = await supabaseAdmin
@@ -36,7 +39,7 @@ export async function createClient(input: { name: string; email?: string; phone?
     .single();
   if (error || !client) {
     console.error('Failed to create client:', error);
-    throw new Error('Failed to create client');
+    throw dbError('Failed to create client', error);
   }
 
   await logEvent({
@@ -103,7 +106,7 @@ export async function findOrCreateClientPublic(
       .single();
     if (contactError || !contact) {
       console.error('Error creating contact:', contactError);
-      throw new Error('Failed to save your details.');
+      throw dbError('Failed to save your details.', contactError);
     }
     contactId = contact.id;
   }
@@ -120,7 +123,7 @@ export async function findOrCreateClientPublic(
 
   if (error || !client) {
     console.error('Error creating client:', error);
-    throw new Error('Failed to save your details.');
+    throw dbError('Failed to save your details.', error);
   }
 
   return { contactId, clientId: client.id };
@@ -136,7 +139,7 @@ export async function listClients() {
     .order('created_at', { ascending: false });
   if (error) {
     console.error('Failed to list clients:', error);
-    throw new Error('Failed to load clients');
+    throw dbError('Failed to load clients', error);
   }
   return data || [];
 }
@@ -192,7 +195,7 @@ export async function updateClient(input: {
       .eq('organization_id', orgId);
     if (error) {
       console.error('Failed to update client contact:', error);
-      throw new Error('Failed to save the client');
+      throw dbError('Failed to save the client', error);
     }
   }
 
@@ -207,7 +210,7 @@ export async function updateClient(input: {
       .eq('organization_id', orgId);
     if (error) {
       console.error('Failed to update client:', error);
-      throw new Error('Failed to save the client');
+      throw dbError('Failed to save the client', error);
     }
   }
 

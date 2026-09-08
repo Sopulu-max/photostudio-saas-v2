@@ -6,6 +6,9 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import type { Contract } from '@/lib/types/engine';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 // ── The studio's own contract language ───────────────────────────────────
 // A price and a deposit percentage are payment terms, not a contract. The
@@ -182,7 +185,7 @@ export async function draftContractForBooking(input: {
 
   if (error || !contract) {
     console.error('Failed to draft contract for booking:', error);
-    throw new Error('Failed to create contract');
+    throw dbError('Failed to create contract', error);
   }
 
   await logEvent({
@@ -244,7 +247,7 @@ async function applyActivation(args: {
 
   if (updateError) {
     console.error('Failed to activate contract:', updateError);
-    throw new Error('Failed to activate contract');
+    throw dbError('Failed to activate contract', updateError);
   }
 
   await logEvent({
@@ -361,7 +364,7 @@ export async function reviseContractTerms(input: {
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to revise contract terms:', error);
-    throw new Error('Failed to save the terms');
+    throw dbError('Failed to save the terms', error);
   }
 
   await logEvent({

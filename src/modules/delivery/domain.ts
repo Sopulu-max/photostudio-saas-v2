@@ -14,6 +14,9 @@ import {
   listDeliveredDeliverableIdsForBooking,
 } from '@/modules/deliverables/domain';
 import { DELIVERY_FULFILS } from '@/modules/deliverables/shape';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Delivery — handing finished work to the client.
@@ -51,7 +54,7 @@ export async function createDelivery(input: { bookingId: string; title: string }
     .single();
   if (error || !delivery) {
     console.error('Failed to create delivery:', error);
-    throw new Error('Failed to create delivery');
+    throw dbError('Failed to create delivery', error);
   }
 
   await logEvent({
@@ -110,7 +113,7 @@ export async function deleteDelivery(input: { deliveryId: string; bookingId: str
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to delete delivery:', error);
-    throw new Error('Failed to delete the delivery');
+    throw dbError('Failed to delete the delivery', error);
   }
 
   await logEvent({
@@ -214,7 +217,7 @@ export async function registerFile(input: {
 
   if (assetError || !asset) {
     console.error('Failed to create asset:', assetError);
-    throw new Error('Failed to save the file as an asset');
+    throw dbError('Failed to save the file as an asset', assetError);
   }
 
   // 2. Link it to the Delivery Container
@@ -230,7 +233,7 @@ export async function registerFile(input: {
 
   if (error || !deliveryAsset) {
     console.error('Failed to link asset to delivery:', error);
-    throw new Error('Failed to save the file');
+    throw dbError('Failed to save the file', error);
   }
 
   await logEvent({
@@ -297,7 +300,7 @@ export async function setDeliveryCover(input: {
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to set delivery cover:', error);
-    throw new Error('Failed to set the cover image');
+    throw dbError('Failed to set the cover image', error);
   }
 
   revalidatePath(`/bookings/${input.bookingId}`);
@@ -374,7 +377,7 @@ export async function shareDelivery(input: { deliveryId: string; bookingId: stri
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to share delivery:', error);
-    throw new Error('Failed to share');
+    throw dbError('Failed to share', error);
   }
 
   await logEvent({
@@ -526,7 +529,7 @@ export async function listDeliveriesForBooking(bookingId: string) {
     .order('created_at', { ascending: false });
   if (error) {
     console.error('Failed to list deliveries:', error);
-    throw new Error('Failed to load deliveries');
+    throw dbError('Failed to load deliveries', error);
   }
 
   return (data || []).map((d: any) => ({
@@ -584,7 +587,7 @@ export async function listGalleries(): Promise<{
     .order('created_at', { ascending: false });
   if (error) {
     console.error('Failed to list galleries:', error);
-    throw new Error('Failed to load galleries');
+    throw dbError('Failed to load galleries', error);
   }
 
   return (data || []).map((d: any) => ({

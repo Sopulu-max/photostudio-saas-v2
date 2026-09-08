@@ -4,6 +4,9 @@ import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * A profile picture is identity, not CRM or employment depth — it lives on
@@ -39,7 +42,7 @@ export async function setContactAvatar(input: { contactId: string; storagePath: 
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to set avatar:', error);
-    throw new Error('Failed to save the photo');
+    throw dbError('Failed to save the photo', error);
   }
 
   revalidatePath('/clients');

@@ -19,6 +19,9 @@ import {
 } from '@/modules/deliverables/domain';
 import { narrowOptions, specFromAnswers, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Packages — the marketing layer: how what a studio does gets sold. A
@@ -256,7 +259,7 @@ export async function syncPackageTasksForWorkflow(workflowId: string) {
   const { error } = await supabaseAdmin.from('package_tasks').insert(toInsert);
   if (error) {
     console.error('Failed to sync package tasks:', error);
-    throw new Error('Failed to bring packages up to date with that workflow');
+    throw dbError('Failed to bring packages up to date with that workflow', error);
   }
 
   revalidatePath('/packages');
@@ -480,7 +483,7 @@ async function writePackageNarrowings(
   const { error } = await supabaseAdmin.from('package_service_dimension_values').insert(links);
   if (error) {
     console.error('Failed to save package narrowings:', error);
-    throw new Error('Failed to save how this package is classified');
+    throw dbError('Failed to save how this package is classified', error);
   }
 }
 
@@ -1585,7 +1588,7 @@ export async function answerPackageClassifications(input: {
     .insert([...keep, ...settled]);
   if (error) {
     console.error('Failed to record which classification was chosen:', error);
-    throw new Error('Could not record what this booking is for');
+    throw dbError('Could not record what this booking is for', error);
   }
   return { ok: true, recorded: settled.length };
 }

@@ -1,4 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * That the rows a write points at are this studio's.
@@ -64,7 +67,7 @@ export async function assertOurs(orgId: string, refs: OwnedRef[]): Promise<void>
     // the row is ours, we have not shown it is ours — and a malformed id
     // arrives here as an error, not as a miss.
     if (error) console.error(`Ownership check failed on ${ref.table}:`, error);
-    throw new Error(`That ${ref.label} does not belong to this studio.`);
+    throw dbError(`That ${ref.label} does not belong to this studio.`, error);
   }
 }
 
@@ -98,7 +101,7 @@ export async function assertAllOurs(
 
   if (error) {
     console.error(`Ownership check failed on ${table}:`, error);
-    throw new Error(`Could not confirm those ${label} belong to this studio.`);
+    throw dbError(`Could not confirm those ${label} belong to this studio.`, error);
   }
   if ((data || []).length !== wanted.length) {
     throw new Error(`One of those ${label} does not belong to this studio.`);

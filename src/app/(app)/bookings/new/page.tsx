@@ -40,13 +40,50 @@ export default async function NewBookingPage(
    */
   const { package: wantedPackage } = await props.searchParams;
 
-  const [clientRows, packageRows, activeServices, dimensionsByDomain, roles, currencyCode, allDeliverables, employees, termsTemplate] = await Promise.all([
-    listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(),
-    listRoles(), getStudioCurrency(), listDeliverables(),
+  /*
+   * WHAT THIS PAGE CANNOT DO WITHOUT, AND WHAT MERELY ENRICHES IT.
+   *
+   * Nine loads ran together and any one of them failing took the whole page
+   * down. During an hour of network trouble that meant "Failed to load roles"
+   * and no booking form at all — when roles are for STAFFING, which the
+   * booking's own page does perfectly well afterwards. A studio could not take
+   * a booking because it could not list its job titles.
+   *
+   * The split is not "what is cheap to lose". It is whether missing it makes
+   * the form LIE:
+   *
+   *   Required — clients, packages, services, dimensions, deliverables. An
+   *   empty catalogue is indistinguishable from a studio that sells nothing,
+   *   and a booking taken against one is wrong in a way nobody notices until
+   *   it is invoiced. These still fail loudly.
+   *
+   *   Enriching — roles, employees, the contract wording, the tax rate. Absent,
+   *   the form offers less; it never states anything untrue. These degrade,
+   *   AND SAY THEY HAVE, because a crew list that is empty because of a
+   *   timeout looks exactly like a studio with no crew.
+   */
+  const [clientRows, packageRows, activeServices, dimensionsByDomain, allDeliverables] = await Promise.all([
+    listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(), listDeliverables(),
+  ]);
+
+  const degraded: string[] = [];
+  const orEmpty = async <T,>(what: string, load: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await load();
+    } catch (e) {
+      console.error(`New booking: ${what} could not be loaded`, e);
+      degraded.push(what);
+      return fallback;
+    }
+  };
+
+  const [roles, currencyCode, employees, termsTemplate] = await Promise.all([
+    orEmpty('team roles', listRoles, [] as any[]),
+    getStudioCurrency(),
     // Who the studio has, so a booking can be staffed while it is being taken
     // rather than only afterwards.
-    listEmployees(),
-    getContractTermsTemplate(),
+    orEmpty('the team', listEmployees, [] as any[]),
+    orEmpty('the contract wording', getContractTermsTemplate, null as any),
   ]);
 
   // What the studio asks for up front, so the contract field opens on it rather
@@ -139,7 +176,25 @@ export default async function NewBookingPage(
           </p>
         </div>
       </header>
-      
+
+      {/*
+        * SAID, NOT SWALLOWED.
+        *
+        * Degrading quietly is its own lie: a crew list that is empty because a
+        * request timed out looks exactly like a studio that has hired nobody,
+        * and an operator would go looking for the team they know they added.
+        * The booking can still be taken, and the sentence says which part of
+        * the page is not itself.
+        */}
+      {degraded.length > 0 && (
+        <div className="q-card q-section" style={{ marginBottom: '20px', borderColor: 'var(--q-color-warm)' }}>
+          <strong className="q-strong">{degraded.join(' and ')} could not be loaded.</strong>
+          <p className="q-meta" style={{ margin: '4px 0 0' }}>
+            The booking can still be taken. Reload to try again.
+          </p>
+        </div>
+      )}
+
       <NewBookingForm 
         clients={clientOptions} 
         packages={packageOptions} 

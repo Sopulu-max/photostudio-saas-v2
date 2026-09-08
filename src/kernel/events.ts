@@ -2,6 +2,9 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 export interface LogEventParams {
   organizationId: string;
@@ -33,7 +36,7 @@ export async function logEvent(params: LogEventParams) {
     // Organizational memory is non-negotiable. We throw so callers
     // know the event log is compromised and can surface the error.
     console.error('[EventLog] CRITICAL: Failed to persist event to organizational memory:', error);
-    throw new Error(`[EventLog] Failed to log event '${params.action}' for entity '${params.entityType}:${params.entityId}'`);
+    throw dbError(`[EventLog] Failed to log event '${params.action}' for entity '${params.entityType}:${params.entityId}'`, error);
   }
 }
 

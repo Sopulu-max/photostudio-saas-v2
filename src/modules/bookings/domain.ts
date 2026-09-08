@@ -14,6 +14,9 @@ import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'crypto';
 // One definition of what a deliverable link looks like, shared by every reader.
 import { PACKAGE_PROMISE_NAMED, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Create a booking. A title alone is enough — everything else (client, lines,
@@ -249,7 +252,7 @@ export async function createBooking(input: {
 
   if (error || !booking) {
     console.error('Failed to create booking:', error);
-    throw new Error('Failed to create booking');
+    throw dbError('Failed to create booking', error);
   }
 
   await logEvent({
@@ -409,7 +412,7 @@ export async function createBookingFromIntake(input: {
     .single();
   if (error || !booking) {
     console.error('Failed to create booking from intake:', error);
-    throw new Error('Failed to create your booking request.');
+    throw dbError('Failed to create your booking request.', error);
   }
 
   /*
@@ -477,7 +480,7 @@ export async function createBookingFromIntake(input: {
     }).select('id').single();
     if (lineError || !intakeLine) {
       console.error('Failed to add intake booking line:', lineError);
-      throw new Error('Failed to create your booking request.');
+      throw dbError('Failed to create your booking request.', lineError);
     }
 
     // The line is configured the moment it exists: the package's own scope, plus
@@ -648,7 +651,7 @@ export async function setLineConfiguration(input: {
     const { error } = await supabaseAdmin.from('booking_line_variable_values').insert(rows);
     if (error) {
       console.error('Failed to save line configuration:', error);
-      throw new Error('Failed to save what was chosen');
+      throw dbError('Failed to save what was chosen', error);
     }
   }
 
@@ -807,7 +810,7 @@ export async function giveLineItsOwnPackage(input: { bookingId: string; lineId: 
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to repoint a line at its own package:', error);
-    throw new Error('The package could not be copied onto this booking.');
+    throw dbError('The package could not be copied onto this booking.', error);
   }
 
   await logEvent({
@@ -849,7 +852,7 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to set booking client:', error);
-    throw new Error('Failed to set the client');
+    throw dbError('Failed to set the client', error);
   }
 
   await logEvent({
@@ -1027,7 +1030,7 @@ export async function addBookingLine(input: {
 
   if (error || !line) {
     console.error('Failed to add booking line:', error);
-    throw new Error('Failed to add line');
+    throw dbError('Failed to add line', error);
   }
 
   // A line added from a package inherits that package's scope immediately, so
@@ -1215,7 +1218,7 @@ export async function setBookingSchedule(input: {
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to set schedule:', error);
-    throw new Error('Failed to set the date');
+    throw dbError('Failed to set the date', error);
   }
 
   await logEvent({
@@ -1275,7 +1278,7 @@ export async function getBooking(bookingId: string) {
 
   if (error) {
     console.error('Failed to load booking:', JSON.stringify(error, null, 2), error);
-    throw new Error('Failed to load the booking');
+    throw dbError('Failed to load the booking', error);
   }
   if (!data) return null;
 
@@ -1321,7 +1324,7 @@ export async function listBookings() {
 
   if (error) {
     console.error('Failed to list bookings:', error);
-    throw new Error('Failed to load bookings');
+    throw dbError('Failed to load bookings', error);
   }
 
   const rows = (data || []) as any[];
@@ -1375,7 +1378,7 @@ export async function listBookingsPlacedInRange(fromISO: string, toISO: string) 
     .order('created_at');
   if (error) {
     console.error('Failed to list bookings placed in range:', error);
-    throw new Error('Failed to load the calendar');
+    throw dbError('Failed to load the calendar', error);
   }
 
   return ((data || []) as any[]).map((b) => ({
@@ -1447,7 +1450,7 @@ export async function listClassificationDatesInRange(fromISO: string, toISO: str
     .lte('value', toDay);
   if (error) {
     console.error('Failed to list classification dates in range:', error);
-    throw new Error('Failed to load the calendar');
+    throw dbError('Failed to load the calendar', error);
   }
 
   const rows = ((data || []) as any[]).filter((r) => r.variable?.dimension && r.line?.booking);
@@ -1496,7 +1499,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     .order('scheduled_for');
   if (error) {
     console.error('Failed to list bookings in range:', error);
-    throw new Error('Failed to load the calendar');
+    throw dbError('Failed to load the calendar', error);
   }
 
   const rows = (data || []) as any[];
@@ -1605,7 +1608,7 @@ export async function listStages() {
     .order('position');
   if (error) {
     console.error('Failed to list stages:', error);
-    throw new Error('Failed to load stages');
+    throw dbError('Failed to load stages', error);
   }
   return data || [];
 }
@@ -1629,7 +1632,7 @@ export async function setBookingStage(input: { bookingId: string; stageId: strin
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to set stage:', error);
-    throw new Error('Failed to move the booking');
+    throw dbError('Failed to move the booking', error);
   }
 
   await logEvent({
@@ -1706,7 +1709,7 @@ export async function createStage(input: { name: string; kind: StageKind }) {
     .single();
   if (error || !stage) {
     console.error('Failed to create stage:', error);
-    throw new Error('Failed to add the stage (does that name already exist?)');
+    throw dbError('Failed to add the stage (does that name already exist?)', error);
   }
 
   await logEvent({ organizationId: orgId, entityType: 'booking_stage', entityId: stage.id, action: 'created', actorId: actorId ?? undefined, payload: { name, kind: input.kind } });
@@ -1932,7 +1935,7 @@ export async function deleteBooking(bookingId: string) {
   const { error } = await supabaseAdmin.from('bookings').delete().eq('id', bookingId).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to delete booking:', error);
-    throw new Error('Failed to delete the booking');
+    throw dbError('Failed to delete the booking', error);
   }
 
   await logEvent({ organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'deleted', actorId: actorId ?? undefined });
@@ -2918,7 +2921,7 @@ export async function shareBooking(input: { bookingId: string }) {
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to share booking:', error);
-    throw new Error('The link could not be created.');
+    throw dbError('The link could not be created.', error);
   }
 
   await logEvent({
@@ -2945,7 +2948,7 @@ export async function unshareBooking(input: { bookingId: string }) {
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to revoke booking link:', error);
-    throw new Error('The link could not be revoked.');
+    throw dbError('The link could not be revoked.', error);
   }
 
   await logEvent({

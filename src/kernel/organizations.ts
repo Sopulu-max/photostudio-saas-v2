@@ -5,6 +5,9 @@ import { logEvent } from '@/kernel/events';
 import type { Organization } from '@/lib/types/engine';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 export async function createOrganization(name: string, slug?: string) {
   // 1. Get the current authenticated user
@@ -250,7 +253,7 @@ export async function updateStudio(input: {
 
   if (error) {
     console.error('Failed to update studio:', error);
-    throw new Error('Failed to save (is that handle already taken?)');
+    throw dbError('Failed to save (is that handle already taken?)', error);
   }
 
   revalidatePath('/settings');

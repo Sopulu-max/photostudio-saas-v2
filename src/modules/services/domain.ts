@@ -8,6 +8,9 @@ import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
 import { findByName } from '@/kernel/naming';
 // One definition of what a deliverable link looks like, shared by every reader.
 import { SERVICE_OFFERS } from '@/modules/deliverables/shape';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 import type {
   DimensionWrite, PublicIntakeDimension, ServiceDimensionTag, StudioDimensionShape,
 } from './dimensions';
@@ -962,7 +965,7 @@ export async function declareDimensionVariable(input: {
 
   if (error || !data) {
     console.error('Failed to declare a dimension variable:', error);
-    throw new Error(`Failed to add "${label}"`);
+    throw dbError(`Failed to add "${label}"`, error);
   }
 
   await logEvent({
@@ -1133,7 +1136,7 @@ export async function declareServiceVariable(input: {
 
   if (error || !data) {
     console.error('Failed to declare a service variable:', error);
-    throw new Error(`Failed to add "${label}"`);
+    throw dbError(`Failed to add "${label}"`, error);
   }
 
   await logEvent({
@@ -1279,7 +1282,7 @@ export async function setServiceVariables(input: { serviceId: string; variables:
       : await supabaseAdmin.from('variables').insert(row);
     if (error) {
       console.error('Failed to save service variable:', error);
-      throw new Error(`Failed to save "${v.label}"`);
+      throw dbError(`Failed to save "${v.label}"`, error);
     }
   }
 
@@ -1517,7 +1520,7 @@ export async function setValueAtPremises(input: { valueId: string; atPremises: b
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to say whether that needs the premises:', error);
-    throw new Error('That could not be changed.');
+    throw dbError('That could not be changed.', error);
   }
   revalidatePath('/services/settings');
   revalidatePath('/services/classifications');
@@ -1599,7 +1602,7 @@ export async function setVariableAskedFor(input: { variableId: string; valueIds:
     .eq('variable_id', input.variableId);
   if (clearError) {
     console.error('Failed to clear where a question is asked:', clearError);
-    throw new Error('That could not be changed.');
+    throw dbError('That could not be changed.', clearError);
   }
 
   const rows = [...new Set(input.valueIds)].map((dimension_value_id) => ({
@@ -1609,7 +1612,7 @@ export async function setVariableAskedFor(input: { variableId: string; valueIds:
     const { error } = await supabaseAdmin.from('variable_dimension_values').insert(rows);
     if (error) {
       console.error('Failed to say where a question is asked:', error);
-      throw new Error('That could not be changed.');
+      throw dbError('That could not be changed.', error);
     }
   }
 

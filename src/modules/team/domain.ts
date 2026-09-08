@@ -5,6 +5,9 @@ import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Team — who does the work. An employee specialises a kernel contact; roles are
@@ -51,7 +54,7 @@ export async function addEmployee(input: {
     .single();
   if (cErr || !contact) {
     console.error('Failed to add employee (contact):', cErr);
-    throw new Error('Failed to add employee');
+    throw dbError('Failed to add employee', cErr);
   }
 
   const { data: employee, error } = await supabaseAdmin
@@ -61,7 +64,7 @@ export async function addEmployee(input: {
     .single();
   if (error || !employee) {
     console.error('Failed to add employee:', error);
-    throw new Error('Failed to add employee');
+    throw dbError('Failed to add employee', error);
   }
 
   // The role is given now rather than in a second visit to the profile. A
@@ -101,7 +104,7 @@ export async function listEmployees() {
     .order('created_at', { ascending: false });
   if (error) {
     console.error('Failed to list employees:', error);
-    throw new Error('Failed to load the team');
+    throw dbError('Failed to load the team', error);
   }
   return data || [];
 }
@@ -168,7 +171,7 @@ export async function updateEmployee(input: {
       .eq('organization_id', orgId);
     if (error) {
       console.error('Failed to update employee contact:', error);
-      throw new Error('Failed to save the employee');
+      throw dbError('Failed to save the employee', error);
     }
   }
 
@@ -322,7 +325,7 @@ export async function createRole(input: { name: string; description?: string }) 
     .single();
   if (error || !role) {
     console.error('Failed to create role:', error);
-    throw new Error('Failed to create role (does it already exist?)');
+    throw dbError('Failed to create role (does it already exist?)', error);
   }
 
   await logEvent({
@@ -351,7 +354,7 @@ export async function listRoles() {
     .order('name');
   if (error) {
     console.error('Failed to list roles:', error);
-    throw new Error('Failed to load roles');
+    throw dbError('Failed to load roles', error);
   }
   return ((data || []) as any[]).map((r) => ({
     id: r.id as string,
@@ -373,7 +376,7 @@ export async function assignRole(input: { employeeId: string; roleId: string }) 
     .insert({ organization_id: orgId, employee_id: input.employeeId, role_id: input.roleId });
   if (error) {
     console.error('Failed to assign role:', error);
-    throw new Error('Failed to assign role (already assigned?)');
+    throw dbError('Failed to assign role (already assigned?)', error);
   }
 
   await logEvent({

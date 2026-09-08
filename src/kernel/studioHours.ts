@@ -1,4 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * When a studio is open, and what a wall-clock time means there.
@@ -68,7 +71,7 @@ export async function localInstant(date: string, wallClock: string, timezone: st
   });
   if (error || !data) {
     console.error('Failed to resolve a local time:', error);
-    throw new Error(`${wallClock} is not a valid time.`);
+    throw dbError(`${wallClock} is not a valid time.`, error);
   }
   return data as string;
 }

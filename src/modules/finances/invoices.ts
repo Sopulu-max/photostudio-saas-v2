@@ -9,6 +9,9 @@ import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn , invoiceTotals, discountOn } from './money';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Invoices — the document between what was booked and what was paid.
@@ -428,7 +431,7 @@ export async function createInvoiceForBooking(input: {
     .single();
   if (error || !invoice) {
     console.error('Failed to create invoice:', error);
-    throw new Error('Failed to start that invoice');
+    throw dbError('Failed to start that invoice', error);
   }
 
   const rows: any[] = [];
@@ -461,7 +464,7 @@ export async function createInvoiceForBooking(input: {
   const { error: lineError } = await supabaseAdmin.from('invoice_lines').insert(rows);
   if (lineError) {
     console.error('Failed to write invoice lines:', lineError);
-    throw new Error('Failed to write what this invoice is for');
+    throw dbError('Failed to write what this invoice is for', lineError);
   }
 
   /*
@@ -552,7 +555,7 @@ export async function issueInvoice(input: { invoiceId: string; dueAt?: string | 
     .rpc('next_invoice_number', { org: orgId });
   if (seqError) {
     console.error('Failed to take an invoice number:', seqError);
-    throw new Error('Failed to number that invoice');
+    throw dbError('Failed to number that invoice', seqError);
   }
   const number = `INV-${String(org).padStart(4, '0')}`;
 
@@ -569,7 +572,7 @@ export async function issueInvoice(input: { invoiceId: string; dueAt?: string | 
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to issue invoice:', error);
-    throw new Error('Failed to issue that invoice');
+    throw dbError('Failed to issue that invoice', error);
   }
 
   await logEvent({
@@ -731,7 +734,7 @@ export async function issueDepositInvoice(input: {
     .rpc('next_document_number', { org: orgId, kind: 'invoice' });
   if (seqError) {
     console.error('Failed to take an invoice number:', seqError);
-    throw new Error('Failed to number the deposit invoice');
+    throw dbError('Failed to number the deposit invoice', seqError);
   }
   const number = `INV-${String(seq).padStart(4, '0')}`;
   const token = randomUUID().replace(/-/g, '');

@@ -9,6 +9,9 @@ import { revalidatePath } from 'next/cache';
 // A 'use server' file may only export async functions, so the seven days live
 // in a plain module next door.
 import { WEEKDAYS } from './weekdays';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Who turned up.
@@ -276,7 +279,7 @@ export async function setWeeklyHours(input: {
     .is('week_of_month', null);
   if (clearError) {
     console.error('Failed to clear the weekly hours:', clearError);
-    throw new Error('The week could not be saved.');
+    throw dbError('The week could not be saved.', clearError);
   }
 
   if (keep.length > 0) {
@@ -291,7 +294,7 @@ export async function setWeeklyHours(input: {
     );
     if (error) {
       console.error('Failed to save the weekly hours:', error);
-      throw new Error('The week could not be saved.');
+      throw dbError('The week could not be saved.', error);
     }
   }
 
@@ -374,7 +377,7 @@ export async function removeHoursException(id: string) {
     .eq('id', id).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to remove the day:', error);
-    throw new Error('That day could not be removed.');
+    throw dbError('That day could not be removed.', error);
   }
   await logEvent({
     organizationId: orgId, entityType: 'organization', entityId: orgId,
@@ -692,7 +695,7 @@ export async function setStudioDefaultHours(input: {
     .from('organizations').update({ opens_at: opensAt, closes_at: closesAt }).eq('id', orgId);
   if (error) {
     console.error('Failed to set the studio hours:', error);
-    throw new Error('Failed to save the hours');
+    throw dbError('Failed to save the hours', error);
   }
 
   await logEvent({

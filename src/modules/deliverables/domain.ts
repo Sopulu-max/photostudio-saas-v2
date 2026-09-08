@@ -5,6 +5,9 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
 import { findByName } from '@/kernel/naming';
 import { DELIVERABLE_REF } from './shape';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 type Facet = { id: string; name: string; position: number };
 
@@ -395,7 +398,7 @@ export async function setDeliverablesForService(input: {
     })));
   if (error) {
     console.error('Failed to attach deliverables to the service:', error);
-    throw new Error('Could not record what this service produces');
+    throw dbError('Could not record what this service produces', error);
   }
   return { ok: true, attached: ids.length };
 }
@@ -428,7 +431,7 @@ export async function copyDeliverablesBetweenServices(input: {
   const { error } = await supabaseAdmin.from('service_deliverables').insert(rows);
   if (error) {
     console.error('Failed to copy deliverables to the new service:', error);
-    throw new Error('Could not copy what the service produces');
+    throw dbError('Could not copy what the service produces', error);
   }
   return { ok: true, copied: rows.length };
 }
@@ -469,7 +472,7 @@ export async function attachDeliverableToService(input: {
       .insert({ organization_id: orgId, service_id: input.serviceId, deliverable_id: deliverableId });
     if (error) {
       console.error('Failed to attach a deliverable to a service:', error);
-      throw new Error(`Failed to add "${asked}"`);
+      throw dbError(`Failed to add "${asked}"`, error);
     }
   }
 
@@ -544,14 +547,14 @@ export async function setPackageDeliverables(input: {
     .in('package_service_id', input.packageServiceIds);
   if (clearError) {
     console.error('Failed to clear what this package promises:', clearError);
-    throw new Error('Failed to save what this package promises');
+    throw dbError('Failed to save what this package promises', clearError);
   }
 
   if (input.links.length === 0) return { ok: true };
   const { error } = await supabaseAdmin.from('package_deliverables').insert(input.links);
   if (error) {
     console.error('Failed to save what this package promises:', error);
-    throw new Error('Failed to save what this package promises');
+    throw dbError('Failed to save what this package promises', error);
   }
   return { ok: true };
 }
@@ -587,7 +590,7 @@ export async function copyPackageDeliverables(input: {
   const { error } = await supabaseAdmin.from('package_deliverables').insert(links);
   if (error) {
     console.error('Failed to copy what the package promises:', error);
-    throw new Error('Failed to copy the package');
+    throw dbError('Failed to copy the package', error);
   }
   return { ok: true, copied: links.length };
 }
@@ -623,7 +626,7 @@ export async function setDeliveryDeliverables(input: {
   );
   if (error) {
     console.error('Failed to set what this delivery fulfils:', error);
-    throw new Error('Failed to save what this delivery covers');
+    throw dbError('Failed to save what this delivery covers', error);
   }
   return { ok: true };
 }
@@ -743,7 +746,7 @@ export async function declareDeliverableVariable(input: {
     .single();
   if (error || !data) {
     console.error('Failed to declare what a deliverable needs:', error);
-    throw new Error('Could not add that');
+    throw dbError('Could not add that', error);
   }
 
   revalidatePath('/deliverables');
@@ -760,7 +763,7 @@ export async function removeDeliverableVariable(variableId: string) {
     .not('deliverable_id', 'is', null);
   if (error) {
     console.error('Failed to remove a deliverable variable:', error);
-    throw new Error('Failed to remove that');
+    throw dbError('Failed to remove that', error);
   }
   revalidatePath('/deliverables');
   revalidatePath('/packages');
@@ -910,7 +913,7 @@ export async function setServiceDeliverableOptions(input: {
   );
   if (error) {
     console.error('Failed to narrow what this service produces:', error);
-    throw new Error('Could not save that');
+    throw dbError('Could not save that', error);
   }
 
   revalidatePath('/services');

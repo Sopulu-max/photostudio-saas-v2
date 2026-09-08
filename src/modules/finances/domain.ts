@@ -9,6 +9,9 @@ import { getStudioCurrency } from '@/kernel/organizations';
 import { KINDS, kindOf, totalsByCurrency } from './money';
 import type { TransactionKind, MoneyTotals } from './money';
 import type { FinancialTransaction } from '@/lib/types/engine';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * Money the studio records itself — a cost, a one-off charge, anything the
@@ -69,7 +72,7 @@ export async function createTransaction(params: {
 
   if (error) {
     console.error('Failed to create transaction:', error);
-    throw new Error('Failed to create transaction');
+    throw dbError('Failed to create transaction', error);
   }
 
   await logEvent({
@@ -129,7 +132,7 @@ export async function settleTransaction(input: {
       .rpc('next_document_number', { org: orgId, kind: 'receipt' });
     if (seqError) {
       console.error('Failed to take a receipt number:', seqError);
-      throw new Error('Failed to number the receipt for that payment');
+      throw dbError('Failed to number the receipt for that payment', seqError);
     }
     receipt = {
       number: `RCT-${String(seq).padStart(4, '0')}`,
@@ -155,7 +158,7 @@ export async function settleTransaction(input: {
 
   if (error) {
     console.error('Failed to settle transaction:', error);
-    throw new Error('Failed to settle transaction');
+    throw dbError('Failed to settle transaction', error);
   }
 
   await logEvent({
@@ -238,7 +241,7 @@ export async function voidTransaction(input: { transactionId: string; reason?: s
     .eq('organization_id', orgId);
   if (error) {
     console.error('Failed to void transaction:', error);
-    throw new Error('Failed to void that transaction');
+    throw dbError('Failed to void that transaction', error);
   }
 
   await logEvent({

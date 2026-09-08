@@ -7,6 +7,9 @@ import { revalidatePath } from 'next/cache';
 // Exact-match naming, so "Occasion" typed again finds the studio's Occasion
 // rather than making a second one beside it.
 import { findByName } from '@/kernel/naming';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * A studio defining how it classifies its own work.
@@ -184,7 +187,7 @@ export async function createDimension(input: {
       .single();
     if (error || !data) {
       console.error('Failed to create dimension:', error);
-      throw new Error('Failed to add that dimension');
+      throw dbError('Failed to add that dimension', error);
     }
     dimensionId = data.id as string;
   }
@@ -210,7 +213,7 @@ export async function createDimension(input: {
   if (error) {
     if ((error as any).code === '23505') throw new Error(`This domain already classifies by ${name}.`);
     console.error('Failed to attach dimension to domain:', error);
-    throw new Error('Failed to add that dimension');
+    throw dbError('Failed to add that dimension', error);
   }
 
   revalidatePath('/services/settings');
@@ -425,7 +428,7 @@ export async function addDimensionValue(input: { dimensionId: string; name: stri
   if (error) {
     if ((error as any).code === '23505') throw new Error(`${name} is already there.`);
     console.error('Failed to add dimension value:', error);
-    throw new Error('Failed to add that value');
+    throw dbError('Failed to add that value', error);
   }
   revalidatePath('/services/settings');
   revalidatePath('/services');

@@ -3,6 +3,9 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
+// A failure keeps the reason it failed — and says so plainly when the reason
+// is that the database was never reached. See kernel/errors.
+import { dbError } from '@/kernel/errors';
 
 /**
  * The studio's own working memory.
@@ -112,7 +115,7 @@ export async function createNote(input?: {
     .single();
   if (error || !data) {
     console.error('Failed to create a note:', error);
-    throw new Error('The note could not be created.');
+    throw dbError('The note could not be created.', error);
   }
   revalidatePath('/notes');
   return { noteId: data.id as string };
@@ -147,7 +150,7 @@ export async function updateNote(input: {
     .eq('id', input.id).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to save a note:', error);
-    throw new Error('The note could not be saved.');
+    throw dbError('The note could not be saved.', error);
   }
   revalidatePath('/notes');
   return { ok: true };
@@ -161,7 +164,7 @@ export async function setNotePinned(input: { id: string; pinned: boolean }) {
     .eq('id', input.id).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to pin a note:', error);
-    throw new Error('That could not be changed.');
+    throw dbError('That could not be changed.', error);
   }
   revalidatePath('/notes');
   return { ok: true };
@@ -181,7 +184,7 @@ export async function deleteNote(id: string) {
     .eq('id', id).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to remove a note:', error);
-    throw new Error('The note could not be removed.');
+    throw dbError('The note could not be removed.', error);
   }
   revalidatePath('/notes');
   return { ok: true };
@@ -233,7 +236,7 @@ export async function setNoteAbout(input: {
     .eq('id', input.id).eq('organization_id', orgId);
   if (error) {
     console.error('Failed to say what a note is about:', error);
-    throw new Error('That could not be changed.');
+    throw dbError('That could not be changed.', error);
   }
   revalidatePath('/notes');
   return { ok: true };
