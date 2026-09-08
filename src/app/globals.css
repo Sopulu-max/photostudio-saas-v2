@@ -1928,7 +1928,17 @@ body {
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
+  /*
+   * One line, and never wider than the card. A classification is a word or two,
+   * but a FIXED VALUE can be anything the studio typed — "No. 1 Okelue Street
+   * Opposite WEMA Bank Off Nnebisi Road" ran off the side of the poster.
+   * Truncated rather than wrapped: a pill that becomes three lines stops
+   * reading as one value.
+   */
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Something the studio sells that cannot cover what was asked. Shown, because
    browsing is legitimate — never presented as a match. */
@@ -1999,6 +2009,33 @@ body {
 .q-poster-else:hover { border-color: var(--q-color-accent); transform: translateY(-2px); }
 .q-poster-else-title { font-weight: 640; font-size: 1.12rem; color: var(--q-color-ink-900); }
 .q-poster-else-note { font-size: 0.82rem; line-height: 1.45; color: var(--q-color-ink-500); }
+
+/*
+ * The whole face opens the thing, while the corners stay clickable.
+ *
+ * The catalogue's poster carries two controls of its own — the price is inert
+ * but Book is not — so the card cannot simply BE a link: an <a> inside an <a>
+ * is not valid and browsers disagree about what it means. This stretches an
+ * invisible layer over the face beneath them instead, so a click anywhere
+ * opens the package and a screen reader hears the name once rather than every
+ * word on the card read out as one.
+ */
+.q-poster-face {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+.q-poster-face:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+
+/* An operator's facts sit below the studio's vocabulary, not beside it: how
+   many tasks a package carries is bookkeeping, and it should not read at the
+   same weight as what the package is FOR. */
+.q-poster-tag-quiet {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+}
 
 /* The chosen one says so on the picture, where the eye already is. */
 .q-poster-check {

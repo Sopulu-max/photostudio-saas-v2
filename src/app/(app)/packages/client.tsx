@@ -133,180 +133,91 @@ export function PackagesClient({
     const priced = pkg.price?.amount != null;
 
     return (
-      <div className="q-card q-card-interactive q-card-linked q-stack q-rise">
-        {/*
-          * Drawn whenever ANY package in this grid has one — not always.
-          *
-          * The reason it was unconditional is sound and still holds: a card in a
-          * grid is stretched to the tallest in its row, so one package with a
-          * picture beside one without would put their titles at different
-          * heights and undo the alignment everything else here was built for.
-          * Empty, the wash carries the initial and reads as an invitation.
-          *
-          * But that argument only needs the band when there is a picture in the
-          * grid to align against. A catalogue where NOTHING has a cover yet —
-          * which is every studio before it uploads its first one — was spending
-          * the most prominent zone of all twelve cards on twelve grey
-          * rectangles, each carrying one letter it already says in the title
-          * directly underneath. Identical blocks in the position the eye goes
-          * first is precisely what makes a catalogue read as a loop.
-          *
-          * Computed per grid rather than per catalogue, because offered and
-          * retired are two grids and rows only stretch within one.
-          */}
-        {withCover && <div
-          className={pkg.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
-          // The focal point is a fact about this picture, so it travels with it
-          // rather than living in a stylesheet that knows nothing about either.
-          style={pkg.cover_url
-            ? { backgroundImage: `url(${pkg.cover_url})`, backgroundPosition: pkg.cover_position || undefined }
-            : undefined}
-        >
-          {!pkg.cover_url && (
-            <span className="q-cover-initial">{(pkg.name || '?').trim().charAt(0).toUpperCase()}</span>
-          )}
-        </div>}
+      /*
+       * THE SAME CARD THE CLIENT SEES.
+       *
+       * This was a stack of six blocks — cover, eyebrow, title, promise, a
+       * two-column facts grid, a footer band — each sized independently, and
+       * every one of them a thing that could end up somewhere unintended as the
+       * width changed. It was rebuilt three times and broke somewhere new each
+       * time, because six boxes that must agree on a width is six chances to
+       * disagree.
+       *
+       * The public catalogue solved this by not having the problem. A poster is
+       * ONE box: the studio's own picture is the card, a scrim sits over it, and
+       * the words are laid on top from the bottom up. There is no internal
+       * layout to come apart, so there is nothing to make responsive — it is
+       * the same card at 1200px and at 360px.
+       *
+       * WHAT THE STUDIO NEEDS AND A CLIENT DOES NOT is carried in the two
+       * corners the poster already reserves: the price where the client sees
+       * it, and Book where the picker puts its Details link. Retired packages
+       * get the corner and not the button, for the reason they always did — a
+       * studio that withdrew something should not be invited to sell it.
+       */
+      <div
+        className={[
+          'q-poster', 'q-poster-tall',
+          pkg.cover_url ? '' : 'q-poster-blank',
+          pkg.status === 'retired' ? 'q-poster-dim' : '',
+        ].filter(Boolean).join(' ')}
+        style={pkg.cover_url
+          ? { backgroundImage: `url(${pkg.cover_url})`, backgroundPosition: pkg.cover_position || undefined }
+          : undefined}
+      >
+        {/* The whole face opens the package. A link rather than a wrapper,
+            because the two corners below are links of their own and an <a>
+            inside an <a> is not valid markup. */}
+        <Link href={`/packages/${pkg.id}`} className="q-poster-face" aria-label={pkg.name} />
 
-        {/*
-          * The category above the name, the way a label sits above a title
-          * rather than beside it. The price is not here at all any more — it
-          * belongs in the band at the foot, which is where the eye goes for a
-          * number and where the card gets its second surface.
-          */}
-        <div>
-          {/* Only when it says something the name does not. A package built from
-              one service is usually named after it, and "STUDIO PORTRAIT
-              PHOTOGRAPHY" set immediately above "Studio Portrait Photography"
-              is a line of noise in the position of a label. */}
-          {bundle && bundle.toLowerCase() !== pkg.name.trim().toLowerCase() && (
-            <span className="q-eyebrow">{bundle}</span>
-          )}
-          {/*
-            * THE LINK IS THE TITLE, AND THE TITLE COVERS THE CARD.
-            *
-            * The whole card used to be one <a>. That is the easy way to make a
-            * card clickable and it leaves nowhere to put a second act — and an
-            * <a> inside an <a> is not valid, so a Book button could not simply
-            * be added. Now one link names the package and stretches an
-            * invisible layer over the face; the card still opens on a click
-            * anywhere, and a screen reader hears "Standard Event Coverage,
-            * link" instead of every word on the card read out as one name.
-            */}
-          <h3 className="q-card-title">
-            <Link href={`/packages/${pkg.id}`} className="q-card-cover-link q-plain-link">
-              {pkg.name}
-            </Link>
-          </h3>
-        </div>
-
-        {/* What the client gets: the one line the card is about. Bounded,
-            because a package promising six things must not make a taller card
-            than one promising two — a row of cards is stretched to its tallest. */}
-        <p className={promises.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
-          {promises.length > 0
-            ? promises.map((t: string, i: number) => (
-                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}<Counted text={t} /></React.Fragment>
-              ))
-            : 'Nothing promised yet'}
-        </p>
-
-        {(tags.length > 0 || fixed.length > 0) && (
-          <div className="q-facts">
-            {tags.map((d) => (
-              <span key={d.id} className="q-fact-group">
-                <span className="q-fact-key">{d.name}</span>
-                <span className="q-fact-values">
-                  {d.values.map((v) => (
-                    <span key={v.id} className="q-fact">{v.name}</span>
-                  ))}
-                </span>
-              </span>
-            ))}
-            {fixed.map((v: any) => (
-              <span key={v.serviceVariableId} className="q-fact-group">
-                <span className="q-fact-key">{v.label}</span>
-                <span className="q-fact-values">
-                  <span className="q-fact">{formatVariableValue(v)}</span>
-                </span>
-              </span>
-            ))}
-          </div>
+        {priced && (
+          <span className="q-poster-price">
+            {formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
+          </span>
         )}
 
-        {/*
-          * NOT A ROW IN THAT TABLE.
-          *
-          * This was one — key "ASKED", value "4 at booking" — sitting under
-          * CONTEXT, OCCASION and DRONE COVERAGE in the same two columns and the
-          * same pill. But that table means one thing: here is a property of this
-          * package, and here is what it was set to. "Asked" is not a property
-          * and "4 at booking" is not a value of it; it is a count of the
-          * properties that have NO value, which is the opposite of what every
-          * other row in the grid is saying.
-          *
-          * It was drawn in q-absent grey as well, and on this card that grey is
-          * how absence reads — "No price set", "Produces nothing yet". So four
-          * questions the studio deliberately chose to ask the client came out
-          * looking like four things it had failed to fill in.
-          *
-          * Said as a sentence instead, below the settled facts rather than
-          * inside them, and in ordinary secondary text because deferring a
-          * decision to the client is a normal thing for a package to do.
-          */}
-        {asked.length > 0 && (
-          <p className="q-meta-sm">
-            {asked.length} {asked.length === 1 ? 'question' : 'questions'} asked at booking
-          </p>
+        {pkg.status !== 'retired' && (
+          <Link
+            href={`/bookings/new?package=${pkg.id}`}
+            className="q-poster-link"
+            title={`Take a booking for ${pkg.name}`}
+          >
+            Book
+          </Link>
         )}
 
-        {/* What it costs, and what it takes: the commercial band. */}
-        <div className="q-card-foot">
-          <span className={priced ? 'q-price' : 'q-price q-absent'}>
-            {priced
-              ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
-              : 'No price set'}
-          </span>
-          <span className={taskCount > 0 ? 'q-meta-sm' : 'q-meta-sm q-absent'}>
-            {taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : 'No tasks'}
-          </span>
-          {/*
-            * WHAT THE CATALOGUE IS FOR, LOOKING LIKE IT.
-            *
-            * A studio looking at its packages is usually looking because
-            * somebody wants one. Until now the only thing a card could do was
-            * open itself, so taking the booking meant leaving here, opening the
-            * new booking form and finding the package again in its rail — the
-            * catalogue was a reference work rather than somewhere work starts.
-            *
-            * It carries the package to the form rather than doing anything
-            * itself: booking is the booking form's job, and this is one more
-            * way in.
-            *
-            * PRIMARY, BECAUSE IT IS THE PRIMARY ACT. It arrived as the quietest
-            * control the system has — secondary, extra-small — which put the
-            * one thing a card is FOR below the two figures describing it. The
-            * accent is what Lumen reserves for the confident action, and on a
-            * catalogue whose purpose is taking bookings that action is this
-            * one. Twelve accented buttons in a grid is not noise when all
-            * twelve are the same offer.
-            *
-            * NOT ON A PACKAGE THAT IS NO LONGER SOLD. Retired packages are
-            * drawn by this same component in their own grid below, so they had
-            * a Book button too — survivable while it was a small grey link, and
-            * plainly wrong the moment it became the loudest thing on the card.
-            * A studio that withdrew a package should not be invited to sell it;
-            * the card still opens, which is what a retired package is for.
-            */}
-          {pkg.status !== 'retired' && (
-            <Link
-              href={`/bookings/new?package=${pkg.id}`}
-              className="q-btn q-btn-primary q-btn-sm q-card-act"
-              title={`Take a booking for ${pkg.name}`}
-            >
-              Book
-            </Link>
+        <span className="q-poster-title">{pkg.name}</span>
+
+        {/* What the client gets, in the line the public card uses for it. */}
+        {promises.length > 0 && (
+          <span className="q-poster-note">{promises.join(' · ')}</span>
+        )}
+
+        <span className="q-poster-tags">
+          {/* The studio's own vocabulary first — what this package is for. */}
+          {tags.flatMap((d) => d.values.map((v: any) => (
+            <span key={v.id} className="q-poster-tag">{v.name}</span>
+          )))}
+          {/* Then what it fixes, which a client never sees and an operator
+              reads to tell two otherwise identical packages apart. */}
+          {fixed.map((v: any) => (
+            <span key={v.serviceVariableId} className="q-poster-tag">{formatVariableValue(v)}</span>
+          ))}
+          {/* And the two facts that are the studio's alone. Absent rather than
+              zeroed: a package with no tasks says nothing, it does not announce
+              the absence. */}
+          {asked.length > 0 && (
+            <span className="q-poster-tag q-poster-tag-quiet">
+              {asked.length} asked at booking
+            </span>
           )}
-        </div>
+          {taskCount > 0 && (
+            <span className="q-poster-tag q-poster-tag-quiet">
+              {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
+            </span>
+          )}
+          {!priced && <span className="q-poster-tag q-poster-tag-quiet">No price set</span>}
+        </span>
       </div>
     );
   };
@@ -398,7 +309,10 @@ export function PackagesClient({
           {(shown, { dense }) => {
             const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
             const retired = shown.filter((pkg: any) => pkg.status === 'retired');
-            const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
+            /* The same grid the public catalogue lays its posters out on, so
+               the studio's own view of a package and the client's are the same
+               object at the same size. */
+            const grid = dense ? 'q-grid-rows' : 'q-poster-grid q-poster-grid-lg';
             // Per grid: a row is only stretched by its own siblings.
             const offeredCovers = offered.some((pkg: any) => pkg.cover_url);
             const retiredCovers = retired.some((pkg: any) => pkg.cover_url);
