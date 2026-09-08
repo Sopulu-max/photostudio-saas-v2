@@ -542,6 +542,18 @@ export function NewBookingForm({
    * of that is the package appearing on the booking twice — the same doubling
    * an operator reported from clicking a package three times in the rail.
    */
+  /*
+   * WHAT THIS BOOKING WAS STARTED FROM, RESOLVED FROM THE CATALOGUE.
+   *
+   * Read straight off the packages prop rather than waiting for addPackage's
+   * fetch, because the acknowledgement has to be there when the page paints.
+   * An operator who clicked Book on one package should see that package before
+   * anything else, not after a round trip.
+   */
+  const startedFrom = initialPackageId
+    ? (packages as any[]).find((p) => p.id === initialPackageId) ?? null
+    : null;
+
   const startedFromCatalogue = useRef(false);
   React.useEffect(() => {
     if (!initialPackageId || startedFromCatalogue.current) return;
@@ -1195,6 +1207,58 @@ export function NewBookingForm({
         * motion-first; this vocabulary existed and one screen in the whole app
         * used it.
         */}
+      {/*
+        * THE PACKAGE, FIRST, WHEN ONE WAS PICKED.
+        *
+        * Arriving from a package card is a different act from starting a
+        * booking cold, and the page read identically for both: section 1 asked
+        * for a date and a client, and what the operator had actually chosen sat
+        * out of sight in section 2. So the first thing they saw was a question,
+        * when the first thing they did was answer one.
+        *
+        * Named rather than merely present: this states what is being booked, so
+        * the sections below are what is still missing about it — the client,
+        * and anything else the job needs. It carries no controls of its own;
+        * removing or changing the package is section 2's job, and duplicating
+        * that here would be two places to do one thing.
+        */}
+      {startedFrom && (
+        <div
+          className={startedFrom.coverUrl ? 'q-hero q-hero-short' : 'q-hero q-hero-short q-hero-blank'}
+          style={startedFrom.coverUrl
+            ? { backgroundImage: `url(${startedFrom.coverUrl})`, backgroundPosition: startedFrom.coverPosition || undefined }
+            : undefined}
+        >
+          <span className="q-hero-eyebrow">Booking</span>
+          <span className="q-hero-title">{startedFrom.name}</span>
+          <span className="q-hero-tags">
+            {startedFrom.price?.amount != null && (
+              <span className="q-hero-tag">
+                {formatMoney(Number(startedFrom.price.amount), String(startedFrom.price.currency || currencyCode))}
+              </span>
+            )}
+            {/*
+              * Counted, not named. The service inside "Studio Portrait
+              * Photography" is called Studio Portrait Photography, so listing
+              * services printed the package's own name underneath itself. The
+              * counts are what the card the operator just clicked showed, and
+              * they cannot repeat the title.
+              */}
+            {(() => {
+              const services = (startedFrom.services || []).length;
+              const deliverables = (startedFrom.deliverables || []).length;
+              const say = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+              return (
+                <>
+                  {services > 0 && <span className="q-hero-tag">{say(services, 'service')}</span>}
+                  {deliverables > 0 && <span className="q-hero-tag">{say(deliverables, 'deliverable')}</span>}
+                </>
+              );
+            })()}
+          </span>
+        </div>
+      )}
+
       <div className="q-card q-section q-rise">
         <h2 className="q-section-title">1. Date, client and request</h2>
         <div className="q-stack q-stack-md">
@@ -1275,6 +1339,13 @@ export function NewBookingForm({
         */}
       <div className="q-card q-section q-rise">
         <h2 className="q-section-title">2. Packages</h2>
+        {/* Reads as "add another" once one is already chosen, rather than as
+            the choice the operator has just made somewhere else. */}
+        {startedFrom && (
+          <p className="q-meta" style={{ marginBottom: '12px' }}>
+            {startedFrom.name} is on this booking. Add another if the job needs more.
+          </p>
+        )}
         
         <div className="q-stack q-stack-lg">
         {/*

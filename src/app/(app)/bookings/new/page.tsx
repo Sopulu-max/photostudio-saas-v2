@@ -169,10 +169,12 @@ export default async function NewBookingPage(
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">New booking</h1>
+          {/* The package itself is named in the block below, at the top of
+              the form. Saying it here too was the same sentence twice before
+              the operator had read either. The back link still carries it,
+              because that is a destination rather than a repetition. */}
           <p className="q-page-subtitle">
-            {startedFrom
-              ? `Started from ${startedFrom}, already added below.`
-              : 'Start one with whatever you know — the rest fills in as you go.'}
+            Start one with whatever you know — the rest fills in as you go.
           </p>
         </div>
       </header>

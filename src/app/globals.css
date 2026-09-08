@@ -2071,6 +2071,23 @@ body {
   line-height: 1.5;
   max-width: 46ch;
 }
+/*
+ * The same hero, at the height of a statement rather than a page header.
+ *
+ * On the new-booking form it says what is being booked and then gets out of
+ * the way — the work of that page is the sections under it, so a full 260px
+ * of picture would push the first question below the fold.
+ */
+.q-hero-short { min-height: 150px; padding: 18px; margin-bottom: 20px; }
+.q-hero-short .q-hero-title { font-size: clamp(1.15rem, 2.4vw, 1.5rem); }
+.q-hero-eyebrow {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
 .q-hero-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .q-hero-tag {
   font-size: 0.72rem;
