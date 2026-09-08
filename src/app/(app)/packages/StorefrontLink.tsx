@@ -2,7 +2,19 @@
 
 import React, { useEffect, useState } from 'react';
 
-/** Your public catalogue — the one link a studio hands out to let a prospect pick from everything they sell. */
+/**
+ * A public link a studio hands out, ready to copy or open.
+ *
+ * Three of them now, and the differences matter to whoever is being sent one:
+ * the whole catalogue (/book/[slug]) for a prospect who should browse, the open
+ * enquiry (/book/[slug]/custom) for one who wants something not on the shelf,
+ * and ONE package (/book/[slug]/[id]) for a client who has already agreed what
+ * they are booking and only needs to do it.
+ *
+ * Named for the first because it came first. It takes a path precisely so the
+ * other two need no second component — the copy box, the origin fix-up and the
+ * open-in-a-tab behaviour are the same job whatever is being linked to.
+ */
 export function StorefrontLink({ slug, path }: { slug: string, path?: string }) {
   const [copied, setCopied] = useState(false);
   

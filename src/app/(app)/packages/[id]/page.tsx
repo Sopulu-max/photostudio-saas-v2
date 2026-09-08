@@ -2,11 +2,12 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { formatDeliverable, getPackage } from '@/modules/packages/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
+import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue, splitVariables } from '@/modules/services/interface';
 import { ClassificationsFor } from './Classifications';
 import { Counted } from '@/components/Counted';
+import { StorefrontLink } from '../StorefrontLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,9 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const [currencyCode] = await Promise.all([
+  const [currencyCode, org] = await Promise.all([
     getStudioCurrency(),
+    getStudio(),
   ]);
 
   const services = (pkg as any).services || [];
@@ -74,6 +76,43 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         <p className="q-text-body" style={{ marginBottom: '24px', fontSize: '1.05rem', color: 'var(--q-color-ink-700)' }}>
           {pkg.description}
         </p>
+      )}
+
+      {/*
+        * THE LINK FOR THIS ONE PACKAGE.
+        *
+        * The studio could hand out its whole catalogue and it could hand out
+        * the open enquiry form, and there was no way to hand out ONE package —
+        * which is the commonest case of all. An operator agrees a package with
+        * a client over the phone and wants to send them that package, with its
+        * price and its promise, and a button to book it. The page has existed
+        * the whole time at /book/[slug]/[id]; nothing in the app would tell you
+        * its address.
+        *
+        * SHOWN ONLY WHEN THE LINK WOULD ACTUALLY WORK. getPackagePublic
+        * requires status 'active', so offering this on a retired package — or
+        * on a booking's own instance, which is 'custom' — would hand somebody a
+        * link that 404s in front of their client. Better to say why there is no
+        * link than to give out a broken one.
+        */}
+      {org?.slug && (
+        <div className="q-card q-section" style={{ marginBottom: '24px' }}>
+          <h2 className="q-section-title">Booking link</h2>
+          {pkg.status === 'active' && !(pkg as any).instance_of ? (
+            <>
+              <p className="q-meta" style={{ margin: '4px 0 12px' }}>
+                Send this to a client to book this package.
+              </p>
+              <StorefrontLink slug={org.slug} path={`/book/${org.slug}/${pkg.id}`} />
+            </>
+          ) : (
+            <p className="q-meta" style={{ margin: '4px 0 0' }}>
+              {(pkg as any).instance_of
+                ? 'This is a booking’s own copy of a package, not a catalogue one, so it has no public link.'
+                : 'Only an active package can be booked. Change its status to share a link.'}
+            </p>
+          )}
+        </div>
       )}
 
       <div className="q-stack q-stack-lg">
