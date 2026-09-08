@@ -802,7 +802,10 @@ async function copyPackage(
 
   const [narrowings, fixed, tasks] = await Promise.all([
     supabaseAdmin.from('package_service_dimension_values').select('package_service_id, dimension_value_id').eq('organization_id', orgId).in('package_service_id', originalIds),
-    supabaseAdmin.from('package_variable_values').select('package_service_id, variable_id, value').eq('organization_id', orgId).in('package_service_id', originalIds),
+    /* answered_by travels too. Without it the copy takes the column default
+       and a question the studio LEFT OPEN becomes one it claims to have
+       answered — see the carry below for what that costs. */
+    supabaseAdmin.from('package_variable_values').select('package_service_id, variable_id, value, answered_by').eq('organization_id', orgId).in('package_service_id', originalIds),
     /*
      * AND THE WORK IT TAKES TO DELIVER IT.
      *
@@ -842,9 +845,33 @@ async function copyPackage(
   };
 
   await Promise.all([
-    copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap }),
+    /* orgId passed, not read: copyPackage runs for a client instancing a
+       package on the public page, who has no session. */
+    copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap, organizationId: orgId }),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
-    carry('package_variable_values', fixed.data, (r, to) => ({ organization_id: orgId, package_service_id: to, variable_id: r.variable_id, value: r.value })),
+    /*
+     * WHO ANSWERS IT COMES WITH THE ANSWER.
+     *
+     * This copied variable_id and value and dropped answered_by, so the copy
+     * fell to the column default — 'studio'. For a variable the studio had
+     * fixed that was right by luck; for one it deliberately left OPEN, the row
+     * became "the studio answered this" with a null value, which the check
+     * constraint refuses outright:
+     *
+     *   answered_by = 'studio' and value is not null
+     *   or answered_by = 'client' and value is null
+     *
+     * So copyPackage threw, so instantiatePackageForBooking threw, so ANY
+     * package with an open question could not be booked at all — by a client
+     * on the public page or by the studio on its own screen, since both give a
+     * booking its own copy. And had the constraint not existed it would have
+     * been worse in the other direction: a question quietly reassigned from
+     * the client to the studio, unanswered, on every booking.
+     */
+    carry('package_variable_values', fixed.data, (r, to) => ({
+      organization_id: orgId, package_service_id: to,
+      variable_id: r.variable_id, value: r.value, answered_by: r.answered_by,
+    })),
     carry('package_tasks', tasks.data, (r, to) => ({
       organization_id: orgId, package_service_id: to,
       workflow_task_id: r.workflow_task_id, name: r.name,

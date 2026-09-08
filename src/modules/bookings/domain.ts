@@ -319,6 +319,14 @@ export async function createBookingFromIntake(input: {
   answers?: Record<string, unknown>;
   /** What the client chose for whatever the package left open. */
   variableAnswers?: { serviceVariableId: string; value: unknown }[];
+  /**
+   * Classifications the client chose on a package's own page.
+   *
+   * The custom path carries these inside `answers.dimensions`; the package
+   * path answers a package's OPEN classifications and has them as a bare list
+   * of value ids. Same fact, two shapes — see where they are merged below.
+   */
+  classificationValueIds?: string[];
   source?: string;
   scheduledFor?: string | null;
 }) {
@@ -428,9 +436,24 @@ export async function createBookingFromIntake(input: {
    * something already recorded in metadata, so it can be repaired; refusing
    * the booking over it would turn a convenience into a lost client.
    */
-  const answeredValueIds = Object.values(
-    ((input.answers as any)?.dimensions ?? {}) as Record<string, string>,
-  ).filter(Boolean);
+  /*
+   * BOTH WAYS IN ANSWER THE SAME QUESTION, AND BOTH MUST COUNT.
+   *
+   * A custom enquiry puts its answers in answers.dimensions, keyed by
+   * dimension. A client booking a specific package answers that package's OPEN
+   * classifications instead, and those arrive as a plain list of value ids —
+   * they go on to narrow the booking's own instance of the package.
+   *
+   * This read only the first, so a client who chose "Birthday" while booking a
+   * package narrowed the instance correctly and left the BOOKING classified as
+   * nothing: the edit page showed "Not said" for a question they had just
+   * answered. The two routes are the same fact arriving in two shapes, so both
+   * are taken and the value tells us which question it answers either way.
+   */
+  const answeredValueIds = [...new Set([
+    ...Object.values(((input.answers as any)?.dimensions ?? {}) as Record<string, string>),
+    ...(input.classificationValueIds ?? []),
+  ])].filter(Boolean);
   if (answeredValueIds.length > 0) {
     const { data: values } = await supabaseAdmin
       .from('dimension_values')

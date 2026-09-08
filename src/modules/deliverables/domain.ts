@@ -517,9 +517,11 @@ export async function listDeliverableIdsForServices(serviceIds: string[]): Promi
 const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity';
 
 /** What these bundle rows promise. */
-export async function listPackageDeliverableLinks(packageServiceIds: string[]) {
+export async function listPackageDeliverableLinks(packageServiceIds: string[], forOrgId?: string) {
   if (packageServiceIds.length === 0) return [];
-  const { orgId } = await getAuthOrgId();
+  /* The org is taken when the caller has it, because the caller may have no
+     session: a client instancing a package on the public booking page. */
+  const orgId = forOrgId ?? (await getAuthOrgId()).orgId;
   const { data } = await supabaseAdmin
     .from('package_deliverables')
     .select(PACKAGE_DELIVERABLE_COLUMNS)
@@ -572,9 +574,23 @@ export async function setPackageDeliverables(input: {
 export async function copyPackageDeliverables(input: {
   fromPackageServiceIds: string[];
   rowMap: Record<string, string>;
+  /**
+   * The studio, when the caller has no session to read it from.
+   *
+   * A CLIENT BOOKING A PACKAGE COPIES ONE. instantiatePackageForBooking gives
+   * every booking its own copy, and on the public page the person triggering
+   * that has no account — so demanding a session here threw "No organization
+   * found. Please complete studio setup" at somebody trying to book, and the
+   * whole submission failed.
+   *
+   * Every test that exercised this mocked getAuthOrgId to succeed, so the one
+   * arrangement that matters was the one never tried. Same fault, same week,
+   * as listServiceDeliverableOptions.
+   */
+  organizationId?: string;
 }) {
-  const { orgId } = await getAuthOrgId();
-  const source = await listPackageDeliverableLinks(input.fromPackageServiceIds);
+  const orgId = input.organizationId ?? (await getAuthOrgId()).orgId;
+  const source = await listPackageDeliverableLinks(input.fromPackageServiceIds, orgId);
 
   const links = source
     .map((r) => ({ r, to: input.rowMap[r.package_service_id] }))

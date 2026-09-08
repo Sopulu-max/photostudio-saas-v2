@@ -189,6 +189,9 @@ export async function submitBookingForm(
     linePrice,
     answers: storedAnswers,
     variableAnswers: formData.variableAnswers,
+    /* What they answered of what the package left open — so the BOOKING is
+       classified by it too, not only its own copy of the package. */
+    classificationValueIds: formData.chosenClassifications,
     source: 'public_booking_page',
     scheduledFor: formData.scheduledFor,
   });
