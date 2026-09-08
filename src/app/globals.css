@@ -1920,7 +1920,26 @@ body {
 .q-poster > * { position: relative; z-index: 1; }
 .q-poster-title { color: #fff; font-weight: 640; font-size: 0.98rem; line-height: 1.25; }
 .q-poster-note { color: rgba(255, 255, 255, 0.72); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
-.q-poster-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
+/*
+ * VALUES OF ONE QUESTION SIT TIGHT; QUESTIONS SIT APART.
+ *
+ * The gap between groups is nearly three times the gap within one, which is
+ * the whole mechanism: no label, no divider, and a reader still sees that
+ * Studio is not a fifth occasion. Two spacings carry what a row of identical
+ * pills could not say at all.
+ */
+.q-poster-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 11px;
+  margin-top: 9px;
+}
+.q-poster-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
 .q-poster-tag {
   font-size: 0.67rem;
   padding: 2px 7px;
@@ -1940,6 +1959,39 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/*
+ * SETTLED, NOT OFFERED.
+ *
+ * An outlined pill is one of several a package admits — a range. A filled one
+ * is a value it has fixed: not "this can be for a birthday" but "you get one
+ * outfit". Filled because that is what settled looks like everywhere else in
+ * this system, and because the difference has to survive being read at a
+ * glance across a grid of twelve cards.
+ */
+.q-poster-tag-set {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.9);
+  color: #14141a;
+  font-weight: 600;
+}
+
+/*
+ * The record's own footnotes, under a hairline and out of the offer.
+ *
+ * How many questions a package defers and how much work it carries are facts
+ * about the package as an object here; a client is never told either. As pills
+ * beside the classifications they read at the weight of what the package is
+ * FOR, which is the one thing they are not.
+ */
+.q-poster-notes {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.71rem;
+  line-height: 1.4;
+}
+
 /* Something the studio sells that cannot cover what was asked. Shown, because
    browsing is legitimate — never presented as a match. */
 .q-poster-dim { opacity: 0.42; }
@@ -2027,15 +2079,6 @@ body {
   border-radius: inherit;
 }
 .q-poster-face:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
-
-/* An operator's facts sit below the studio's vocabulary, not beside it: how
-   many tasks a package carries is bookkeeping, and it should not read at the
-   same weight as what the package is FOR. */
-.q-poster-tag-quiet {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.72);
-}
 
 /* The chosen one says so on the picture, where the eye already is. */
 .q-poster-check {

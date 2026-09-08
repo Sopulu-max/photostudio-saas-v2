@@ -193,31 +193,64 @@ export function PackagesClient({
           <span className="q-poster-note">{promises.join(' · ')}</span>
         )}
 
+        {/*
+          * GROUPED BY THE QUESTION EACH ANSWERS.
+          *
+          * These ran together as one strip — Studio, Birthday, Anniversary,
+          * Convocation, Maternity, 1 outfit — and a strip says "one list". It
+          * is three different claims:
+          *
+          *   Studio answers Context. The four after it answer Occasion. Run
+          *   together, nothing tells a reader that the first is not a fifth
+          *   occasion, and the classification graph's whole point is that a
+          *   value belongs to the question it answers.
+          *
+          *   "1 outfit" is not a classification at all. The others say this
+          *   package CAN BE for any of these — a range. That one says you get
+          *   exactly this — a fact. Drawn identically, a range reads as a fact.
+          *
+          * So values of one question sit tight together and questions sit
+          * apart, and what the package has SETTLED is filled in rather than
+          * outlined. Nothing is labelled: the grouping is the label, which is
+          * the same move the fact rows make on every other screen.
+          */}
         <span className="q-poster-tags">
-          {/* The studio's own vocabulary first — what this package is for. */}
-          {tags.flatMap((d) => d.values.map((v: any) => (
-            <span key={v.id} className="q-poster-tag">{v.name}</span>
-          )))}
-          {/* Then what it fixes, which a client never sees and an operator
-              reads to tell two otherwise identical packages apart. */}
-          {fixed.map((v: any) => (
-            <span key={v.serviceVariableId} className="q-poster-tag">{formatVariableValue(v)}</span>
+          {tags.map((d) => (
+            <span key={d.id} className="q-poster-group" title={d.name}>
+              {d.values.map((v: any) => (
+                <span key={v.id} className="q-poster-tag">{v.name}</span>
+              ))}
+            </span>
           ))}
-          {/* And the two facts that are the studio's alone. Absent rather than
-              zeroed: a package with no tasks says nothing, it does not announce
-              the absence. */}
-          {asked.length > 0 && (
-            <span className="q-poster-tag q-poster-tag-quiet">
-              {asked.length} asked at booking
+          {fixed.length > 0 && (
+            <span className="q-poster-group">
+              {fixed.map((v: any) => (
+                <span key={v.serviceVariableId} className="q-poster-tag q-poster-tag-set">
+                  {formatVariableValue(v)}
+                </span>
+              ))}
             </span>
           )}
-          {taskCount > 0 && (
-            <span className="q-poster-tag q-poster-tag-quiet">
-              {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
-            </span>
-          )}
-          {!priced && <span className="q-poster-tag q-poster-tag-quiet">No price set</span>}
         </span>
+
+        {/*
+          * AND WHAT IS TRUE OF THE RECORD, NOT OF THE OFFER.
+          *
+          * How many questions a package defers and how much work it carries
+          * are facts about the package as an object in this system — a client
+          * is never told either. They were pills in the same row as what the
+          * package is FOR, which put bookkeeping at the weight of the offer.
+          * Below a hairline, in plain text, they read as the footnote they are.
+          */}
+        {(asked.length > 0 || taskCount > 0 || !priced) && (
+          <span className="q-poster-notes">
+            {[
+              asked.length > 0 ? `${asked.length} asked at booking` : null,
+              taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : null,
+              !priced ? 'No price set' : null,
+            ].filter(Boolean).join(' · ')}
+          </span>
+        )}
       </div>
     );
   };
