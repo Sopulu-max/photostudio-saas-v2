@@ -1287,7 +1287,14 @@ body {
 /* ---- Grid ---- */
 .q-grid-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  /*
+   * auto-FILL, not auto-fit. auto-fit collapses the tracks nothing occupies,
+   * so filtering the catalogue down to one package handed that package the
+   * whole row: measured at 1105px wide with a 621px cover, a card 1046px tall.
+   * A catalogue of one is not a banner. auto-fill keeps the empty tracks, so
+   * the last card left is the same size as the four that were there before it.
+   */
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
   gap: 24px;
   /*
    * EACH CARD IS AS TALL AS WHAT IS IN IT.
@@ -2659,6 +2666,12 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /*
+   * Wrapped flex lines default to align-content: stretch, which spreads them
+   * down whatever height the box ends up with instead of stacking them. Said
+   * once here so no ancestor's height can pull the chips apart.
+   */
+  align-content: flex-start;
   gap: 6px;
   flex: 1 1 12rem;
   min-inline-size: 0;
@@ -2684,6 +2697,14 @@ body {
 @media (max-width: 40em) {
   .q-narrow-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .q-narrow-key { min-inline-size: 0; }
+  /*
+   * flex: 1 1 12rem was written for a ROW parent, where 12rem is a width. This
+   * query turns the parent into a COLUMN, and the same declaration then means
+   * "start 12rem TALL and grow" — so a strip of chips became a 192px box with
+   * its wrapped lines spread down the inside of it. That is the enormous gap
+   * between the filter's classifications on a phone.
+   */
+  .q-narrow-values { flex: 0 1 auto; }
 }
 
 /* The count leads and does not wrap away from the search it describes. */
@@ -2737,152 +2758,169 @@ body {
  * same place, and a studio comparing twelve services sees twelve names in a
  * column rather than twelve tall cards down a page.
  */
-.q-grid-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.q-grid-rows > .q-card {
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  padding: 12px 18px;
-}
-/*
- * Targeted by anatomy, not by position. The first child of a service card is
- * its name; the first child of a package card is its cover picture. A rule
- * written as :first-child would have given one of them a 14rem-wide title and
- * the other a 14rem-wide photograph, and only the page I happened to be looking
- * at would have told me.
- */
-.q-grid-rows > .q-card > :has(> .q-card-title) { flex: 0 0 14rem; min-width: 0; }
-.q-grid-rows .q-card-title { font-size: 1rem; line-height: 1.3; }
-
-/* The cover becomes a thumbnail: enough to recognise a package by, not enough
-   to spend a row on. It also gives up the negative margins that bled it to the
-   card's edges, which in a row would have it bleeding off the left. */
-.q-grid-rows .q-cover {
-  flex: 0 0 3.5rem;
-  margin: 0;
-  aspect-ratio: 1;
-  border-radius: 8px;
-}
-.q-grid-rows .q-cover-initial { font-size: 1.1rem; }
-.q-grid-rows .q-lead { flex: 1 1 9rem; min-width: 0; -webkit-line-clamp: 1; font-size: 0.85rem; }
-
-/* The facts grid becomes a single line. Its groups are display: contents in
-   card view, which has no meaning in a row, so they become boxes again. */
-.q-grid-rows .q-facts {
-  display: flex;
-  flex: 1 1 12rem;
-  min-width: 0;
-  gap: 14px;
-  align-items: center;
-  overflow: hidden;
-}
-.q-grid-rows .q-fact-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.q-grid-rows .q-fact-values { flex-wrap: nowrap; }
-/*
- * The key drops out in this view. On a card it says which question a value
- * answers and earns its width; down a list it is the same word on every row,
- * so it stops being information and becomes a column of noise between the eye
- * and the answers. The chips above still name the dimensions, and the service's
- * own page reads them in full.
- */
-.q-grid-rows .q-fact-key { display: none; }
-/*
- * And when the answers still outrun the space, they fade rather than being cut.
- * A pill sliced down the middle reads as a broken layout; the same pill fading
- * out reads as a row that continues, which is what is true.
- */
-.q-grid-rows .q-facts {
-  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
-}
-
-/* The foot stops being a band and becomes the end of the row: a second surface
-   makes sense across a card, not across 44 pixels. */
-.q-grid-rows .q-card-foot {
-  margin: 0;
-  padding: 0;
-  background: none;
-  border: none;
-  border-radius: 0;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-/* A row of eight columns is a card again on a phone. */
-@media (max-width: 47.5em) {
-  .q-grid-rows > .q-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .q-grid-rows > .q-card > :first-child { flex: 0 1 auto; }
-  .q-grid-rows .q-lead { flex: 0 1 auto; }
-  .q-grid-rows .q-facts { flex: 0 1 auto; flex-wrap: wrap; }
-  .q-grid-rows .q-card-foot { justify-content: space-between; }
-}
-
 /* ==========================================================================
-   Catalogue cards and rows ask about THEMSELVES, not about the window
+   Both catalogue views ask their OWN width, not the window's
    ==========================================================================
 
-   A catalogue card's width comes from the GRID, not from the viewport. At a
-   1200px window the grid lays out four columns of 282px each — narrow cards on
-   a wide screen — and every rule written as a viewport media query is told the
-   opposite of what the card is experiencing.
+   A card's width comes from the grid, not the viewport: at a 1200px window the
+   grid lays out four columns of 282px each. Every rule written as a viewport
+   media query is therefore told the opposite of what the card is experiencing
+   — which is why .q-facts kept a fixed 6.5rem label column on a 282px card,
+   spending thirty-seven per cent of it on the word OCCASION and stacking the
+   values one per line.
 
-   That is not theoretical. .q-facts gives its label column a fixed 6.5rem and
-   there was already a rule to drop that column when there is no room for two,
-   sitting inside a max-width media query. On a 282px card at a 1200px window
-   the media query never fired, so 104px of a 282px card — thirty-seven per
-   cent of it — went to the word OCCASION, its four values stacked one per
-   line, the card grew to 803px tall, and every sibling in the row stretched to
-   match it. That is the empty space in the catalogue.
+   WHICH ELEMENT IS THE CONTAINER DEPENDS ON WHAT THE RULE STYLES, and getting
+   it backwards fails silently — no error, the rule simply never applies. A
+   container query styles a container's DESCENDANTS, never the container
+   itself.
 
-   The row view fails the same way from the other end. Its columns compete for
-   one line and every one of them may shrink to nothing, so the deliverables
-   line was measured at 8px wide — rendering as "3," — while the question count
-   wrapped onto four lines and made a 111px row out of an 83px one. Its only
-   breakpoint stacked the row at 760px, by which point it had been broken for
-   four hundred pixels.
+     the card grid — each CARD is a container, because .q-facts inside it needs
+     to know how wide that card is;
 
-   So both ask their own width. Scoped to these two grids rather than to
-   .q-card everywhere, because container-type changes how an element sizes and
-   a card in a form has no business being containerised. */
+     the row list — the LIST is the container, because those rules move the
+     card's own grid tracks, and a rule cannot re-lay-out its own container. A
+     row is full width, so asking the list is asking the same question one
+     level up.
+   ========================================================================== */
 
-.q-grid-cards > .q-card,
-.q-grid-rows > .q-card { container-type: inline-size; }
+.q-grid-cards > .q-card { container-type: inline-size; }
+.q-grid-rows { container-type: inline-size; }
 
-/* A card too narrow for a key beside its values puts the key above them —
-   the same answer the viewport rule gave, now asked of the right thing. */
+/* A card too narrow for a key beside its values puts the key above them. */
 @container (max-width: 23rem) {
   .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .q-fact-key { grid-column: 1; }
 }
 
-/* WHAT A ROW GIVES UP, AND IN WHICH ORDER.
-   Least useful first: the question count is a footnote, and the deliverables
-   line is a summary of what the classifications below already imply. The
-   cover, the name, the price and Book never go — they are the row. Dropped
-   rather than crushed, because a column narrowed to 8px is not information,
-   it is the appearance of a broken page. */
-@container (max-width: 68rem) {
-  .q-grid-rows > .q-card > .q-meta-sm { display: none; }
+/* ==========================================================================
+   The list view is a GRID, not a row of flex children fighting for width
+   ==========================================================================
+
+   It was a flex row of six siblings, each free to shrink to nothing. At 700px
+   the deliverables line measured 8px wide and rendered as "3,"; the question
+   count wrapped onto four lines and made a 111px row out of an 83px one. No
+   amount of tuning flex-basis fixes that, because the failure is that nothing
+   declares what the columns ARE.
+
+   So they are declared. Four columns, two rows, and every part of the card is
+   placed: the thumbnail, the name with its own line beneath it, what the
+   package is classified as, and the price with its button. A grid cell cannot
+   be crushed by a sibling that wanted more room, which is the whole point.
+   ========================================================================== */
+
+.q-grid-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-@container (max-width: 56rem) {
-  .q-grid-rows > .q-card > .q-lead { display: none; }
+
+.q-grid-rows > .q-card {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(9rem, 1.1fr) minmax(0, 1.5fr) max-content;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 2px;
+  padding: 12px 18px;
 }
-/* Whatever survives, survives on one line. */
-.q-grid-rows > .q-card > .q-meta-sm { white-space: nowrap; }
-.q-grid-rows .q-lead { min-width: 5rem; }
+
+/* Placed by anatomy rather than by position: the first child of a service card
+   is its name and of a package card its picture, so :nth-child would put one
+   studio's photograph where another's title goes. */
+.q-grid-rows > .q-card > .q-cover {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  flex: none;
+  margin: 0;
+  width: 3.25rem;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  align-self: center;
+}
+.q-grid-rows .q-cover-initial { font-size: 1.05rem; }
+
+/* The name, and directly under it the line that describes it — the same
+   two-line block a contact row has had since lists were invented. */
+.q-grid-rows > .q-card > :has(> .q-card-title) { grid-column: 2; grid-row: 1; min-width: 0; }
+.q-grid-rows > .q-card > .q-lead { grid-column: 2; grid-row: 2; min-width: 0; margin: 0; }
+.q-grid-rows .q-card-title { font-size: 0.98rem; line-height: 1.3; }
+.q-grid-rows .q-lead { font-size: 0.82rem; -webkit-line-clamp: 1; }
+
+/* What it is classified as, spanning both rows beside the name. */
+.q-grid-rows > .q-card > .q-facts {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-height: 3.4rem;
+  overflow: hidden;
+}
+/* Its groups are display:contents on a card, which means nothing in a row. */
+.q-grid-rows .q-fact-group { display: contents; }
+.q-grid-rows .q-fact-values { display: contents; }
+/*
+ * The key drops out here. On a card it says which question a value answers and
+ * earns its width; down a list it is the same word on every row, so it stops
+ * being information and becomes a column of noise between the eye and the
+ * answers. The chips above still name the dimensions.
+ */
+.q-grid-rows .q-fact-key { display: none; }
+
+/* A footnote, and the first thing to go. */
+.q-grid-rows > .q-card > .q-meta-sm { display: none; }
+
+/* The foot stops being a band and becomes the end of the row: a second surface
+   makes sense across a card, not across 44 pixels. */
+.q-grid-rows > .q-card > .q-card-foot {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+/*
+ * NARROW: the classifications move under the name rather than being squeezed
+ * beside it. Asked of the ROW's own width, because a list inside a page with a
+ * sidebar is narrower than the window says.
+ */
+@container (max-width: 46rem) {
+  .q-grid-rows > .q-card {
+    grid-template-columns: 3.25rem minmax(0, 1fr) max-content;
+  }
+  .q-grid-rows > .q-card > .q-facts {
+    grid-column: 2 / span 2;
+    grid-row: 3;
+    max-height: none;
+    margin-top: 6px;
+  }
+  .q-grid-rows > .q-card > .q-card-foot { grid-column: 3; grid-row: 1 / span 2; }
+}
+
+/* PHONE: one column, everything stacked, nothing competing at all. */
+@container (max-width: 30rem) {
+  .q-grid-rows > .q-card {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    row-gap: 6px;
+  }
+  .q-grid-rows > .q-card > .q-facts { grid-column: 1 / -1; grid-row: 3; }
+  .q-grid-rows > .q-card > .q-card-foot {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+}
 
 /* The air between a catalogue and the retired things below it. Conditional in
    the markup — there is nothing to separate when nothing is offered — but the
