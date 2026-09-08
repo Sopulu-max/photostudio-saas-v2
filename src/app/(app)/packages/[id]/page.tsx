@@ -67,9 +67,39 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             What the client buys, and what it costs.
           </p>
         </div>
-        <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">
-          Edit package
-        </Link>
+        <div className="q-row">
+          {/*
+            * BOOK, WHERE THE PACKAGE IS.
+            *
+            * The catalogue card has had this since the grid was built, and the
+            * page you land on by clicking that card did not — so an operator
+            * who opened a package to check what was in it before selling it
+            * had to go back to the grid to sell it.
+            *
+            * Primary, and to the left of Edit, for the reason the card gives:
+            * a catalogue exists to take bookings, so this is the confident
+            * action and editing is the quiet one.
+            *
+            * WITHDRAWN AND BORROWED PACKAGES DO NOT OFFER IT. Retired is the
+            * card's own rule — a studio that stopped selling something should
+            * not be invited to sell it. An instance is a booking's private
+            * copy, so "book this" would mean booking a copy of a booking; it
+            * is the same guard the public link below uses, for the same
+            * reason, and this page is the one place both can be reached.
+            */}
+          {pkg.status !== 'retired' && !(pkg as any).instance_of && (
+            <Link
+              href={`/bookings/new?package=${pkg.id}`}
+              className="q-btn q-btn-primary"
+              title={`Take a booking for ${pkg.name}`}
+            >
+              Book
+            </Link>
+          )}
+          <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">
+            Edit package
+          </Link>
+        </div>
       </header>
 
       {pkg.description && (
