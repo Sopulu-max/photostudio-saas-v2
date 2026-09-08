@@ -6,6 +6,43 @@ import { Catalogue } from './Catalogue';
 export const dynamic = 'force-dynamic';
 
 /**
+ * The studio's own name and picture, when this link is pasted somewhere.
+ *
+ * This is the link a studio copies from its packages screen and hands out, so
+ * it is the one most often shared — and it previewed as "Weave — The operating
+ * system for studios", the name of the software rather than the name of the
+ * business. A studio sending a client to its own shop window should not be
+ * advertising its supplier.
+ */
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
+  const org = await getStudioBySlug(params.slug);
+  if (!org) return { title: 'Not found' };
+
+  const meta = (org.metadata || {}) as Record<string, any>;
+  const image = meta.cover_url || meta.logo_url || null;
+  const description = `Packages available to book with ${org.name}.`;
+
+  return {
+    title: org.name,
+    description,
+    openGraph: {
+      title: org.name,
+      description,
+      siteName: org.name,
+      type: 'website' as const,
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      card: (image ? 'summary_large_image' : 'summary') as 'summary_large_image' | 'summary',
+      title: org.name,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
+  };
+}
+
+/**
  * THE PAGE A STUDIO HANDS OUT.
  *
  * This is the link the packages screen tells an operator to copy, so it is the

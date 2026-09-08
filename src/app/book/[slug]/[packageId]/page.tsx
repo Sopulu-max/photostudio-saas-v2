@@ -7,6 +7,69 @@ import { BookingForm } from './BookingForm';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * WHAT THIS LINK LOOKS LIKE WHEN IT IS PASTED SOMEWHERE.
+ *
+ * A studio agrees a package and sends the link over WhatsApp. Every one of
+ * those previews said "Weave — The operating system for studios", because the
+ * root layout's metadata was the only metadata in the app: the client saw the
+ * name of the software their photographer uses, with no picture, for the thing
+ * they were about to buy.
+ *
+ * The package already has everything a preview needs — a cover the studio
+ * chose, a name, a line written to sell it — so this states them rather than
+ * inventing any. The cover is an absolute Supabase storage URL, which is what
+ * a scraper needs; nothing here has to be rewritten or proxied.
+ *
+ * FALLING BACK TO THE STUDIO, NOT TO THE APP. A package with no cover of its
+ * own borrows the studio's cover or logo, because the next best answer to
+ * "whose is this?" is the studio's, and it is never this software's.
+ *
+ * It runs without a session, like everything else on this path.
+ */
+export async function generateMetadata(props: {
+  params: Promise<{ slug: string; packageId: string }>
+}) {
+  const params = await props.params;
+  const org = await getStudioBySlug(params.slug);
+  if (!org) return { title: 'Not found' };
+
+  const pkg = await getPackagePublic(org.id, params.packageId);
+  if (!pkg) return { title: org.name };
+
+  const meta = (org.metadata || {}) as Record<string, any>;
+  const image = pkg.coverUrl || meta.cover_url || meta.logo_url || null;
+
+  /* The line written for a card, else the opening of the long one — a preview
+     clips at roughly this length anyway, and clipping mid-word is worse than
+     choosing where to stop. */
+  const description = pkg.shortDescription
+    || (pkg.description ? pkg.description.slice(0, 160).trimEnd() + (pkg.description.length > 160 ? '…' : '') : null)
+    || `Book ${pkg.name} with ${org.name}.`;
+
+  const title = `${pkg.name} · ${org.name}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      siteName: org.name,
+      type: 'website' as const,
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      /* large, because the cover is the point — a thumbnail of a portrait
+         reads as nothing. */
+      card: (image ? 'summary_large_image' : 'summary') as 'summary_large_image' | 'summary',
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
+  };
+}
+
 export default async function BookingPage(props: {
   params: Promise<{ slug: string; packageId: string }>
 }) {
