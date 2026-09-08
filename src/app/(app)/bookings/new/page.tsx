@@ -107,13 +107,36 @@ export default async function NewBookingPage(
     domainName: s.domain?.name || ''
   }));
 
+  /*
+   * WHAT THIS BOOKING WAS STARTED FROM.
+   *
+   * Clicking Book on a package card lands here, and the package IS added — but
+   * the page said "New booking · Start one with whatever you know", word for
+   * word what it says when started from nothing. An operator who came here
+   * deliberately, from one package, got no sign the click had done anything
+   * and had to scroll to the second section to find out.
+   *
+   * Named for PROVENANCE rather than for current state: "started from" stays
+   * true if the operator then removes the line, where "is on this booking"
+   * would quietly become a lie.
+   */
+  const startedFrom = wantedPackage
+    ? (packageOptions as any[]).find((p) => p.id === wantedPackage)?.name ?? null
+    : null;
+
   return (
     <div className="q-page-narrow">
-      <Link className="q-back" href="/bookings">&larr; Back to Bookings</Link>
+      <Link className="q-back" href={startedFrom ? `/packages/${wantedPackage}` : '/bookings'}>
+        &larr; {startedFrom ? `Back to ${startedFrom}` : 'Back to Bookings'}
+      </Link>
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">New booking</h1>
-          <p className="q-page-subtitle">Start one with whatever you know — the rest fills in as you go.</p>
+          <p className="q-page-subtitle">
+            {startedFrom
+              ? `Started from ${startedFrom}, already added below.`
+              : 'Start one with whatever you know — the rest fills in as you go.'}
+          </p>
         </div>
       </header>
       
