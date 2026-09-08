@@ -453,7 +453,22 @@ export function BookingForm({
 
   const hasOpenVariables = !isCustom && openVariables.length > 0;
   const steps: { title: string; id: string }[] = [{ title: 'You', id: 'personal' }];
-  if (hasFormSchema || hasOpenVariables || isCustom) steps.push({ title: 'Details', id: 'details' });
+  /*
+   * ALWAYS, BECAUSE THE DATE LIVES HERE.
+   *
+   * This step was conditional on the package having questions to ask — and the
+   * booking's date and time is inside it. So a package that fixes everything,
+   * which is the commonest kind and exactly what a studio sends when they have
+   * already agreed terms, gave the client no way to say WHEN. They filled in
+   * their name, pressed submit, and the booking arrived with no date on it,
+   * which keeps it off the calendar entirely.
+   *
+   * The mistake underneath: when a booking happens is a fact about the BOOKING,
+   * and it was placed inside a section whose existence depends on what the
+   * PACKAGE left open. Those are different things and only one of them is
+   * optional.
+   */
+  steps.push({ title: 'Details', id: 'details' });
   if (hasMatchStep) steps.push({ title: 'Packages', id: 'match' });
   // After the match, never before it: these are the chosen package's own
   // questions, and there is no package to ask them of until one is chosen.
