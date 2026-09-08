@@ -188,9 +188,31 @@ export function PackagesClient({
 
         <span className="q-poster-title">{pkg.name}</span>
 
-        {/* What the client gets, in the line the public card uses for it. */}
+        {/*
+          * WHAT THE CLIENT ACTUALLY RECEIVES, AT THE WEIGHT THAT DESERVES.
+          *
+          * This sat in the poster's quiet note line — the slot the public card
+          * uses for a sentence of prose — at 0.78rem and 72% white, quieter
+          * than everything except the footnotes. But the deliverables ARE the
+          * product. A studio scanning its catalogue is telling four packages
+          * apart, and three of these are called Studio Portrait Photography:
+          * what separates them is 2 photographs against 3 against 4.
+          *
+          * Counted does the work and already existed for it — the number takes
+          * the size and the weight, the words step back — which is why the same
+          * list reads the same way here, on the package page, and in the
+          * editor. Its own note says it: on a card this list IS what the reader
+          * came for.
+          */}
         {promises.length > 0 && (
-          <span className="q-poster-note">{promises.join(' · ')}</span>
+          <span className="q-poster-promise">
+            {promises.map((t: string, i: number) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span className="q-poster-promise-sep"> · </span>}
+                <Counted text={t} />
+              </React.Fragment>
+            ))}
+          </span>
         )}
 
         {/*

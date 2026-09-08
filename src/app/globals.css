@@ -1920,6 +1920,36 @@ body {
 .q-poster > * { position: relative; z-index: 1; }
 .q-poster-title { color: #fff; font-weight: 640; font-size: 0.98rem; line-height: 1.25; }
 .q-poster-note { color: rgba(255, 255, 255, 0.72); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
+
+/*
+ * WHAT THE CLIENT RECEIVES, SECOND ONLY TO WHAT IT IS CALLED.
+ *
+ * The deliverables were sitting in the note line above — the slot built for a
+ * sentence of prose — reading quieter than everything but the footnotes. They
+ * are the product. Three of this studio's four packages are called Studio
+ * Portrait Photography, and what tells them apart is 2 photographs against 3
+ * against 4; that number was the smallest text on the card.
+ *
+ * So: near-white, a step up in size, and the count carrying the weight through
+ * Counted, whose whole job is setting a number apart from the thing it counts.
+ * Counted paints in ink-900 for the light surfaces it was written for, so the
+ * poster's dark scrim overrides it here rather than the component learning
+ * about backgrounds it cannot see.
+ */
+.q-poster-promise {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.q-poster-promise .q-lead-num {
+  font-size: 1.22rem;
+  color: #fff;
+  margin-right: 1px;
+}
+/* Quieter than either side of it: the separator is punctuation, not a third
+   thing being listed. */
+.q-poster-promise-sep { color: rgba(255, 255, 255, 0.45); }
 /*
  * VALUES OF ONE QUESTION SIT TIGHT; QUESTIONS SIT APART.
  *
