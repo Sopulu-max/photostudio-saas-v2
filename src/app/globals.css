@@ -1289,6 +1289,22 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 24px;
+  /*
+   * EACH CARD IS AS TALL AS WHAT IS IN IT.
+   *
+   * Grid items stretch by default, so every card in a row took the height of
+   * the tallest — and .q-card-foot pins itself to the bottom with margin:auto,
+   * so all the difference collected as one empty band above the price. A
+   * package with one classification sitting beside one with six measured 450px
+   * of content in a 747px card: nearly three hundred pixels of nothing, with
+   * the foot marooned at the bottom of it.
+   *
+   * Aligning the feet across a row is the thing being given up, and it is
+   * worth giving up. A catalogue's packages are not equal in what they say,
+   * and a ragged bottom edge is honest about that where a column of empty
+   * space reads as a page that failed to load.
+   */
+  align-items: start;
 }
 
 /* ==========================================================================
@@ -2813,6 +2829,60 @@ body {
   .q-grid-rows .q-facts { flex: 0 1 auto; flex-wrap: wrap; }
   .q-grid-rows .q-card-foot { justify-content: space-between; }
 }
+
+/* ==========================================================================
+   Catalogue cards and rows ask about THEMSELVES, not about the window
+   ==========================================================================
+
+   A catalogue card's width comes from the GRID, not from the viewport. At a
+   1200px window the grid lays out four columns of 282px each — narrow cards on
+   a wide screen — and every rule written as a viewport media query is told the
+   opposite of what the card is experiencing.
+
+   That is not theoretical. .q-facts gives its label column a fixed 6.5rem and
+   there was already a rule to drop that column when there is no room for two,
+   sitting inside a max-width media query. On a 282px card at a 1200px window
+   the media query never fired, so 104px of a 282px card — thirty-seven per
+   cent of it — went to the word OCCASION, its four values stacked one per
+   line, the card grew to 803px tall, and every sibling in the row stretched to
+   match it. That is the empty space in the catalogue.
+
+   The row view fails the same way from the other end. Its columns compete for
+   one line and every one of them may shrink to nothing, so the deliverables
+   line was measured at 8px wide — rendering as "3," — while the question count
+   wrapped onto four lines and made a 111px row out of an 83px one. Its only
+   breakpoint stacked the row at 760px, by which point it had been broken for
+   four hundred pixels.
+
+   So both ask their own width. Scoped to these two grids rather than to
+   .q-card everywhere, because container-type changes how an element sizes and
+   a card in a form has no business being containerised. */
+
+.q-grid-cards > .q-card,
+.q-grid-rows > .q-card { container-type: inline-size; }
+
+/* A card too narrow for a key beside its values puts the key above them —
+   the same answer the viewport rule gave, now asked of the right thing. */
+@container (max-width: 23rem) {
+  .q-facts { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .q-fact-key { grid-column: 1; }
+}
+
+/* WHAT A ROW GIVES UP, AND IN WHICH ORDER.
+   Least useful first: the question count is a footnote, and the deliverables
+   line is a summary of what the classifications below already imply. The
+   cover, the name, the price and Book never go — they are the row. Dropped
+   rather than crushed, because a column narrowed to 8px is not information,
+   it is the appearance of a broken page. */
+@container (max-width: 68rem) {
+  .q-grid-rows > .q-card > .q-meta-sm { display: none; }
+}
+@container (max-width: 56rem) {
+  .q-grid-rows > .q-card > .q-lead { display: none; }
+}
+/* Whatever survives, survives on one line. */
+.q-grid-rows > .q-card > .q-meta-sm { white-space: nowrap; }
+.q-grid-rows .q-lead { min-width: 5rem; }
 
 /* The air between a catalogue and the retired things below it. Conditional in
    the markup — there is nothing to separate when nothing is offered — but the
