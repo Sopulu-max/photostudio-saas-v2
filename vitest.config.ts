@@ -36,6 +36,15 @@ export default defineConfig({
      * Sequential costs about half a minute and buys a red run meaning something.
      */
     fileParallelism: false,
+    /*
+     * Sweeps the studios an INTERRUPTED run leaves in the shared database.
+     * Each suite still purges its own in afterAll — that stays the first line
+     * of defence — and this only catches what a Ctrl-C, a timeout or a dropped
+     * connection stopped from running. Ten of eleven organizations here were
+     * that debris before it was swept by hand once; this is so it is not by
+     * hand again.
+     */
+    globalSetup: ['./tests/globalTeardown.ts'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
