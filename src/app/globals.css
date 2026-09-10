@@ -137,21 +137,15 @@
   /*
    * The two slow ones, and they exist because this palette had no patience in
    * it. Nothing in the file ran longer than 440ms, so every gesture the app
-   * made was a snap — correct, quick, and completely unmoving. A photograph
-   * settling into place is not a state change to be got over with; it is the
-   * moment the card is for.
+   * made was a snap — correct, quick, and completely unmoving.
    *
-   * dur-4 is a movement you watch happen. dur-5 is one that finishes after you
-   * have stopped watching, which is where the calm comes from.
+   * Kept for what RESPONDS to the hand - a lift, a shadow spreading behind it -
+   * not for arrival. Under D6 nothing on a sheet arrives; a print may settle,
+   * inside 200ms, and only when it is carrying a photograph into place.
    */
   --q-dur-4: 620ms;
   --q-dur-5: 1100ms;
-  /*
-   * The stagger between one card and the next. Small enough that the grid
-   * reads as one motion rather than a queue, large enough to be a rhythm and
-   * not a smear.
-   */
-  --q-beat: 65ms;
+
   --q-transition-snappy: all var(--q-dur-2) var(--q-ease);
 }
 
@@ -484,16 +478,7 @@ body::before {
 .q-text-struck { color: var(--q-color-ink-500); text-decoration: line-through; }
 .q-bg-surface-base { background: var(--q-color-paper-base); }
 
-/*
- * THE HEADER LEADS, because it is what the page is called.
- *
- * Every stack under it rises on the beat and the header simply was, already
- * there, while the content arrived beneath it. So the page announced itself
- * before it had a name for what it was announcing. It goes first now, on the
- * same clock, and the first section follows one beat behind it.
- */
 .q-page-header {
-  animation: q-slide-up var(--q-dur-4) var(--q-ease) backwards;
   margin-bottom: 40px;
   display: flex;
   flex-wrap: wrap;
@@ -2244,10 +2229,6 @@ body::before {
     transform var(--q-dur-3) var(--q-ease),
     box-shadow var(--q-dur-4) var(--q-ease),
     border-color var(--q-dur-2) var(--q-ease);
-  animation: q-poster-in var(--q-dur-4) var(--q-ease) backwards;
-  /* Capped, because the twelfth card should not wait a second and a half for
-     its turn. Past the cap the rest of the grid arrives together. */
-  animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat));
 }
 
 /* THE PHOTOGRAPH. Its own layer, its own transform, its own clock. */
@@ -2261,8 +2242,6 @@ body::before {
   transform: scale(1);
   transform-origin: center;
   transition: transform var(--q-dur-4) var(--q-ease);
-  animation: q-poster-focus var(--q-dur-5) var(--q-ease) backwards;
-  animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat));
   pointer-events: none;
 }
 
@@ -2323,27 +2302,12 @@ body::before {
 .q-poster > * { position: relative; z-index: 1; }
 
 /*
- * The card rises and fades. No scale on the box: a card that scales up drags
- * its own text through a blur on the way, and the words are the one thing here
- * that must be legible from the very first frame.
+ * NO ARRIVAL. The grid this sits in is a sheet, and a sheet is simply there
+ * (D6). What made the poster a print - the photograph on its own layer, the
+ * vignette, the grain, the shadow that lags the lift - is all still here; it
+ * was never the motion that did that work. The hover response stays because
+ * it answers the hand rather than making the reader wait.
  */
-@keyframes q-poster-in {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-/*
- * A LENS FINDING FOCUS.
- *
- * The photograph starts 8% too close and eases out to true over dur-5, nearly
- * twice as long as the card takes to arrive - so the image is still settling
- * after the words have stopped. That overlap is where the slowness lives. Run
- * it in the card's own duration and the two motions collapse into one event;
- * let it run long and the card keeps breathing after it has landed.
- */
-@keyframes q-poster-focus {
-  from { opacity: 0.55; transform: scale(1.08); }
-  to   { opacity: 1;    transform: scale(1); }
-}
 .q-poster-title { color: #fff; font-weight: 640; font-size: 0.98rem; line-height: 1.25; }
 .q-poster-note { color: rgba(255, 255, 255, 0.72); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
 
@@ -2553,36 +2517,6 @@ body::before {
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
 }
 .q-poster-tall .q-poster-note { font-size: 0.82rem; }
-
-/*
- * THE CASCADE INSIDE THE CARD.
- *
- * The grid's stagger gives the page a beat between cards. This gives each card
- * a beat of its own: the name, then what they receive, then what it is for,
- * then the footnotes - four steps, 70ms apart, in the order a reader wants
- * them. Everything arriving at once is not faster to read; it is a wall.
- *
- * --i inherits from the card, so each delay is the card's own place in the
- * grid PLUS its offset within the card. The two rhythms compose rather than
- * fighting: the ninth card's promise line still lands one beat after its name.
- *
- * 8px and dur-3, which is half the card's own travel. A part of a thing must
- * move less than the thing.
- */
-.q-poster-title,
-.q-poster-promise,
-.q-poster-tags,
-.q-poster-notes {
-  animation: q-poster-rise var(--q-dur-3) var(--q-ease) backwards;
-}
-.q-poster-title  { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 140ms); }
-.q-poster-promise{ animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 210ms); }
-.q-poster-tags   { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 280ms); }
-.q-poster-notes  { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 340ms); }
-@keyframes q-poster-rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 
 /* The price, top-right, opposite the name. On the scrim rather than under the
    card, because the picture is the card. */
@@ -2975,28 +2909,21 @@ body::before {
  * its ordinary styles, and hover is one of them.
  */
 /*
- * ONE CLOCK FOR THE WHOLE APP.
+ * A SHEET DOES NOT ARRIVE. IT IS SIMPLY THERE.                        (D6)
  *
- * This ran at dur-3 in 40ms steps, which was the fastest thing in the file
- * pretending to be a rhythm: forty milliseconds is under the interval at which
- * the eye separates two events, so six sections did not arrive one after
- * another, they arrived in a blur that happened to finish late. And it was a
- * different tempo from the one the catalogue's posters keep, so two screens of
- * the same product moved to two different beats.
+ * This was an entrance: dur-4 travel, one --q-beat between siblings, so six
+ * form sections assembled over most of a second. It was built to feel calm,
+ * and calm is the wrong register for a front desk with a client on the line.
+ * Every surface that carries this class is a sheet - intake, the lists, the
+ * settings - and a sheet is scanned, not watched.
  *
- * dur-4 and --q-beat, the same pair the poster settles on. Every stack in the
- * app now assembles at one tempo, which is the difference between a set of
- * well-made screens and a product with a pulse.
+ * The class stays in the markup and does nothing, rather than being stripped
+ * from forty call sites: it names the intent "this is a sheet", which is
+ * worth keeping even though the motion is not. The step marks and the
+ * focus-within lift on sections survive, because they answer "where am I" -
+ * and a pressured operator needs that more than a calm one does.
  */
-.q-rise { animation: q-slide-up var(--q-dur-4) var(--q-ease) backwards; }
-.q-rise:nth-child(1) { animation-delay: 0ms; }
-.q-rise:nth-child(2) { animation-delay: calc(1 * var(--q-beat)); }
-.q-rise:nth-child(3) { animation-delay: calc(2 * var(--q-beat)); }
-.q-rise:nth-child(4) { animation-delay: calc(3 * var(--q-beat)); }
-.q-rise:nth-child(5) { animation-delay: calc(4 * var(--q-beat)); }
-.q-rise:nth-child(6) { animation-delay: calc(5 * var(--q-beat)); }
-.q-rise:nth-child(7) { animation-delay: calc(6 * var(--q-beat)); }
-.q-rise:nth-child(n+8) { animation-delay: calc(7 * var(--q-beat)); }
+.q-rise { animation: none; }
 
 @media print { .hide-on-print { display: none !important; } }
 
