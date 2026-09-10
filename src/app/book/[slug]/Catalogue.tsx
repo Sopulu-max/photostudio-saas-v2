@@ -3,6 +3,10 @@
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { formatMoney } from '@/kernel/currency';
+import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+// A count, set apart from the thing being counted — the same component the
+// studio's own catalogue uses, so a package reads the same to both.
+import { Counted } from '@/components/Counted';
 
 type Money = { amount: number; currency: string | null };
 
@@ -209,7 +213,18 @@ export function Catalogue({
             || (pkg.description
               ? pkg.description.slice(0, 120).trimEnd() + (pkg.description.length > 120 ? '…' : '')
               : null);
-          const deliverables = (pkg.deliverables || []).map((d) => d.name).filter(Boolean);
+          /*
+           * WITH THE QUANTITY, WHICH THE CLIENT WAS NOT BEING TOLD.
+           *
+           * This mapped d.name and dropped d.quantity, so the card said
+           * "Edited photographs" while the studio's own catalogue said "20
+           * Edited photographs" — the person actually paying was told less
+           * about what they were buying than the person selling it.
+           * formatDeliverable is what every other surface uses to say this.
+           */
+          const promises = (pkg.deliverables || [])
+            .map((d) => formatDeliverable(d as any))
+            .filter(Boolean);
 
           return (
             <Link
@@ -231,15 +246,34 @@ export function Catalogue({
               )}
 
               <span className="q-poster-title">{pkg.name}</span>
-              {note && <span className="q-poster-note">{note}</span>}
 
-              {deliverables.length > 0 && (
-                <span className="q-poster-tags">
-                  {deliverables.slice(0, 3).map((d) => (
-                    <span key={d} className="q-poster-tag">{d}</span>
+              {/*
+                * WHAT THEY RECEIVE, DIRECTLY UNDER THE NAME.
+                *
+                * It was a row of small pills at the foot of the card, below the
+                * sentence — the quietest thing on a card whose whole job is
+                * helping somebody choose between three packages. What arrives
+                * is the substance of the offer, and the number is what
+                * separates one portrait sitting from the next, so the count
+                * leads and the words step back.
+                *
+                * Capped at three. A package promising six things must not make
+                * a taller card than one promising two — they sit in a grid.
+                */}
+              {promises.length > 0 && (
+                <span className="q-poster-promise">
+                  {promises.slice(0, 3).map((t, i) => (
+                    <React.Fragment key={t}>
+                      {i > 0 && <span className="q-poster-promise-sep"> · </span>}
+                      <Counted text={t} />
+                    </React.Fragment>
                   ))}
                 </span>
               )}
+
+              {/* The studio's own sentence, under what it buys rather than
+                  above it: prose persuades, the promise informs. */}
+              {note && <span className="q-poster-note">{note}</span>}
             </Link>
           );
         })}
