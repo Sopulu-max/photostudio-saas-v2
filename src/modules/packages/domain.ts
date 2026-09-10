@@ -781,19 +781,50 @@ async function copyPackage(
       status: as.status,
     })
     .select('id, name, price').single();
-  if (error || !copy) { console.error('Failed to copy package:', error); throw new Error('Failed to copy the package'); }
+  if (error || !copy) { console.error('Failed to copy package:', error); throw dbError('Failed to copy the package', error); }
   const made = { id: copy.id as string, name: copy.name as string, price: (copy.price || {}) as Record<string, unknown> };
+
+  /*
+   * A COPY THAT FAILS HALFWAY TAKES ITSELF BACK OUT.
+   *
+   * The package row is written first and everything else hangs off it, so any
+   * failure after this point used to leave a package nothing pointed at.
+   * instantiatePackageForBooking runs BEFORE the booking exists, so a client
+   * whose submission died in the copy left an instance behind — and Temitope's
+   * 22 retries against the sessionless-copy bug left 22 of them, invisible in
+   * the catalogue because instances are filtered out of it.
+   *
+   * The sessionless bug is fixed, but the shape of the fault is not about that
+   * bug: a dropped connection between here and the last carry does the same
+   * thing, and this database has dropped plenty this week.
+   *
+   * PostgREST gives no transaction to roll back, so the compensation is
+   * explicit. Deleting the package cascades its bundle rows and everything
+   * hanging off them, which is why one delete is enough.
+   *
+   * The cleanup's own failure is logged and swallowed: whatever went wrong
+   * first is what the caller needs to hear about, and a studio told "could not
+   * tidy up after a failure" learns nothing it can act on.
+   */
+  const undo = async (cause: unknown): Promise<never> => {
+    const { error: undoError } = await supabaseAdmin
+      .from('packages').delete().eq('id', made.id).eq('organization_id', orgId);
+    if (undoError) {
+      console.error(`Left a half-copied package behind (${made.id}):`, undoError);
+    }
+    throw cause instanceof Error ? cause : dbError('Failed to copy the package', cause);
+  };
 
   // Everything else hangs off a bundle row, so the copy's rows are matched back
   // to the originals by service and every link is rewritten through that map.
   // Nothing here can be copied by carrying an id across.
-  const original = await bundleRows(orgId, packageId);
+  const original = await bundleRows(orgId, packageId).catch(undo);
   if (original.length === 0) return made;
 
   const { data: inserted, error: bundleError } = await supabaseAdmin.from('package_services')
     .insert(original.map((s) => ({ organization_id: orgId, package_id: copy.id, service_id: s.service_id, position: s.position })))
     .select('id, service_id');
-  if (bundleError) { console.error('Failed to copy the bundle:', bundleError); throw new Error('Failed to copy the package'); }
+  if (bundleError) { console.error('Failed to copy the bundle:', bundleError); await undo(dbError('Failed to copy the package', bundleError)); }
 
   const copyRowOf = new Map(((inserted || []) as any[]).map((s) => [s.service_id as string, s.id as string]));
   const serviceOfOriginal = new Map(original.map((s) => [s.id, s.service_id]));
@@ -841,9 +872,11 @@ async function copyPackage(
       .map(({ r, to }) => shape(r, to));
     if (links.length === 0) return;
     const { error } = await supabaseAdmin.from(table).insert(links);
-    if (error) { console.error(`Failed to copy ${table}:`, error); throw new Error('Failed to copy the package'); }
+    if (error) { console.error(`Failed to copy ${table}:`, error); await undo(dbError('Failed to copy the package', error)); }
   };
 
+  /* Every carry inside, so a rejection from any of them lands in undo rather
+     than escaping with the half-made package still there. */
   await Promise.all([
     /* orgId passed, not read: copyPackage runs for a client instancing a
        package on the public page, who has no session. */
@@ -877,7 +910,7 @@ async function copyPackage(
       workflow_task_id: r.workflow_task_id, name: r.name,
       role_id: r.role_id, position: r.position, is_active: r.is_active,
     })),
-  ]);
+  ]).catch(undo);
 
   return made;
 }
