@@ -109,6 +109,68 @@ export type ServiceOption = {
   domainName: string;
 };
 
+/*
+ * WHY A CONSEQUENCE CANNOT HAPPEN YET - said once.
+ *
+ * submitBooking already worked all of this out, and it already had the words:
+ * it pushes "an invoice (nothing is priced yet)", "a contract (no client yet)"
+ * and "the client confirmation (no client yet)" onto `skipped` and reports them
+ * afterwards. Meanwhile the four cards on the page carried a hand-written
+ * approximation of the same three facts, in prose, written out separately -
+ * "Nothing above is priced yet, so no invoice is raised with this booking", "A
+ * contract is an agreement with someone, so this needs a client", and so on.
+ *
+ * So the page and the submit each knew the truth and stated it in different
+ * words, in different places, and could drift apart with any change to either.
+ * These are the one statement of it. The render calls them with what it has
+ * (the lines as typed, and `client` - because a client typed in but not yet
+ * saved still becomes one on submit, which the contract guard already knew);
+ * submit calls them with its own resolved values. Same rules, one place, and
+ * nothing to keep in step by hand.
+ */
+/*
+ * THEY TAKE ANSWERS, NOT LINES - and the reason is a trap worth naming.
+ *
+ * `linePrice` means two different things in this file. In render state it is a
+ * STRING, whatever is in the number box: `linePrice: string`, "20000". By the
+ * time submitBooking has built its lines it is a STORED PRICE OBJECT -
+ * `agreedPrice`, either {amount, currency} or {} for unpriced. hasPrice() reads
+ * the object form, so calling it on the render string returns false for every
+ * line, always: a fully priced booking reported "nothing is priced yet" while
+ * submit went ahead and raised the invoice correctly.
+ *
+ * Which is the argument for these functions rather than against them. Two
+ * copies of the rule drifted silently for as long as they existed; one copy
+ * that takes the ANSWER instead of the shape cannot, and each caller decides
+ * what "priced" means in the units it actually holds.
+ */
+export function invoiceBlockedBecause(priced: boolean[]): string | null {
+  return priced.some(Boolean) ? null : 'nothing is priced yet';
+}
+
+export function contractBlockedBecause(priced: boolean[], hasClient: boolean): string | null {
+  if (!hasClient) return 'no client yet';
+  if (priced.length === 0) return 'nothing on it yet';
+  if (!priced.every(Boolean)) return 'not every package is priced';
+  return null;
+}
+
+/**
+ * A price the operator has actually typed, as opposed to an empty box.
+ *
+ * The same test submitBooking applies before it stores one, and for the same
+ * stated reason: an empty box is not zero, and `Number('') || 0` writes a real
+ * 0 that reads downstream as "this shoot is free".
+ */
+export function priceWasTyped(raw: string): boolean {
+  const t = (raw ?? '').trim();
+  return t !== '' && Number.isFinite(Number(t));
+}
+
+export function confirmationBlockedBecause(hasClient: boolean): string | null {
+  return hasClient ? null : 'no client yet';
+}
+
 export function NewBookingForm({ 
   clients, 
   packages,
@@ -704,6 +766,18 @@ export function NewBookingForm({
   const invoiceShare = 1;
   const invoiceLabel = null;
 
+  /*
+   * WHAT WILL NOT BE RAISED YET, AND WHY - from the same helpers submit uses.
+   *
+   * `client` rather than clientId, because a client typed in but not yet saved
+   * still becomes one on submit; the contract's own guard already made that
+   * point and this keeps it true for all three.
+   */
+  const linesPriced = lines.map((l) => priceWasTyped(l.linePrice));
+  const invoiceWaiting = invoiceBlockedBecause(linesPriced);
+  const contractWaiting = contractBlockedBecause(linesPriced, Boolean(client));
+  const confirmationWaiting = confirmationBlockedBecause(Boolean(client));
+
   const draftInvoice = (() => {
     const rows = lines
       .filter((l) => l.packageId && l.linePrice.trim() !== '')
@@ -1020,8 +1094,12 @@ export function NewBookingForm({
          * enquiry, not a fault, so it is checked here rather than discovered by
          * a throw — and it is a skip, not a failure.
          */
-        if (!submitLines.some((l) => hasPrice(l.linePrice))) {
-          skipped.push('an invoice (nothing is priced yet)');
+        /* Stored objects by now, not typed strings - see the note on
+           these helpers. */
+        const submitPriced = submitLines.map((l) => hasPrice(l.linePrice));
+        const invoiceBlocked = invoiceBlockedBecause(submitPriced);
+        if (invoiceBlocked) {
+          skipped.push(`an invoice (${invoiceBlocked})`);
         } else {
           try {
             const { invoiceId } = await createInvoiceForBooking({
@@ -1102,13 +1180,7 @@ export function NewBookingForm({
          * A missing client is an expected state here, not a fault, so it is
          * checked before the call rather than discovered by one.
          */
-        const contractNeeds = !finalContactId
-          ? 'no client yet'
-          : submitLines.length === 0
-            ? 'nothing on it yet'
-            : !submitLines.every((l) => hasPrice(l.linePrice))
-              ? 'not every package is priced'
-              : null;
+        const contractNeeds = contractBlockedBecause(submitPriced, Boolean(finalContactId));
         if (contractNeeds) {
           skipped.push(`a contract (${contractNeeds})`);
         } else {
@@ -1144,10 +1216,11 @@ export function NewBookingForm({
          * prepare is a button on the booking page, not a lost booking.
          */
         if (prepareConfirmation) {
-          if (!finalContactId) {
+          const confirmationBlocked = confirmationBlockedBecause(Boolean(finalContactId));
+          if (confirmationBlocked) {
             // A document addressed to nobody. Expected rather than broken, so
             // it is a skip and reads as one.
-            skipped.push('the client confirmation (no client yet)');
+            skipped.push(`the client confirmation (${confirmationBlocked})`);
           } else {
             try {
               await shareBooking({ bookingId });
@@ -1916,6 +1989,54 @@ export function NewBookingForm({
       </div>
 
       {/*
+        * ============================================================
+        * WHAT FOLLOWS FROM THE BOOKING - one region, not four steps.
+        * ============================================================
+        *
+        * Measured on this page with nothing entered, which is how it is
+        * normally met: Tasks 169px with ZERO controls, Invoice 474px,
+        * Contract 413px, Confirmation 214px. Twelve hundred and seventy
+        * pixels - forty-six per cent of the page - across four numbered
+        * steps whose entire content, in that state, is the same three
+        * sentences four times over: here is what this document is, here is
+        * why it cannot happen yet, and it can be done later from the
+        * booking itself.
+        *
+        * They were never steps. Tasks arrive from the workflow of a package
+        * chosen in section 2. An invoice is raised from packages priced in
+        * section 2. A contract and a confirmation are addressed to the
+        * client named in section 1. Every one of them is a CONSEQUENCE of
+        * the two sections above, and drawing them as four peers of those
+        * sections told the operator that taking a booking is six equal jobs
+        * when it is two questions and their results.
+        *
+        * That is also why motion could not fix this page. Six identical
+        * cards SAY six equal things; staggering their arrival only makes
+        * six equal things arrive politely.
+        *
+        * So: one step, four entries, each in proportion to whether there is
+        * anything to decide in it yet. Dormant, an entry is a line saying
+        * what it is waiting for. Live, it is exactly the controls it always
+        * had, unchanged - every field still bound to the same state and
+        * still read by submitBooking the same way.
+        *
+        * The region therefore GROWS as the booking takes shape: name a
+        * client and the contract and the confirmation come alive; price a
+        * package and the invoice fills in; choose a package with a workflow
+        * and the work appears. Nothing is disclosed by a control the
+        * operator has to find and open - it is derived from what has been
+        * entered, which is this codebase's own rule that silence is
+        * permission and relatedness is never declared.
+        */}
+      <div className="q-card q-section q-rise">
+        <h2 className="q-section-title">3. What follows</h2>
+        <p className="q-meta" style={{ marginBottom: '20px' }}>
+          Raised with the booking from what is above. Each fills in as the
+          booking is filled in, and all of them can be changed on the booking
+          afterwards.
+        </p>
+        <div className="q-stack q-stack-md">
+      {/*
         * The work this booking involves, collated across its packages.
         *
         * Read-only for the package-derived tasks, because those are what each
@@ -1927,8 +2048,8 @@ export function NewBookingForm({
         * package — a venue visit, an album collection — which previously had
         * nowhere to live at all.
         */}
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">3. Tasks</h2>
+        <div className="q-subsection">
+          <h3 className="q-subsection-title">Work</h3>
 
         {(() => {
           /*
@@ -2009,11 +2130,10 @@ export function NewBookingForm({
           return (
             <div className="q-stack q-stack-md">
               {work.length === 0 ? (
-                <p className="q-meta">
-                  Nothing to do yet. Work arrives from a service&rsquo;s workflow, set in Services
-                  settings. A step belonging to this booking alone can be added on the booking
-                  once it exists.
-                </p>
+                /* One line. This was three sentences explaining where work
+                   comes from and what could be added later - a tutorial, in
+                   the state where there is nothing to tutor about. */
+                <p className="q-meta-sm">No steps yet &mdash; no package with a workflow on the booking.</p>
               ) : (
                 <>
                   <p className="q-meta">
@@ -2121,6 +2241,13 @@ export function NewBookingForm({
           * those three steps were listed directly above it. A section's figure
           * contradicting the section is worse than no figure.
           */}
+        {/* Only when there is work to total. Empty, the band read "No work
+            defined yet" directly beneath a line that had just said the same
+            thing - and being the one boxed element in a region of plain
+            lines, the emptiest entry was drawn as the loudest. Its own note
+            below makes the argument: a figure contradicting its section is
+            worse than no figure, and so is one merely repeating it. */}
+        {tasksFromPackages.length > 0 && (
         <div className="q-card-foot">
           {(() => {
             const total = tasksFromPackages.length;
@@ -2158,6 +2285,7 @@ export function NewBookingForm({
             );
           })()}
         </div>
+        )}
       </div>
 
       {/*
@@ -2167,8 +2295,15 @@ export function NewBookingForm({
         * exists, because both are built FROM its packages — so both are raised
         * the moment it is saved, and both are editable on it afterwards.
         */}
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">4. Invoice</h2>
+        <div className="q-subsection">
+          <h3 className="q-subsection-title">Invoice</h3>
+          {invoiceWaiting ? (
+            /* Nothing to decide until its precondition is met, so nothing
+               is asked. The controls that used to stand here took input and
+               discarded it: submitBooking raises none of these when this is
+               set, so a due date or a discount typed in went nowhere. */
+            <p className="q-meta-sm">Not raised &mdash; {invoiceWaiting}.</p>
+          ) : (<>
         <p className="q-meta" style={{ marginBottom: '16px' }}>
           Created as a draft with one line per package. Issue it when ready.
         </p>
@@ -2462,10 +2597,18 @@ export function NewBookingForm({
             </span>
           )}
         </div>
+          </>)}
       </div>
 
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">5. Contract</h2>
+        <div className="q-subsection">
+          <h3 className="q-subsection-title">Contract</h3>
+          {contractWaiting ? (
+            /* Nothing to decide until its precondition is met, so nothing
+               is asked. The controls that used to stand here took input and
+               discarded it: submitBooking raises none of these when this is
+               set, so a due date or a discount typed in went nowhere. */
+            <p className="q-meta-sm">Not raised &mdash; {contractWaiting}.</p>
+          ) : (<>
         {/*
           * WHAT A CONTRACT IS, AND WHETHER THIS STUDIO HAS ONE.
           *
@@ -2547,14 +2690,22 @@ export function NewBookingForm({
           * thing on it that needs a name to be an agreement with.
           */}
 
+          </>)}
       </div>
 
       {/* q-rise like the five above it. Without it the last step was the
           one thing on the page that did not arrive — it was simply
           already there, which broke the run at exactly the end, where a
           rhythm is most noticeable for stopping. */}
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">6. Client confirmation</h2>
+        <div className="q-subsection">
+          <h3 className="q-subsection-title">Client confirmation</h3>
+          {confirmationWaiting ? (
+            /* Nothing to decide until its precondition is met, so nothing
+               is asked. The controls that used to stand here took input and
+               discarded it: submitBooking raises none of these when this is
+               set, so a due date or a discount typed in went nowhere. */
+            <p className="q-meta-sm">Not prepared &mdash; {confirmationWaiting}.</p>
+          ) : (<>
         {/*
           * THE SECOND DOCUMENT, BESIDE THE FIRST.
           *
@@ -2598,6 +2749,10 @@ export function NewBookingForm({
             </span>
           </span>
         </label>
+          </>)}
+      </div>
+
+        </div>
       </div>
 
       {/*
