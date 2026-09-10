@@ -210,6 +210,35 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * THE GROUND IS PAPER, NOT A COLOUR VALUE.
+ *
+ * Lumen is described in this repo as warm gallery-paper neutrals, and the
+ * ground delivering that was #F4F3F0 - a flat fill, which is what every other
+ * application on the machine also has. The difference between a colour and a
+ * material is texture, and it takes three and a half percent of it: below
+ * that there is nothing there, above it the app looks dirty.
+ *
+ * FIXED, not scrolling. Paper does not slide around under the ink; the page
+ * moves and the grain stays where it is, which is the whole reason this reads
+ * as a surface the app is printed on rather than an overlay laid across it.
+ * Scroll it and the illusion inverts immediately.
+ *
+ * Behind everything at z-index -1, pointer-events off, and it inherits from
+ * nothing - so it is identical in both palettes. On the light ground it reads
+ * as paper stock; on the dark one, as film. Both are the same idea, and the
+ * poster's own grain is now the close-up of this.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23p)' opacity='0.035'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  pointer-events: none;
+}
+
 ::selection { background: var(--q-color-accent-soft); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -451,7 +480,16 @@ body {
 .q-text-struck { color: var(--q-color-ink-500); text-decoration: line-through; }
 .q-bg-surface-base { background: var(--q-color-paper-base); }
 
+/*
+ * THE HEADER LEADS, because it is what the page is called.
+ *
+ * Every stack under it rises on the beat and the header simply was, already
+ * there, while the content arrived beneath it. So the page announced itself
+ * before it had a name for what it was announcing. It goes first now, on the
+ * same clock, and the first section follows one beat behind it.
+ */
 .q-page-header {
+  animation: q-slide-up var(--q-dur-4) var(--q-ease) backwards;
   margin-bottom: 40px;
   display: flex;
   flex-wrap: wrap;
@@ -640,12 +678,26 @@ body {
 }
 .q-input::placeholder,
 .q-textarea::placeholder { color: var(--q-color-ink-400); }
+/*
+ * A FIELD BLOOMS. It snapped: a 3px ring in dur-2, which is a state change
+ * being reported rather than a control waking up. dur-3 and a wider, softer
+ * halo — the field acknowledges the caret over about the time it takes to
+ * start typing, and it is the smallest gesture in the app that the operator
+ * will see a hundred times a day.
+ */
+.q-input,
+.q-select,
+.q-textarea {
+  transition:
+    border-color var(--q-dur-3) var(--q-ease),
+    box-shadow var(--q-dur-3) var(--q-ease);
+}
 .q-input:focus,
 .q-select:focus,
 .q-textarea:focus {
   outline: none;
   border-color: var(--q-color-accent);
-  box-shadow: 0 0 0 3px var(--q-color-accent-soft);
+  box-shadow: 0 0 0 4px var(--q-color-accent-soft);
 }
 .q-textarea { resize: vertical; min-height: 96px; }
 .q-input-lg { padding: 14px 16px; font-size: 1rem; }
@@ -885,7 +937,70 @@ body {
   margin: 0;
 }
 
-.q-section-title  { font-size: 1.05rem; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.01em; }
+/*
+ * A SECTION IS A STEP, AND A STEP SHOULD LOOK LIKE ONE.
+ *
+ * Six cards down a page are six boxes. The same six with a mark against each
+ * heading are a path — and a booking form IS a path: a date, then a client,
+ * then what they are buying, then the work, then the money, then the
+ * agreement. The card said "here is a group of fields" and the page said
+ * nothing at all about being a sequence, which is the one thing it is.
+ *
+ * A rule rather than a number, because the numbers are already in the headings
+ * and a mark that repeats what the words say is decoration. This says
+ * something the words cannot: which step is live. See :focus-within below.
+ */
+.q-section-title {
+  position: relative;
+  padding-left: 15px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 16px;
+  letter-spacing: -0.01em;
+}
+.q-section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.12em;
+  bottom: 0.12em;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--q-color-ink-200);
+  transition:
+    background-color var(--q-dur-4) var(--q-ease),
+    box-shadow var(--q-dur-4) var(--q-ease);
+}
+
+/*
+ * THE STEP YOU ARE STANDING IN.
+ *
+ * The whole feeling of filling in a long form is whether the thing you are
+ * working on knows you are working on it. This page had six identical cards
+ * and no answer to "where am I" except the scroll position — so the rhythm of
+ * getting a booking down was: read, type, read, type, with the page holding
+ * perfectly still throughout like a printed sheet.
+ *
+ * :focus-within, so it costs no state and no JavaScript: put the cursor
+ * anywhere inside a step and the step warms, its shadow deepens, and its mark
+ * lights. Take the cursor away and it settles back over dur-4 — slowly, so
+ * moving between two fields in one step never flickers.
+ *
+ * AND DELIBERATELY NO TRANSFORM. A card you HOVER may move: your hand is on a
+ * pointer and nothing is under it but the card. A card you are TYPING IN must
+ * not move a pixel, or the field slides out from under the caret at the moment
+ * of most concentration. The poster lifts because it is a print you pick up;
+ * this glows because it is a page you write on. Same vocabulary, opposite
+ * gesture, and the difference is what the reader is doing with their hands.
+ */
+.q-section:focus-within {
+  border-color: color-mix(in srgb, var(--q-color-accent) 34%, var(--q-color-ink-100));
+  box-shadow: var(--q-shadow-md);
+}
+.q-section:focus-within > .q-section-title::before {
+  background: var(--q-color-accent);
+  box-shadow: 0 0 0 3px var(--q-color-accent-soft);
+}
 
 /*
  * A PART OF A SECTION, WHICH IS NOT ITSELF A SECTION.
@@ -2855,15 +2970,29 @@ body {
  * point of a stagger, and then gets out of the way. The element goes back to
  * its ordinary styles, and hover is one of them.
  */
-.q-rise { animation: q-slide-up var(--q-dur-3) var(--q-ease) backwards; }
+/*
+ * ONE CLOCK FOR THE WHOLE APP.
+ *
+ * This ran at dur-3 in 40ms steps, which was the fastest thing in the file
+ * pretending to be a rhythm: forty milliseconds is under the interval at which
+ * the eye separates two events, so six sections did not arrive one after
+ * another, they arrived in a blur that happened to finish late. And it was a
+ * different tempo from the one the catalogue's posters keep, so two screens of
+ * the same product moved to two different beats.
+ *
+ * dur-4 and --q-beat, the same pair the poster settles on. Every stack in the
+ * app now assembles at one tempo, which is the difference between a set of
+ * well-made screens and a product with a pulse.
+ */
+.q-rise { animation: q-slide-up var(--q-dur-4) var(--q-ease) backwards; }
 .q-rise:nth-child(1) { animation-delay: 0ms; }
-.q-rise:nth-child(2) { animation-delay: 40ms; }
-.q-rise:nth-child(3) { animation-delay: 80ms; }
-.q-rise:nth-child(4) { animation-delay: 120ms; }
-.q-rise:nth-child(5) { animation-delay: 160ms; }
-.q-rise:nth-child(6) { animation-delay: 200ms; }
-.q-rise:nth-child(7) { animation-delay: 240ms; }
-.q-rise:nth-child(n+8) { animation-delay: 280ms; }
+.q-rise:nth-child(2) { animation-delay: calc(1 * var(--q-beat)); }
+.q-rise:nth-child(3) { animation-delay: calc(2 * var(--q-beat)); }
+.q-rise:nth-child(4) { animation-delay: calc(3 * var(--q-beat)); }
+.q-rise:nth-child(5) { animation-delay: calc(4 * var(--q-beat)); }
+.q-rise:nth-child(6) { animation-delay: calc(5 * var(--q-beat)); }
+.q-rise:nth-child(7) { animation-delay: calc(6 * var(--q-beat)); }
+.q-rise:nth-child(n+8) { animation-delay: calc(7 * var(--q-beat)); }
 
 @media print { .hide-on-print { display: none !important; } }
 

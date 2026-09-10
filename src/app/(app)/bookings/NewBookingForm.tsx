@@ -2549,7 +2549,11 @@ export function NewBookingForm({
 
       </div>
 
-      <div className="q-card q-section">
+      {/* q-rise like the five above it. Without it the last step was the
+          one thing on the page that did not arrive — it was simply
+          already there, which broke the run at exactly the end, where a
+          rhythm is most noticeable for stopping. */}
+      <div className="q-card q-section q-rise">
         <h2 className="q-section-title">6. Client confirmation</h2>
         {/*
           * THE SECOND DOCUMENT, BESIDE THE FIRST.
