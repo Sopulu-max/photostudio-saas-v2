@@ -100,6 +100,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   initial,
   onSubmitOverride,
   hideControls,
+  embedded: embeddedProp,
   derivedFrom,
   derivedServiceIds,
 }: {
@@ -158,6 +159,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   lockedQuestionIds?: string[];
   onSubmitOverride?: (payload: any) => Promise<void> | void;
   hideControls?: boolean;
+  /** True when this editor sits inside another page's card, rather than being the page. */
+  embedded?: boolean;
   /*
    * The catalogue package this one is an instance OF, by name.
    *
@@ -190,16 +193,26 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [isPending, startTransition] = useTransition();
 
   /*
-   * Numbered only when this editor IS the form.
+   * INSIDE SOMEBODY ELSE'S PAGE, OR THIS PAGE.
    *
-   * hideControls means it is embedded — today, inside the new-booking form,
-   * which has its own "1. When & Who ... 4. Contract". Two numbered sequences on
-   * one page produced a section 1 nested inside section 2 and a section 3
-   * following a section 6, so Tasks read as buried rather than as a step. The
-   * headings stay; only the numbers, which belong to a sequence that is not
-   * running here, come off.
+   * It decides two things: whether the blocks are numbered, and whether they
+   * are cards. Numbered only when this editor IS the form — the new-booking
+   * form has its own "1. Date, client and request ... 6. Client confirmation",
+   * and two numbered sequences on one page produced a section 1 nested inside
+   * section 2 and a section 3 following a section 6.
+   *
+   * It used to be read off hideControls, which was true of the one embedding
+   * that existed at the time and false of the one added since: the booking
+   * EDIT page embeds this editor inside a q-card q-section and keeps its own
+   * Save, so it set no hideControls and got four cards inside that card
+   * regardless. Two different questions — "does this draw its own submit
+   * button" and "is this inside another page" — cannot share one flag, and the
+   * page that needed the second answer got the first one's.
+   *
+   * hideControls still implies it, so the existing call site keeps working
+   * without restating what it already said.
    */
-  const embedded = Boolean(hideControls);
+  const embedded = Boolean(embeddedProp ?? hideControls);
   /* An instance of a catalogue package, as opposed to something bespoke being
      written here for the first time. */
   const derived = Boolean(derivedFrom);
@@ -218,6 +231,23 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const [adjusting, setAdjusting] = useState(false);
   const heading = (n: number, title: string) => (embedded ? title : `${n}. ${title}`);
+
+  /*
+   * A SECTION WHEN THIS IS THE PAGE; A GROUP WHEN IT IS INSIDE ONE.
+   *
+   * These four blocks are the page's own numbered sections on /packages/new
+   * and /packages/[id]/edit, and a card is exactly right there. Embedded in
+   * the new-booking form they are not sections at all — the booking's own six
+   * are — and drawing them as cards put a card inside a card inside a card:
+   * measured at eight levels of nested surface and seventy-three surfaces in
+   * one section, which reads as a maze rather than as a step.
+   *
+   * The editor already knew it was embedded and used it to drop the numbering.
+   * This is the same fact applied to the chrome: inside somebody else's
+   * section, contribute content, not containers.
+   */
+  const blockClass = embedded ? 'q-subsection' : 'q-card q-section q-rise';
+  const blockTitle = embedded ? 'q-subsection-title' : 'q-section-title';
 
   /*
    * Declaring a variable while building the package.
@@ -1362,9 +1392,39 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
 
   return (
-    <div className="q-stack q-stack-lg">
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">{heading(1, "Package Identity")}</h2>
+    /*
+     * 24px between cards, 16px between groups. Embedded, this stack sits inside
+     * the host's own 16px one and the host contributes a fifth group of its own
+     * after it — so a wider gap in here made the seam between the fourth group
+     * and the fifth the one break in the run that measured differently, which
+     * is precisely the reading that made the section feel assembled from parts
+     * rather than composed of them.
+     */
+    <div className={embedded ? 'q-stack q-stack-md' : 'q-stack q-stack-lg'}>
+      {/*
+        * THE HOST'S CARD ALREADY SAID WHICH PACKAGE THIS IS.
+        *
+        * Embedded off the shelf, this block states the name — and the card it
+        * sits in is now titled with that same name, so the screen read
+        * "Studio Portrait Photography" as a card title, then "PACKAGE
+        * IDENTITY", then "CATALOGUE", then the name again: four labels above
+        * one description. Repetition of that kind IS the maze; it is not
+        * hierarchy, it just looks like it.
+        *
+        * So here it is the card's lede rather than a group of its own: the
+        * description and the note about the copy, with no heading and no
+        * surface, directly under the name that the card states once. Services
+        * then becomes the first group, and the rule above it is the first real
+        * seam on the card.
+        *
+        * Only when embedded AND derived. Bespoke, there is no name to have
+        * been stated — this block is where one gets written — and standalone
+        * this block IS section 1 of the page.
+        */}
+      <div className={embedded && derived ? 'q-stack q-stack-sm' : blockClass}>
+        {!(embedded && derived) && (
+          <h2 className={blockTitle}>{heading(1, "Package Identity")}</h2>
+        )}
         <div className="q-stack q-stack-md">
           {/* First, because for a photography studio the picture is half of what
               a package is — and because two packages of one service are told
@@ -1404,9 +1464,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
              * editable here anyway, fixing something meant nothing.
              */
             <div className="q-field">
-              <span className="q-eyebrow">Catalogue</span>
-              <p className="q-lead" style={{ margin: '2px 0 0' }}>{effectiveName}</p>
-              {description && <p className="q-meta" style={{ margin: '6px 0 0' }}>{description}</p>}
+              {/* The name and its "Catalogue" label only where nothing above
+                  has said them: standalone, this is the only statement of
+                  what the package is. Embedded, the card is titled with it. */}
+              {!embedded && <span className="q-eyebrow">Catalogue</span>}
+              {!embedded && <p className="q-lead" style={{ margin: '2px 0 0' }}>{effectiveName}</p>}
+              {description && <p className="q-meta" style={{ margin: embedded ? 0 : '6px 0 0' }}>{description}</p>}
               <span className="q-meta-sm" style={{ marginTop: '6px' }}>
                 This booking keeps its own copy, so editing the package later will not
                 change what was agreed here. What it left open is set below.
@@ -1479,12 +1542,25 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         </div>
       </div>
 
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">{heading(2, "Services")}</h2>
-        <p className="q-meta" style={{ marginBottom: '16px' }}>
-          The services this package is built from. Open one to set what it promises, how it is
-          classified, what this package fixes about it, and the work it involves.
-        </p>
+      <div className={blockClass}>
+        <h2 className={blockTitle}>{heading(2, "Services")}</h2>
+        {/*
+          * INSTRUCTIONS FOR AUTHORING A PACKAGE, ON THE PAGE THAT AUTHORS ONE.
+          *
+          * Two lines telling the reader what a service is and what opening one
+          * lets them do, which is what /packages/new is for. On a booking line
+          * off the shelf the package is already built: the operator is
+          * answering what it left open, and this paragraph put a tutorial
+          * between the group's name and its content. The sentence below it —
+          * "Bundled as X bundles it" — is the statement that is actually true
+          * there, and it stays.
+          */}
+        {!(embedded && derived) && (
+          <p className="q-meta" style={{ marginBottom: '16px' }}>
+            The services this package is built from. Open one to set what it promises, how it is
+            classified, what this package fixes about it, and the work it involves.
+          </p>
+        )}
 
         {derived && (
           <div className={departs ? 'q-note q-note-warn q-stack q-stack-sm' : 'q-row q-row-between'} style={{ marginBottom: '16px' }}>
@@ -1616,12 +1692,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                       <div className={isOpen ? 'q-fold q-fold-open' : 'q-fold'} inert={!isOpen}>
                         <div className="q-stack q-stack-lg q-tile-sub">
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-strong">Deliverables</h4>
+                            <h4 className="q-part-title">Deliverables</h4>
                             {renderPromises(s)}
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-strong">Classifications</h4>
+                            <h4 className="q-part-title">Classifications</h4>
                             {domainDims.length === 0 ? (
                               <p className="q-meta-sm">
                                 {s.domain?.name
@@ -1654,12 +1730,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-strong">Variables</h4>
+                            <h4 className="q-part-title">Variables</h4>
                             {renderVariables(s)}
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-strong">Tasks</h4>
+                            <h4 className="q-part-title">Tasks</h4>
                             {!s.workflow?.name && (
                               <p className="q-meta-sm">
                                 No workflow defines how {s.name} is produced. Define one in Services to give
@@ -1759,8 +1835,18 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * counts what is already there, and fills as the services above are
         * filled in.
         */}
-      <div className="q-card q-section q-rise">
-        <h2 className="q-section-title">{heading(3, 'Deliverables')}</h2>
+      <div className={blockClass}>
+        {/*
+          * NOT "Deliverables", because the fold above already has a heading
+          * reading exactly that — where a quantity is SET, per service. Two
+          * headings with one word on one screen, one of them editable and one
+          * a total, is a reader's problem however clear each is alone.
+          *
+          * The phrasing is the one the cards already use for this same figure,
+          * so the total on the form and the lead line on the catalogue card
+          * are recognisably the same fact.
+          */}
+        <h2 className={blockTitle}>{heading(3, 'What the client receives')}</h2>
         {(() => {
           const bundled = allServices.filter((x) => serviceIds.includes(x.id));
           const promised = bundled.flatMap((x) =>
@@ -1823,8 +1909,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * never given deletes it.
         */}
       {questions !== undefined && (
-        <div className="q-card q-section q-rise">
-          <h2 className="q-section-title">{heading(4, 'Booking form')}</h2>
+        <div className={blockClass}>
+          <h2 className={blockTitle}>{heading(4, 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client fills in when they book this package.
           </p>

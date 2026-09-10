@@ -1424,35 +1424,7 @@ export function NewBookingForm({
                 * The twin of "Add another package", which came out when the
                 * empty line did. This one was missed.
                 */}
-              <button
-                type="button"
-                className="q-btn-ghost q-btn-xs"
-                style={{ position: 'absolute', top: '16px', right: '16px' }}
-                title={`Take ${line.selectedPackageDeep?.name || 'this package'} off the booking`}
-                onClick={() => {
-                  const newLines = [...lines];
-                  newLines.splice(index, 1);
-                  setLines(newLines);
-                  editorRefs.current.splice(index, 1);
-                }}
-              >
-                Remove
-              </button>
-              {/*
-                * ONLY WHEN IT DISTINGUISHES SOMETHING.
-                *
-                * A single-line booking read "2. Packages", then "Package", then
-                * "Package" again — three headings, the same word, with a
-                * collapsed filter between them. This one earns its place when
-                * there are several lines to tell apart and says nothing the
-                * section heading has not already said when there is one.
-                */}
-              {lines.length > 1 && (
-                <h3 className="q-strong" style={{ marginBottom: '8px' }}>
-                  Package {index + 1}
-                </h3>
-              )}
-              
+
               {/*
                 * NO DOMAIN GATE. THE PACKAGES LEAD.
                 *
@@ -1474,40 +1446,111 @@ export function NewBookingForm({
                 * beside search and classification — where a package spanning two
                 * domains is kept by either of them.
                 */}
-                <div key="configure" className="q-field q-swap">
-                  <div className="q-row q-row-between" style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {/*
-                        * The domains this package actually spans, from the
-                        * package. It used to print the one domain the operator
-                        * had been made to pick on the way in, which for a
-                        * package bundling Event Photography and Event
-                        * Videography named one of the two and called it the
-                        * line's domain.
-                        */}
-                      {[...new Set((((line.selectedPackageDeep?.services) || []) as any[])
-                        .map((sv: any) => sv.domain?.name || sv.domainName)
-                        .filter(Boolean))].map((d) => (
-                        <span key={d as string} className="q-badge q-badge-neutral">{d as string}</span>
-                      ))}
-                      {Object.entries(line.selectedDimensionValues).filter(([_, v]) => v).map(([dimId, valId]) => {
+                {/*
+                  * q-stack q-stack-md, not q-field. q-field is the 7px column a
+                  * label and its input live in, and it was carrying the whole
+                  * line — so the card's own 16px rhythm stopped at its edge and
+                  * every part inside it sat at label-to-input distance from the
+                  * next. The margins that used to be set inline on the header
+                  * were compensating for that; with the right stack there is
+                  * nothing to compensate for.
+                  */}
+                <div key="configure" className="q-stack q-stack-md q-swap">
+                  {/*
+                    * THE CARD SAYS WHICH PACKAGE IT IS.
+                    *
+                    * It said "Editing Package Template" — the operator's
+                    * activity, not the thing. So a booking with two packages
+                    * drew two cards with the same words on them, and the only
+                    * place either package's name appeared was inside its own
+                    * Package Identity group, several groups down. Which card
+                    * was which could not be answered from the top of it.
+                    *
+                    * A line IS a package the client is buying, so the package's
+                    * name is the card's name. "Custom package" is the honest
+                    * heading for the bespoke case only until it has been given
+                    * one, at which point that name is the truer answer.
+                    */}
+                  {/* A wrapping row, not a card corner: see .q-card-corner. */}
+                  <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                  <div className="q-stack q-stack-sm">
+                  <h3 className="q-card-title">
+                    {line.packageId === 'custom'
+                      ? (line.customName?.trim() || 'Custom package')
+                      : (line.selectedPackageDeep?.name || 'Package')}
+                  </h3>
+                  {/*
+                    * The domains this package actually spans, from the
+                    * package. It used to print the one domain the operator
+                    * had been made to pick on the way in, which for a
+                    * package bundling Event Photography and Event
+                    * Videography named one of the two and called it the
+                    * line's domain.
+                    *
+                    * Under the name rather than in front of it: they qualify
+                    * the package, and a row that led with its qualifiers put
+                    * the name last on the line it names.
+                    */}
+                  {(() => {
+                    const domains = [...new Set((((line.selectedPackageDeep?.services) || []) as any[])
+                      .map((sv: any) => sv.domain?.name || sv.domainName)
+                      .filter(Boolean))] as string[];
+                    const classes = Object.entries(line.selectedDimensionValues)
+                      .filter(([_, v]) => v)
+                      .map(([dimId, valId]) => {
                         const d = allDimensions.find((x: any) => x.id === dimId);
-                        const vName = d?.values.find((x: any) => x.id === valId)?.name;
-                        return vName ? <span key={dimId} className="q-badge q-badge-neutral">{vName}</span> : null;
-                      })}
-                      <strong className="q-strong" style={{ marginLeft: '8px' }}>
-                        {line.packageId === 'custom' ? 'Custom Package' : 'Editing Package Template'}
-                      </strong>
-                    </span>
-                    <button type="button" className="q-btn-ghost q-btn-xs" onClick={() => {
-                      const newLines = [...lines];
-                      newLines[index].packageId = '';
-                      newLines[index].customName = '';
-                      newLines[index].selectedPackageDeep = null;
-                      setLines(newLines);
-                    }}>Change Package</button>
+                        return { dimId, name: d?.values.find((x: any) => x.id === valId)?.name as string | undefined };
+                      })
+                      .filter((c) => c.name);
+                    /* Nothing to qualify it with is a real case — a bespoke line
+                       has no services yet and no classifications — and it used
+                       to be an empty strip holding a card's worth of margin
+                       open under the name. */
+                    if (domains.length === 0 && classes.length === 0) return null;
+                    return (
+                      <div className="q-row q-row-sm">
+                        {domains.map((d) => (
+                          <span key={d} className="q-badge q-badge-neutral">{d}</span>
+                        ))}
+                        {classes.map((c) => (
+                          <span key={c.dimId} className="q-badge q-badge-neutral">{c.name}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   </div>
-                  
+                    <div className="q-card-corner">
+                      {/*
+                        * BOTH LINE-LEVEL CONTROLS, TOGETHER. One swaps what
+                        * this line is, the other takes the line off; neither
+                        * belongs among the package's own facts. They were in
+                        * two different corners of the same card, one of them
+                        * absolutely positioned, which is how they came to
+                        * overlap each other and then the name.
+                        */}
+                      <button type="button" className="q-btn-ghost q-btn-xs" onClick={() => {
+                        const newLines = [...lines];
+                        newLines[index].packageId = '';
+                        newLines[index].customName = '';
+                        newLines[index].selectedPackageDeep = null;
+                        setLines(newLines);
+                      }}>Change</button>
+                      <button
+                        type="button"
+                        className="q-btn-ghost q-btn-xs"
+                        title={`Take ${line.selectedPackageDeep?.name || 'this package'} off the booking`}
+                        onClick={() => {
+                          const newLines = [...lines];
+                          newLines.splice(index, 1);
+                          setLines(newLines);
+                          editorRefs.current.splice(index, 1);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
                   {line.isLoadingDeep ? (
                     <div className="q-meta">Loading template...</div>
                   ) : (line.packageId === 'custom' || line.selectedPackageDeep) ? (
@@ -1603,7 +1646,12 @@ export function NewBookingForm({
                         * of the package — in one group below the rule, at the
                         * weight of everything else being decided.
                         */}
-                      <div className="q-stack q-stack-md" style={{ marginTop: '24px', borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '24px' }}>
+                      {/* The rule and the space above it were written inline
+                          here, which is the same group q-subsection now names —
+                          and naming it is what lets this one and the editor's
+                          four keep the same rhythm instead of two hand-set
+                          copies drifting apart. */}
+                      <div className="q-subsection q-stack q-stack-md">
                       {/*
                         * WHAT THIS PACKAGE ASKS, ASKED HERE TOO.
                         *

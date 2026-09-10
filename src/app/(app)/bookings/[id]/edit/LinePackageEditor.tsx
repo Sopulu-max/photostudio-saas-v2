@@ -174,6 +174,11 @@ export function LinePackageEditor({
               : <>Created for this booking. Not in the catalogue.</>}
           </p>
           <PackageFieldsEditor
+            /* This sits inside the q-card q-section above, so the editor
+               contributes groups here rather than four more cards. It keeps
+               its own Save, which is why this cannot be inferred from
+               hideControls. */
+            embedded
             mode="edit"
             packageId={packageId}
             status={status}

@@ -91,10 +91,17 @@ export function LineConfigForm({
 
   if (fields.length === 0) return null;
 
-  // Group by service
-  const byService = new Map<string, { serviceName: string; fields: LineConfigField[] }>();
+  /*
+   * Grouped by service id — and rendered by it too. Both lists below keyed on
+   * serviceName, which is the one thing about a service that is not unique:
+   * two services called "Retouching" in different domains are one group as far
+   * as React is concerned, and it drops the second silently. The Map already
+   * groups by the id, so the id is what the group is; carrying it through is
+   * all this needed.
+   */
+  const byService = new Map<string, { serviceId: string; serviceName: string; fields: LineConfigField[] }>();
   for (const f of fields) {
-    const s = byService.get(f.serviceId) || { serviceName: f.serviceName, fields: [] };
+    const s = byService.get(f.serviceId) || { serviceId: f.serviceId, serviceName: f.serviceName, fields: [] };
     s.fields.push(f);
     byService.set(f.serviceId, s);
   }
@@ -110,11 +117,11 @@ export function LineConfigForm({
           </div>
         ) : (
           <div className="q-stack q-stack-sm">
-            {Array.from(byService.values()).map(({ serviceName, fields: sFields }) => {
+            {Array.from(byService.values()).map(({ serviceId, serviceName, fields: sFields }) => {
               const sHeld = sFields.filter((f) => f.value != null);
               if (sHeld.length === 0) return null;
               return (
-                <div key={serviceName} className="q-note q-stack q-stack-sm">
+                <div key={serviceId} className="q-note q-stack q-stack-sm">
                   <div className="q-label" style={{ fontSize: '0.8rem' }}>{serviceName}</div>
                   <div className="q-stack q-stack-xs" style={{ paddingLeft: '8px' }}>
                     {sHeld.map((f) => (
@@ -153,8 +160,8 @@ export function LineConfigForm({
       </div>
 
       <div className="q-stack q-stack-md">
-        {Array.from(byService.values()).map(({ serviceName, fields: sFields }) => (
-          <div key={serviceName} className="q-stack q-stack-sm">
+        {Array.from(byService.values()).map(({ serviceId, serviceName, fields: sFields }) => (
+          <div key={serviceId} className="q-stack q-stack-sm">
             <div className="q-label">{serviceName}</div>
             <div className="q-stack q-stack-sm" style={{ paddingLeft: '12px', borderLeft: '2px solid var(--q-color-ink-100)' }}>
               {sFields.map((f) => (

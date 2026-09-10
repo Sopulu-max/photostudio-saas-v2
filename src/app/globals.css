@@ -841,6 +841,103 @@ body {
 
 .q-section-title  { font-size: 1.05rem; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.01em; }
 
+/*
+ * A PART OF A SECTION, WHICH IS NOT ITSELF A SECTION.
+ *
+ * An editor that is a whole page in one place and a step inside a form in
+ * another cannot draw cards unconditionally. PackageFieldsEditor did: its four
+ * blocks are the page's own sections on /packages/new, and embedded in the new
+ * booking form the same four cards landed inside the booking's section card,
+ * inside the line's card — three nested surfaces, measured at eight levels
+ * deep and seventy-three surfaces in a single section. Every part shouted at
+ * the same volume as the whole, so nothing read as a step.
+ *
+ * So a subsection has no surface of its own: no background, no border, no
+ * radius, no shadow, no padding. It is spacing and a hairline, which is all
+ * that is needed to say "the next part of this" — and it deliberately cannot
+ * be mistaken for a card, because the whole failure was parts that looked like
+ * containers.
+ *
+ * The divider is "not the first thing in here", not "follows another
+ * subsection". Adjacency was the first attempt and it is too literal: these
+ * groups do not all share one parent — four of them are the embedded editor's,
+ * inside its own stack, and the fifth is the booking line's own, a sibling of
+ * that whole stack. A rule keyed on + would have drawn on the editor's blocks
+ * and silently skipped the one after it, which is the seam that most needs it.
+ * Position in a container is the fact that actually governs, and it holds
+ * whoever the container belongs to.
+ *
+ * Its heading drops to the eyebrow register for the same reason as the missing
+ * surface: a part named as loudly as its section competes with it.
+ *
+ * No top margin: these blocks sit in a q-stack, whose gap has already put the
+ * space there, and a margin on a flex item adds to the gap rather than being
+ * absorbed by it. The padding is the half of the space that belongs on this
+ * side of the rule.
+ */
+.q-subsection:not(:first-child) {
+  border-top: 1px solid var(--q-color-ink-200);
+  padding-block-start: 24px;
+}
+/*
+ * A PART OF A THING INSIDE A GROUP — THE LAST RUNG.
+ *
+ * Deliverables, Classifications, Variables and Tasks inside an opened service
+ * were q-strong, and so was the service's own name directly above them. Four
+ * headings at the same weight as the thing that contains them, inside a group
+ * whose own label is a 0.68rem eyebrow: every rung shouted at the volume of the
+ * one above, which is what makes a page read as a maze even after the surfaces
+ * are gone. Nesting is only legible if each level is quieter than its parent.
+ *
+ * So: below the name, above a field's label. Not mono and not uppercase — that
+ * register belongs to q-subsection-title, and reusing it here would put the
+ * group and the parts inside it at the same rung again.
+ */
+.q-part-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--q-color-ink-600);
+  margin: 0;
+}
+
+/*
+ * THE CONTROLS THAT ACT ON A CARD, RATHER THAN ON ANYTHING IN IT.
+ *
+ * Remove was absolutely positioned inline at the card's corner and Change sat
+ * at the right edge of the header row, which is the same place — on a narrow
+ * card they overlapped. They are the same kind of control, both acting on the
+ * whole line and neither on a field, so they belong in one cluster.
+ *
+ * NOT absolutely positioned, which was the first attempt and measured wrong:
+ * one cluster in the corner still overlapped the package's name, because an
+ * absolute box is out of flow and the name knows nothing about it. At 375px
+ * the title ran from x=60 to x=315 and the buttons from x=190 to x=321 — the
+ * name was printed underneath them. Taking a card's own name out of the
+ * layout's reach is not something a card can be narrow enough to survive.
+ *
+ * So it is a flex end-cluster in a wrapping header row instead: on a wide card
+ * it sits where the corner was, and on a narrow one it drops to its own line
+ * because the row it is in is allowed to wrap. `align-items: flex-start` on
+ * the row keeps it level with the first line of the name rather than centred
+ * against a name that has wrapped to three.
+ */
+.q-card-corner {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.q-subsection-title {
+  font-family: var(--q-font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+  margin: 0 0 14px;
+}
+
 /* Text roles. */
 .q-meta     { font-size: 0.85rem; color: var(--q-color-ink-500); line-height: 1.5; }
 .q-meta-sm  { font-size: 0.78rem; color: var(--q-color-ink-500); }
