@@ -207,7 +207,7 @@ export function Catalogue({
       )}
 
       <div className="q-poster-grid q-poster-grid-lg">
-        {shown.map((pkg) => {
+        {shown.map((pkg, index) => {
           const cover = pkg.cover_url;
           const note = pkg.short_description
             || (pkg.description
@@ -231,9 +231,17 @@ export function Catalogue({
               key={pkg.id}
               href={`/book/${slug}/${pkg.id}`}
               className={cover ? 'q-poster q-poster-tall' : 'q-poster q-poster-tall q-poster-blank'}
-              style={cover
-                ? { backgroundImage: `url(${cover})`, backgroundPosition: pkg.cover_position || undefined }
-                : undefined}
+              /* The cover as a layer and the card's place in the grid — see
+                 .q-poster, which builds the print out of both. */
+              style={{
+                ...(cover
+                  ? {
+                    ['--q-cover' as any]: `url(${cover})`,
+                    ['--q-cover-pos' as any]: pkg.cover_position || undefined,
+                  }
+                  : null),
+                ['--i' as any]: index,
+              } as React.CSSProperties}
             >
               {/* Absent when nobody has priced it — null and zero are
                   different, so an unpriced package says nothing at all

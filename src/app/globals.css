@@ -131,6 +131,24 @@
   --q-dur-1: 130ms;
   --q-dur-2: 240ms;
   --q-dur-3: 440ms;
+  /*
+   * The two slow ones, and they exist because this palette had no patience in
+   * it. Nothing in the file ran longer than 440ms, so every gesture the app
+   * made was a snap — correct, quick, and completely unmoving. A photograph
+   * settling into place is not a state change to be got over with; it is the
+   * moment the card is for.
+   *
+   * dur-4 is a movement you watch happen. dur-5 is one that finishes after you
+   * have stopped watching, which is where the calm comes from.
+   */
+  --q-dur-4: 620ms;
+  --q-dur-5: 1100ms;
+  /*
+   * The stagger between one card and the next. Small enough that the grid
+   * reads as one motion rather than a queue, large enough to be a rhythm and
+   * not a smear.
+   */
+  --q-beat: 65ms;
   --q-transition-snappy: all var(--q-dur-2) var(--q-ease);
 }
 
@@ -2040,6 +2058,46 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 14px;
 }
+/*
+ * ============================================================================
+ * THE POSTER IS A PRINT.
+ * ============================================================================
+ *
+ * It was a correct card and a dead one. The photograph was a background-image
+ * on the card itself, which is the whole problem in one line: a background
+ * cannot move without taking the words with it, so the picture could never do
+ * anything at all. The card's one gesture was translateY(-2px) over 130ms - a
+ * twitch. It cast no shadow, so it never sat ON the paper ground this app is
+ * named for. And a grid of them simply existed, fully formed, the instant the
+ * page painted. Nothing arrived. Nothing settled. Nothing was worth watching.
+ *
+ * A studio's catalogue is a wall of photographs. It is the one screen in this
+ * system where the content is already beautiful and the interface has only to
+ * get out of the way and give it room to breathe.
+ *
+ * So the card is built as a print, in four layers:
+ *
+ *   ::before   the photograph, on its own transform, free to settle and swell
+ *   ::after    the scrim, a vignette, and a whisper of grain
+ *   > *        the words, above both
+ *   the box    the paper it is printed on, casting a real shadow
+ *
+ * And it is given time. The photograph arrives over-scaled and eases to true
+ * over dur-5 - a lens finding focus - while the card itself rises on dur-4,
+ * one beat behind the card before it. Hover is not a nudge: the print lifts
+ * off the page, the shadow spreads late, and the image pushes very slightly
+ * closer, slowly enough to feel like a hand rather than an event.
+ *
+ * The cover arrives as --q-cover rather than an inline background-image. Three
+ * call sites were each writing the same two inline declarations; a variable
+ * feeds the centralized rule instead of bypassing it, and it is the thing that
+ * makes the photograph a layer of its own rather than a property of the card.
+ *
+ * prefers-reduced-motion is honoured globally at the top of this file, which
+ * flattens every duration here to nothing. The design has to hold still, and
+ * it does: with not one frame of motion this is still a print with a vignette,
+ * a grain and a shadow.
+ */
 .q-poster {
   position: relative;
   display: flex;
@@ -2048,7 +2106,7 @@ body {
   min-height: 250px;
   padding: 14px;
   border: 2px solid transparent;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   text-align: left;
   cursor: pointer;
@@ -2056,25 +2114,117 @@ body {
      so the card looks the same whichever element carries it. */
   text-decoration: none;
   background-color: var(--q-color-ink-800, var(--q-color-ink-900));
-  background-size: cover;
-  background-position: center;
-  transition: transform var(--q-dur-1) var(--q-ease), border-color var(--q-dur-1) var(--q-ease);
+  box-shadow: var(--q-shadow-md);
+  /*
+   * Two speeds on purpose. The lift answers the cursor in dur-3, so the card
+   * feels responsive to the touch; the shadow spreads over dur-4, arriving
+   * after the movement has already stopped. That lag IS the sensation of
+   * weight - an object whose shadow keeps up exactly is an object with no mass.
+   */
+  transition:
+    transform var(--q-dur-3) var(--q-ease),
+    box-shadow var(--q-dur-4) var(--q-ease),
+    border-color var(--q-dur-2) var(--q-ease);
+  animation: q-poster-in var(--q-dur-4) var(--q-ease) backwards;
+  /* Capped, because the twelfth card should not wait a second and a half for
+     its turn. Past the cap the rest of the grid arrives together. */
+  animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat));
 }
-.q-poster:hover { transform: translateY(-2px); }
-.q-poster:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
-.q-poster-on { border-color: var(--q-color-accent); }
-/* Without a picture the card still has to read, so it takes the accent wash
-   the empty cover uses rather than sitting as a black rectangle. */
-.q-poster-blank { background-image: linear-gradient(150deg, var(--q-color-accent) 0%, var(--q-color-ink-900) 78%); }
-/* The scrim. Bottom-heavy, because that is where the words are. */
+
+/* THE PHOTOGRAPH. Its own layer, its own transform, its own clock. */
+.q-poster::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--q-cover, none);
+  background-size: cover;
+  background-position: var(--q-cover-pos, center);
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform var(--q-dur-4) var(--q-ease);
+  animation: q-poster-focus var(--q-dur-5) var(--q-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat));
+  pointer-events: none;
+}
+
+/*
+ * THE SCRIM, THE VIGNETTE AND THE GRAIN - three backgrounds on one layer,
+ * topmost first.
+ *
+ * The scrim was already here and doing its job: the words sit at the bottom,
+ * so the darkness is bottom-heavy. The other two are what make this a print
+ * rather than a photo with a gradient on it. A vignette is what a lens does at
+ * the edges of a frame; grain is what film is made of.
+ *
+ * The grain's strength is the rect's opacity inside the data URI, and it wants
+ * to be about 5%: under the threshold of being noticed, over the threshold of
+ * being felt. It was written at 42% first, which on a real photograph is not
+ * film, it is a bad signal — the picture came through a grey blizzard. Worth
+ * saying out loud because the number is buried in a URL-encoded SVG where
+ * nothing will ever draw attention to it again.
+ *
+ * Turn either layer off and the card reads as a screenshot.
+ */
 .q-poster::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.58) 44%, rgba(0, 0, 0, 0.1) 100%);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E"),
+    radial-gradient(120% 90% at 50% 42%, transparent 42%, rgba(0, 0, 0, 0.34) 100%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.58) 44%, rgba(0, 0, 0, 0.1) 100%);
+  background-repeat: repeat, no-repeat, no-repeat;
   pointer-events: none;
 }
+
+/*
+ * THE LIFT.
+ *
+ * Six pixels, not two. Two is a rendering artefact; six is a print picked up
+ * off the table. The shadow goes to glass - the deepest this system has -
+ * because the card is now further from the page than anything else on it.
+ */
+.q-poster:hover,
+.q-poster:focus-visible {
+  transform: translateY(-6px);
+  box-shadow: var(--q-shadow-glass);
+}
+/* The image pushes toward the reader as the card lifts away from the page.
+   5.5%: enough to feel, small enough that nobody can say what moved. */
+.q-poster:hover::before,
+.q-poster:focus-visible::before { transform: scale(1.055); }
+
+.q-poster:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+.q-poster-on { border-color: var(--q-color-accent); }
+/* Without a picture the card still has to read, so it takes the accent wash
+   the empty cover uses rather than sitting as a black rectangle. It feeds the
+   same variable, so the wash gets the same settle and the same lift. */
+.q-poster-blank { --q-cover: linear-gradient(150deg, var(--q-color-accent) 0%, var(--q-color-ink-900) 78%); }
+
 .q-poster > * { position: relative; z-index: 1; }
+
+/*
+ * The card rises and fades. No scale on the box: a card that scales up drags
+ * its own text through a blur on the way, and the words are the one thing here
+ * that must be legible from the very first frame.
+ */
+@keyframes q-poster-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/*
+ * A LENS FINDING FOCUS.
+ *
+ * The photograph starts 8% too close and eases out to true over dur-5, nearly
+ * twice as long as the card takes to arrive - so the image is still settling
+ * after the words have stopped. That overlap is where the slowness lives. Run
+ * it in the card's own duration and the two motions collapse into one event;
+ * let it run long and the card keeps breathing after it has landed.
+ */
+@keyframes q-poster-focus {
+  from { opacity: 0.55; transform: scale(1.08); }
+  to   { opacity: 1;    transform: scale(1); }
+}
 .q-poster-title { color: #fff; font-weight: 640; font-size: 0.98rem; line-height: 1.25; }
 .q-poster-note { color: rgba(255, 255, 255, 0.72); font-size: 0.78rem; line-height: 1.45; margin-top: 4px; }
 
@@ -2155,6 +2305,32 @@ body {
  * this system, and because the difference has to survive being read at a
  * glance across a grid of twelve cards.
  */
+/*
+ * AND THE ONE THAT SAYS HOW MANY WERE NOT SHOWN.
+ *
+ * A card lists what a package is for so a reader can tell it from the one
+ * beside it. Listing ALL of it does the opposite: this studio has two packages
+ * both called Studio Portrait Photography whose pills are identical down to
+ * the order, and the two facts that actually differ - three photographs
+ * against two, twenty-five thousand against ten - were crowded down the card
+ * by eleven pills that said the same thing on both. Exhaustive and
+ * undistinguishing is the worst of both: it costs the most height and settles
+ * nothing.
+ *
+ * So the card shows the first few of each question and counts the rest. The
+ * package's own page is where the whole list belongs, and it is one click from
+ * every one of these cards.
+ */
+.q-poster-tag-more {
+  font-size: 0.67rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .q-poster-tag-set {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(255, 255, 255, 0.9);
@@ -2207,9 +2383,87 @@ body {
  * and more height — one poster idea, two sizes, rather than a second card.
  */
 .q-poster-grid-lg { grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 20px; }
-.q-poster-tall { min-height: 340px; padding: 18px; }
-.q-poster-tall .q-poster-title { font-size: 1.12rem; }
+/*
+ * ONE SHAPE, SO THE GRID HAS A BEAT.
+ *
+ * min-height alone gave every card a floor and no ceiling, so each one was as
+ * tall as whatever it happened to contain: a package narrowed to six occasions
+ * stood half again as tall as one narrowed to two, and the row it sat in went
+ * ragged. A row of unequal rectangles cannot have a rhythm - that is not a
+ * metaphor, it is the mechanism. The eye reads a repeating interval as a beat
+ * and an irregular one as noise, and it does so before it reads a single word.
+ *
+ * 4:5 is the print ratio, and at the grid's 272px column it comes out at
+ * exactly the 340px these cards already stood at - so the shape was always
+ * implicit here and simply was not being held to.
+ *
+ * A SOFT shape, deliberately: aspect-ratio sets the height the card wants, and
+ * content that genuinely cannot fit still grows the box. So the rhythm holds
+ * wherever it can and breaks only where the truth requires it, which is the
+ * right way round. Capping what goes in - see q-poster-tags - is what keeps
+ * that from happening on an ordinary card.
+ */
+.q-poster-tall {
+  min-height: 340px;
+  aspect-ratio: 4 / 5;
+  padding: 18px;
+}
+/*
+ * THE NAME, AT THE SIZE OF A NAME.
+ *
+ * 1.12rem against a 0.88rem promise line is a half-step, and a half-step is
+ * what a card looks like when nothing on it is willing to lead. The name of
+ * the thing being sold is the largest word on a poster; that is what a poster
+ * IS. Tightened as it grows, because tracking that suits body copy goes loose
+ * and airy at display size.
+ *
+ * text-wrap: balance so "Studio Portrait Photography" breaks into two even
+ * lines instead of a long one and an orphan - it is three words on nearly
+ * every card in this studio's catalogue, so the two-line case is the normal
+ * case, not the exception.
+ *
+ * And a soft shadow under it. The scrim already guarantees the contrast; this
+ * is for the eye, not the algorithm - white type sitting ON a photograph
+ * rather than punched through it.
+ */
+.q-poster-tall .q-poster-title {
+  font-size: 1.28rem;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  text-wrap: balance;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+}
 .q-poster-tall .q-poster-note { font-size: 0.82rem; }
+
+/*
+ * THE CASCADE INSIDE THE CARD.
+ *
+ * The grid's stagger gives the page a beat between cards. This gives each card
+ * a beat of its own: the name, then what they receive, then what it is for,
+ * then the footnotes - four steps, 70ms apart, in the order a reader wants
+ * them. Everything arriving at once is not faster to read; it is a wall.
+ *
+ * --i inherits from the card, so each delay is the card's own place in the
+ * grid PLUS its offset within the card. The two rhythms compose rather than
+ * fighting: the ninth card's promise line still lands one beat after its name.
+ *
+ * 8px and dur-3, which is half the card's own travel. A part of a thing must
+ * move less than the thing.
+ */
+.q-poster-title,
+.q-poster-promise,
+.q-poster-tags,
+.q-poster-notes {
+  animation: q-poster-rise var(--q-dur-3) var(--q-ease) backwards;
+}
+.q-poster-title  { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 140ms); }
+.q-poster-promise{ animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 210ms); }
+.q-poster-tags   { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 280ms); }
+.q-poster-notes  { animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat) + 340ms); }
+@keyframes q-poster-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* The price, top-right, opposite the name. On the scrim rather than under the
    card, because the picture is the card. */

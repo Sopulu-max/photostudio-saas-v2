@@ -890,8 +890,12 @@ export function BookingForm({
                             isSelected ? 'q-poster-on' : '',
                             isDimmed ? 'q-poster-dim' : '',
                           ].filter(Boolean).join(' ')}
+                          /* The cover as a layer — see .q-poster. */
                           style={cover
-                            ? { backgroundImage: `url(${cover})`, backgroundPosition: pkg.cover_position || undefined }
+                            ? {
+                              ['--q-cover' as any]: `url(${cover})`,
+                              ['--q-cover-pos' as any]: pkg.cover_position || undefined,
+                            } as React.CSSProperties
                             : undefined}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(pkg.id, pkg.name); }

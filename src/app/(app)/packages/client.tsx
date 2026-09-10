@@ -23,6 +23,15 @@ function byPrice(a: any, b: any, dir: 1 | -1) {
   return (Number(av) - Number(bv)) * dir || a.name.localeCompare(b.name);
 }
 
+/*
+ * How many values of one question a card shows before it starts counting.
+ *
+ * Three, because the packages narrowed to two occasions show them whole and
+ * the ones narrowed to six show enough to say what kind of thing they are.
+ * It is a card, not a specification.
+ */
+const PILLS_PER_QUESTION = 3;
+
 export function PackagesClient({
   initialPackages,
   currencyCode = 'USD',
@@ -114,7 +123,9 @@ export function PackagesClient({
    * the same service. The ones it leaves open are the client's answer, not the
    * package's, so they are counted rather than named.
    */
-  const Card = ({ pkg, withCover }: { pkg: any; withCover: boolean }) => {
+  /* index is the card's place in the grid — the stagger and the cascade
+     inside the card are both measured from it. See .q-poster. */
+  const Card = ({ pkg, withCover, index }: { pkg: any; withCover: boolean; index: number }) => {
     const tags = dimensionTags(pkg);
     const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
     const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
@@ -161,9 +172,15 @@ export function PackagesClient({
           pkg.cover_url ? '' : 'q-poster-blank',
           pkg.status === 'retired' ? 'q-poster-dim' : '',
         ].filter(Boolean).join(' ')}
-        style={pkg.cover_url
-          ? { backgroundImage: `url(${pkg.cover_url})`, backgroundPosition: pkg.cover_position || undefined }
-          : undefined}
+        style={{
+          ...(pkg.cover_url
+            ? {
+              ['--q-cover' as any]: `url(${pkg.cover_url})`,
+              ['--q-cover-pos' as any]: pkg.cover_position || undefined,
+            }
+            : null),
+          ['--i' as any]: index,
+        } as React.CSSProperties}
       >
         {/* The whole face opens the package. A link rather than a wrapper,
             because the two corners below are links of their own and an <a>
@@ -236,21 +253,52 @@ export function PackagesClient({
           * outlined. Nothing is labelled: the grouping is the label, which is
           * the same move the fact rows make on every other screen.
           */}
+        {/*
+          * CAPPED, BECAUSE THE CARD IS FOR TELLING TWO PACKAGES APART.
+          *
+          * The promise line above has been capped at three since it was
+          * written, for a reason stated there: a package promising six things
+          * must not stand taller than one promising two, because they sit in a
+          * grid. The pills were exempt from their own card's rule, and they
+          * are the longest thing on it — six occasions and a context and a
+          * fixed value is eleven pills, and a package narrowed to two occasions
+          * gets four.
+          *
+          * Worse, it distinguishes nothing. The two packages in this catalogue
+          * both called Studio Portrait Photography carry the SAME pills in the
+          * same order; what separates them is the promise count and the price,
+          * and both were pushed down the card by the list that doesn't differ.
+          *
+          * Three per question, then a count. The full list is on the package's
+          * own page, which the whole face of this card opens.
+          */}
         <span className="q-poster-tags">
-          {tags.map((d) => (
-            <span key={d.id} className="q-poster-group" title={d.name}>
-              {d.values.map((v: any) => (
-                <span key={v.id} className="q-poster-tag">{v.name}</span>
-              ))}
-            </span>
-          ))}
+          {tags.map((d) => {
+            const shown = d.values.slice(0, PILLS_PER_QUESTION);
+            const rest = d.values.length - shown.length;
+            return (
+              <span key={d.id} className="q-poster-group" title={d.name}>
+                {shown.map((v: any) => (
+                  <span key={v.id} className="q-poster-tag">{v.name}</span>
+                ))}
+                {rest > 0 && (
+                  <span className="q-poster-tag-more" title={d.values.map((v: any) => v.name).join(', ')}>
+                    +{rest}
+                  </span>
+                )}
+              </span>
+            );
+          })}
           {fixed.length > 0 && (
             <span className="q-poster-group">
-              {fixed.map((v: any) => (
+              {fixed.slice(0, PILLS_PER_QUESTION).map((v: any) => (
                 <span key={v.serviceVariableId} className="q-poster-tag q-poster-tag-set">
                   {formatVariableValue(v)}
                 </span>
               ))}
+              {fixed.length > PILLS_PER_QUESTION && (
+                <span className="q-poster-tag-more">+{fixed.length - PILLS_PER_QUESTION}</span>
+              )}
             </span>
           )}
         </span>
@@ -374,7 +422,7 @@ export function PackagesClient({
             return (
               <>
                 <div className={grid}>
-                  {offered.map((pkg: any) => <Card key={pkg.id} pkg={pkg} withCover={offeredCovers} />)}
+                  {offered.map((pkg: any, i: number) => <Card key={pkg.id} pkg={pkg} withCover={offeredCovers} index={i} />)}
                 </div>
                 {retired.length > 0 && (
                   <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
@@ -383,7 +431,7 @@ export function PackagesClient({
                       Not offered on new bookings. Past bookings keep their line and price.
                     </p>
                     <div className={grid}>
-                      {retired.map((pkg: any) => <Card key={pkg.id} pkg={pkg} withCover={retiredCovers} />)}
+                      {retired.map((pkg: any, i: number) => <Card key={pkg.id} pkg={pkg} withCover={retiredCovers} index={i} />)}
                     </div>
                   </section>
                 )}
