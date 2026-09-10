@@ -772,6 +772,18 @@ export async function listServices() {
       tasks: ((s.workflow.workflow_tasks || []) as any[])
         .sort((a, b) => a.position - b.position)
         .map(t => ({
+          /*
+           * The id was SELECTED and then dropped here, so every workflow task
+           * reached the package editor with `id: undefined`. React warned
+           * about duplicate keys, which was the least of it: the editor keys
+           * its pending task edits by that id, so all of them collided on
+           * `undefined` and switching one task off switched off every task in
+           * the service.
+           *
+           * This is a workflow_task id, not a package_task id — the editor
+           * needs to know which, and cannot if it never receives either.
+           */
+          id: t.id,
           name: t.name,
           roleName: t.default_role?.name || null,
           description: t.description || null

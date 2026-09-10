@@ -915,6 +915,22 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     // workflow it will copy from.
     const savedService = initial.services?.find((is: any) => is.id === s.id);
     const sTasks = savedService?.tasks || s.workflow?.tasks || [];
+    /*
+     * WHOSE TASKS THESE ARE, WHICH DECIDES WHETHER THEY CAN BE EDITED.
+     *
+     * A saved package holds its OWN copies, and taskEdits is keyed by their
+     * package_task id — which is what the save sends to updatePackage. A
+     * package that does not exist yet has no copies, so what is shown is the
+     * workflow's own tasks: a preview of what will be copied when it is
+     * created.
+     *
+     * Those carry a workflow_task id, and sending one to updatePackage as a
+     * package_task id matches no row. So the preview says what the package
+     * will involve and does not pretend to be editable — a checkbox that
+     * appears to work and silently saves nothing is worse than one that is
+     * plainly not ready yet.
+     */
+    const isOwnCopy = !!savedService?.tasks?.length;
     const mineAdded = addedTasks.filter((t) => t.serviceId === s.id);
     /*
      * A task copied from a workflow can be switched off or reassigned, but only
@@ -923,12 +939,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
      * package rather than about the booking — which is why the booking has a
      * task section of its own.
      */
-    const editable = !embedded;
+    const editable = !embedded && isOwnCopy;
     
     return (
       <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
         {s.workflow?.name && (
-          <div className="q-meta-sm" style={{ marginTop: '-4px', marginBottom: '4px' }}>From workflow: {s.workflow.name}</div>
+          <div className="q-meta-sm" style={{ marginTop: '-4px', marginBottom: '4px' }}>
+            From workflow: {s.workflow.name}
+            {!embedded && !isOwnCopy && ' — copied to this package when you save it'}
+          </div>
         )}
         <div className="q-stack" style={{ gap: '4px' }}>
           {sTasks.map((t: any) => {
