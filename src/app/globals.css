@@ -2538,6 +2538,124 @@ body::before {
 }
 .q-poster-price-unit { font-weight: 500; opacity: 0.7; margin-left: 1px; }
 
+/*
+ * ============================================================================
+ * THE SHEET.                                                     (D1, D4, D7)
+ * ============================================================================
+ *
+ * A screen that lists is a sheet: rows, a frame each, scanned. The poster
+ * above is the other object — one thing given the whole frame — and every list
+ * in the app was drawn as a grid of those, so a list of bookings was thirty
+ * prints on a wall. A contact sheet is thirty-six frames on one page with a
+ * number under each and no chrome at all, and it is the densest object in a
+ * darkroom. That is the model.
+ *
+ * ONE CARD, NOT ONE PER ROW. The sheet itself is the card — the one separate
+ * object on the screen — and a row is a hairline and some space inside it
+ * (D7). A row is not something you pick up.
+ *
+ * THE FRAME IS NOT OPTIONAL. Every row has one, whether or not there is a
+ * picture to put in it (D4): a booking with no photograph shows the client's
+ * initials in the same frame, at the same ratio, in the same place. Three
+ * things named alike are told apart by the frame before the name is read,
+ * and a column of frames that sometimes goes missing is not a column.
+ *
+ * NO ARRIVAL (D6). The hover is a wash, not a lift: a row is not a card.
+ *
+ * FIGURES IN INK (D3). A price is a fact. Amber is reserved for the one
+ * figure that needs the operator - what is still owed.
+ */
+.q-sheet {
+  container-type: inline-size;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.q-sheet-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--q-color-ink-100);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--q-dur-2) var(--q-ease);
+}
+.q-sheet-row:first-child { border-top: 0; }
+.q-sheet-row:hover { background: var(--q-color-ink-50); }
+.q-sheet-row:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: -2px; }
+
+/* 4:5, the print ratio, so a row's frame and the poster's are the same shape
+   at two sizes — the thumbnail of the thing, not a different picture of it. */
+.q-sheet-frame {
+  width: 44px;
+  aspect-ratio: 4 / 5;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--q-color-ink-100);
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--q-color-ink-600);
+  flex-shrink: 0;
+}
+.q-sheet-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.q-sheet-body { min-width: 0; }
+/* Blocks, not spans: they carry ellipsis rules, and an inline element cannot
+   truncate — the two lines simply ran on as one. */
+.q-sheet-name,
+.q-sheet-cap { display: block; }
+.q-sheet-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.q-sheet-cap {
+  font-size: 0.8rem;
+  color: var(--q-color-ink-600);
+  line-height: 1.35;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* An absence is stated in the caption's own voice, a shade quieter. */
+.q-sheet-cap .q-absent { color: var(--q-color-ink-400); }
+
+.q-sheet-side {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  text-align: right;
+}
+.q-sheet-fig {
+  font-family: var(--q-font-mono);
+  font-size: 0.86rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--q-color-ink-900);
+}
+.q-sheet-fig-due { color: var(--q-color-warm); }
+.q-sheet-fig-none { color: var(--q-color-ink-400); font-weight: 400; }
+
+/* Narrow: the side column drops under the caption. A container query, so
+   this holds wherever a sheet is placed and not only at one page width. */
+@container (max-width: 30rem) {
+  .q-sheet-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .q-sheet-frame { width: 36px; }
+  .q-sheet-side { grid-column: 2; justify-items: start; text-align: left; margin-top: 2px; }
+}
+
 /* Not a package — the other door. Deliberately not a poster: nothing is being
    sold here, so it carries no picture and no weight. */
 .q-poster-else {

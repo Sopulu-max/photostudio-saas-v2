@@ -6,7 +6,7 @@ import { formatMoney } from '@/kernel/currency';
 import { CatalogFilter } from '@/components/CatalogFilter';
 
 /**
- * Every job the studio has taken.
+ * Every job the studio has taken, as a sheet.
  *
  * WHY THIS LIST IS DIFFERENT FROM THE OTHERS. Services and packages are a
  * catalogue: a studio owns a dozen and adds one occasionally. Bookings only
@@ -17,7 +17,17 @@ import { CatalogFilter } from '@/components/CatalogFilter';
  * ITS FACET IS THE STAGE. A package is narrowed by what it is; a booking is
  * narrowed by where it has got to, which is the vocabulary the studio defines
  * for itself in Booking settings. Same control, same rule, different question.
+ *
+ * A SHEET, NOT A GRID OF CARDS (D1). It was a card per booking — title, lead,
+ * a facts strip, a money band — which is the print treatment applied to a
+ * list: thirty separate objects, each asking to be looked at, on a screen
+ * whose whole job is to be scanned past. A row is a hairline and a frame.
+ *
+ * THE FRAME LEADS EVERY ROW (D4). bookings.cover_url has existed since
+ * 20261010 and this list never showed it. When there is no photograph the
+ * client's initials fill the same frame, so the column never goes missing.
  */
+
 /*
  * A booking with no date is not the soonest one. It sorts last whichever way
  * the list is pointed, for the same reason an unpriced package does: a job
@@ -29,6 +39,13 @@ function byDate(a: any, b: any, dir: 1 | -1) {
   if (!ad) return 1;
   if (!bd) return -1;
   return String(ad).localeCompare(String(bd)) * dir;
+}
+
+/* The same reading ContactAvatar makes of a person: two letters, or one. */
+function initialsFor(name: string | null) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '·';
+  return parts.slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
 }
 
 export function BookingsClient({
@@ -67,60 +84,67 @@ export function BookingsClient({
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const Card = ({ b }: { b: any }) => {
+  /*
+   * One row. Frame, two lines, a figure. Everything the old card said is still
+   * here — date, title, client, stage, packages, what is owed — in the order a
+   * person scanning for a job actually reads it, and in a fifth of the height.
+   *
+   * The contract fact is gone from the row: "Raised" or "None" is a consequence
+   * that never asks anything on a sheet (D5), and it is on the booking.
+   */
+  const Row = ({ b }: { b: any }) => {
     const date = when(b.scheduledFor);
+    /*
+     * The client is named in the caption only when the title does not
+     * already lead with them. A composed title reads "Pius James — Custom
+     * Enquiry", and a caption that then says "Pius James" again is the same
+     * name twice on a two-line row — repetition reads as noise before it
+     * reads as anything.
+     */
+    const titleNamesClient = Boolean(
+      b.clientName && String(b.title || '').toLowerCase().includes(String(b.clientName).toLowerCase()),
+    );
+    const caption = [
+      date ?? null,
+      !titleNamesClient ? (b.clientName ?? null) : null,
+      b.lineCount > 0 ? `${b.lineCount} ${b.lineCount === 1 ? 'package' : 'packages'}` : null,
+    ].filter(Boolean);
+
     return (
-      <Link href={`/bookings/${b.id}`} className="q-card q-card-interactive q-plain-link q-stack q-rise">
-        <div className="q-row q-row-between">
-          <div className="q-fill">
-            {/* The date leads the card, because the first thing anyone asks of
-                a booking is when it is. */}
-            <span className={date ? 'q-eyebrow' : 'q-eyebrow q-absent'}>{date || 'No date set'}</span>
-            <h3 className="q-card-title">{b.title}</h3>
-          </div>
-          {b.stage?.name && <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>}
-        </div>
+      <Link href={`/bookings/${b.id}`} className="q-sheet-row">
+        <span className="q-sheet-frame" aria-hidden="true">
+          {b.coverUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={b.coverUrl} alt="" />
+            : initialsFor(b.clientName)}
+        </span>
 
-        {/* Who it is for: the answer somebody opened the list to find, in the
-            same place the other two catalogues put theirs. */}
-        <p className={b.clientName ? 'q-lead' : 'q-lead q-absent'}>
-          {b.clientName || 'No client named yet'}
-        </p>
-
-        <div className="q-facts">
-          <span className="q-fact-group">
-            <span className="q-fact-key">Packages</span>
-            <span className="q-fact-values">
-              <span className={b.lineCount > 0 ? 'q-fact' : 'q-fact q-absent'}>
-                {b.lineCount > 0 ? b.lineCount : 'None'}
-              </span>
-            </span>
+        <span className="q-sheet-body">
+          <span className="q-sheet-name">{b.title}</span>
+          <span className="q-sheet-cap">
+            {caption.length > 0
+              ? caption.join(' · ')
+              /* Only what is actually missing. A client whose name was left
+                 out of the caption because the title already says it is not
+                 an absent client, and this line must not claim one. */
+              : <span className="q-absent">
+                  {b.clientName ? 'No date or package yet' : 'No date, client or package yet'}
+                </span>}
           </span>
-          <span className="q-fact-group">
-            <span className="q-fact-key">Contract</span>
-            <span className="q-fact-values">
-              <span className={b.hasContract ? 'q-fact' : 'q-fact q-absent'}>
-                {b.hasContract ? 'Raised' : 'None'}
-              </span>
-            </span>
-          </span>
-        </div>
+        </span>
 
-        {/* The money band. Outstanding takes the price treatment because it is
-            the number an operator scans a booking list for; nothing owed is a
-            quiet statement rather than a figure. */}
-        <div className="q-card-foot">
-          {b.pendingTotal > 0 ? (
-            <>
-              <span className="q-price">
-                {formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)}
-              </span>
-              <span className="q-meta-sm">outstanding</span>
-            </>
-          ) : (
-            <span className="q-meta-sm q-absent">Nothing outstanding</span>
+        <span className="q-sheet-side">
+          {/* What is owed is the one figure on this sheet that needs the
+              operator, so it is the one that takes the amber (D3). */}
+          {b.pendingTotal > 0
+            ? <span className="q-sheet-fig q-sheet-fig-due">{formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)}</span>
+            /* "Nothing owed", not "Settled": an enquiry nobody has invoiced
+               has settled nothing, and the row must not say it has. */
+            : <span className="q-sheet-fig q-sheet-fig-none">Nothing owed</span>}
+          {b.stage?.name && (
+            <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>
           )}
-        </div>
+        </span>
       </Link>
     );
   };
@@ -132,6 +156,9 @@ export function BookingsClient({
       kind="catalogue"
       sorts={HOW_TO_ORDER}
       facetLabel="stage"
+      /* A sheet has one form. Offering Cards would be offering a control
+         that does nothing, which is exactly what this flag exists to refuse. */
+      views={false}
       read={(b: any) => ({
         name: b.title,
         description: b.clientName,
@@ -142,9 +169,9 @@ export function BookingsClient({
         tags: [],
       })}
     >
-      {(shown, { dense }) => (
-        <div className={dense ? 'q-grid-rows' : 'q-grid-cards'}>
-          {shown.map((b: any) => <Card key={b.id} b={b} />)}
+      {(shown) => (
+        <div className="q-sheet">
+          {shown.map((b: any) => <Row key={b.id} b={b} />)}
         </div>
       )}
     </CatalogFilter>

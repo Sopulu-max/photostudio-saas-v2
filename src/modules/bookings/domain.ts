@@ -1321,7 +1321,7 @@ export async function listBookings() {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, created_at, scheduled_for,
+      id, title, created_at, scheduled_for, cover_url,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
       booking_lines(id),
@@ -1363,6 +1363,20 @@ export async function listBookings() {
       scheduledFor: (b.scheduled_for ?? null) as string | null,
       stage: b.stage || null,
       clientName: b.contact?.display_name || null,
+      /*
+       * THE PICTURE THAT IDENTIFIES THE ROW.                            (D4)
+       *
+       * A booking has carried cover_url since 20261010 and the list never
+       * read it, so a job was named on the sheet and never shown. The row
+       * frame reads this and falls to the client's initials when it is null
+       * — the same reading ContactAvatar already makes for a person.
+       *
+       * DELIBERATELY NOT the package's cover as a fallback. That column is
+       * being replaced by a table of slides in this same tree, and a join
+       * onto it here would break the day that migration runs. When slide one
+       * exists it is one line to add, and it belongs to the cover model.
+       */
+      coverUrl: (b.cover_url ?? null) as string | null,
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
       pendingTotal: pending.reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
