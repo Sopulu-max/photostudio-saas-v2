@@ -31,8 +31,8 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 }));
 
 import {
-  listNotes, getNote, createNote, updateNote, setNotePinned, deleteNote,
-  listNotesAbout, setNoteAbout,
+  listNotes, getNote, createNote, updateNote, setNotePinned, setNoteColour,
+  setNoteReminder, listNoteRemindersInRange, deleteNote, listNotesAbout, setNoteAbout,
 } from '@/modules/notes/domain';
 import { createBooking } from '@/modules/bookings/domain';
 import { seedStudio } from './seed';
@@ -191,5 +191,127 @@ describe('the notes a studio keeps', () => {
       await supabaseAdmin.from('notes').delete().eq('organization_id', otherOrg);
       await supabaseAdmin.from('organizations').delete().eq('id', otherOrg);
     }
+  }, 90000);
+
+  it('can be given one of the seven colours, and take it back off', async () => {
+    /*
+     * Colour is the operator's own — it means nothing the app decides, which is
+     * why it can mean whatever the studio needs. It is its own act and its own
+     * action: choosing a colour is not editing what a note says, and a note
+     * that was never coloured is not a note missing something.
+     */
+    const { noteId } = await createNote({ body: 'Ring the framer' });
+    expect((await getNote(noteId))!.colour, 'a new note arrived coloured').toBeNull();
+
+    await setNoteColour({ id: noteId, colour: 'amber' });
+    expect((await getNote(noteId))!.colour, 'the colour was not kept').toBe('amber');
+
+    await setNoteColour({ id: noteId, colour: 'teal' });
+    expect((await getNote(noteId))!.colour, 'a second colour did not replace the first').toBe('teal');
+
+    await setNoteColour({ id: noteId, colour: null });
+    expect((await getNote(noteId))!.colour, 'the colour could not be taken off').toBeNull();
+  }, 90000);
+
+  it('can be born coloured, so quick capture does not need a second write', async () => {
+    const { noteId } = await createNote({ body: 'Rent goes up in November', colour: 'rose' });
+    expect((await getNote(noteId))!.colour, 'the colour it was created with was dropped').toBe('rose');
+  }, 60000);
+
+  it('refuses a colour the design system has no token for', async () => {
+    /*
+     * The names are Lumen's seven, and the row holds a REFERENCE to the design
+     * system rather than a copy of one moment of it — which is what keeps a
+     * note amber in both themes. A hex, or an eighth name, is a note that
+     * exists and renders as nothing: worse than one that was refused.
+     */
+    const { noteId } = await createNote({ body: 'Whole or nothing' });
+
+    for (const bad of ['puce', '#FF00FF', 'AMBER', '']) {
+      const { error } = await supabaseAdmin.from('notes')
+        .update({ colour: bad }).eq('id', noteId);
+      expect(error, `a note was allowed to be "${bad}"`).toBeTruthy();
+    }
+
+    // And every one that IS a token is accepted.
+    for (const good of ['amber', 'green', 'blue', 'violet', 'teal', 'rose', 'red']) {
+      const { error } = await supabaseAdmin.from('notes')
+        .update({ colour: good }).eq('id', noteId);
+      expect(error, `${good} is a token but was refused`).toBeFalsy();
+    }
+  }, 90000);
+
+  it('can be asked to come back on a day, and told not to', async () => {
+    /*
+     * Not a task and not an alarm. Nothing polls this, nothing is sent, and
+     * nothing is owed — the date puts the note on the calendar, which is the
+     * surface that already gathers everything the studio has to be somewhere
+     * for. Its own act, like colour: a date is not what the note says.
+     */
+    const when = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString();
+    const { noteId } = await createNote({ body: 'Ring the framer' });
+    expect((await getNote(noteId))!.remindAt, 'a new note arrived with a date').toBeNull();
+
+    await setNoteReminder({ id: noteId, remindAt: when });
+    const dated = await getNote(noteId);
+    expect(dated!.remindAt, 'the date was not kept').toBeTruthy();
+    expect(new Date(dated!.remindAt!).toISOString()).toBe(when);
+    expect(dated!.body, 'setting a date changed what the note said').toBe('Ring the framer');
+
+    await setNoteReminder({ id: noteId, remindAt: null });
+    const bare = await getNote(noteId);
+    expect(bare!.remindAt, 'the date could not be taken off').toBeNull();
+    expect(bare, 'taking the date off destroyed the note').toBeTruthy();
+    expect(bare!.body, 'taking the date off lost what it said').toBe('Ring the framer');
+  }, 90000);
+
+  it('comes back to the calendar only inside the range it asked about', async () => {
+    /*
+     * What the calendar reads, a month at a time. A note whose date is outside
+     * the month being looked at must not appear in it, and a note with no date
+     * must never appear at all.
+     */
+    const base = Date.UTC(2031, 4, 15, 9, 0, 0); // a month nothing else uses
+    const inside = new Date(base).toISOString();
+    const outside = new Date(Date.UTC(2031, 7, 2, 9, 0, 0)).toISOString();
+
+    const within = await createNote({ body: 'Inside the month' });
+    await setNoteReminder({ id: within.noteId, remindAt: inside });
+
+    const beyond = await createNote({ body: 'Another month entirely' });
+    await setNoteReminder({ id: beyond.noteId, remindAt: outside });
+
+    const undated = await createNote({ body: 'No date at all' });
+
+    const from = new Date(Date.UTC(2031, 4, 1)).toISOString();
+    const to = new Date(Date.UTC(2031, 5, 0, 23, 59, 59)).toISOString();
+    const found = await listNoteRemindersInRange(from, to);
+    const ids = found.map((n) => n.id);
+
+    expect(ids, 'the dated note in this month is missing').toContain(within.noteId);
+    expect(ids, 'a note from another month leaked in').not.toContain(beyond.noteId);
+    expect(ids, 'a note with no date appeared on the calendar').not.toContain(undated.noteId);
+    expect(found[0].body, 'the note came back without what it says').toBe('Inside the month');
+  }, 120000);
+
+  it('a reminder whose moment has passed is still there', async () => {
+    /*
+     * Working memory that forgets would not be working memory. Nothing expires
+     * a note, nothing cleans one up, and a date in the past reads exactly as it
+     * was written — the interface draws it differently and that is all.
+     */
+    const past = new Date(Date.UTC(2020, 0, 6, 9, 0, 0)).toISOString();
+    const { noteId } = await createNote({ body: 'Long overdue' });
+    await setNoteReminder({ id: noteId, remindAt: past });
+
+    const still = await getNote(noteId);
+    expect(still, 'a passed reminder removed the note').toBeTruthy();
+    expect(new Date(still!.remindAt!).toISOString(), 'a passed reminder was cleared').toBe(past);
+
+    const found = await listNoteRemindersInRange(
+      new Date(Date.UTC(2020, 0, 1)).toISOString(),
+      new Date(Date.UTC(2020, 1, 0, 23, 59, 59)).toISOString(),
+    );
+    expect(found.map((n) => n.id), 'a passed reminder vanished from its own month').toContain(noteId);
   }, 90000);
 });

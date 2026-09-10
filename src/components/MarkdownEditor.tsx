@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useRef, useLayoutEffect, useCallback } from 'react';
+import React, { useRef, useLayoutEffect, useCallback, useState } from 'react';
 import {
   Bold, Italic, Strikethrough, Highlighter, Heading, List, ListOrdered,
-  ListChecks, Quote, Code, Link2, Minus,
+  ListChecks, Quote, Code, Link2, Minus, ImagePlus, Loader,
 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { getStudioAssetUploadTarget, getPublicUrlForStudioAsset } from '@/kernel/organizations';
+import { prepareImage } from './prepareImage';
+import { toast } from './Toast';
 
 /**
  * Writing a note.
@@ -87,6 +91,8 @@ export function MarkdownEditor({
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const pending = useRef<Selection | null>(null);
+  const file = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   /*
    * React owns the value, so the caret has to be put back by hand after every
@@ -312,6 +318,43 @@ export function MarkdownEditor({
     }
   };
 
+  /**
+   * A picture, put where the caret is.
+   *
+   * The same four steps the cover and avatar pickers take — resize, ask the
+   * studio's bucket for a target, upload, publish — because there is one way
+   * this app puts a file somewhere and this is not going to be a second. What
+   * comes back is a URL, and a URL in a note is a mark like any other, so the
+   * whole of "an image in a note" is the markdown this writes.
+   */
+  const attach = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      const prepared = await prepareImage(file, { maxEdge: 1600 });
+      const { bucket, path } = await getStudioAssetUploadTarget(prepared.file.name, 'notes');
+      const supabase = createClient();
+      const { error } = await supabase.storage.from(bucket).upload(path, prepared.file);
+      if (error) throw new Error(error.message);
+      const url = await getPublicUrlForStudioAsset(path);
+
+      const el = ref.current;
+      const at = el ? el.selectionStart : value.length;
+      // Named after the file, which is the only name anybody has given it yet.
+      const alt = file.name.replace(/\.[^.]+$/, '');
+      const before = value.slice(0, at);
+      const lead = before && !before.endsWith('\n') ? '\n\n' : '';
+      const made = `${lead}![${alt}](${url})\n`;
+      apply(before + made + value.slice(at), [at + made.length, at + made.length]);
+    } catch (err) {
+      // Said in full: a studio that cannot upload needs to know whether it is
+      // the file, the network, or its own permissions.
+      const why = err instanceof Error && err.message ? `: ${err.message}` : '.';
+      toast.bad(`That picture could not be added${why}`);
+    } finally {
+      setUploading(false);
+    }
+  }, [apply, value]);
+
   const runCommand = useCallback((cmd: Command) => {
     switch (cmd) {
       case 'bold': return wrap('**');
@@ -349,6 +392,32 @@ export function MarkdownEditor({
               {b.icon}
             </button>
           ))}
+
+          {/* A file input has no appearance worth keeping, so the button is the
+              button and this is only the mechanism behind it. */}
+          <input
+            ref={file}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const picked = e.currentTarget.files?.[0];
+              e.currentTarget.value = '';
+              if (picked) attach(picked);
+            }}
+          />
+          <button
+            type="button"
+            className="q-md-btn"
+            title="Picture"
+            aria-label="Picture"
+            disabled={disabled || uploading}
+            aria-busy={uploading}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => file.current?.click()}
+          >
+            {uploading ? <Loader size={14} className="q-spin" /> : <ImagePlus size={14} />}
+          </button>
         </div>
       )}
 

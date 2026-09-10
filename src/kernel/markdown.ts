@@ -17,10 +17,13 @@
  * nothing for dangerouslySetInnerHTML to do. A dependency would have brought an
  * HTML pipeline this app has no other use for.
  *
- * WHAT IS DELIBERATELY MISSING. Images. The syntax is three lines to parse and
- * would render a box a person cannot fill, because nothing here uploads a file
- * to put in it. A control that cannot be used is worse than one that is absent,
- * and images are their own slice with their own storage.
+ * IMAGES ARE A MARK, NOT A COLUMN. An image in a note is the same claim as a
+ * link: a URL written into the body. The studio's upload pipeline already
+ * existed — the same buckets and the same resizing the covers and avatars use —
+ * so what an image needed was never storage, only the syntax for pointing at
+ * what storage returned. No table, no column, no migration: a note with a
+ * picture in it is still one text column, and a note written before any of this
+ * still reads correctly.
  */
 
 export type Inline =
@@ -32,7 +35,8 @@ export type Inline =
   | { kind: 'em'; children: Inline[] }
   | { kind: 'strike'; children: Inline[] }
   | { kind: 'mark'; children: Inline[] }
-  | { kind: 'link'; href: string; children: Inline[] };
+  | { kind: 'link'; href: string; children: Inline[] }
+  | { kind: 'image'; src: string; alt: string };
 
 export type ListItem = {
   content: Inline[];
@@ -320,6 +324,22 @@ export function safeHref(raw: string): string | null {
   return `https://${href}`;
 }
 
+/**
+ * Where a picture may be loaded from.
+ *
+ * Narrower than a link, on purpose. A link may be a mailto or a telephone
+ * number; a src is a request the browser makes on its own, before anybody
+ * chooses to follow it, so only the schemes that can answer with an image are
+ * allowed and everything else is left as the text somebody typed.
+ */
+export function safeImageSrc(raw: string): string | null {
+  const src = (raw ?? '').trim();
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src)) return src;
+  if (src.startsWith('/')) return src;
+  return null;
+}
+
 const ESCAPABLE = '\\`*_~=[]()#-+>!|';
 
 const WRAPS: Array<[string, 'strong' | 'em' | 'strike' | 'mark']> = [
@@ -383,6 +403,22 @@ function inlinesOf(text: string): Inline[] {
           out.push({ kind: 'link', href, children: [{ kind: 'text', text: auto[1] }] });
           i += auto[0].length;
           continue;
+        }
+      }
+    }
+
+    if (c === '!' && text[i + 1] === '[') {
+      const close = matchBracket(text, i + 1);
+      if (close > i + 1 && text[close + 1] === '(') {
+        const end = text.indexOf(')', close + 2);
+        if (end > close) {
+          const src = safeImageSrc(text.slice(close + 2, end).trim().split(/\s+/)[0]);
+          if (src) {
+            flush();
+            out.push({ kind: 'image', src, alt: text.slice(i + 2, close) });
+            i = end + 1;
+            continue;
+          }
         }
       }
     }
@@ -461,6 +497,9 @@ function inlineText(nodes: Inline[]): string {
       case 'text': return n.text;
       case 'code': return n.text;
       case 'break': return '\n';
+      /* Read plainly, a picture is what it was called. A preview or a search
+         has no use for the URL, and every use for the words beside it. */
+      case 'image': return n.alt;
       default: return inlineText(n.children);
     }
   }).join('');

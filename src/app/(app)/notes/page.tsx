@@ -28,6 +28,17 @@ export default async function NotesPage() {
 
   const notes = await listNotes();
 
+  /*
+   * One clock, read on the server and handed down.
+   *
+   * A reminder whose moment has passed is drawn differently, and asking the
+   * browser what time it is DURING a render would let the server and the client
+   * disagree about that — the server saying "not yet" and the client saying
+   * "passed" is a hydration mismatch over a single card's colour. The calendar
+   * hands down todayKey for exactly this reason.
+   */
+  const now = new Date().toISOString();
+
   return (
     <div>
       <header className="q-page-header">
@@ -39,7 +50,7 @@ export default async function NotesPage() {
         </div>
       </header>
 
-      <NotesBoard initial={notes} />
+      <NotesBoard initial={notes} now={now} />
     </div>
   );
 }

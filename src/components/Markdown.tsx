@@ -180,7 +180,10 @@ function Box({
       className={cls}
       role="checkbox"
       aria-checked={checked}
-      onClick={() => onToggleTask(line)}
+      /* A tick is about the box, not about whatever the note is sitting in.
+         On the board a card opens when it is clicked, and ticking one of its
+         boxes must not also be a request to open it. */
+      onClick={(e) => { e.stopPropagation(); onToggleTask(line); }}
     >
       {face}
     </button>
@@ -200,6 +203,27 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
           case 'strike': return <del key={i}><Inlines nodes={node.children} /></del>;
           case 'mark': return <mark key={i} className="q-md-mark"><Inlines nodes={node.children} /></mark>;
           case 'link': return <Anchor key={i} href={node.href}>{<Inlines nodes={node.children} />}</Anchor>;
+          /*
+           * Lazy, and never taller than the card it sits in. A note is read on
+           * a wall of other notes, so one photograph must not push the rest of
+           * the wall off the screen — it is a thing IN the note, not the note.
+           */
+          case 'image': return (
+            /* A plain img, like the gallery's tiles. next/image wants every
+               host it will ever be handed declared up front, and a note may
+               point at anything a person pasted — an optimiser that fails on an
+               address it was not told about would turn a working note into a
+               broken one. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              key={i}
+              className="q-md-img"
+              src={node.src}
+              alt={node.alt}
+              loading="lazy"
+              decoding="async"
+            />
+          );
         }
       })}
     </>
@@ -215,11 +239,14 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
  */
 function Anchor({ href, children }: { href: string; children: React.ReactNode }) {
   const internal = href.startsWith('/') || href.startsWith('#');
+  /* Following a link is not also a request to open whatever the note is sitting
+     in — see the checkbox above for the same reasoning. */
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
   if (internal) {
-    return <Link href={href} className="q-link">{children}</Link>;
+    return <Link href={href} className="q-link" onClick={stop}>{children}</Link>;
   }
   return (
-    <a href={href} className="q-link" target="_blank" rel="noreferrer noopener">
+    <a href={href} className="q-link" target="_blank" rel="noreferrer noopener" onClick={stop}>
       {children}
     </a>
   );

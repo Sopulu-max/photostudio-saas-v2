@@ -14,7 +14,11 @@ type Item =
      is what a date input records and it is a day, not an instant. */
   | { kind: 'occasion'; at: string; bookingId: string; bookingTitle: string; client: string | null; dimensionName: string; title: string; scheduledFor: string | null }
   | { kind: 'deadline'; at: string; taskId: string; title: string; status: string; bookingId: string; bookingTitle: string; lineTitle: string }
-  | { kind: 'money'; at: string; transactionId: string; title: string; amount: number; currency: string; status: string; bookingId: string | null; bookingTitle: string | null };
+  | { kind: 'money'; at: string; transactionId: string; title: string; amount: number; currency: string; status: string; bookingId: string | null; bookingTitle: string | null }
+  /* Working memory that said when. Not a task and nothing owed — a note the
+     studio asked to see again on a day, carrying enough of itself to be read
+     here without opening it. */
+  | { kind: 'note'; at: string; noteId: string; title: string; excerpt: string; colour: string | null };
 
 /*
  * A booking now shows up on three of these, and the order is the order of the
@@ -35,6 +39,7 @@ const layersFor = (occasionLabel: string) => [
   { key: 'occasion', label: occasionLabel, dot: 'var(--q-color-warm-deep, var(--q-color-warm))' },
   { key: 'deadline', label: 'Deadlines', dot: 'var(--q-color-warm)' },
   { key: 'money', label: 'Money', dot: 'var(--q-color-success)' },
+  { key: 'note', label: 'Notes', dot: 'var(--q-hue-violet)' },
 ] as const;
 
 /*
@@ -83,7 +88,7 @@ export function CalendarClient({
 }) {
   const LAYERS = useMemo(() => layersFor(occasionLayerLabel), [occasionLayerLabel]);
   const [on, setOn] = useState<Record<string, boolean>>({
-    booking: true, placed: true, occasion: true, deadline: true, money: true,
+    booking: true, placed: true, occasion: true, deadline: true, money: true, note: true,
   });
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -304,6 +309,21 @@ export function CalendarClient({
                         <div className="q-row" style={{ marginTop: '9px' }}>
                           <span className={`q-badge ${it.status === 'settled' ? 'q-badge-success' : 'q-badge-warning'}`}>{it.status}</span>
                           <Link href={`/finances/${it.transactionId}`} className="q-btn q-btn-secondary q-btn-xs">Open</Link>
+                        </div>
+                      </>
+                    )}
+
+                    {/*
+                      * A note says what it says. No stage, no status, no amount
+                      * — nothing is owed and nothing is tracked, so a badge here
+                      * would invent a state the note does not have.
+                      */}
+                    {it.kind === 'note' && (
+                      <>
+                        <strong className="q-block q-cap">{it.title}</strong>
+                        {it.excerpt && <div className="q-meta q-clamp-2">{it.excerpt}</div>}
+                        <div className="q-row" style={{ marginTop: '9px' }}>
+                          <Link href="/notes" className="q-btn q-btn-secondary q-btn-xs">Open</Link>
                         </div>
                       </>
                     )}

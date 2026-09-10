@@ -99,6 +99,9 @@
   /* What an edge casts onto content passing beneath it. Deeper in the dark
      palette, where a wash of black is the only thing that reads as depth. */
   --q-edge-shade:   rgba(26, 26, 29, 0.22);
+  /* What the board is seen through while one note is open. Dark in both
+     palettes on purpose: a veil is an absence of light, not a colour. */
+  --q-note-veil:    rgba(26, 26, 29, 0.42);
 
   /* Jewel gradients (the app launcher) */
   --q-jewel-indigo:  linear-gradient(150deg, #4B57E6, #2A2F9E);
@@ -199,6 +202,7 @@
   --q-shadow-lg:    0 16px 32px -10px rgba(0, 0, 0, 0.6), 0 4px 10px -6px rgba(0, 0, 0, 0.5);
   --q-shadow-glass: 0 20px 40px -12px rgba(0, 0, 0, 0.7), 0 6px 14px -8px rgba(0, 0, 0, 0.5);
   --q-edge-shade:   rgba(0, 0, 0, 0.62);
+  --q-note-veil:    rgba(0, 0, 0, 0.62);
 }
 
 body {
@@ -3980,3 +3984,337 @@ button.q-md-box:focus-visible {
   transition: width var(--q-dur-3) var(--q-ease);
 }
 .q-md-progress-done .q-md-progress-fill { background: var(--q-color-success); }
+
+/* ==========================================================================
+   THE BOARD
+   --------------------------------------------------------------------------
+   Notes as paper on a wall, not rows in a list.
+
+   The list-beside-an-editor this replaces was right about one thing and wrong
+   about another. Right: a note is a few lines, and making somebody navigate to
+   read four of them is the shape of a filing cabinet rather than of a notebook.
+   Wrong: it then showed two clamped lines of each and made you click to read
+   the rest, which is the same navigation with the trip disguised. A board shows
+   the notes THEMSELVES. Nothing is a preview of anything.
+
+   MOTION IS THE POINT, NOT THE GARNISH — 08-DESIGN_SYSTEM says so, and a wall
+   of paper is where it earns that. The board arrives as a wave rather than all
+   at once; a card lifts under the cursor and settles with a spring rather than
+   snapping; colour washes in slowly enough to watch. One motion language, the
+   tokens the rest of the app already moves by. prefers-reduced-motion cancels
+   every bit of it globally, near the top of this file.
+   ========================================================================== */
+
+.q-board {
+  /* Masonry without JavaScript. Columns size themselves to the viewport, so a
+     phone gets one and a wide desk gets five, with no breakpoints to keep. */
+  columns: 264px;
+  column-gap: 16px;
+}
+
+.q-board-note {
+  /* A card must not be sliced across a column boundary. */
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 15px 16px 12px;
+  text-align: left;
+  border: 1px solid var(--q-color-ink-200);
+  border-radius: 14px;
+  background: var(--q-board-paper, var(--q-color-paper-base));
+  box-shadow: var(--q-shadow-sm);
+  cursor: pointer;
+  /* The wave, below, needs a starting state that survives its delay. */
+  animation: q-board-in var(--q-dur-3) var(--q-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 18) * 42ms);
+  transition:
+    transform var(--q-dur-2) var(--q-spring),
+    box-shadow var(--q-dur-2) var(--q-ease),
+    border-color var(--q-dur-3) var(--q-ease),
+    background var(--q-dur-3) var(--q-ease);
+}
+
+/*
+ * The wave.
+ *
+ * 42ms apart, capped at eighteen cards. Below about 30ms a stagger reads as a
+ * stutter rather than a sweep; above about 60ms the last card arrives after
+ * the eye has already gone looking for it. The cap is why a studio with sixty
+ * notes still finishes assembling in under a second.
+ */
+@keyframes q-board-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.q-board-note:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--q-shadow-md);
+}
+.q-board-note:active { transform: translateY(-1px) scale(0.994); }
+.q-board-note:focus-visible {
+  outline: none;
+  box-shadow: var(--q-shadow-md), 0 0 0 3px var(--q-color-accent-soft);
+}
+
+.q-board-title {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--q-color-ink-900);
+  margin-bottom: 5px;
+}
+
+/* The note itself, at the size a wall of them can be read at. */
+.q-board-body { font-size: 0.84rem; line-height: 1.55; }
+
+/* Long notes fade out rather than being cut, so the card says there is more
+   without a control that says it in words. */
+.q-board-clip {
+  position: relative;
+  max-height: 268px;
+  overflow: hidden;
+}
+.q-board-more::after { display: block; }
+.q-board-clip::after {
+  content: '';
+  display: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 52px;
+  background: linear-gradient(to top, var(--q-board-paper, var(--q-color-paper-base)), transparent);
+  pointer-events: none;
+}
+
+.q-board-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 24px;
+}
+
+/*
+ * The actions stay out of the way until wanted.
+ *
+ * Always-on rows of icons turn a wall of notes into a wall of buttons. They
+ * come back for hover, and for keyboard focus anywhere inside the card, so
+ * they are never unreachable without a mouse.
+ */
+.q-board-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity var(--q-dur-2) var(--q-ease), transform var(--q-dur-2) var(--q-ease);
+}
+.q-board-note:hover .q-board-acts,
+.q-board-note:focus-within .q-board-acts,
+.q-board-acts:focus-within { opacity: 1; transform: none; }
+@media (hover: none) {
+  /* Nothing to hover on a touch screen, so nothing hides. */
+  .q-board-acts { opacity: 1; transform: none; }
+}
+
+/* The pin, as a physical act. */
+.q-board-pin { transition: transform var(--q-dur-2) var(--q-spring); }
+.q-board-pin-on { transform: rotate(-38deg); }
+
+/* ---- Colour ----
+   Each tint is the hue mixed into whatever paper the theme is using, so one
+   recipe serves both palettes and neither is a special case. --q-board-paper
+   carries the same colour to the fade at the bottom of a clipped note. */
+.q-tint-amber  { --q-board-paper: color-mix(in srgb, var(--q-hue-amber) 13%,  var(--q-color-paper-base)); }
+.q-tint-green  { --q-board-paper: color-mix(in srgb, var(--q-hue-green) 13%,  var(--q-color-paper-base)); }
+.q-tint-blue   { --q-board-paper: color-mix(in srgb, var(--q-hue-blue) 13%,   var(--q-color-paper-base)); }
+.q-tint-violet { --q-board-paper: color-mix(in srgb, var(--q-hue-violet) 13%, var(--q-color-paper-base)); }
+.q-tint-teal   { --q-board-paper: color-mix(in srgb, var(--q-hue-teal) 13%,   var(--q-color-paper-base)); }
+.q-tint-rose   { --q-board-paper: color-mix(in srgb, var(--q-hue-rose) 13%,   var(--q-color-paper-base)); }
+.q-tint-red    { --q-board-paper: color-mix(in srgb, var(--q-hue-red) 13%,    var(--q-color-paper-base)); }
+
+.q-tint-amber  { border-color: color-mix(in srgb, var(--q-hue-amber) 30%,  transparent); }
+.q-tint-green  { border-color: color-mix(in srgb, var(--q-hue-green) 30%,  transparent); }
+.q-tint-blue   { border-color: color-mix(in srgb, var(--q-hue-blue) 30%,   transparent); }
+.q-tint-violet { border-color: color-mix(in srgb, var(--q-hue-violet) 30%, transparent); }
+.q-tint-teal   { border-color: color-mix(in srgb, var(--q-hue-teal) 30%,   transparent); }
+.q-tint-rose   { border-color: color-mix(in srgb, var(--q-hue-rose) 30%,   transparent); }
+.q-tint-red    { border-color: color-mix(in srgb, var(--q-hue-red) 30%,    transparent); }
+
+/* The picker. */
+.q-paint { display: flex; align-items: center; gap: 5px; }
+.q-paint-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--q-color-ink-200);
+  cursor: pointer;
+  transition: transform var(--q-dur-1) var(--q-spring), box-shadow var(--q-dur-1) var(--q-ease);
+}
+.q-paint-dot:hover { transform: scale(1.24); }
+.q-paint-dot:active { transform: scale(0.94); }
+.q-paint-dot-on {
+  box-shadow: 0 0 0 2px var(--q-color-paper-base), 0 0 0 3px var(--q-color-ink-900);
+}
+.q-paint-dot:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--q-color-paper-base), 0 0 0 4px var(--q-color-accent);
+}
+
+/* Plain paper, said as a swatch: the absence of colour, drawn rather than
+   labelled, so it sits in the same row as the seven that are colours. */
+.q-paint-none {
+  background: var(--q-color-paper-base);
+  position: relative;
+  overflow: hidden;
+}
+.q-paint-none::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom right, transparent 45%,
+    var(--q-color-ink-400) 45%, var(--q-color-ink-400) 55%, transparent 55%);
+}
+.q-paint-amber  { background: color-mix(in srgb, var(--q-hue-amber) 55%,  var(--q-color-paper-base)); }
+.q-paint-green  { background: color-mix(in srgb, var(--q-hue-green) 55%,  var(--q-color-paper-base)); }
+.q-paint-blue   { background: color-mix(in srgb, var(--q-hue-blue) 55%,   var(--q-color-paper-base)); }
+.q-paint-violet { background: color-mix(in srgb, var(--q-hue-violet) 55%, var(--q-color-paper-base)); }
+.q-paint-teal   { background: color-mix(in srgb, var(--q-hue-teal) 55%,   var(--q-color-paper-base)); }
+.q-paint-rose   { background: color-mix(in srgb, var(--q-hue-rose) 55%,   var(--q-color-paper-base)); }
+.q-paint-red    { background: color-mix(in srgb, var(--q-hue-red) 55%,    var(--q-color-paper-base)); }
+
+/* ---- Quick capture ----
+   One line until it is wanted. New note made an empty row and then asked you to
+   type into it; this is the same two motions collapsed into the one a person
+   was already making. */
+.q-capture {
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto 26px;
+  border: 1px solid var(--q-color-ink-200);
+  border-radius: 14px;
+  background: var(--q-color-paper-base);
+  box-shadow: var(--q-shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease),
+              transform var(--q-dur-2) var(--q-spring);
+}
+.q-capture:hover { box-shadow: var(--q-shadow-md); }
+.q-capture-open {
+  box-shadow: var(--q-shadow-lg);
+  border-color: var(--q-color-ink-300);
+  transform: translateY(-2px);
+}
+.q-capture-shut {
+  display: block;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--q-color-ink-500);
+  cursor: text;
+}
+.q-capture-body { padding: 12px; animation: q-fade-in var(--q-dur-2) var(--q-ease) backwards; }
+
+/* ---- One note, opened ---- */
+.q-note-veil-el {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 16px 24px;
+  overflow-y: auto;
+  background: var(--q-note-veil);
+  backdrop-filter: blur(3px);
+  animation: q-fade-in var(--q-dur-2) var(--q-ease);
+}
+.q-note-modal {
+  width: 100%;
+  max-width: 660px;
+  border: 1px solid var(--q-color-ink-200);
+  border-radius: 16px;
+  background: var(--q-board-paper, var(--q-color-paper-base));
+  box-shadow: var(--q-shadow-glass);
+  padding: 18px;
+  /* Grows into place rather than fading in from nowhere - the card the person
+     just pressed becoming the thing they are now reading. */
+  animation: q-note-pop var(--q-dur-3) var(--q-spring) backwards;
+  transition: background var(--q-dur-3) var(--q-ease), border-color var(--q-dur-3) var(--q-ease);
+}
+@keyframes q-note-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The section a run of notes sits under. */
+.q-board-band {
+  font-family: var(--q-font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--q-color-ink-500);
+  margin: 0 0 11px;
+}
+.q-board-band + .q-board { margin-bottom: 30px; }
+
+/* A picture inside a note. Never wider than the note and never tall enough to
+   push the rest of the wall off the screen.
+   
+   A FRAME BEFORE THERE IS A PICTURE. An img with auto width and height has no
+   size until it loads, so a wall of cards reflows the moment one arrives and
+   every card below it jumps. Full width and a floor on the height reserve the
+   space up front, which is what keeps the masonry still — and full-bleed is
+   how a card carries a photograph anyway. cover crops rather than distorts. */
+.q-md-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 80px;
+  max-height: 320px;
+  height: auto;
+  margin: 10px 0;
+  border-radius: 10px;
+  border: 1px solid var(--q-color-ink-200);
+  background: var(--q-color-ink-50);
+  object-fit: cover;
+}
+.q-board-body .q-md-img { max-height: 190px; }
+
+/* A note that said when. Violet, matching its dot on the calendar, so the same
+   fact looks like itself in both places. */
+.q-remind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--q-font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--q-hue-violet) 72%, var(--q-color-ink-900));
+  background: color-mix(in srgb, var(--q-hue-violet) 15%, transparent);
+}
+/* Its moment has passed. Still there, still saying the same thing — a note is
+   not an alarm and nothing here is overdue, so this is a change of colour and
+   not a warning. */
+.q-remind-due {
+  color: color-mix(in srgb, var(--q-hue-amber) 76%, var(--q-color-ink-900));
+  background: color-mix(in srgb, var(--q-hue-amber) 17%, transparent);
+}
+.q-remind-at {
+  width: auto;
+  padding: 5px 9px;
+  font-size: 0.78rem;
+  font-family: var(--q-font-mono);
+}

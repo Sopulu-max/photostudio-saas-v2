@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseMarkdown, plainText, toggleTaskLine, taskProgress, safeHref, noteStats,
+  parseMarkdown, plainText, toggleTaskLine, taskProgress, safeHref, safeImageSrc, noteStats,
   type Block, type Inline,
 } from '@/kernel/markdown';
 
@@ -24,6 +24,7 @@ function textOf(nodes: Inline[]): string {
   return nodes.map((n) => {
     if (n.kind === 'text' || n.kind === 'code') return n.text;
     if (n.kind === 'break') return '\n';
+    if (n.kind === 'image') return n.alt;
     return textOf(n.children);
   }).join('');
 }
@@ -241,5 +242,58 @@ describe('a link cannot carry a scheme that executes', () => {
     const link = para.content.find((n) => n.kind === 'link') as Extract<Inline, { kind: 'link' }>;
     expect(link.href, 'the full stop was taken into the address').toBe('https://example.com');
     expect(textOf(para.content)).toContain('. Then ring them.');
+  });
+});
+
+describe('a picture is a mark, not a column', () => {
+  it('reads one, and keeps what it was called', () => {
+    /*
+     * An image in a note is the same claim as a link: a URL written into the
+     * body. That is the whole of it — no table, no column, and a note with a
+     * picture in it is still one text column.
+     */
+    const para = parseMarkdown('![The gate](https://cdn.example.com/gate.jpg)')[0] as Extract<Block, { kind: 'paragraph' }>;
+    const img = para.content.find((n) => n.kind === 'image') as Extract<Inline, { kind: 'image' }>;
+    expect(img, 'a picture was left as text').toBeTruthy();
+    expect(img.src).toBe('https://cdn.example.com/gate.jpg');
+    expect(img.alt).toBe('The gate');
+  });
+
+  it('is not mistaken for the link it is spelled like', () => {
+    const para = parseMarkdown('[The gate](https://example.com/gate)')[0] as Extract<Block, { kind: 'paragraph' }>;
+    expect(para.content.some((n) => n.kind === 'image'), 'a link was read as a picture').toBe(false);
+    expect(para.content.some((n) => n.kind === 'link'), 'the link stopped being one').toBe(true);
+  });
+
+  it('reads plainly as what it was called', () => {
+    // A preview and a search have no use for the URL and every use for the words.
+    const plain = plainText('Before ![the gate](https://cdn.example.com/g.jpg) after');
+    expect(plain).toBe('Before the gate after');
+    expect(plain, 'the address leaked into the preview').not.toContain('http');
+  });
+
+  it('refuses a src that is not a picture request', () => {
+    /*
+     * Narrower than a link on purpose. A link may be a mailto or a telephone
+     * number, and a src is a request the browser makes ON ITS OWN, before
+     * anybody chooses to follow it.
+     */
+    expect(safeImageSrc('https://cdn.example.com/a.jpg')).toBe('https://cdn.example.com/a.jpg');
+    expect(safeImageSrc('/uploads/a.jpg'), 'a picture served by this app was refused').toBe('/uploads/a.jpg');
+
+    for (const bad of ['javascript:alert(1)', 'data:image/svg+xml,<svg onload=alert(1)>', 'mailto:a@b.c', 'tel:123', 'file:///etc/passwd']) {
+      expect(safeImageSrc(bad), `${bad} was allowed as a picture`).toBeNull();
+    }
+  });
+
+  it('leaves the words alone when the src is refused', () => {
+    // The person still wrote something; refusing the address must not eat it.
+    expect(plainText('![the gate](javascript:alert(1))')).toContain('the gate');
+  });
+
+  it('a note written before pictures existed still reads the same', () => {
+    // The bang is only special immediately before a bracket.
+    const body = 'Ring the framer! Ask about 20x30.';
+    expect(plainText(body)).toBe(body);
   });
 });

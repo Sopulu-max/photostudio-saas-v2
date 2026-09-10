@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listBookingsInRange, listBookingsPlacedInRange, listClassificationDatesInRange } from '@/modules/bookings/interface';
 import { listDueInRange } from '@/modules/finances/interface';
+import { listNoteRemindersInRange } from '@/modules/notes/interface';
+import { plainText } from '@/kernel/markdown';
 import { CalendarClient } from './CalendarClient';
 
 export const dynamic = 'force-dynamic';
@@ -39,12 +41,31 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
    *
    * Three readings, not three columns. Nothing here is stored twice.
    */
-  const [bookings, placed, occasions, due] = await Promise.all([
+  const [bookings, placed, occasions, due, reminders] = await Promise.all([
     listBookingsInRange(from, to),
     listBookingsPlacedInRange(from, to),
     listClassificationDatesInRange(from, to),
     listDueInRange(from, to),
+    listNoteRemindersInRange(from, to),
   ]);
+
+  /*
+   * A note that said WHEN.
+   *
+   * The fifth thing this view composes, and the reason it belongs: a studio's
+   * working memory is exactly the kind of thing that has a day, and until now
+   * the only place to write "ring the framer Wednesday" was somewhere the
+   * calendar could not see. Read plainly here, because the calendar shows what
+   * a note SAYS, not how it is marked up.
+   */
+  const notes = reminders.map((n) => ({
+    kind: 'note' as const,
+    at: n.remindAt!,
+    noteId: n.id,
+    title: (n.title || '').trim() || plainText(n.body).split('\n').find(Boolean) || 'Empty note',
+    excerpt: plainText(n.body),
+    colour: n.colour,
+  }));
 
   /*
    * The layer takes the studio's own name for the question where they all
@@ -62,7 +83,7 @@ export default async function CalendarPage(props: { searchParams: Promise<{ mont
 
   return (
     <CalendarClient
-      items={[...bookings, ...placed, ...occasions, ...due] as any}
+      items={[...bookings, ...placed, ...occasions, ...due, ...notes] as any}
       occasionLayerLabel={occasionLayerLabel}
       year={year}
       month={month}

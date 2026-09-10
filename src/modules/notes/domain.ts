@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 // A failure keeps the reason it failed — and says so plainly when the reason
 // is that the database was never reached. See kernel/errors.
 import { dbError } from '@/kernel/errors';
+import type { NoteColour } from './colours';
 
 /**
  * The studio's own working memory.
@@ -24,6 +25,12 @@ import { dbError } from '@/kernel/errors';
 /** The kinds of thing a note can be about. Mirrors the database's own check. */
 export type NoteAbout = 'booking' | 'client';
 
+/*
+ * The colours live in ./colours — this module is 'use server', and a server
+ * module may export only async functions, so the runtime list cannot come from
+ * here. The type may: types are erased before any of that matters.
+ */
+
 export type Note = {
   id: string;
   title: string | null;
@@ -33,12 +40,16 @@ export type Note = {
   /** Null for a note about nothing in particular, which is most of them. */
   aboutType: NoteAbout | null;
   aboutId: string | null;
+  /** Null for plain paper, which is most of them. */
+  colour: NoteColour | null;
+  /** When it should come back, shown on the calendar. Null for most of them. */
+  remindAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 const SELECT =
-  'id, title, body, pinned, about_type, about_id, created_at, updated_at, author:contacts(display_name)';
+  'id, title, body, pinned, colour, remind_at, about_type, about_id, created_at, updated_at, author:contacts(display_name)';
 
 function shape(r: any): Note {
   return {
@@ -49,6 +60,8 @@ function shape(r: any): Note {
     authorName: r.author?.display_name ?? null,
     aboutType: (r.about_type ?? null) as NoteAbout | null,
     aboutId: r.about_id ?? null,
+    colour: (r.colour ?? null) as NoteColour | null,
+    remindAt: r.remind_at ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -92,6 +105,8 @@ export async function getNote(id: string): Promise<Note | null> {
 export async function createNote(input?: {
   title?: string | null;
   body?: string;
+  colour?: NoteColour | null;
+  remindAt?: string | null;
   /*
    * What it is about, when it is written from that thing's own page.
    *
@@ -108,6 +123,8 @@ export async function createNote(input?: {
       author_id: contactId ?? null,
       title: (input?.title || '').trim() || null,
       body: input?.body ?? '',
+      colour: input?.colour ?? null,
+      remind_at: input?.remindAt ?? null,
       about_type: input?.about?.type ?? null,
       about_id: input?.about?.id ?? null,
     })
@@ -168,6 +185,75 @@ export async function setNotePinned(input: { id: string; pinned: boolean }) {
   }
   revalidatePath('/notes');
   return { ok: true };
+}
+
+/**
+ * Paint it, or take the paint off.
+ *
+ * Its own action rather than a field on updateNote, because it is its own act:
+ * colouring a note is not editing what it says, and the two do not want the
+ * same save. Typing waits a second for the quiet; a colour is chosen once and
+ * should land at once.
+ */
+export async function setNoteColour(input: { id: string; colour: NoteColour | null }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('notes').update({ colour: input.colour })
+    .eq('id', input.id).eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to colour a note:', error);
+    throw dbError('That could not be changed.', error);
+  }
+  revalidatePath('/notes');
+  return { ok: true };
+}
+
+/**
+ * Say when a note should come back, or that it should not.
+ *
+ * Its own act, like colour, and for the same reason: a date is not what the
+ * note says. Passing null takes the date off and leaves everything else, since
+ * a note whose moment has passed is still what the studio wrote down.
+ *
+ * The calendar is told to rebuild as well as the notes app, because that is
+ * where the date is actually read and a stale one there is worse than none.
+ */
+export async function setNoteReminder(input: { id: string; remindAt: string | null }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('notes').update({ remind_at: input.remindAt })
+    .eq('id', input.id).eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to set a note reminder:', error);
+    throw dbError('That could not be changed.', error);
+  }
+  revalidatePath('/notes');
+  revalidatePath('/calendar');
+  return { ok: true };
+}
+
+/**
+ * The dated notes falling between two instants.
+ *
+ * What the calendar reads. Scoped like everything else, and indexed for exactly
+ * this shape — the partial index skips the great majority of notes, which have
+ * no date and no business being looked at here.
+ */
+export async function listNoteRemindersInRange(from: string, to: string): Promise<Note[]> {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('notes')
+    .select(SELECT)
+    .eq('organization_id', orgId)
+    .not('remind_at', 'is', null)
+    .gte('remind_at', from)
+    .lte('remind_at', to)
+    .order('remind_at', { ascending: true });
+  if (error) {
+    console.error('Failed to list note reminders:', error);
+    return [];
+  }
+  return (data || []).map(shape);
 }
 
 /**
