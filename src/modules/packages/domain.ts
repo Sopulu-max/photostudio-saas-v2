@@ -17,7 +17,7 @@ import {
 import {
   setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions, listServiceDeliverableOptionsFor,
 } from '@/modules/deliverables/domain';
-import { narrowOptions, specFromAnswers, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
+import { narrowOptions, specFromAnswers, byPromiseOrder, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
 // A failure keeps the reason it failed — and says so plainly when the reason
 // is that the database was never reached. See kernel/errors.
@@ -1107,7 +1107,8 @@ function shapePackage(p: any) {
     (ps.package_deliverables || [])
       .filter((pd: any) => pd.deliverable)
       .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, serviceId: ps.service?.id }))
-  );
+  /* In the studio's own order, not the order the join happened to return. */
+  ).sort(byPromiseOrder);
   return {
     ...p,
     /*
@@ -1149,6 +1150,7 @@ function shapePackage(p: any) {
        */
       deliverables: (ps.package_deliverables || [])
         .filter((pd: any) => pd.deliverable)
+        .sort((x: any, y: any) => byPromiseOrder(x.deliverable, y.deliverable))
         .map((pd: any) => ({
           ...pd.deliverable,
           quantity: pd.quantity,
@@ -1309,9 +1311,12 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
           .map((d: any) => [d.deliverable.id as string, {
             id: d.deliverable.id as string,
             name: d.deliverable.name as string,
+            position: (d.deliverable.position ?? null) as number | null,
             quantity: (d.quantity ?? null) as number | null,
           }] as const),
-      ).values()],
+      ).values()]
+        /* The client's card and the studio's read one package the same way. */
+        .sort(byPromiseOrder),
       dimensionValueIds: [...new Set(
         links.map((pv: any) => pv.dimension_value?.id).filter(Boolean)
       )] as string[],
@@ -1388,6 +1393,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     deliverableNames: ((p.package_services || []) as any[])
       .flatMap((ps) => ((ps.package_deliverables || []) as any[])
         .filter((pd) => pd.deliverable?.name)
+        .sort((x, y) => byPromiseOrder(x.deliverable, y.deliverable))
         .map((pd) => formatDeliverable({
           name: pd.deliverable.name,
           quantity: pd.quantity,

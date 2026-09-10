@@ -23,8 +23,13 @@
  * package dropped the specification it was sold with.
  */
 
-/** A deliverable named, for a list that only has to say which one. */
-export const DELIVERABLE_REF = 'deliverable:deliverables(id, name)';
+/**
+ * A deliverable named, for a list that only has to say which one.
+ *
+ * `position` travels with it because the ORDER is the studio's, not the
+ * database's — see byPromiseOrder below.
+ */
+export const DELIVERABLE_REF = 'deliverable:deliverables(id, name, position)';
 
 /**
  * A deliverable with what a reader needs beside its name: the unit it is
@@ -33,7 +38,37 @@ export const DELIVERABLE_REF = 'deliverable:deliverables(id, name)';
  * like every other answer.
  */
 export const DELIVERABLE_WITH_SHAPE =
-  'deliverable:deliverables(id, name, default_unit)';
+  'deliverable:deliverables(id, name, position, default_unit)';
+
+/**
+ * THE ORDER A STUDIO PUT ITS PROMISES IN.
+ *
+ * A package's promises hang off its bundle rows, so the order they come back
+ * in is the order PostgREST happened to join them — and two readers of the
+ * same package disagreed because they joined differently. Standard Event
+ * Coverage read "20 Edited photographs · 2 Edited video" on the studio's own
+ * catalogue and "2 Edited video · 20 Edited photographs" on the client's, for
+ * the same package, at the same moment.
+ *
+ * `deliverables.position` is the order the studio arranged its own
+ * deliverables in, which is the only order here that means anything. Sorted
+ * once, in the module that owns the shape, rather than in each of the four
+ * screens that render a promise — a comparator copied four times is four
+ * comparators the day one of them is corrected.
+ *
+ * A deliverable with no position sorts last rather than first: absent is not
+ * zero, and a studio that has never arranged them should not have the newest
+ * one leading.
+ */
+export function byPromiseOrder(
+  a: { position?: number | null; name?: string | null },
+  b: { position?: number | null; name?: string | null },
+): number {
+  const pa = a.position ?? Number.MAX_SAFE_INTEGER;
+  const pb = b.position ?? Number.MAX_SAFE_INTEGER;
+  if (pa !== pb) return pa - pb;
+  return (a.name || '').localeCompare(b.name || '');
+}
 
 /** What a package promises: the kind and how many. */
 export const PACKAGE_PROMISE =
@@ -53,7 +88,16 @@ export const PROMISE_ANSWERS =
 
 /** The same, where only the name is rendered. */
 export const PACKAGE_PROMISE_NAMED =
-  `package_deliverables(quantity, deliverable:deliverables(id, name))`;
+  /*
+   * Built from DELIVERABLE_REF rather than spelling the columns again. It had
+   * its own copy — `deliverables(id, name)` — so adding `position` to the
+   * shared ref left this one select silently without it, and the public
+   * catalogue went on sorting by the name fallback while every other reader
+   * honoured the studio's order. A second copy of a column list is a second
+   * place to forget a column, which is the fault this whole file exists to
+   * stop.
+   */
+  `package_deliverables(quantity, ${DELIVERABLE_REF})`;
 
 /** Enough to count promises without carrying what they say. */
 export const PACKAGE_PROMISE_COUNT = 'package_deliverables(id)';
