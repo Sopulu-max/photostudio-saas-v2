@@ -1625,7 +1625,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
           return (
             <div className="q-stack q-stack-lg">
-              <div className="q-stack q-stack-sm">
+              {/* q-stack-md, so the space above a member's rule matches the
+                  padding below it. */}
+              <div className="q-stack q-stack-md">
                 {chosen.length === 0 ? (
                   <p className="q-empty" style={{ margin: 0 }}>
                     Nothing bundled yet. A package is one or more services sold together, so pick at
@@ -1651,7 +1653,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                   ].join(' · ');
 
                   return (
-                    <div key={s.id} className="q-tile q-stack q-stack-sm">
+                    /* A member of the group, not a box inside it — see
+                       .q-part. The deliverable and variable tiles below are
+                       then the only surfaces in here, which is the one level
+                       of box this actually needs. */
+                    <div key={s.id} className="q-part q-stack q-stack-sm">
                       <div className="q-row q-row-between">
                         <button
                           type="button"
@@ -1692,12 +1698,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                       <div className={isOpen ? 'q-fold q-fold-open' : 'q-fold'} inert={!isOpen}>
                         <div className="q-stack q-stack-lg q-tile-sub">
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-part-title">Deliverables</h4>
+                            <h4 className="q-list-title">Deliverables</h4>
                             {renderPromises(s)}
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-part-title">Classifications</h4>
+                            <h4 className="q-list-title">Classifications</h4>
                             {domainDims.length === 0 ? (
                               <p className="q-meta-sm">
                                 {s.domain?.name
@@ -1730,12 +1736,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-part-title">Variables</h4>
+                            <h4 className="q-list-title">Variables</h4>
                             {renderVariables(s)}
                           </div>
 
                           <div className="q-stack q-stack-sm">
-                            <h4 className="q-part-title">Tasks</h4>
+                            <h4 className="q-list-title">Tasks</h4>
                             {!s.workflow?.name && (
                               <p className="q-meta-sm">
                                 No workflow defines how {s.name} is produced. Define one in Services to give

@@ -8,6 +8,34 @@
    arrives once pages stop hardcoding light colours inline.
    ========================================================================== */
 
+/*
+ * A WIDTH MEANS THE WHOLE WIDTH.
+ *
+ * This file had no box-sizing rule at all, so the entire app ran on the CSS
+ * default — content-box — where `width: 100%` means "100% of the parent PLUS
+ * my padding and borders". Every full-width control was therefore 28px wider
+ * than the box it was in: .q-input is width:100% with 13px of side padding and
+ * a 1px border.
+ *
+ * In a roomy container the parent's own padding swallowed the spill and nobody
+ * saw it. Nested or narrow, it spilled: measured on a booking line at 505px, a
+ * combobox 391px wide drew 418px and made the card scroll sideways by 7. That
+ * is the mechanism behind "all the elements in the card scatter all over the
+ * place as the size changes" — not the flex rules that were blamed for it and
+ * rewritten twice.
+ *
+ * Universal, because the defect is: nine rules in this file combine width:100%
+ * or a fixed width with padding, and every one of them was wrong by exactly
+ * its padding. Fixing them one at a time is nine chances to miss the tenth.
+ * The fixed-size elements — avatars, dots, swatches, the lightbox arrows —
+ * carry no padding, so this is a no-op for them.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   /* Tells the browser which way to render the parts we DON'T draw: the native
      <select> popup, scrollbars, and date/time pickers. Without this they render
@@ -880,23 +908,55 @@ body {
   padding-block-start: 24px;
 }
 /*
- * A PART OF A THING INSIDE A GROUP — THE LAST RUNG.
+ * ONE MEMBER OF A GROUP.
+ *
+ * A service inside the Services group was a q-tile — a bordered box on paper —
+ * and the deliverables and variables inside it are tiles too. So flattening
+ * the four section cards left the nesting that was under them: a card, a box,
+ * and a box inside that box, which is still three surfaces deep and still
+ * reads as sections inside sections.
+ *
+ * A member of a list does not need a box to be a member. It needs to be told
+ * apart from the one before it, which is a rule and some space — the same
+ * device as q-subsection, one rung in. The boxes that remain are then the
+ * items being edited, one level deep, which is what a box is for.
+ *
+ * Ruled only when something precedes it, for the reason spelled out on
+ * q-subsection: the first member divides nothing.
+ */
+.q-part { padding: 0; }
+.q-part:not(:first-child) {
+  border-top: 1px solid var(--q-color-ink-100);
+  padding-block-start: 16px;
+}
+
+/*
+ * THE LABEL ON A LIST INSIDE A MEMBER — THE LAST RUNG.
  *
  * Deliverables, Classifications, Variables and Tasks inside an opened service
  * were q-strong, and so was the service's own name directly above them. Four
- * headings at the same weight as the thing that contains them, inside a group
- * whose own label is a 0.68rem eyebrow: every rung shouted at the volume of the
- * one above, which is what makes a page read as a maze even after the surfaces
- * are gone. Nesting is only legible if each level is quieter than its parent.
+ * labels at the same weight as the thing that contains them, inside a group
+ * whose own label is a 0.68rem eyebrow: every rung shouted at the volume of
+ * the one above, which is what makes a page read as a maze even after the
+ * surfaces are gone. Nesting is only legible if each level is quieter than its
+ * parent.
  *
- * So: below the name, above a field's label. Not mono and not uppercase — that
- * register belongs to q-subsection-title, and reusing it here would put the
- * group and the parts inside it at the same rung again.
+ * So: below the member's name, above a field's label. Not mono and not
+ * uppercase — that register belongs to q-subsection-title, and reusing it here
+ * would put the group and the lists inside it on the same rung again.
+ *
+ * The ladder, top to bottom:
+ *   q-section-title . q-subsection-title . a member's own name . q-list-title
+ *
+ * It has to beat q-label, not just the surfaces. At 0.82rem/600/ink-600 it was
+ * quieter in colour than the field labels beneath it — "Context" and "Occasion"
+ * are 0.8rem/550/ink-700 — so the list read as subordinate to the fields it
+ * contains. Darker and a shade larger than a label, and the order is right.
  */
-.q-part-title {
-  font-size: 0.82rem;
+.q-list-title {
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--q-color-ink-600);
+  color: var(--q-color-ink-800);
   margin: 0;
 }
 
@@ -3311,3 +3371,229 @@ body {
   background: color-mix(in srgb, var(--q-color-danger) 10%, transparent);
   font-weight: 600;
 }
+
+/* ==========================================================================
+   A NOTE, WRITTEN AND READ
+   --------------------------------------------------------------------------
+   A note's body is text; its formatting is a second reading of that text. Two
+   surfaces follow from that — the writing one (`.q-md*`, a textarea with a bar
+   of marks above it) and the reading one (`.q-prose`, what the same string
+   looks like shown).
+
+   Every colour here is a token, so dark is the same design in the other
+   palette rather than a skin: there is no second block to keep in step.
+   ========================================================================== */
+
+/* ---- Writing ---- */
+
+.q-md {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* The bar sits ON the textarea — one control, not a toolbar and a box that
+   happen to be near each other. */
+.q-md-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid var(--q-color-ink-300);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: var(--q-color-ink-50);
+}
+.q-md-bar + .q-md-text,
+.q-textarea.q-md-text {
+  border-radius: 0 0 10px 10px;
+  min-height: 140px;
+  line-height: 1.6;
+  /* Lists and indentation only line up if the writing surface is monospaced —
+     two spaces have to look like two spaces while they are being typed. */
+  font-family: var(--q-font-mono);
+  font-size: 0.85rem;
+  tab-size: 2;
+}
+.q-md-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--q-color-ink-600);
+  cursor: pointer;
+  transition: background var(--q-dur-1) var(--q-ease), color var(--q-dur-1) var(--q-ease),
+              transform var(--q-dur-1) var(--q-ease);
+}
+.q-md-btn:hover:not(:disabled) {
+  background: var(--q-color-paper-base);
+  color: var(--q-color-ink-900);
+  transform: translateY(-1px);
+}
+.q-md-btn:active:not(:disabled) { transform: translateY(0) scale(0.94); }
+.q-md-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--q-color-accent-soft);
+  color: var(--q-color-accent);
+}
+.q-md-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- Reading ---- */
+
+.q-prose {
+  color: var(--q-color-ink-900);
+  font-size: 0.9rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.q-prose > *:first-child { margin-top: 0; }
+.q-prose > *:last-child { margin-bottom: 0; }
+.q-prose p { margin: 0 0 10px; }
+
+/* Rendered as h3/h4/h5 — a note does not outrank the page it sits on — so the
+   size is set here rather than inherited from the document scale. */
+.q-md-h1, .q-md-h2, .q-md-h3 {
+  margin: 18px 0 8px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: var(--q-color-ink-900);
+}
+.q-md-h1 { font-size: 1.15rem; }
+.q-md-h2 { font-size: 1.02rem; }
+.q-md-h3 { font-size: 0.92rem; color: var(--q-color-ink-700); }
+
+.q-prose strong { font-weight: 650; color: var(--q-color-ink-900); }
+.q-prose em { font-style: italic; }
+.q-prose del { color: var(--q-color-ink-500); }
+
+.q-md-mark {
+  background: var(--q-color-warm-soft);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.q-md-code {
+  font-family: var(--q-font-mono);
+  font-size: 0.85em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--q-color-ink-100);
+  color: var(--q-color-ink-800);
+}
+.q-md-pre {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--q-color-ink-200);
+  background: var(--q-color-ink-50);
+  overflow-x: auto;
+}
+.q-md-pre code {
+  font-family: var(--q-font-mono);
+  font-size: 0.82rem;
+  color: var(--q-color-ink-800);
+  white-space: pre;
+}
+
+.q-md-quote {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--q-color-accent);
+  color: var(--q-color-ink-700);
+  font-style: italic;
+}
+.q-md-rule {
+  margin: 18px 0;
+  border: none;
+  border-top: 1px solid var(--q-color-ink-200);
+}
+
+.q-md-ul, .q-md-ol { margin: 0 0 12px; padding-left: 22px; }
+.q-prose li { margin: 3px 0; }
+.q-prose li > .q-md-ul,
+.q-prose li > .q-md-ol { margin: 3px 0 0; }
+.q-md-ol { list-style: decimal; }
+.q-md-ul { list-style: disc; }
+
+/* A list of boxes loses its bullets to them. */
+.q-md-tasks { list-style: none; padding-left: 0; }
+.q-md-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.q-md-task > .q-md-ul,
+.q-md-task > .q-md-ol { flex-basis: 100%; padding-left: 24px; }
+
+/* The box. A button when it can be pressed, a marker when it cannot — the
+   same face either way, so a note being read looks like the one being worked
+   on rather than like a disabled copy of it. */
+.q-md-box {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  margin-top: 3px;
+  padding: 0;
+  border: 1.5px solid var(--q-color-ink-300);
+  border-radius: 5px;
+  background: var(--q-color-paper-base);
+  color: var(--q-color-accent-text);
+  cursor: pointer;
+  transition: background var(--q-dur-1) var(--q-ease), border-color var(--q-dur-1) var(--q-ease),
+              transform var(--q-dur-2) var(--q-spring);
+}
+span.q-md-box { cursor: default; }
+button.q-md-box:hover { border-color: var(--q-color-accent); }
+button.q-md-box:active { transform: scale(0.86); }
+button.q-md-box:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--q-color-accent-soft);
+}
+.q-md-box-on {
+  background: var(--q-color-accent);
+  border-color: var(--q-color-accent);
+}
+.q-md-done { color: var(--q-color-ink-500); text-decoration: line-through; }
+
+.q-md-table { margin: 0 0 12px; }
+.q-md-left   { text-align: left; }
+.q-md-center { text-align: center; }
+.q-md-right  { text-align: right; }
+
+/* The note's own summary line, beside "Saved…" — how much of a checklist is
+   done, without opening it. */
+.q-md-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--q-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--q-color-ink-600);
+}
+.q-md-progress-bar {
+  display: block;
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--q-color-ink-200);
+  overflow: hidden;
+}
+.q-md-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--q-color-accent);
+  transition: width var(--q-dur-3) var(--q-ease);
+}
+.q-md-progress-done .q-md-progress-fill { background: var(--q-color-success); }
