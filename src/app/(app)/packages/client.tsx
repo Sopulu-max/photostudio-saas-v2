@@ -8,6 +8,7 @@ import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { SheetRow, type SheetItem } from '@/components/Sheet';
 import { CoverSlides } from '@/components/CoverSlides';
 import { Counted } from '@/components/Counted';
 // Reached at its source rather than through the module door: the interface is
@@ -121,24 +122,16 @@ export function PackagesClient({
    * package's, so they are counted rather than named.
    */
   /*
-   * ONE ROW OF THE SHEET.                                          (D1, D4, D7)
+   * WHAT A PACKAGE SAYS ABOUT ITSELF ON THE SHEET.                 (D1, D4, D7)
    *
-   * This was the poster - the client's card, reused here so the studio and
-   * the client saw the same object. That was right for one package and wrong
-   * for the list: a poster is a print, and a print wall is not how a studio
-   * finds the one it wants. Three of Glamour's four packages carry the same
-   * name; on a wall of prints the eye reads name, name, name and gives up.
-   *
-   * A row is a frame, a name, a caption and a figure. The frame is slide one
-   * of the package's pictures, at the print's own 4:5, so a row is the
-   * thumbnail of the thing and not a different picture of it. The caption
-   * is what the client receives and then what the package is for - the two
-   * facts that actually tell one Studio Portrait Photography from the next.
-   *
-   * The poster still exists: on the public catalogue, where a client browses,
-   * and on the package's own page, where it is the print.
+   * The frame is slide one of the package's pictures, at the print's own 4:5,
+   * so a row is the thumbnail of the thing. The caption is what the client
+   * receives and then what the package is for - the two facts that tell one
+   * Studio Portrait Photography from the next; three things at most, because
+   * a caption that says all of it says nothing louder than the rest (D5). A
+   * price is a fact, in ink (D3). Book rides on the row, above its face.
    */
-  const Row = ({ pkg }: { pkg: any }) => {
+  const item = (pkg: any): SheetItem => {
     const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
     const { fixed } = splitVariables(
       (pkg.services || []).flatMap((s: any) => s.variableValues || []),
@@ -147,52 +140,21 @@ export function PackagesClient({
     const firstTag = dimensionTags(pkg).flatMap((d) => d.values)[0]?.name ?? null;
     const priced = pkg.price?.amount != null;
     const retired = pkg.status === 'retired';
-
-    /*
-     * Three things at most, in the order they distinguish: what you get, then
-     * where or what for, then one settled value. Everything else is on the
-     * package. A caption that says all of it says nothing louder than the
-     * rest (D5).
-     */
-    const caption = [
-      ...promises.slice(0, 2),
-      firstTag,
-      fixed[0] ? formatVariableValue(fixed[0]) : null,
-    ].filter(Boolean).slice(0, 3);
-
-    return (
-      <div className={retired ? 'q-sheet-row q-sheet-row-dim' : 'q-sheet-row'}>
-        {/* The whole row opens the package; Book sits above it. Same reason
-            the poster has a face: an <a> inside an <a> is not markup. */}
-        <Link href={`/packages/${pkg.id}`} className="q-sheet-face" aria-label={pkg.name} />
-
-        <span className="q-sheet-frame" aria-hidden="true">
-          {pkg.cover_url
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={pkg.cover_url} alt="" />
-            : <Package size={16} strokeWidth={1.75} />}
-        </span>
-
-        <span className="q-sheet-body">
-          <span className="q-sheet-name">{pkg.name}</span>
-          <span className="q-sheet-cap">
-            {caption.length > 0
-              ? caption.join(' · ')
-              : <span className="q-absent">Nothing promised yet</span>}
-          </span>
-        </span>
-
-        <span className="q-sheet-side">
-          {/* A price is a fact, in ink (D3). No price is said quietly. */}
-          {priced
-            ? <span className="q-sheet-fig">{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}</span>
-            : <span className="q-sheet-fig q-sheet-fig-none">No price</span>}
-          {retired
-            ? <span className="q-badge q-badge-neutral">Retired</span>
-            : <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-secondary q-btn-xs q-sheet-act">Book</Link>}
-        </span>
-      </div>
-    );
+    return {
+      id: pkg.id,
+      href: `/packages/${pkg.id}`,
+      name: pkg.name,
+      caption: [...promises.slice(0, 2), firstTag, fixed[0] ? formatVariableValue(fixed[0]) : null].slice(0, 3),
+      absent: 'Nothing promised yet',
+      frame: { url: pkg.cover_url, icon: <Package size={16} strokeWidth={1.75} /> },
+      figure: priced
+        ? { text: formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode)) }
+        : { text: 'No price', none: true },
+      badge: retired ? <span className="q-badge q-badge-neutral">Retired</span> : undefined,
+      action: retired ? undefined
+        : <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-secondary q-btn-xs">Book</Link>,
+      dim: retired,
+    };
   };
 
   /*
@@ -497,8 +459,11 @@ export function PackagesClient({
           {(shown, { dense }) => {
             const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
             const retired = shown.filter((pkg: any) => pkg.status === 'retired');
+            /* List is the shared sheet; Cards is the poster, the one list in
+               the app whose card is not the shared tile - because a package
+               already has a card of its own that the client sees. */
             const Wall = ({ items }: { items: any[] }) => dense
-              ? <div className="q-sheet">{items.map((pkg: any) => <Row key={pkg.id} pkg={pkg} />)}</div>
+              ? <div className="q-sheet">{items.map((pkg: any) => <SheetRow key={pkg.id} item={item(pkg)} />)}</div>
               : <div className="q-poster-grid q-poster-grid-lg">{items.map((pkg: any, i: number) => <Poster key={pkg.id} pkg={pkg} index={i} />)}</div>;
             return (
               <>

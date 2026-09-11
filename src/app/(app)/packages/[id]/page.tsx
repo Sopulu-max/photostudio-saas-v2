@@ -8,6 +8,7 @@ import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue, splitVariables } from '@/modules/services/interface';
 import { ClassificationsFor } from './Classifications';
 import { Counted } from '@/components/Counted';
+import { PrintHead, PrintFacts } from '@/components/Print';
 import { StorefrontLink } from '../StorefrontLink';
 
 export const dynamic = 'force-dynamic';
@@ -118,21 +119,19 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
         return (
           <>
-            <div className="q-print-head">
-              <div>
-                {bundle && <span className="q-print-stamp">{bundle}</span>}
-                <h1 className="q-print-name">{pkg.name}</h1>
-              </div>
-              <div className="q-row">
-                {(retired || instance) && (
-                  <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
-                )}
+            <PrintHead
+              stamp={bundle || undefined}
+              name={pkg.name}
+              badge={(retired || instance)
+                ? <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
+                : undefined}
+              actions={<>
                 {/*
                   * BOOK, WHERE THE PACKAGE IS. Primary and left of Edit: a
                   * catalogue exists to take bookings. Withdrawn and borrowed
                   * packages do not offer it - a studio that stopped selling
-                  * something should not be invited to sell it, and an instance
-                  * is a booking's private copy.
+                  * something should not be invited to sell it, and an
+                  * instance is a booking's private copy.
                   */}
                 {!retired && !instance && (
                   <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>
@@ -140,56 +139,42 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   </Link>
                 )}
                 <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
-              </div>
-            </div>
+              </>}
+            />
 
-            <div className="q-print-facts">
-              <div className="q-print-fact">
-                <span className="q-print-key">Client receives</span>
-                <span className="q-print-val">
-                  {promised.length > 0
-                    ? promised.map((d: any, i: number) => (
-                        <span key={d.id ?? i}>{i > 0 && ' \u00b7 '}<Counted text={formatDeliverable(d)} /></span>
-                      ))
-                    : <span className="q-absent">Nothing promised yet</span>}
-                </span>
-              </div>
-              <div className="q-print-fact">
-                <span className="q-print-key">Price</span>
-                <span className="q-print-val">
-                  {priced
-                    ? <span className="q-print-fig">{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}</span>
-                    : <span className="q-absent">Not priced</span>}
-                  {pkg.duration_minutes != null && <span className="q-print-more">{pkg.duration_minutes} min</span>}
-                </span>
-              </div>
-              {questions.map((q) => {
+            <PrintFacts facts={[
+              {
+                key: 'Client receives',
+                value: promised.length > 0
+                  ? promised.map((d: any, i: number) => (
+                      <span key={d.id ?? i}>{i > 0 && ' · '}<Counted text={formatDeliverable(d)} /></span>
+                    ))
+                  : null,
+                absent: 'Nothing promised yet',
+              },
+              {
+                key: 'Price',
+                figure: priced ? { text: formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode)) } : undefined,
+                absent: 'Not priced',
+                more: pkg.duration_minutes != null ? `${pkg.duration_minutes} min` : undefined,
+              },
+              ...questions.map((q) => {
                 const names = [...q.values.values()];
-                return (
-                  <div key={q.name} className="q-print-fact">
-                    <span className="q-print-key">{q.name}</span>
-                    <span className="q-print-val">
-                      {names.slice(0, SHOW).join(', ')}
-                      {names.length > SHOW && <span className="q-print-more">+{names.length - SHOW}</span>}
-                    </span>
-                  </div>
-                );
-              })}
-              {fixed.map((v: any) => (
-                <div key={v.serviceVariableId} className="q-print-fact">
-                  <span className="q-print-key">{v.label ?? v.name}</span>
-                  <span className="q-print-val">{formatVariableValue(v)}</span>
-                </div>
-              ))}
-              <div className="q-print-fact">
-                <span className="q-print-key">Work</span>
-                <span className="q-print-val">
-                  {steps.length > 0
-                    ? <>{steps.length} {steps.length === 1 ? 'step' : 'steps'}{roles.length > 0 && <>{' · needs '}{roles.join(', ')}</>}</>
-                    : <span className="q-absent">No work defined</span>}
-                </span>
-              </div>
-            </div>
+                return {
+                  key: q.name,
+                  value: names.slice(0, SHOW).join(', '),
+                  more: names.length > SHOW ? `+${names.length - SHOW}` : undefined,
+                };
+              }),
+              ...fixed.map((v: any) => ({ key: v.label ?? v.name, value: formatVariableValue(v) })),
+              {
+                key: 'Work',
+                value: steps.length > 0
+                  ? `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}${roles.length > 0 ? ` · needs ${roles.join(', ')}` : ''}`
+                  : null,
+                absent: 'No work defined',
+              },
+            ]} />
           </>
         );
       })()}

@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { Sheet, initialsFor, type SheetItem } from '@/components/Sheet';
 
 /**
  * Every job the studio has taken, as a sheet.
@@ -18,14 +18,8 @@ import { CatalogFilter } from '@/components/CatalogFilter';
  * narrowed by where it has got to, which is the vocabulary the studio defines
  * for itself in Booking settings. Same control, same rule, different question.
  *
- * A SHEET, NOT A GRID OF CARDS (D1). It was a card per booking — title, lead,
- * a facts strip, a money band — which is the print treatment applied to a
- * list: thirty separate objects, each asking to be looked at, on a screen
- * whose whole job is to be scanned past. A row is a hairline and a frame.
- *
- * THE FRAME LEADS EVERY ROW (D4). bookings.cover_url has existed since
- * 20261010 and this list never showed it. When there is no photograph the
- * client's initials fill the same frame, so the column never goes missing.
+ * Drawn by the shared Sheet (D1, D4, D7): this file says what a booking says
+ * about itself, and nothing about how a row or a tile is built.
  */
 
 /*
@@ -39,13 +33,6 @@ function byDate(a: any, b: any, dir: 1 | -1) {
   if (!ad) return 1;
   if (!bd) return -1;
   return String(ad).localeCompare(String(bd)) * dir;
-}
-
-/* The same reading ContactAvatar makes of a person: two letters, or one. */
-function initialsFor(name: string | null) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '·';
-  return parts.slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
 }
 
 export function BookingsClient({
@@ -71,11 +58,9 @@ export function BookingsClient({
       compare: (a: any, b: any) => (a.title || '').localeCompare(b.title || '') },
   ];
   /*
-   * The date, said the way a person says it.
-   *
-   * Fixed to the studio's own reading rather than the visitor's locale, because
-   * a booking list read by one studio should not change shape depending on
-   * whose laptop it is open on.
+   * The date, said the way a person says it. Fixed to the studio's own reading
+   * rather than the visitor's locale, because a booking list read by one
+   * studio should not change shape depending on whose laptop it is open on.
    */
   const when = (iso: string | null) => {
     if (!iso) return null;
@@ -85,102 +70,40 @@ export function BookingsClient({
   };
 
   /*
-   * One row. Frame, two lines, a figure. Everything the old card said is still
-   * here — date, title, client, stage, packages, what is owed — in the order a
-   * person scanning for a job actually reads it, and in a fifth of the height.
-   *
-   * The contract fact is gone from the row: "Raised" or "None" is a consequence
-   * that never asks anything on a sheet (D5), and it is on the booking.
-   */
-  /*
-   * What a booking says about itself on the sheet, in either view.
+   * What a booking says about itself on the sheet.
    *
    * The client is named in the caption only when the title does not already
-   * lead with them. A composed title reads "Pius James — Custom Enquiry", and
+   * lead with them: a composed title reads "Pius James — Custom Enquiry", and
    * a caption that then says "Pius James" again is the same name twice on a
-   * two-line row — repetition reads as noise before it reads as anything.
+   * two-line row. The contract fact is not on the row at all — raised or not,
+   * it is a consequence that never asks (D5), and it is on the booking.
+   *
+   * What is owed is the one figure that needs the operator, so it is the one
+   * that takes the warm colour (D3). "Nothing owed", not "Settled": an enquiry
+   * nobody has invoiced has settled nothing.
    */
-  const said = (b: any) => {
-    const date = when(b.scheduledFor);
+  const item = (b: any): SheetItem => {
     const titleNamesClient = Boolean(
       b.clientName && String(b.title || '').toLowerCase().includes(String(b.clientName).toLowerCase()),
     );
-    const caption = [
-      date ?? null,
-      !titleNamesClient ? (b.clientName ?? null) : null,
-      b.lineCount > 0 ? `${b.lineCount} ${b.lineCount === 1 ? 'package' : 'packages'}` : null,
-    ].filter(Boolean) as string[];
-    const absent = b.clientName ? 'No date or package yet' : 'No date, client or package yet';
-    return { caption, absent };
-  };
-
-  /* The one amber figure (D3): what still needs the operator. */
-  const Owed = ({ b }: { b: any }) => b.pendingTotal > 0
-    ? <span className="q-sheet-fig q-sheet-fig-due">{formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode)}</span>
-    : <span className="q-sheet-fig q-sheet-fig-none">Nothing owed</span>;
-
-  const Row = ({ b }: { b: any }) => {
-    const { caption, absent } = said(b);
-    return (
-      <Link href={`/bookings/${b.id}`} className="q-sheet-row">
-        <span className="q-sheet-frame" aria-hidden="true">
-          {b.coverUrl
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={b.coverUrl} alt="" />
-            : initialsFor(b.clientName)}
-        </span>
-
-        <span className="q-sheet-body">
-          <span className="q-sheet-name">{b.title}</span>
-          <span className="q-sheet-cap">
-            {caption.length > 0
-              ? caption.join(' · ')
-              /* Only what is actually missing. A client whose name was left
-                 out of the caption because the title already says it is not
-                 an absent client, and this line must not claim one. */
-              : <span className="q-absent">{absent}</span>}
-          </span>
-        </span>
-
-        <span className="q-sheet-side">
-          <Owed b={b} />
-          {b.stage?.name && (
-            <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>
-          )}
-        </span>
-      </Link>
-    );
-  };
-
-  /*
-   * THE SAME BOOKING AS A CARD. Cards view: the facts of the row laid
-   * vertically under a frame the size a photograph deserves, three or more
-   * across. The row is for scanning down a column; this is for a wide screen.
-   */
-  const Tile = ({ b }: { b: any }) => {
-    const { caption, absent } = said(b);
-    return (
-      <Link href={`/bookings/${b.id}`} className="q-sheet-tile">
-        <span className="q-sheet-tile-frame" aria-hidden="true">
-          {b.coverUrl
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={b.coverUrl} alt="" />
-            : initialsFor(b.clientName)}
-        </span>
-        <span className="q-sheet-tile-body">
-          <span className="q-sheet-name">{b.title}</span>
-          <span className="q-sheet-cap">
-            {caption.length > 0 ? caption.join(' · ') : <span className="q-absent">{absent}</span>}
-          </span>
-          <span className="q-sheet-tile-foot">
-            <Owed b={b} />
-            {b.stage?.name && (
-              <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>
-            )}
-          </span>
-        </span>
-      </Link>
-    );
+    return {
+      id: b.id,
+      href: `/bookings/${b.id}`,
+      name: b.title,
+      caption: [
+        when(b.scheduledFor),
+        !titleNamesClient ? b.clientName : null,
+        b.lineCount > 0 ? `${b.lineCount} ${b.lineCount === 1 ? 'package' : 'packages'}` : null,
+      ],
+      absent: b.clientName ? 'No date or package yet' : 'No date, client or package yet',
+      frame: { url: b.coverUrl, initials: initialsFor(b.clientName) },
+      figure: b.pendingTotal > 0
+        ? { text: formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode), due: true }
+        : { text: 'Nothing owed', none: true },
+      badge: b.stage?.name
+        ? <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span>
+        : undefined,
+    };
   };
 
   return (
@@ -190,8 +113,6 @@ export function BookingsClient({
       kind="catalogue"
       sorts={HOW_TO_ORDER}
       facetLabel="stage"
-      /* Two views of one list: Cards, a grid of tiles for a wide screen;
-         List, the sheet, one column, for scanning down. */
       views
       read={(b: any) => ({
         name: b.title,
@@ -203,16 +124,7 @@ export function BookingsClient({
         tags: [],
       })}
     >
-      {(shown, { dense }) => dense
-        ? (
-          <div className="q-sheet">
-            {shown.map((b: any) => <Row key={b.id} b={b} />)}
-          </div>
-        ) : (
-          <div className="q-sheet-grid">
-            {shown.map((b: any) => <Tile key={b.id} b={b} />)}
-          </div>
-        )}
+      {(shown, { dense }) => <Sheet items={shown.map(item)} dense={dense} />}
     </CatalogFilter>
   );
 }

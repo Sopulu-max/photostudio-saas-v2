@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { CoverSlides } from '@/components/CoverSlides';
+import { PrintHead, PrintFacts } from '@/components/Print';
 import { CreateContractButton, RestoreWorkButton } from './BookingActions';
 import { ResolveEnquiry } from './ResolveEnquiry';
 
@@ -293,67 +294,49 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         return (
           <>
-            <div className="q-print-head">
-              <div>
-                <span className="q-print-stamp">
-                  {lineNames.length > 0 ? lineNames.join(' + ') : 'No package yet'}
-                </span>
-                <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
-                  <h1 className="q-print-name">{booking.title}</h1>
-                  {booking.stage?.name && (
-                    <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
-                  )}
-                </div>
-              </div>
-              <div className="q-row">
+            <PrintHead
+              stamp={lineNames.length > 0 ? lineNames.join(' + ') : 'No package yet'}
+              name={booking.title}
+              badge={booking.stage?.name
+                ? <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
+                : undefined}
+              actions={<>
                 <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
                 <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
-              </div>
-            </div>
+              </>}
+            />
 
-            <div className="q-print-facts">
-              <div className="q-print-fact">
-                <span className="q-print-key">Client</span>
-                <span className="q-print-val">
-                  {client
-                    ? <>{client}{booking.contact?.email && <span className="q-print-more">{'· '}{booking.contact.email}</span>}</>
-                    : <span className="q-absent">
-                        No client yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">attach whoever this is for</Link>
-                      </span>}
-                </span>
-              </div>
-              <div className="q-print-fact">
-                <span className="q-print-key">When</span>
-                <span className="q-print-val">
-                  {whenSaid
-                    ? <>{whenSaid}{booking.duration_minutes
-                        ? <span className="q-print-more">{formatDuration(booking.duration_minutes)}{endsSaid ? ` · ends ${endsSaid}` : ''}</span>
-                        : null}</>
-                    : <span className="q-absent">
-                        No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
-                        {suggestedMinutes ? ` What is booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
-                      </span>}
-                </span>
-              </div>
-              <div className="q-print-fact">
-                <span className="q-print-key">Packages</span>
-                <span className="q-print-val">
-                  {lineNames.length > 0
-                    ? lineNames.join(' · ')
-                    : <span className="q-absent">Nothing on this booking yet</span>}
-                </span>
-              </div>
-              {/* The one amber figure on the page (D3): what still needs the
-                  studio. Nothing owed is said in ink, quietly. */}
-              <div className="q-print-fact">
-                <span className="q-print-key">Owed</span>
-                <span className="q-print-val">
-                  {pendingTotal > 0
-                    ? <span className="q-print-fig q-warm">{formatMoney(pendingTotal, moneyCurrency)}</span>
-                    : <span className="q-absent">Nothing owed</span>}
-                </span>
-              </div>
-            </div>
+            <PrintFacts facts={[
+              {
+                key: 'Client',
+                value: client,
+                more: client && booking.contact?.email ? `· ${booking.contact.email}` : undefined,
+                absent: <>No client yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">attach whoever this is for</Link></>,
+              },
+              {
+                key: 'When',
+                value: whenSaid,
+                more: whenSaid && booking.duration_minutes
+                  ? `${formatDuration(booking.duration_minutes)}${endsSaid ? ` · ends ${endsSaid}` : ''}`
+                  : undefined,
+                absent: <>
+                  No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
+                  {suggestedMinutes ? ` What is booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
+                </>,
+              },
+              {
+                key: 'Packages',
+                value: lineNames.length > 0 ? lineNames.join(' · ') : null,
+                absent: 'Nothing on this booking yet',
+              },
+              /* The one amber figure on the page (D3): what still needs the
+                 studio. Nothing owed is said in ink, quietly. */
+              {
+                key: 'Owed',
+                figure: pendingTotal > 0 ? { text: formatMoney(pendingTotal, moneyCurrency), due: true } : undefined,
+                absent: 'Nothing owed',
+              },
+            ]} />
 
             {/*
               * What the client asked for, in their words, under the facts -
