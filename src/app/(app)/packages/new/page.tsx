@@ -82,7 +82,7 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         initial={{
             // Shown from the start: undefined would mean this form is not
             // allowed to speak for the cover at all.
-            coverUrl: null, variableValues: [] }}
+            images: [], variableValues: [] }}
       />
     </div>
   );

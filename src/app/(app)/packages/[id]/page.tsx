@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import { CoverSlides } from '@/components/CoverSlides';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { formatDeliverable, getPackage } from '@/modules/packages/interface';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
@@ -41,19 +42,23 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         * scroll. Empty it is the same wash the card uses, and it says what it
         * is for.
         */}
-      <Link
-        href={`/packages/${pkg.id}/edit`}
-        className={(pkg as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
-        style={(pkg as any).cover_url
-          ? {
-              backgroundImage: `url(${(pkg as any).cover_url})`,
-              backgroundPosition: (pkg as any).cover_position || undefined,
-            }
-          : undefined}
-        title={(pkg as any).cover_url ? 'Change the cover' : 'Add a cover'}
+      {/* The whole set, playing. The banner is the biggest a package's own
+          pictures are ever drawn for the studio that took them. */}
+      <CoverSlides
+        slides={(pkg as any).images || []}
+        /* The frame is the banner: it has the shape, the radius and the border,
+           and the slides fill it. The link inside is only a click surface — it
+           paints nothing, or it would sit on top of the very pictures it opens. */
+        className={((pkg as any).images || []).length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
       >
-        {!(pkg as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
-      </Link>
+        <Link
+          href={`/packages/${pkg.id}/edit`}
+          className="q-cover-banner-link q-plain-link"
+          title={((pkg as any).images || []).length ? 'Change the pictures' : 'Add a picture'}
+        >
+          {!((pkg as any).images || []).length && <span className="q-meta-sm">Add a picture</span>}
+        </Link>
+      </CoverSlides>
 
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>

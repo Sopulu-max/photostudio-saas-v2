@@ -19,6 +19,9 @@ export const PURGE_ORDER = [
   'delivery_deliverables', 'delivery_assets', 'assets', 'deliveries', 'contracts',
   'bookings',
   'package_tasks', 'package_deliverables', 'package_delivery_containers', 'package_services',
+  // The pictures a package is sold with. They cascade with the package, but a
+  // purge that lists them says so rather than relying on it.
+  'package_images',
   // Narrowings hang off package_services and go with it, so they need no line.
   'package_variable_values',
   'packages',

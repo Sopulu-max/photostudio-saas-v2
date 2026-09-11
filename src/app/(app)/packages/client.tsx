@@ -1,5 +1,6 @@
 'use client';
 
+
 import React from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
@@ -7,6 +8,7 @@ import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { CoverSlides } from '@/components/CoverSlides';
 import { Counted } from '@/components/Counted';
 // Reached at its source rather than through the module door: the interface is
 // a server-actions file, and this is a pure formatter a client card can hold.
@@ -182,6 +184,12 @@ export function PackagesClient({
           ['--i' as any]: index,
         } as React.CSSProperties}
       >
+        {/* More than one picture takes over the photograph layer; one picture
+            stays exactly the card it was, painted by --q-cover. */}
+        {(pkg.images || []).length > 1 && (
+          <CoverSlides slides={pkg.images} className="q-poster-photo" auto={false} />
+        )}
+
         {/* The whole face opens the package. A link rather than a wrapper,
             because the two corners below are links of their own and an <a>
             inside an <a> is not valid markup. */}

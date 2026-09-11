@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { CoverSlides } from '@/components/CoverSlides';
 import { formatMoney } from '@/kernel/currency';
 import { getStudioBySlug } from '@/kernel/organizations';
 import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic, packageNarrowingValueIds } from '@/modules/packages/interface';
@@ -147,11 +148,12 @@ export default async function BookingPage(props: {
           * the page began with a label and then, separately, showed the thing it
           * was labelling.
           */}
-        <div
+        {/* The set, playing, at the size a client decides on. The link
+            preview still got the first of them, because an og:image cannot be
+            a slideshow — see the package module. */}
+        <CoverSlides
+          slides={pkg.images || []}
           className={pkg.coverUrl ? 'q-hero' : 'q-hero q-hero-blank'}
-          style={pkg.coverUrl
-            ? { backgroundImage: `url(${pkg.coverUrl})`, backgroundPosition: pkg.coverPosition || undefined }
-            : undefined}
         >
           {/* The figure, in the same place and the same shape as on the card
               that sent them here. Absent when the studio has not priced it. */}
@@ -173,7 +175,7 @@ export default async function BookingPage(props: {
               ))}
             </div>
           )}
-        </div>
+        </CoverSlides>
 
         <div className="q-card" style={{ marginBottom: '32px', padding: '32px', borderRadius: '16px' }}>
           {/*

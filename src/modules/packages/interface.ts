@@ -14,7 +14,10 @@
 export { listDimensionsByDomain } from '@/modules/services/interface';
 export type { StudioDimensionShape } from '@/modules/services/interface';
 
-export type { PackageStatus, OperatorPackageStatus } from './domain';
+export type { PackageStatus, OperatorPackageStatus, PackageImage } from './domain';
+export {
+  addPackageImage, removePackageImage, setPackageImagePosition, reorderPackageImages,
+} from './domain';
 
 export {
   // Package

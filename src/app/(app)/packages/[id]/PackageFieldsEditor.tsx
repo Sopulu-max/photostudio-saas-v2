@@ -20,7 +20,8 @@ import { PickMany, PickToAdd } from '@/components/Pick';
 // The same narrowing the catalogues do. A picker differs only in excluding
 // what is chosen and bounding what it draws, and both are arguments.
 import { CatalogFilter } from '@/components/CatalogFilter';
-import { ImageUpload } from '@/components/ImageUpload';
+import { PackageCovers, type Slide } from './PackageCovers';
+import { addPackageImage, type PackageImage } from '@/modules/packages/interface';
 import { Counted } from '@/components/Counted';
 // The one widget for one variable. This form carried its own ten-branch
 // copy of it — the fifth — while the component built to end exactly that
@@ -131,10 +132,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     /** One line for a card. Falls back to a trimmed description. */
     shortDescription?: string | null;
     durationMinutes?: number | null;
-    /** Public URL of the cover image, when this form is being shown it. */
-    coverUrl?: string | null;
-    /** Where that cover is looking, as a CSS background-position. */
-    coverPosition?: string | null;
+    /** The pictures it is sold with, in order. The first is the cover. */
+    images?: PackageImage[];
     /**
      * What it sells for, in the module's normalised shape.
      *
@@ -351,51 +350,19 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * questions all follow, and the one that has cost real data every time it was
    * skipped. An empty string is a deliberate removal.
    */
-  const [coverUrl, setCoverUrl] = useState<string | null | undefined>(initial.coverUrl);
-  const [coverProblem, setCoverProblem] = useState<string | null>(null);
-  const [coverPosition, setCoverPosition] = useState<string | null | undefined>(initial.coverPosition);
-
   /*
-   * A picture saves itself; a field waits for Save.
+   * The pictures, while the package does not exist yet.
    *
-   * Typing in a field is an edit in progress and belongs with the others under
-   * one button. Choosing a picture is not: by the time it appears it is already
-   * in the studio bucket, and the only thing still pending is one column. Making
-   * that wait for a Save at the far end of a long form means an operator who
-   * came from the package page to add a cover, added one, saw it, and left —
-   * with a file in storage that nothing points at.
-   *
-   * Only where there is a package to save it to. While building one there is no
-   * row yet, so it travels with the rest of the form as every other field does.
+   * On an existing package PackageCovers writes each act straight through — a
+   * picture is in the studio bucket by the time it appears, and making it wait
+   * for a Save at the far end of a long form is how a file ends up in storage
+   * with nothing pointing at it. While BUILDING one there is no row to point at,
+   * so the set travels here and is written the moment the package has an id.
    */
-  const applyCover = (next: string | null) => {
-    setCoverUrl(next ?? '');
-    // A new picture is a new crop. Carrying the old one over would place the
-    // next photograph by where the last one happened to be looking.
-    setCoverPosition(next ? null : null);
-    setCoverProblem(null);
-    saveCover({ coverUrl: next, coverPosition: null });
-  };
+  const [stagedSlides, setStagedSlides] = useState<Slide[]>(
+    (initial.images || []).map((i) => ({ id: i.id, url: i.url, position: i.position })),
+  );
 
-  const applyCoverPosition = (next: string) => {
-    setCoverPosition(next);
-    setCoverProblem(null);
-    saveCover({ coverPosition: next });
-  };
-
-  const saveCover = (patch: { coverUrl?: string | null; coverPosition?: string | null }) => {
-    if (mode !== 'edit' || !packageId) return;
-    startTransition(async () => {
-      try {
-        const { updatePackage } = await import('@/modules/packages/interface');
-        // Only what changed. Every other field is absent, and absent means leave
-        // it alone — the same rule that keeps this from erasing the price.
-        await updatePackage({ packageId, ...patch });
-      } catch (e: any) {
-        setCoverProblem(e?.message || 'The cover could not be saved.');
-      }
-    });
-  };
   
   /*
    * What this package promises, and how much of it, in what unit, to what spec.
@@ -780,8 +747,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       price: priceAmount
         ? { base_price: Number(priceAmount), currency: currencyCode }
         : (wasGivenPrice ? null : undefined),
-      coverUrl: coverUrl === undefined ? undefined : (coverUrl || null),
-      coverPosition: coverPosition === undefined ? undefined : (coverPosition || null),
       serviceIds,
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
@@ -844,7 +809,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const submitCreate = () => startTransition(async () => {
     try { 
       if (onSubmitOverride) { await onSubmitOverride(buildPayload()); return; }
-      const { packageId: newId } = await createPackage({ ...buildPayload(), formSchema: questions ?? [] }); 
+      const { packageId: newId } = await createPackage({ ...buildPayload(), formSchema: questions ?? [] });
+      /* The pictures chosen while there was nothing to attach them to. Written
+         in the order they were arranged, so the first is still the cover. */
+      for (const slide of stagedSlides) {
+        await addPackageImage({ packageId: newId, url: slide.url });
+      }
       router.push(`/packages/${newId}`); 
     }
     catch (e: any) { toast.bad(readableError(e, 'Failed to create the package.')); }
@@ -1429,24 +1399,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {/* First, because for a photography studio the picture is half of what
               a package is — and because two packages of one service are told
               apart on a card by almost nothing else. */}
-          {coverUrl !== undefined && !derived && (
-            <div className="q-field">
-              <label className="q-label">Cover</label>
-              <ImageUpload
-                url={coverUrl || null}
-                folder="packages"
-                label="cover"
-                // Twice the widest a cover is ever drawn, which is as much as
-                // the densest display can resolve.
-                maxEdge={2400}
-                onUploaded={(u) => applyCover(u)}
-                onCleared={() => applyCover(null)}
-                position={coverPosition}
-                onPositionChange={applyCoverPosition}
-              />
-              {coverProblem && <span className="q-meta-sm q-text-danger">{coverProblem}</span>}
-              {mode === 'edit' && <span className="q-meta-sm">Saved as soon as it is chosen.</span>}
-            </div>
+          {!derived && (
+            <PackageCovers
+              packageId={packageId || null}
+              initial={initial.images || []}
+              onStaged={setStagedSlides}
+              disabled={isPending}
+            />
           )}
           {derived ? (
             /*

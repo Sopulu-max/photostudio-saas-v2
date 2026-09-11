@@ -74,8 +74,9 @@ export function packageEditorInitial(pkg: any) {
     description: pkg.description,
     shortDescription: pkg.short_description ?? null,
     price: pkg.price,
-    coverUrl: pkg.cover_url ?? null,
-    coverPosition: pkg.cover_position ?? null,
+    /* The set, in order. The cover is the first of it, so there is nothing
+       else here to keep in step with it. */
+    images: (pkg as any).images ?? [],
     durationMinutes: pkg.duration_minutes,
     serviceIds: services.map((s) => s.id),
     deliverables: services.flatMap((s) =>

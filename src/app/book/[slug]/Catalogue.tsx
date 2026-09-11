@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { formatMoney } from '@/kernel/currency';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
+import { CoverSlides } from '@/components/CoverSlides';
 // A count, set apart from the thing being counted — the same component the
 // studio's own catalogue uses, so a package reads the same to both.
 import { Counted } from '@/components/Counted';
@@ -17,6 +18,8 @@ type CataloguePackage = {
   short_description: string | null;
   cover_url: string | null;
   cover_position: string | null;
+  /** The whole set, in order. The cover above is the first of it. */
+  images?: { url: string; position: string | null }[];
   price: Money | null;
   price_unit: string | null;
   services: { id: string; name: string }[];
@@ -243,6 +246,11 @@ export function Catalogue({
                 ['--i' as any]: index,
               } as React.CSSProperties}
             >
+              {/* More than one picture takes over the photograph layer. One
+                  picture stays the card it was, painted by --q-cover. */}
+              {(pkg.images || []).length > 1 && (
+                <CoverSlides slides={pkg.images!} className="q-poster-photo" auto={false} />
+              )}
               {/* Absent when nobody has priced it — null and zero are
                   different, so an unpriced package says nothing at all
                   rather than "0". */}

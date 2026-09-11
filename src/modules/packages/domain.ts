@@ -494,10 +494,6 @@ export async function createPackage(input: {
   shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
-  /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
-  coverUrl?: string | null;
-  /** Where the cover should be looking, as a CSS background-position. */
-  coverPosition?: string | null;
   serviceIds?: string[];
   /**
    * This package is a booking's own instance, not catalog.
@@ -581,8 +577,6 @@ export async function createPackage(input: {
       short_description: input.shortDescription || null,
       duration_minutes: input.durationMinutes ?? null,
       price: input.price || {},
-      cover_url: input.coverUrl ?? null,
-      cover_position: input.coverPosition ?? null,
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
       status: (input.instanceOf ? 'custom' : 'active') satisfies PackageStatus,
@@ -633,10 +627,6 @@ export async function updatePackage(input: {
   shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
-  /** Public URL of the cover image. Null clears it; undefined leaves it alone. */
-  coverUrl?: string | null;
-  /** Where the cover should be looking, as a CSS background-position. */
-  coverPosition?: string | null;
   serviceIds?: string[];
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null }[];
@@ -678,8 +668,6 @@ export async function updatePackage(input: {
   // Absent leaves the cover alone; null takes it off. The same distinction the
   // price makes, and for the same reason: a form that was not shown the cover
   // must not be able to erase it by saying nothing about it.
-  if (input.coverUrl !== undefined) patch.cover_url = input.coverUrl;
-  if (input.coverPosition !== undefined) patch.cover_position = input.coverPosition;
   if (input.extraStages !== undefined) patch.extra_stages = await buildExtraStages(input.extraStages);
 
   if (Object.keys(patch).length > 0) {
@@ -1112,7 +1100,8 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, cover_url, cover_position, created_at,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at,
+  package_images(id, url, position, sort),
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
@@ -1134,6 +1123,38 @@ const PACKAGE_SELECT = `
  * whole promise in one list. They are derived every time and stored nowhere —
  * the per-service answer on `services[].deliverables` is the truth.
  */
+/**
+ * The pictures a package is sold with, in order, and which of them is the cover.
+ *
+ * THE COVER IS A READING, NOT A SECOND FACT. It used to be its own column; now
+ * it is simply the first slide, so there is nothing to keep in step and no way
+ * for the two to disagree. Every caller that asked for `cover_url` still gets
+ * one, because a package with pictures still has a first one — including the
+ * public page, which hands it to OpenGraph, where a slideshow cannot go.
+ */
+export type PackageImage = { id: string; url: string; position: string | null; sort: number };
+
+function imagesOf(p: any): PackageImage[] {
+  return ((p.package_images || []) as any[])
+    .map((i) => ({
+      id: i.id as string,
+      url: i.url as string,
+      position: (i.position ?? null) as string | null,
+      sort: (i.sort ?? 0) as number,
+    }))
+    /* In the studio's order, not the order the join happened to return. */
+    .sort((a, b) => a.sort - b.sort);
+}
+
+/** The cover fields every existing caller still reads, derived from the set. */
+function coverOf(images: PackageImage[]) {
+  return {
+    images,
+    cover_url: images[0]?.url ?? null,
+    cover_position: images[0]?.position ?? null,
+  };
+}
+
 function shapePackage(p: any) {
   const bundle = ((p.package_services || []) as any[]).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const promised = bundle.flatMap((ps) =>
@@ -1142,8 +1163,10 @@ function shapePackage(p: any) {
       .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, serviceId: ps.service?.id }))
   /* In the studio's own order, not the order the join happened to return. */
   ).sort(byPromiseOrder);
+  const images = imagesOf(p);
   return {
     ...p,
+    ...coverOf(images),
     /*
      * One shape for the price, decided here rather than by each screen.
      *
@@ -1299,7 +1322,8 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
      * mapper spoke about but the query never asked for.
      */
     .select(`
-      id, name, description, short_description, duration_minutes, cover_url, cover_position,
+      id, name, description, short_description, duration_minutes,
+      package_images(id, url, position, sort),
       price, price_unit,
       package_services(id, service:services(
         id, name
@@ -1318,8 +1342,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       name: p.name as string,
       description: (p.description ?? null) as string | null,
       short_description: (p.short_description ?? null) as string | null,
-      cover_url: (p.cover_url ?? null) as string | null,
-      cover_position: (p.cover_position ?? null) as string | null,
+      ...coverOf(imagesOf(p)),
       duration_minutes: (p.duration_minutes ?? null) as number | null,
       /* Parsed, not cast — null means unpriced, which is a normal state for a
          package a studio quotes case by case. See kernel/money. */
@@ -1368,7 +1391,8 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, cover_url, cover_position,
+      id, name, description, short_description, pricing_variant, duration_minutes, form_schema,
+      package_images(id, url, position, sort),
       price, price_unit,
       package_services(
         service:services(name),
@@ -1401,8 +1425,10 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     /** One line for a card. Falls back to the long one, trimmed. */
     shortDescription: (p.short_description ?? null) as string | null,
     durationMinutes: (p.duration_minutes ?? null) as number | null,
-    coverUrl: (p.cover_url ?? null) as string | null,
-    coverPosition: (p.cover_position ?? null) as string | null,
+    /* The set, and the first of it — which is what the link preview shows. */
+    images: imagesOf(p),
+    coverUrl: imagesOf(p)[0]?.url ?? null,
+    coverPosition: imagesOf(p)[0]?.position ?? null,
     /*
      * WHAT IT COSTS.
      *
@@ -2316,4 +2342,134 @@ export async function packageNarrowingValueIds(orgId: string, packageId: string)
     .flatMap((ps: any) => (ps.package_service_dimension_values || [])
       .map((l: any) => l.dimension_value_id))
     .filter(Boolean))] as string[];
+}
+
+/* -------------------------------------------------------------------------
+ * The pictures a package is sold with.
+ *
+ * A cover used to be one column and one framing. It is now an ordered set, and
+ * the cover is the first of it — so choosing which picture leads is the same
+ * act as reordering, and there is no second field to fall out of step.
+ *
+ * Each act is its own action rather than a patch on updatePackage, for the
+ * reason colour and a reminder are their own on a note: adding a picture is not
+ * editing what the package offers, and the two do not want the same save.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Add a picture to the end of the set.
+ *
+ * Appended rather than inserted, because a studio uploading four pictures in a
+ * row means them in that order, and anything else would make them reorder what
+ * they just chose. The database refuses the twenty-first — a limit that lives
+ * only in a caller is a limit until somebody writes a second caller.
+ */
+export async function addPackageImage(input: { packageId: string; url: string }) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data: last } = await supabaseAdmin
+    .from('package_images')
+    .select('sort')
+    .eq('organization_id', orgId)
+    .eq('package_id', input.packageId)
+    .order('sort', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data, error } = await supabaseAdmin
+    .from('package_images')
+    .insert({
+      organization_id: orgId,
+      package_id: input.packageId,
+      url: input.url,
+      sort: ((last?.sort ?? -1) as number) + 1,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to add a package picture:', error);
+    /* The cap raises its own sentence, which says the number and how many are
+       already held — more use to an operator than "that could not be saved". */
+    throw dbError(error?.message || 'That picture could not be added.', error);
+  }
+
+  revalidatePath('/packages');
+  revalidatePath(`/packages/${input.packageId}`);
+  return { imageId: data.id as string };
+}
+
+/** Take one off. The rest keep their order; sort has no need to be dense. */
+export async function removePackageImage(input: { id: string; packageId: string }) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('package_images')
+    .delete()
+    .eq('id', input.id)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to remove a package picture:', error);
+    throw dbError('That picture could not be removed.', error);
+  }
+  revalidatePath('/packages');
+  revalidatePath(`/packages/${input.packageId}`);
+  return { ok: true };
+}
+
+/**
+ * Where one picture should be looking.
+ *
+ * The same fact cover_position carried, now held per picture — because each one
+ * is framed differently and a single answer was only ever right for one of them.
+ */
+export async function setPackageImagePosition(input: {
+  id: string;
+  packageId: string;
+  position: string | null;
+}) {
+  const { orgId } = await getAuthOrgId();
+  const { error } = await supabaseAdmin
+    .from('package_images')
+    .update({ position: input.position })
+    .eq('id', input.id)
+    .eq('organization_id', orgId);
+  if (error) {
+    console.error('Failed to place a package picture:', error);
+    throw dbError('That could not be changed.', error);
+  }
+  revalidatePath('/packages');
+  revalidatePath(`/packages/${input.packageId}`);
+  return { ok: true };
+}
+
+/**
+ * Put the set in a new order.
+ *
+ * Given every id, in the order wanted. Whichever ends up first becomes the
+ * cover, which is why there is no separate "make this the cover" — it would be
+ * a second way to say the same thing, and the two could disagree.
+ *
+ * Written one row at a time rather than as an upsert: an upsert here would need
+ * every column of every row restated, and a partial restatement is how a
+ * reorder quietly becomes an edit.
+ */
+export async function reorderPackageImages(input: { packageId: string; ids: string[] }) {
+  const { orgId } = await getAuthOrgId();
+
+  for (let i = 0; i < input.ids.length; i++) {
+    const { error } = await supabaseAdmin
+      .from('package_images')
+      .update({ sort: i })
+      .eq('id', input.ids[i])
+      .eq('organization_id', orgId)
+      .eq('package_id', input.packageId);
+    if (error) {
+      console.error('Failed to reorder package pictures:', error);
+      throw dbError('That order could not be saved.', error);
+    }
+  }
+
+  revalidatePath('/packages');
+  revalidatePath(`/packages/${input.packageId}`);
+  return { ok: true };
 }

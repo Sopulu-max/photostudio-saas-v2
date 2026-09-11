@@ -4363,3 +4363,139 @@ button.q-md-box:focus-visible {
   font-size: 0.78rem;
   font-family: var(--q-font-mono);
 }
+
+/* ==========================================================================
+   A COVER THAT IS MORE THAN ONE PICTURE
+   --------------------------------------------------------------------------
+   Every slide is stacked in one frame and only opacity moves. Nothing slides
+   in from anywhere: a cover sits at the top of a page and inside a card in a
+   grid, and horizontal movement would be a second motion language arguing with
+   the one the rest of the app settles by.
+
+   The frame keeps whatever shape its host gives it — q-hero, q-cover-banner,
+   q-poster all size themselves, and this only fills them.
+   ========================================================================== */
+
+.q-slides {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.q-slide {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  /* Slower than anything else in the app on purpose: this is the one motion a
+     person watches rather than causes, and --q-dur-3 is a response time. */
+  transition: opacity 900ms var(--q-ease);
+  z-index: 0;
+}
+.q-slide-on { opacity: 1; }
+
+/* Which of them is showing. Small, low-contrast, and out of the way — a cover
+   is a photograph and this is a footnote on it. */
+.q-slide-pips {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  pointer-events: none;
+}
+.q-slide-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--q-gal-on-cover-dim);
+  transition: background var(--q-dur-2) var(--q-ease), transform var(--q-dur-2) var(--q-spring);
+}
+.q-slide-pip-on {
+  background: var(--q-gal-on-cover);
+  transform: scale(1.35);
+}
+
+/* Anything the host draws over the picture — a title, a price — sits above the
+   slides rather than under whichever one happens to be showing. */
+.q-slides > *:not(.q-slide):not(.q-slide-pips) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Choosing them ----
+   The editor's grid. Each picture keeps the frame it is dragged in, so what an
+   operator arranges here is what a client sees. */
+.q-slides-edit {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 14px;
+}
+.q-slide-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.q-slide-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+.q-slide-no {
+  font-family: var(--q-font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+}
+/* The first one, said out loud — because "the cover" is a reading of this
+   order, and an operator reordering pictures is choosing which one leads. */
+.q-slide-no-cover {
+  color: var(--q-color-accent);
+  font-weight: 600;
+}
+
+/* ---- A poster whose photograph is several ----
+   The card's photograph is .q-poster::before: one layer, one image, its own
+   transform and its own clock. A pseudo-element cannot hold two pictures
+   crossfading, so a package with more than one hands the same job to a real
+   element instead — and that element takes the identical rules, so the zoom,
+   the settle, the hover push and the vignette over it are unchanged. A card
+   with one picture never reaches any of this and is exactly what it was. */
+.q-poster-photo {
+  position: absolute;
+  inset: 0;
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform var(--q-dur-4) var(--q-ease);
+  animation: q-poster-focus var(--q-dur-5) var(--q-ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 11) * var(--q-beat));
+  pointer-events: none;
+  z-index: 0;
+}
+.q-poster:has(.q-poster-photo)::before { display: none; }
+.q-poster:hover .q-poster-photo,
+.q-poster:focus-visible .q-poster-photo { transform: scale(1.055); }
+/* The pips would sit under the title and the price. On a card the order alone
+   says how many there are, and the face is small enough that dots on it are
+   clutter rather than information. */
+.q-poster-photo .q-slide-pips { display: none; }
+
+/* The click surface over a banner of slides. It fills the frame and paints
+   nothing — the frame is the banner, and the pictures are the point. */
+.q-cover-banner-link {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  color: var(--q-color-ink-500);
+}
