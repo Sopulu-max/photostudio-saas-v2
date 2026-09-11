@@ -2979,15 +2979,40 @@ body::before {
  * for this, and this. Big, because they are the whole offer.
  */
 .q-print-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px 56px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 52px;
   margin-top: 40px;
   padding: 30px 0;
   border-top: 1px solid var(--q-color-ink-300);
   border-bottom: 1px solid var(--q-color-ink-300);
 }
+/*
+ * THE PRICE IS ONE FACT; THE PROMISE IS A SET.
+ *
+ * The first cut laid the price and every deliverable out as peers in a row.
+ * Two or three read as a sentence; five wrapped into a jumble; ten put the
+ * price as one numeral lost among eleven. So the price stands alone as the
+ * anchor, with a rule beside it, and the deliverables lay out as a grid of
+ * counted items that wraps as cleanly at ten as at two. Past four the
+ * numerals step down a size so a long promise reads as a table of what you
+ * get rather than a wall.
+ */
+.q-print-stat-price { padding-right: 52px; border-right: 1px solid var(--q-color-ink-300); }
+.q-print-stat-set {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 22px 28px;
+  align-content: start;
+}
+.q-print-stat-set:has(> :nth-child(5)) .q-print-stat-num { font-size: 1.7rem; }
 .q-print-stat { display: grid; gap: 6px; min-width: 0; }
+/* A deliverable without a count - "an album" - is named where a number would
+   be, at a size between a numeral and a label, rather than shown as a dash. */
+.q-print-stat-word {
+  font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2;
+  color: var(--q-color-ink-900);
+}
 .q-print-stat-num {
   font-size: clamp(2rem, 3.4vw, 2.6rem);
   font-weight: 680;
@@ -3054,7 +3079,9 @@ body::before {
 
 @media (max-width: 40rem) {
   .q-print-hero { border-radius: 14px; margin-bottom: 28px; }
-  .q-print-stats { gap: 16px 32px; padding: 22px 0; }
+  .q-print-stats { grid-template-columns: 1fr; gap: 22px 0; padding: 22px 0; }
+  .q-print-stat-price { padding-right: 0; padding-bottom: 20px; border-right: 0; border-bottom: 1px solid var(--q-color-ink-100); }
+  .q-print-stat-set { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 18px 20px; }
   .q-print-chapter { margin-top: 48px; }
 }
 

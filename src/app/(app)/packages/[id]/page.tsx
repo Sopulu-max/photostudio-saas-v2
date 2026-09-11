@@ -119,7 +119,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         * they are the largest figures on the page after the name.
         */}
       <div className="q-print-stats">
-        <div className="q-print-stat">
+        <div className="q-print-stat q-print-stat-price">
           <span className="q-print-stat-num mono">
             {priced
               ? <>{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
@@ -128,27 +128,34 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           </span>
           <span className="q-print-stat-label">Price</span>
         </div>
-        {promised.map((d: any, i: number) => {
-          const { num, label } = asStat(d);
-          return (
-            <div key={d.id ?? i} className="q-print-stat">
-              <span className="q-print-stat-num">{num ?? '—'}</span>
-              <span className="q-print-stat-label">{label}</span>
+
+        {/* The promise as a set: one counted item per deliverable, in a grid
+            that wraps as cleanly at ten as at two. An item with no count is
+            named where its number would be. */}
+        <div className="q-print-stat-set">
+          {promised.map((d: any, i: number) => {
+            const { num, label } = asStat(d);
+            return (
+              <div key={d.id ?? i} className="q-print-stat">
+                {num
+                  ? <><span className="q-print-stat-num">{num}</span><span className="q-print-stat-label">{label}</span></>
+                  : <><span className="q-print-stat-word">{label}</span><span className="q-print-stat-label">Included</span></>}
+              </div>
+            );
+          })}
+          {promised.length === 0 && (
+            <div className="q-print-stat">
+              <span className="q-print-stat-word q-absent" style={{ fontWeight: 400 }}>Nothing promised yet</span>
+              <span className="q-print-stat-label">Client receives</span>
             </div>
-          );
-        })}
-        {promised.length === 0 && (
-          <div className="q-print-stat">
-            <span className="q-print-stat-num q-absent" style={{ fontSize: '1.1rem', fontWeight: 400 }}>Nothing promised yet</span>
-            <span className="q-print-stat-label">Client receives</span>
-          </div>
-        )}
-        {pkg.duration_minutes != null && (
-          <div className="q-print-stat">
-            <span className="q-print-stat-num">{pkg.duration_minutes}</span>
-            <span className="q-print-stat-label">Minutes</span>
-          </div>
-        )}
+          )}
+          {pkg.duration_minutes != null && (
+            <div className="q-print-stat">
+              <span className="q-print-stat-num">{pkg.duration_minutes}</span>
+              <span className="q-print-stat-label">Minutes</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* WHAT IT IS FOR. Each question a row; its answers as words with air
