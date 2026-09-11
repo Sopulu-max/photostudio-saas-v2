@@ -3048,6 +3048,19 @@ body::before {
 .q-print-for .q-print-fact { padding: 14px 0; }
 .q-print-for .q-print-val { font-size: 1.05rem; }
 .q-print-for-sep { color: var(--q-color-ink-300); margin: 0 6px; }
+/* Which service a row comes from - an attribute of the row, in the stamp
+   register a step quieter than the key beside it. Drawn only when the bundle
+   has more than one service; on a one-service package it would say nothing. */
+.q-print-from {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--q-font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-400);
+}
+.q-print-stat-label .q-print-from { margin-top: 4px; }
 
 /*
  * THE SERVICES AS OBJECTS. Each is a separate thing with its own page, so
