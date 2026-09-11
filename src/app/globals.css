@@ -2725,6 +2725,100 @@ body::before {
   .q-sheet-side { grid-column: 2; justify-items: start; text-align: left; margin-top: 2px; }
 }
 
+/*
+ * ============================================================================
+ * THE PRINT.                                                     (D1, D2, D4)
+ * ============================================================================
+ *
+ * A screen that shows one thing. The photograph leads; the name is set at the
+ * size of a name; the facts caption it. The specimen is a museum label under
+ * a print: what it is, then a short column of the things you would want to
+ * know standing in front of it, each on its own hairline.
+ *
+ * The head replaces a page header whose subtitle read "What the client buys,
+ * and what it costs" - a description of the page, on the page. The stamp
+ * above the name says what the thing is MADE OF, which is the one line a
+ * catalogue reader wants first, and the name says what it is called.
+ */
+.q-print-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin: 26px 0 22px;
+}
+.q-print-head > :first-child { flex: 1 1 22rem; min-width: 0; }
+.q-print-stamp {
+  display: block;
+  font-family: var(--q-font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+  margin-bottom: 8px;
+}
+.q-print-name {
+  margin: 0;
+  font-size: clamp(2rem, 3.6vw, 2.6rem);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+  color: var(--q-color-ink-900);
+  text-wrap: balance;
+}
+
+/*
+ * THE FACTS. Key on the left in the stamp register, value on the right at
+ * body weight; a hairline between each. Not pills - a pill is a range marker
+ * on a filter, and here every line is a statement about one thing. The key
+ * column is a fixed measure so the values align down the page and can be
+ * read as a column of their own.
+ *
+ * A figure is set in the mono face at tabular width, in ink (D3): a price is
+ * a fact, not an action.
+ */
+.q-print-facts {
+  display: grid;
+  margin: 0 0 28px;
+}
+.q-print-fact {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: 6px 20px;
+  align-items: baseline;
+  padding: 11px 0;
+  border-top: 1px solid var(--q-color-ink-100);
+}
+.q-print-fact:first-child { border-top: 1px solid var(--q-color-ink-300); }
+.q-print-fact:last-child { border-bottom: 1px solid var(--q-color-ink-300); }
+.q-print-key {
+  font-family: var(--q-font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+}
+.q-print-val { font-size: 0.98rem; line-height: 1.45; color: var(--q-color-ink-900); }
+.q-print-val .q-absent { color: var(--q-color-ink-400); }
+.q-print-fig {
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+/* "+3": how many of a question's answers the line did not list. */
+.q-print-more {
+  font-family: var(--q-font-mono);
+  font-size: 0.7rem;
+  color: var(--q-color-ink-400);
+  margin-left: 6px;
+}
+@media (max-width: 36rem) {
+  .q-print-fact { grid-template-columns: 1fr; gap: 2px; }
+}
+
 /* Not a package — the other door. Deliberately not a poster: nothing is being
    sold here, so it carries no picture and no weight. */
 .q-poster-else {

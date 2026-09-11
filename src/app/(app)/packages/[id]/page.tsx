@@ -60,52 +60,139 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         </Link>
       </CoverSlides>
 
-      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
-        <div>
-          <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
-            <h1 className="q-page-title">{pkg.name}</h1>
-            <span className={`q-badge ${pkg.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>
-              {pkg.status}
-            </span>
-          </div>
-          <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
-            What the client buys, and what it costs.
-          </p>
-        </div>
-        <div className="q-row">
-          {/*
-            * BOOK, WHERE THE PACKAGE IS.
-            *
-            * The catalogue card has had this since the grid was built, and the
-            * page you land on by clicking that card did not — so an operator
-            * who opened a package to check what was in it before selling it
-            * had to go back to the grid to sell it.
-            *
-            * Primary, and to the left of Edit, for the reason the card gives:
-            * a catalogue exists to take bookings, so this is the confident
-            * action and editing is the quiet one.
-            *
-            * WITHDRAWN AND BORROWED PACKAGES DO NOT OFFER IT. Retired is the
-            * card's own rule — a studio that stopped selling something should
-            * not be invited to sell it. An instance is a booking's private
-            * copy, so "book this" would mean booking a copy of a booking; it
-            * is the same guard the public link below uses, for the same
-            * reason, and this page is the one place both can be reached.
-            */}
-          {pkg.status !== 'retired' && !(pkg as any).instance_of && (
-            <Link
-              href={`/bookings/new?package=${pkg.id}`}
-              className="q-btn q-btn-primary"
-              title={`Take a booking for ${pkg.name}`}
-            >
-              Book
-            </Link>
-          )}
-          <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">
-            Edit package
-          </Link>
-        </div>
-      </header>
+      {/*
+        * THE PRINT'S HEAD.                                       (D1, D2, D4)
+        *
+        * This was a page header - name, a status badge, and a subtitle reading
+        * "What the client buys, and what it costs", which describes the page
+        * rather than the package - followed by the description, a Booking-link
+        * card, a Commercial-terms card and a Deliverables card. Four cards
+        * before the reader reached what the package is made of.
+        *
+        * A print is one thing, captioned. The photograph above; the bundle as
+        * a stamp; the name at the size of a name; then the facts on hairlines:
+        * what the client receives, the price, what it is for, what it fixes,
+        * the work. The Commercial-terms and Deliverables cards are those facts
+        * and nothing else, so they are gone as cards and present as lines.
+        *
+        * The status is said only when it is worth saying - "active" on every
+        * package is a badge that means nothing.
+        */}
+      {(() => {
+        const bundle = services.map((s: any) => s.name).join(' + ');
+        const promised = services.flatMap((s: any) => s.deliverables || []);
+        const priced = pkg.price?.amount != null;
+        const retired = pkg.status === 'retired';
+        const instance = Boolean((pkg as any).instance_of);
+
+        /*
+         * What the package is FOR, collated across the bundle. The rule is the
+         * one Classifications.tsx states: a service that narrows nothing is
+         * classified as it is classified everywhere. Values are merged by
+         * question so a package of two services answering the same question
+         * lists that question once.
+         */
+        const byQuestion = new Map<string, { name: string; position: number; values: Map<string, string> }>();
+        for (const s of services) {
+          const narrowed = s.narrowedTo || [];
+          const tags = narrowed.length ? narrowed : (s.dimensions || []);
+          for (const d of tags) {
+            const q = byQuestion.get(d.id) ?? { name: d.name, position: d.position ?? 0, values: new Map() };
+            for (const v of d.values || []) q.values.set(v.id, v.name);
+            byQuestion.set(d.id, q);
+          }
+        }
+        const questions = [...byQuestion.values()].sort((a, b) => a.position - b.position);
+
+        /* What it fixes: the settled variables, across the bundle. */
+        const { fixed } = splitVariables(
+          services.flatMap((s: any) => s.variableValues || []),
+          services.flatMap((s: any) => s.variables || []),
+        );
+
+        /* The work: how many steps, and which roles they need. */
+        const steps = services.flatMap((s: any) => s.tasks || []);
+        const roles = [...new Set(steps.map((x: any) => x.roleName).filter(Boolean))] as string[];
+
+        const SHOW = 3;
+
+        return (
+          <>
+            <div className="q-print-head">
+              <div>
+                {bundle && <span className="q-print-stamp">{bundle}</span>}
+                <h1 className="q-print-name">{pkg.name}</h1>
+              </div>
+              <div className="q-row">
+                {(retired || instance) && (
+                  <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
+                )}
+                {/*
+                  * BOOK, WHERE THE PACKAGE IS. Primary and left of Edit: a
+                  * catalogue exists to take bookings. Withdrawn and borrowed
+                  * packages do not offer it - a studio that stopped selling
+                  * something should not be invited to sell it, and an instance
+                  * is a booking's private copy.
+                  */}
+                {!retired && !instance && (
+                  <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>
+                    Book
+                  </Link>
+                )}
+                <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
+              </div>
+            </div>
+
+            <div className="q-print-facts">
+              <div className="q-print-fact">
+                <span className="q-print-key">Client receives</span>
+                <span className="q-print-val">
+                  {promised.length > 0
+                    ? promised.map((d: any, i: number) => (
+                        <span key={d.id ?? i}>{i > 0 && ' \u00b7 '}<Counted text={formatDeliverable(d)} /></span>
+                      ))
+                    : <span className="q-absent">Nothing promised yet</span>}
+                </span>
+              </div>
+              <div className="q-print-fact">
+                <span className="q-print-key">Price</span>
+                <span className="q-print-val">
+                  {priced
+                    ? <span className="q-print-fig">{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}</span>
+                    : <span className="q-absent">Not priced</span>}
+                  {pkg.duration_minutes != null && <span className="q-print-more">{pkg.duration_minutes} min</span>}
+                </span>
+              </div>
+              {questions.map((q) => {
+                const names = [...q.values.values()];
+                return (
+                  <div key={q.name} className="q-print-fact">
+                    <span className="q-print-key">{q.name}</span>
+                    <span className="q-print-val">
+                      {names.slice(0, SHOW).join(', ')}
+                      {names.length > SHOW && <span className="q-print-more">+{names.length - SHOW}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              {fixed.map((v: any) => (
+                <div key={v.serviceVariableId} className="q-print-fact">
+                  <span className="q-print-key">{v.label ?? v.name}</span>
+                  <span className="q-print-val">{formatVariableValue(v)}</span>
+                </div>
+              ))}
+              <div className="q-print-fact">
+                <span className="q-print-key">Work</span>
+                <span className="q-print-val">
+                  {steps.length > 0
+                    ? <>{steps.length} {steps.length === 1 ? 'step' : 'steps'}{roles.length > 0 && <>{' · needs '}{roles.join(', ')}</>}</>
+                    : <span className="q-absent">No work defined</span>}
+                </span>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {pkg.description && (
         <p className="q-text-body" style={{ marginBottom: '24px', fontSize: '1.05rem', color: 'var(--q-color-ink-700)' }}>
@@ -114,21 +201,11 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       )}
 
       {/*
-        * THE LINK FOR THIS ONE PACKAGE.
-        *
-        * The studio could hand out its whole catalogue and it could hand out
-        * the open enquiry form, and there was no way to hand out ONE package —
-        * which is the commonest case of all. An operator agrees a package with
-        * a client over the phone and wants to send them that package, with its
-        * price and its promise, and a button to book it. The page has existed
-        * the whole time at /book/[slug]/[id]; nothing in the app would tell you
-        * its address.
-        *
-        * SHOWN ONLY WHEN THE LINK WOULD ACTUALLY WORK. getPackagePublic
-        * requires status 'active', so offering this on a retired package — or
-        * on a booking's own instance, which is 'custom' — would hand somebody a
-        * link that 404s in front of their client. Better to say why there is no
-        * link than to give out a broken one.
+        * THE LINK FOR THIS ONE PACKAGE, below the facts: what the package is
+        * comes before how to hand it out. Shown only when the link would work -
+        * getPackagePublic requires status active, so offering it on a retired
+        * package or a booking's own instance would hand somebody a link that
+        * 404s in front of their client.
         */}
       {org?.slug && (
         <div className="q-card q-section" style={{ marginBottom: '24px' }}>
@@ -143,7 +220,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           ) : (
             <p className="q-meta" style={{ margin: '4px 0 0' }}>
               {(pkg as any).instance_of
-                ? 'This is a booking’s own copy of a package, not a catalogue one, so it has no public link.'
+                ? 'This is a booking\u2019s own copy of a package, not a catalogue one, so it has no public link.'
                 : 'Only an active package can be booked. Change its status to share a link.'}
             </p>
           )}
@@ -151,72 +228,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       )}
 
       <div className="q-stack q-stack-lg">
-        <div className="q-card q-section q-rise">
-          <h2 className="q-section-title">Commercial terms</h2>
-          <div className="q-grid-halves" style={{ marginTop: '16px' }}>
-            <div>
-              <span className="q-meta-sm" style={{ display: 'block', marginBottom: '4px' }}>Base Price</span>
-              <div className="q-stat-value">
-                {pkg.price?.amount != null
-                  ? formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))
-                  : 'Unpriced'}
-              </div>
-            </div>
-            {pkg.duration_minutes != null && (
-              <div>
-                <span className="q-meta-sm" style={{ display: 'block', marginBottom: '4px' }}>Expected Duration</span>
-                <div className="q-text-body">{pkg.duration_minutes} minutes</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/*
-          * EVERYTHING THIS PACKAGE PROMISES, IN ONE PLACE.
-          *
-          * Deliverables hang off each bundled service, so folding them into the
-          * services was structurally honest — and it left a package bundling
-          * three services with its promise scattered across three folds, two of
-          * them shut. Nobody buys a service; they buy the package, and what
-          * arrives is the whole of it.
-          *
-          * So the collated promise is a section of its own and the per-service
-          * lists stay where they are. They are two different questions: this
-          * one is what the client receives, the one inside each service is which
-          * part of the work produces it. The first belongs to the package, and
-          * it is what the invoice bills and the storefront advertises.
-          *
-          * Which service produced what is said only where there is more than
-          * one, for the same reason it always is here.
-          */}
-        <div className="q-card q-section q-rise">
-          <h2 className="q-section-title">Deliverables</h2>
-          {(() => {
-            const promised = services.flatMap((s: any) =>
-              (s.deliverables || []).map((d: any) => ({ d, from: s.name })));
-
-            if (promised.length === 0) {
-              return (
-                <p className="q-text-meta">
-                  Nothing promised yet. A package with no deliverables is a price with nothing
-                  attached to it.
-                </p>
-              );
-            }
-
-            return (
-              <div className="q-stack q-stack-sm">
-                {promised.map(({ d, from }: any, i: number) => (
-                  <div key={`${from}-${d.id}-${i}`} className="q-row q-row-between q-tile">
-                    <span className="q-text-body"><Counted text={formatDeliverable(d)} /></span>
-                    {services.length > 1 && <span className="q-meta-sm">{from}</span>}
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-
         <div className="q-card q-section q-rise">
           <h2 className="q-section-title">Services</h2>
           {services.length === 0 ? (
