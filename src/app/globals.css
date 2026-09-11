@@ -2919,6 +2919,146 @@ body::before {
 .q-print-part-note { font-size: 0.88rem; color: var(--q-color-ink-500); max-width: 60ch; margin: 0; }
 
 /*
+ * ============================================================================
+ * THE PRINT PAGE - the studio's own page for one thing, with presence.
+ * ============================================================================
+ *
+ * The first cut put the pictures beside a column of small facts, and it was
+ * correct and flat: everything at one low volume, nothing given room. A page
+ * a studio is proud of has hierarchy with CONTRAST - the photograph a hero,
+ * the name a moment, the price and the promise as numerals you can read from
+ * across the room, the services as objects with their own presence, and air
+ * between them. This is that page.
+ *
+ * A wider measure than the app's narrow pages: 1080px. The photograph and
+ * the stat band want the width; the prose sits at its own measure inside.
+ */
+.q-print-page { max-width: 1080px; margin: 0 auto; padding-bottom: 96px; }
+
+/* The hero. 3:2, the photograph's own ratio, edge to edge of the page. No
+   scrim, no words on it - the name comes after, at its own size. */
+.q-print-hero {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--q-color-ink-100);
+  box-shadow: var(--q-shadow-md);
+  margin: 18px 0 40px;
+}
+.q-print-hero .q-slides { position: absolute; inset: 0; }
+.q-print-hero-empty {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: var(--q-color-ink-500); font-size: 0.95rem;
+}
+
+/* The name, at the size of the thing. */
+.q-print-title { max-width: 60rem; }
+.q-print-display {
+  margin: 8px 0 0;
+  font-size: clamp(2.4rem, 4.8vw, 3.5rem);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  color: var(--q-color-ink-900);
+  text-wrap: balance;
+}
+.q-print-lede-text {
+  margin: 18px 0 0;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: var(--q-color-ink-700);
+  max-width: 62ch;
+}
+.q-print-cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 26px; }
+
+/*
+ * THE STAT BAND. The price and each thing the client receives, as numerals
+ * with their names beneath - read left to right as one sentence: this much,
+ * for this, and this. Big, because they are the whole offer.
+ */
+.q-print-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 56px;
+  margin-top: 40px;
+  padding: 30px 0;
+  border-top: 1px solid var(--q-color-ink-300);
+  border-bottom: 1px solid var(--q-color-ink-300);
+}
+.q-print-stat { display: grid; gap: 6px; min-width: 0; }
+.q-print-stat-num {
+  font-size: clamp(2rem, 3.4vw, 2.6rem);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--q-color-ink-900);
+  font-variant-numeric: tabular-nums;
+}
+.q-print-stat-num.mono { font-family: var(--q-font-mono); font-weight: 500; letter-spacing: -0.02em; }
+.q-print-stat-label {
+  font-family: var(--q-font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+}
+
+/* A chapter: a large title, a count beside it, air above. */
+.q-print-chapter { margin-top: 64px; }
+.q-print-chapter-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 8px 24px; margin-bottom: 22px;
+}
+.q-print-chapter-title {
+  margin: 0;
+  font-size: 1.6rem; font-weight: 640; letter-spacing: -0.025em; line-height: 1.15;
+}
+.q-print-chapter-note { font-size: 0.92rem; color: var(--q-color-ink-500); margin: 0; max-width: 60ch; }
+
+/* What it is for: each question as a row, its answers as words with air
+   between them, not pills - on a page with room, a pill is a fence. */
+.q-print-for .q-print-fact { padding: 14px 0; }
+.q-print-for .q-print-val { font-size: 1.05rem; }
+.q-print-for-sep { color: var(--q-color-ink-300); margin: 0 6px; }
+
+/*
+ * THE SERVICES AS OBJECTS. Each is a separate thing with its own page, so
+ * each is a card (D7) - the one place on this page a card is right. Two
+ * across; a service's name at the weight of a name, its domain as a stamp,
+ * and its own promise, classification and work as compact lines.
+ */
+.q-print-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 18px;
+}
+.q-print-service {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 24px 26px 22px;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 16px;
+  box-shadow: var(--q-shadow-sm);
+  color: inherit; text-decoration: none;
+  transition: transform var(--q-dur-3) var(--q-ease), box-shadow var(--q-dur-4) var(--q-ease);
+}
+.q-print-service:hover { transform: translateY(-3px); box-shadow: var(--q-shadow-md); }
+.q-print-service-name { font-size: 1.25rem; font-weight: 640; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+.q-print-service-line { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 4px 14px; align-items: baseline; font-size: 0.92rem; }
+.q-print-service-line + .q-print-service-line { padding-top: 10px; border-top: 1px solid var(--q-color-ink-100); }
+.q-print-service-line .q-print-key { font-size: 0.62rem; }
+.q-print-service-lines { display: grid; gap: 10px; }
+
+@media (max-width: 40rem) {
+  .q-print-hero { border-radius: 14px; margin-bottom: 28px; }
+  .q-print-stats { gap: 16px 32px; padding: 22px 0; }
+  .q-print-chapter { margin-top: 48px; }
+}
+
+/*
  * THE FACTS. Key on the left in the stamp register, value on the right at
  * body weight; a hairline between each. Not pills - a pill is a range marker
  * on a filter, and here every line is a statement about one thing. The key

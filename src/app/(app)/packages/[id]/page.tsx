@@ -9,9 +9,7 @@ import { SheetRow, initialsFor } from '@/components/Sheet';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue, splitVariables } from '@/modules/services/interface';
-import { ClassificationsFor } from './Classifications';
 import { Counted } from '@/components/Counted';
-import { PrintHead, PrintFacts } from '@/components/Print';
 import { StorefrontLink } from '../StorefrontLink';
 
 export const dynamic = 'force-dynamic';
@@ -37,134 +35,232 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
   const services = (pkg as any).services || [];
 
+  /* ── what the page says, computed once ─────────────────────────────── */
+  const bundle = services.map((s: any) => s.name).join(' + ');
+  const promised = services.flatMap((s: any) => s.deliverables || []) as any[];
+  const priced = pkg.price?.amount != null;
+  const retired = pkg.status === 'retired';
+  const instance = Boolean((pkg as any).instance_of);
+  const images = ((pkg as any).images || []) as any[];
+
+  /*
+   * What it is FOR, collated across the bundle by the rule Classifications
+   * states: a service that narrows nothing is classified as it is everywhere.
+   * Values merged by question, questions in the studio's own order.
+   */
+  const byQuestion = new Map<string, { name: string; position: number; values: Map<string, string> }>();
+  for (const s of services) {
+    const narrowed = s.narrowedTo || [];
+    const tags = narrowed.length ? narrowed : (s.dimensions || []);
+    for (const d of tags) {
+      const q = byQuestion.get(d.id) ?? { name: d.name, position: d.position ?? 0, values: new Map() };
+      for (const v of d.values || []) q.values.set(v.id, v.name);
+      byQuestion.set(d.id, q);
+    }
+  }
+  const questions = [...byQuestion.values()].sort((a, b) => a.position - b.position);
+  const { fixed } = splitVariables(
+    services.flatMap((s: any) => s.variableValues || []),
+    services.flatMap((s: any) => s.variables || []),
+  );
+
+  /* A deliverable, split into the number and the thing, for the stat band. */
+  const asStat = (d: any) => {
+    const text = formatDeliverable(d);
+    const m = text.match(/^(\d[\d,.]*)\s+(.*)$/);
+    return m ? { num: m[1], label: m[2] } : { num: null, label: text };
+  };
+
+  const shortDate = (iso: string | null) => iso
+    ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+
   return (
-    <div className="q-page-narrow">
-      <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
+    <div className="q-print-page">
+      <Link className="q-back" href="/packages">&larr; Packages</Link>
 
       {/*
-        * THE PRINT: THE PLATE AND THE LABEL.                    (D1, D2, D4)
-        *
-        * The pictures on the left, the label beside them - a gallery's
-        * arrangement, not a website's cover photo. The label reads top to
-        * bottom the way a client asks: what is this made of, what is it
-        * called, what does it cost, what do I get, then the particulars, then
-        * Book. Everything below the print is the deep read, on hairlines.
+        * THE HERO. The photograph, edge to edge, and nothing on it. The name
+        * comes after at its own size - stacking a label on the picture made
+        * both smaller than they are.
         */}
-      {(() => {
-        const bundle = services.map((s: any) => s.name).join(' + ');
-        const promised = services.flatMap((s: any) => s.deliverables || []);
-        const priced = pkg.price?.amount != null;
-        const retired = pkg.status === 'retired';
-        const instance = Boolean((pkg as any).instance_of);
-        const images = ((pkg as any).images || []) as any[];
+      <div className="q-print-hero">
+        {images.length > 0
+          ? <CoverSlides slides={images} className="q-slides" />
+          : <Link href={`/packages/${pkg.id}/edit`} className="q-print-hero-empty q-plain-link">Add a picture</Link>}
+      </div>
 
-        /* What it is FOR, collated across the bundle by the rule Classifications
-           states: a service that narrows nothing is classified as it is
-           everywhere. Values merged by question. */
-        const byQuestion = new Map<string, { name: string; position: number; values: Map<string, string> }>();
-        for (const s of services) {
-          const narrowed = s.narrowedTo || [];
-          const tags = narrowed.length ? narrowed : (s.dimensions || []);
-          for (const d of tags) {
-            const q = byQuestion.get(d.id) ?? { name: d.name, position: d.position ?? 0, values: new Map() };
-            for (const v of d.values || []) q.values.set(v.id, v.name);
-            byQuestion.set(d.id, q);
-          }
-        }
-        const questions = [...byQuestion.values()].sort((a, b) => a.position - b.position);
-        const { fixed } = splitVariables(
-          services.flatMap((s: any) => s.variableValues || []),
-          services.flatMap((s: any) => s.variables || []),
-        );
-        const steps = services.flatMap((s: any) => s.tasks || []);
-        const roles = [...new Set(steps.map((x: any) => x.roleName).filter(Boolean))] as string[];
-        const SHOW = 3;
+      <div className="q-print-title">
+        {bundle && <span className="q-print-stamp">{bundle}</span>}
+        <div className="q-row" style={{ alignItems: 'center', gap: '14px' }}>
+          <h1 className="q-print-display">{pkg.name}</h1>
+          {(retired || instance) && (
+            <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
+          )}
+        </div>
+        {pkg.description && <p className="q-print-lede-text">{pkg.description}</p>}
 
-        return (
-          <section className="q-print">
-            <div className="q-print-plate">
-              {images.length > 0
-                ? <CoverSlides slides={images} className="q-slides" />
-                : <Link href={`/packages/${pkg.id}/edit`} className="q-print-plate-empty q-plain-link">Add a picture</Link>}
-            </div>
-
-            <div className="q-print-label">
-              <PrintHead
-                stamp={bundle || undefined}
-                name={pkg.name}
-                badge={(retired || instance)
-                  ? <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
-                  : undefined}
-              />
-
-              <div className="q-print-lede">
-                <div className="q-print-price">
-                  {priced
-                    ? <>{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
-                        {(pkg as any).price_unit && <span className="q-print-price-unit">/{(pkg as any).price_unit}</span>}</>
-                    : <span className="q-absent" style={{ fontSize: '0.6em', fontFamily: 'var(--q-font-sans)', fontWeight: 400 }}>Not priced</span>}
-                </div>
-                <div className="q-print-promise">
-                  {promised.length > 0
-                    ? promised.map((d: any, i: number) => (
-                        <span key={d.id ?? i}>{i > 0 && ' · '}<Counted text={formatDeliverable(d)} /></span>
-                      ))
-                    : <span className="q-absent">Nothing promised yet</span>}
-                </div>
-              </div>
-
-              <PrintFacts facts={[
-                ...questions.map((q) => {
-                  const names = [...q.values.values()];
-                  return { key: q.name, value: names.slice(0, SHOW).join(', '),
-                           more: names.length > SHOW ? `+${names.length - SHOW}` : undefined };
-                }),
-                ...fixed.map((v: any) => ({ key: v.label ?? v.name, value: formatVariableValue(v) })),
-                ...(pkg.duration_minutes != null ? [{ key: 'Duration', value: `${pkg.duration_minutes} minutes` }] : []),
-                {
-                  key: 'Work',
-                  value: steps.length > 0
-                    ? `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}${roles.length > 0 ? ` · needs ${roles.join(', ')}` : ''}`
-                    : null,
-                  absent: 'No work defined',
-                },
-              ]} />
-
-              {pkg.description && (
-                <p className="q-print-brief" style={{ marginTop: '18px', marginBottom: 0 }}>{pkg.description}</p>
-              )}
-
-              <div className="q-print-actions">
-                {/* Book leads: a catalogue exists to take bookings. Withdrawn
-                    and borrowed packages do not offer it. */}
-                {!retired && !instance && (
-                  <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
-                )}
-                <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
-              </div>
-            </div>
-          </section>
-        );
-      })()}
+        <div className="q-print-cta">
+          {/* Book leads: a catalogue exists to take bookings. Withdrawn and
+              borrowed packages do not offer it, for the reasons the card
+              gives. The link is here too, because "send this to a client"
+              is the second thing a studio does from this page. */}
+          {!retired && !instance && (
+            <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
+          )}
+          <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
+        </div>
+      </div>
 
       {/*
-        * WHERE IT HAS BEEN BOOKED.
-        *
-        * The one thing this page never had: the question a studio actually
-        * brings to a package - is it selling. A booking never points at the
-        * catalogue package, only at its own copy, so this is the copies read
-        * back to their origin. Newest first. A borrowed package is a booking's
-        * copy and has no bookings of its own.
+        * THE STAT BAND. This much, for this, and this. The price and every
+        * thing the client receives as numerals with their names beneath,
+        * read left to right as one sentence. They are the whole offer, so
+        * they are the largest figures on the page after the name.
         */}
-      {!(pkg as any).instance_of && (
-        <section className="q-print-part">
-          <div className="q-print-part-head">
-            <h2 className="q-print-part-title">Where it has been booked</h2>
-            <p className="q-print-part-note">
-              {bookedOn.length === 0
-                ? 'Not yet.'
-                : `${bookedOn.length} ${bookedOn.length === 1 ? 'booking' : 'bookings'}, newest first.`}
-            </p>
+      <div className="q-print-stats">
+        <div className="q-print-stat">
+          <span className="q-print-stat-num mono">
+            {priced
+              ? <>{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
+                  {(pkg as any).price_unit && <span className="q-print-price-unit">/{(pkg as any).price_unit}</span>}</>
+              : <span className="q-absent" style={{ fontSize: '0.5em', fontFamily: 'var(--q-font-sans)', fontWeight: 400 }}>Not priced</span>}
+          </span>
+          <span className="q-print-stat-label">Price</span>
+        </div>
+        {promised.map((d: any, i: number) => {
+          const { num, label } = asStat(d);
+          return (
+            <div key={d.id ?? i} className="q-print-stat">
+              <span className="q-print-stat-num">{num ?? '—'}</span>
+              <span className="q-print-stat-label">{label}</span>
+            </div>
+          );
+        })}
+        {promised.length === 0 && (
+          <div className="q-print-stat">
+            <span className="q-print-stat-num q-absent" style={{ fontSize: '1.1rem', fontWeight: 400 }}>Nothing promised yet</span>
+            <span className="q-print-stat-label">Client receives</span>
+          </div>
+        )}
+        {pkg.duration_minutes != null && (
+          <div className="q-print-stat">
+            <span className="q-print-stat-num">{pkg.duration_minutes}</span>
+            <span className="q-print-stat-label">Minutes</span>
+          </div>
+        )}
+      </div>
+
+      {/* WHAT IT IS FOR. Each question a row; its answers as words with air
+          between them. The whole list, because this is the page for it. */}
+      {(questions.length > 0 || fixed.length > 0) && (
+        <section className="q-print-chapter">
+          <div className="q-print-chapter-head">
+            <h2 className="q-print-chapter-title">What it{'’'}s for</h2>
+            <p className="q-print-chapter-note">How this package is classified, and what it fixes for every booking.</p>
+          </div>
+          <div className="q-print-facts q-print-for">
+            {questions.map((q) => (
+              <div key={q.name} className="q-print-fact">
+                <span className="q-print-key">{q.name}</span>
+                <span className="q-print-val">
+                  {[...q.values.values()].map((v, i) => (
+                    /* Spaces on both sides of the dot, not only margins: a
+                       margin is not a break opportunity, and a line of
+                       occasions with none could not wrap. */
+                    <span key={v}>{i > 0 && <>{' '}<span className="q-print-for-sep">·</span>{' '}</>}{v}</span>
+                  ))}
+                </span>
+              </div>
+            ))}
+            {fixed.map((v: any) => (
+              <div key={v.serviceVariableId} className="q-print-fact">
+                <span className="q-print-key">{v.label ?? v.name}</span>
+                <span className="q-print-val">{formatVariableValue(v)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/*
+        * WHAT IS IN IT. The services as objects - each has a page of its own,
+        * so each is a card, the one place on this page a card is right (D7).
+        * Its promise, its classification and its work as compact lines; the
+        * full account is one click away on the service.
+        */}
+      <section className="q-print-chapter">
+        <div className="q-print-chapter-head">
+          <h2 className="q-print-chapter-title">What{'’'}s in it</h2>
+          <p className="q-print-chapter-note">
+            {services.length === 0
+              ? 'No services bundled.'
+              : `${services.length} ${services.length === 1 ? 'service' : 'services'}. Everything this package promises, is classified as, fixes and involves is said of one of these.`}
+          </p>
+        </div>
+        {services.length > 0 && (
+          <div className="q-print-services">
+            {services.map((s: any) => {
+              const promise = (s.deliverables || []).map((d: any) => formatDeliverable(d));
+              const narrowed = s.narrowedTo || [];
+              const tags = (narrowed.length ? narrowed : (s.dimensions || [])) as any[];
+              const forWhat = tags.flatMap((d: any) => (d.values || []).map((v: any) => v.name));
+              const { fixed: sFixed, asked, undecided } = splitVariables(s.variableValues || [], s.variables || []);
+              const tasks = (s.tasks || []) as any[];
+              const roles = [...new Set(tasks.map((x) => x.roleName).filter(Boolean))] as string[];
+              return (
+                <Link key={s.id} href={`/services/${s.id}`} className="q-print-service">
+                  <div>
+                    <span className="q-print-stamp" style={{ marginBottom: 6 }}>{s.domain?.name || 'No domain'}</span>
+                    <h3 className="q-print-service-name">{s.name}</h3>
+                  </div>
+                  <div className="q-print-service-lines">
+                    <div className="q-print-service-line">
+                      <span className="q-print-key">Produces</span>
+                      <span>{promise.length ? promise.map((x: string, i: number) => <span key={i}>{i > 0 && ' · '}<Counted text={x} /></span>) : <span className="q-absent">Nothing yet</span>}</span>
+                    </div>
+                    <div className="q-print-service-line">
+                      <span className="q-print-key">For</span>
+                      <span>{forWhat.length ? forWhat.join(', ') : <span className="q-absent">Not classified</span>}</span>
+                    </div>
+                    {(sFixed.length > 0 || asked.length > 0 || undecided.length > 0) && (
+                      <div className="q-print-service-line">
+                        <span className="q-print-key">Settles</span>
+                        <span>
+                          {sFixed.map((v: any) => `${v.label}: ${formatVariableValue(v)}`).join(' · ')}
+                          {asked.length > 0 && <span className="q-meta-sm">{sFixed.length > 0 ? ' · ' : ''}{asked.length} asked at booking</span>}
+                          {undecided.length > 0 && <span className="q-meta-sm q-absent">{(sFixed.length > 0 || asked.length > 0) ? ' · ' : ''}{undecided.length} undecided</span>}
+                        </span>
+                      </div>
+                    )}
+                    <div className="q-print-service-line">
+                      <span className="q-print-key">Work</span>
+                      <span>{tasks.length
+                        ? <>{tasks.length} {tasks.length === 1 ? 'step' : 'steps'}{roles.length > 0 && <span className="q-meta-sm"> · {roles.join(', ')}</span>}</>
+                        : <span className="q-absent">No workflow</span>}</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/*
+        * WHERE IT HAS BEEN BOOKED. The question a studio brings to a package:
+        * is it selling. A booking never points at the catalogue package, only
+        * at its own copy, so this is the copies read back to their origin
+        * through instance_of. A borrowed package is a copy and has none.
+        */}
+      {!instance && (
+        <section className="q-print-chapter">
+          <div className="q-print-chapter-head">
+            <h2 className="q-print-chapter-title">
+              Where it{'’'}s been booked
+              {bookedOn.length > 0 && <span className="q-print-stat-label" style={{ marginLeft: 14 }}>{bookedOn.length}</span>}
+            </h2>
+            <p className="q-print-chapter-note">{bookedOn.length === 0 ? 'Not yet.' : 'Newest first.'}</p>
           </div>
           {bookedOn.length > 0 && (
             <div className="q-sheet">
@@ -173,10 +269,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   id: b.lineId,
                   href: `/bookings/${b.id}`,
                   name: b.title,
-                  caption: [
-                    b.scheduledFor ? new Date(b.scheduledFor).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
-                    b.clientName,
-                  ],
+                  caption: [shortDate(b.scheduledFor), b.clientName],
                   absent: 'No date or client yet',
                   frame: { initials: initialsFor(b.clientName) },
                   figure: b.price?.amount != null
@@ -192,182 +285,30 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
       {/*
         * HOW IT IS SOLD. The link for this one package - the commonest thing
-        * a studio hands out, and until recently nothing in the app would tell
-        * you its address. Shown only when the link would actually work.
+        * a studio hands out. At the foot rather than beside Book: a URL box is
+        * a tool, not a moment, and the hero is for the moment. Shown only when
+        * the link would work - getPackagePublic requires status active.
         */}
-      {org?.slug && (
-        <section className="q-print-part">
-          <div className="q-print-part-head">
-            <h2 className="q-print-part-title">How it is sold</h2>
-            <p className="q-print-part-note">
-              {pkg.status === 'active' && !(pkg as any).instance_of
+      {org?.slug && !instance && (
+        <section className="q-print-chapter">
+          <div className="q-print-chapter-head">
+            <h2 className="q-print-chapter-title">How it{'’'}s sold</h2>
+            <p className="q-print-chapter-note">
+              {pkg.status === 'active'
                 ? 'Send this to a client to book this package.'
-                : (pkg as any).instance_of
-                  ? 'A booking’s own copy of a package has no public link.'
-                  : 'Only an active package can be booked. Change its status to share a link.'}
+                : 'Only an active package can be booked. Change its status to share a link.'}
             </p>
           </div>
-          {pkg.status === 'active' && !(pkg as any).instance_of && (
-            <StorefrontLink slug={org.slug} path={`/book/${org.slug}/${pkg.id}`} />
-          )}
+          {pkg.status === 'active' && <StorefrontLink slug={org.slug} path={`/book/${org.slug}/${pkg.id}`} />}
         </section>
       )}
 
-      <section className="q-print-part">
-        <div className="q-print-part-head">
-          <h2 className="q-print-part-title">What is in it</h2>
-          <p className="q-print-part-note">
-            {services.length === 0
-              ? 'No services bundled.'
-              : 'What this package is built from. Everything it promises, is classified as, fixes and involves is said of one of these.'}
-          </p>
-        </div>
-        <div>
-          {services.length > 0 && (
-            <>
-
-              <div className="q-stack q-stack-sm">
-                {services.map((s: any) => {
-                  /*
-                   * ONE SERVICE, EVERYTHING SAID ABOUT IT.
-                   *
-                   * Deliverables, classifications, variables and tasks were four
-                   * sections, each looping over the same bundle and heading every
-                   * block with the same service name. Three bundled services made
-                   * twelve blocks in four places, and reading what one of them
-                   * actually amounts to meant assembling it from four passes down
-                   * the page. Everything a package says, it says about one of its
-                   * services, so the service is the unit here as it is in the
-                   * editor — same grouping, same order, so the two agree.
-                   *
-                   * OPEN BY DEFAULT, unlike the editor. There you are working on
-                   * one service at a time and the others are in the way; here you
-                   * came to read what the package is, and folding that away by
-                   * default would be hiding the page from its own reader. The
-                   * disclosure is for tidying a long bundle, not for guarding it.
-                   *
-                   * Plain <details>, so this stays a server component and folds
-                   * with no JavaScript at all.
-                   */
-                  const promised = s.deliverables || [];
-                  /* fixed was every row here too, so a variable left to the
-                     client came out twice: blank in the offer above, and again
-                     as a question below. */
-                  const { fixed, asked, undecided } = splitVariables(
-                    s.variableValues || [], s.variables || []);
-                  /*
-                   * Three states, not two.
-                   *
-                   * Fixed is part of the offer. Left to the client is a question
-                   * asked at booking. Undecided is neither — and it used to be
-                   * lumped in with the second, which is how a variable nobody
-                   * had thought about became a question on a public booking form
-                   * without anyone choosing to ask it.
-                   */
-                  const open = [...asked, ...undecided];
-                  const tasks = s.tasks || [];
-
-                  return (
-                    <details key={s.id} className="q-details q-part" open>
-                      <summary className="q-disclosure">
-                        <span className="q-disclosure-mark" aria-hidden="true" />
-                        <span>
-                          <span className="q-strong">{s.name}</span>{' '}
-                          <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
-                        </span>
-                      </summary>
-
-                      <div className="q-stack q-stack-lg q-tile-sub">
-                        <div className="q-stack q-stack-sm">
-                          <h3 className="q-eyebrow">Deliverables</h3>
-                          {promised.length === 0 ? (
-                            <p className="q-text-meta">Nothing promised from this service.</p>
-                          ) : (
-                            <div className="q-grid-cards">
-                              {promised.map((d: any) => (
-                                <div key={d.id} className="q-tile">
-                                  <div><Counted text={formatDeliverable(d)} small /></div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="q-stack q-stack-sm">
-                          <h3 className="q-eyebrow">Classifications</h3>
-                          <ClassificationsFor service={s} />
-                        </div>
-
-                        <div className="q-stack q-stack-sm">
-                          <h3 className="q-eyebrow">Variables</h3>
-                          {/*
-                            * Both halves. A variable left open is not an absence
-                            * — it is a question the client answers at booking,
-                            * and which of the two a variable is is the thing
-                            * worth knowing. Only the fixed ones were shown, so a
-                            * service whose variables were all open read as having
-                            * none.
-                            */}
-                          {fixed.length === 0 && open.length === 0 ? (
-                            <p className="q-text-meta">Nothing varies about this service.</p>
-                          ) : (
-                            <>
-                              {fixed.map((v: any) => (
-                                <div key={v.serviceVariableId} className="q-row q-row-between q-tile">
-                                  <span className="q-meta-plain">{v.label}</span>
-                                  <span className="q-strong">{formatVariableValue(v)}</span>
-                                </div>
-                              ))}
-                              {asked.map((v: any) => (
-                                <div key={v.id} className="q-row q-row-between q-tile">
-                                  <span className="q-meta-plain">{v.label}</span>
-                                  <span className="q-meta">The client chooses</span>
-                                </div>
-                              ))}
-                              {undecided.map((v: any) => (
-                                <div key={v.id} className="q-row q-row-between q-tile">
-                                  <span className="q-meta-plain">{v.label}</span>
-                                  {/* Not a question. Nobody has said what happens
-                                      to this one, so it is asked of no one and the
-                                      package is unfinished until somebody says. */}
-                                  <span className="q-meta q-absent">Not decided</span>
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        </div>
-
-                        <div className="q-stack q-stack-sm">
-                          <h3 className="q-eyebrow">Tasks</h3>
-                          {s.workflow?.name && <span className="q-meta-sm">{s.workflow.name}</span>}
-                          {tasks.length === 0 ? (
-                            <p className="q-text-meta">
-                              No workflow defines how {s.name} is produced and this package adds no step of
-                              its own, so a booking of it produces no work here and nobody can be assigned.
-                            </p>
-                          ) : tasks.map((t: any) => (
-                            <div key={t.id} className="q-row q-row-between q-tile">
-                              <span className={t.isActive ? 'q-text-body' : 'q-text-struck'}>{t.name}</span>
-                              <div className="q-row q-row-sm">
-                                {/* A step this package added rather than
-                                    inherited. It will not be rewritten when the
-                                    service workflow changes, which is worth
-                                    seeing. */}
-                                {!t.workflowTaskId && <span className="q-meta-sm">This package only</span>}
-                                {t.roleName && <span className="q-badge q-badge-neutral">{t.roleName}</span>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+      {/* A borrowed package says so, in place of the link it does not have. */}
+      {instance && (
+        <section className="q-print-chapter">
+          <p className="q-print-chapter-note">A booking{'’'}s own copy of a package. It has no public link and no bookings of its own.</p>
+        </section>
+      )}
     </div>
   );
 }
