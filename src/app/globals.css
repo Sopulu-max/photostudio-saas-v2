@@ -2572,9 +2572,26 @@ body::before {
   border-radius: 12px;
   overflow: hidden;
 }
+/*
+ * THE ROW SPANS; ITS CONTENT HAS A MEASURE.
+ *
+ * The page is 1600px wide because almost everything in it is a grid, and the
+ * rule that justifies that says in the same breath that a measure is right
+ * for text. A row is text. Unbounded, on a wide display the name sat at the
+ * left edge and the figure at the right with most of a metre of nothing
+ * between them — the eye had to travel the whole screen to connect a job to
+ * what it owes.
+ *
+ * Not two columns: a sorted list read down-then-across breaks the sort, and
+ * "soonest first" has to read top to bottom. So the body is capped at 40rem
+ * and the side column sits directly after it; the fourth track is empty and
+ * absorbs whatever width is left. The hairline and the hover wash still span
+ * the full row — it is the newspaper's arrangement, where the column rule
+ * runs the page and the text does not.
+ */
 .q-sheet-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 40rem) auto 1fr;
   gap: 14px;
   align-items: center;
   padding: 10px 16px;
