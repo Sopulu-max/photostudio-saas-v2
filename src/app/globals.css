@@ -2815,6 +2815,15 @@ body::before {
   color: var(--q-color-ink-400);
   margin-left: 6px;
 }
+/* Their words, under the facts. A measure, because it is prose; quieter
+   than the facts, because it is what they said rather than what is so. */
+.q-print-brief {
+  max-width: 62ch;
+  margin: 0 0 32px;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--q-color-ink-700);
+}
 @media (max-width: 36rem) {
   .q-print-fact { grid-template-columns: 1fr; gap: 2px; }
 }

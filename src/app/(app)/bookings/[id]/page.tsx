@@ -245,57 +245,124 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         {!(booking as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
       </Link>
 
-      <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
-        <div>
-          <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
-            <h1 className="q-page-title">{booking.title}</h1>
-            {/* The stage badge belongs next to the title — it is the booking's
-                current identity, not an action button. The picker to change it
-                stays on the right where the controls live. */}
-            {booking.stage?.name && (
-              <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
+      {/*
+        * THE PRINT'S HEAD.                                       (D1, D2, D4)
+        *
+        * This was a page header - the title, the stage, the client's name as
+        * a subtitle - followed by a card called Client, a card called Date and
+        * time, and a card holding what the client asked for. Three boxes for
+        * three facts, each with its own heading, before the packages.
+        *
+        * A booking is one job, and this page is its print: the photograph
+        * above, what is on it as a stamp, the name at the size of a name, and
+        * the facts on hairlines - who, when, what, and what is owed. Their
+        * words follow as the description does under a package, because that
+        * is what they are: the client's own sentence, not a field. The Client
+        * and Date cards were those facts and nothing else; they are lines now.
+        *
+        * The stage stays as a badge beside the name: it is the studio's own
+        * vocabulary for where a job has got to, and it is one of the few
+        * things here that is genuinely a status.
+        */}
+      {(() => {
+        const client = booking.contact?.display_name || null;
+        /*
+         * Named from the line itself. A line points at the booking's own
+         * instance of a package, which the catalogue listing filters out -
+         * so looking the name up in packageRows found nothing and said the
+         * booking was empty. getBooking already carries the package on the
+         * line, and the line carries its own title; that is where the
+         * Packages section below reads it from too.
+         */
+        const lineNames = lines
+          .map((l: any) => l.package?.name || l.title || null)
+          .filter(Boolean) as string[];
+        const when = booking.scheduled_for ? new Date(booking.scheduled_for) : null;
+        const whenSaid = when
+          ? when.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+          : null;
+        const endsSaid = when && booking.duration_minutes
+          ? new Date(when.getTime() + booking.duration_minutes * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+          : null;
+
+        return (
+          <>
+            <div className="q-print-head">
+              <div>
+                <span className="q-print-stamp">
+                  {lineNames.length > 0 ? lineNames.join(' + ') : 'No package yet'}
+                </span>
+                <div className="q-row" style={{ alignItems: 'center', gap: '12px' }}>
+                  <h1 className="q-print-name">{booking.title}</h1>
+                  {booking.stage?.name && (
+                    <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
+                  )}
+                </div>
+              </div>
+              <div className="q-row">
+                <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
+                <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
+              </div>
+            </div>
+
+            <div className="q-print-facts">
+              <div className="q-print-fact">
+                <span className="q-print-key">Client</span>
+                <span className="q-print-val">
+                  {client
+                    ? <>{client}{booking.contact?.email && <span className="q-print-more">{'· '}{booking.contact.email}</span>}</>
+                    : <span className="q-absent">
+                        No client yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">attach whoever this is for</Link>
+                      </span>}
+                </span>
+              </div>
+              <div className="q-print-fact">
+                <span className="q-print-key">When</span>
+                <span className="q-print-val">
+                  {whenSaid
+                    ? <>{whenSaid}{booking.duration_minutes
+                        ? <span className="q-print-more">{formatDuration(booking.duration_minutes)}{endsSaid ? ` · ends ${endsSaid}` : ''}</span>
+                        : null}</>
+                    : <span className="q-absent">
+                        No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
+                        {suggestedMinutes ? ` What is booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
+                      </span>}
+                </span>
+              </div>
+              <div className="q-print-fact">
+                <span className="q-print-key">Packages</span>
+                <span className="q-print-val">
+                  {lineNames.length > 0
+                    ? lineNames.join(' · ')
+                    : <span className="q-absent">Nothing on this booking yet</span>}
+                </span>
+              </div>
+              {/* The one amber figure on the page (D3): what still needs the
+                  studio. Nothing owed is said in ink, quietly. */}
+              <div className="q-print-fact">
+                <span className="q-print-key">Owed</span>
+                <span className="q-print-val">
+                  {pendingTotal > 0
+                    ? <span className="q-print-fig q-warm">{formatMoney(pendingTotal, moneyCurrency)}</span>
+                    : <span className="q-absent">Nothing owed</span>}
+                </span>
+              </div>
+            </div>
+
+            {/*
+              * What the client asked for, in their words, under the facts -
+              * the way a description sits under a package. Shown exactly as
+              * typed: it is a person's sentence, and on an enquiry it is often
+              * the only thing that says what the job is for.
+              */}
+            {booking.brief && (
+              <p className="q-text-body q-prewrap q-print-brief">{booking.brief}</p>
             )}
-          </div>
-          <p className="q-page-subtitle" style={{ marginTop: '4px' }}>
-            {booking.contact?.display_name || 'No client yet'}
-          </p>
-        </div>
-        <div className="q-row">
-          <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
-          <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
-        </div>
-      </header>
+          </>
+        );
+      })()}
 
       <div className="q-stack q-stack-lg">
-
-        {/*
-          * What the client asked for, before the studio answered it.
-          *
-          * First on the page, and open, because on a booking that is still only
-          * an enquiry this is frequently the only thing that says what it is
-          * for — everything below it is structure that may not be filled in
-          * yet. Shown exactly as typed; it is a person's sentence, not a field.
-          */}
-        {booking.brief && (
-          <Section title="What they asked for">
-            <p className="q-text-body q-prewrap">{booking.brief}</p>
-          </Section>
-        )}
-
-        {/* Client */}
-        <Section title="Client">
-          {booking.contact?.display_name ? (
-            <div>
-              <strong className="q-strong">{booking.contact?.display_name}</strong>
-              <div className="q-meta">{booking.contact?.email || 'No contact details'}</div>
-            </div>
-          ) : (
-            <p className="q-empty">
-              No client yet — a booking runs fine without one.{' '}
-              <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">Attach whoever this is for</Link>.
-            </p>
-          )}
-        </Section>
 
         {/* What the client filled in. Named after the form it came from, so the
             thing a studio builds and the thing it reads back carry one name. */}
@@ -314,34 +381,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           </Section>
         )}
-
-        {/* When */}
-        <Section title="Date and time">
-          {booking.scheduled_for ? (
-            <div>
-              <strong className="q-strong">
-                {new Date(booking.scheduled_for).toLocaleString(undefined, {
-                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-                  hour: 'numeric', minute: '2-digit',
-                })}
-              </strong>
-              <div className="q-meta">
-                {booking.duration_minutes
-                  ? `${formatDuration(booking.duration_minutes)} · ends around ${new Date(
-                      new Date(booking.scheduled_for).getTime() + booking.duration_minutes * 60000
-                    ).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-                  : 'No duration set'}
-              </div>
-            </div>
-          ) : (
-            <p className="q-empty">
-              No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
-              {suggestedMinutes ? ` What's booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
-            </p>
-          )}
-        </Section>
-
-
 
         {/* What they're booking — one line per Package */}
         <Section title="Packages">
