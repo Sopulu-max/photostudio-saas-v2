@@ -8,6 +8,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { getStudioCurrency } from '@/kernel/organizations';
+import { gatherPictures, type Picture } from '@/kernel/pictures';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
 import { draftContractForBooking, getDepositDefault } from '@/modules/contracts/interface';
 import { revalidatePath } from 'next/cache';
@@ -1270,6 +1271,36 @@ export async function setBookingSchedule(input: {
  * they cohere; they stay owned by their own modules, which is why nothing here
  * writes them.
  */
+/**
+ * A booking's pictures: its own cover leading, then every picture of every
+ * package in it, shuffled the same way every time. See kernel/pictures for why
+ * "random" has to mean the same random on the server and the client.
+ */
+function picturesOf(b: any): Picture[] {
+  const lines = (b.booking_lines || []) as any[];
+  return gatherPictures({
+    seed: String(b.id),
+    own: b.cover_url ? { url: b.cover_url, position: b.cover_position ?? null } : null,
+    from: lines.map((l) => packagePicturesOf(l.package)),
+  });
+}
+
+/**
+ * A line's package is usually an INSTANCE — a private copy taken for this
+ * booking so later edits to the catalogue do not rewrite what was sold. The
+ * copy carries the terms; it does not carry the pictures, because pictures are
+ * marketing rather than terms and a booking should wear the catalogue's
+ * current face. So: the instance's own, if it was ever given any, else its
+ * origin's. One edge further along, still a reading rather than a copy.
+ */
+function packagePicturesOf(pkg: any): Picture[] {
+  const rows = ((pkg?.package_images?.length ? pkg.package_images : pkg?.origin?.package_images) || []) as any[];
+  return rows
+    .slice()
+    .sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0))
+    .map((i) => ({ url: i.url as string, position: (i.position ?? null) as string | null }));
+}
+
 export async function getBooking(bookingId: string) {
   const { orgId } = await getAuthOrgId();
 
@@ -1284,6 +1315,8 @@ export async function getBooking(bookingId: string) {
         id, title, price, quantity, package_id, created_at,
         package:packages(
           id, name, price,
+          package_images(url, position, sort),
+          origin:instance_of(package_images(url, position, sort)),
           package_services(id, service:services(id, name, service_domain_id))
         ),
         tasks:booking_tasks(
@@ -1308,6 +1341,8 @@ export async function getBooking(bookingId: string) {
   const b: any = data;
   return {
     ...b,
+    /* What this booking looks like: its own cover, then its packages' pictures. */
+    images: picturesOf(b),
     lines: (b.booking_lines || []).slice().sort((x: any, y: any) => String(x.created_at).localeCompare(String(y.created_at))),
     contracts: b.contracts || [],
     transactions: b.financial_transactions || [],
@@ -1321,10 +1356,13 @@ export async function listBookings() {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, created_at, scheduled_for, cover_url,
+      id, title, created_at, scheduled_for, cover_url, cover_position,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
-      booking_lines(id),
+      booking_lines(id, package:packages(
+        package_images(url, position, sort),
+        origin:instance_of(package_images(url, position, sort))
+      )),
       contracts(id, status),
       financial_transactions(id, amount, status, currency)
     `)
@@ -1376,7 +1414,10 @@ export async function listBookings() {
        * onto it here would break the day that migration runs. When slide one
        * exists it is one line to add, and it belongs to the cover model.
        */
-      coverUrl: (b.cover_url ?? null) as string | null,
+      /* The booking's own cover, or failing that the first of its packages'
+         pictures — derived, so a row leads with a photograph the moment the
+         booking has a package, without anybody uploading one for it. */
+      coverUrl: picturesOf(b)[0]?.url ?? null,
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
       pendingTotal: pending.reduce((s: number, t: any) => s + Number(t.amount || 0), 0),

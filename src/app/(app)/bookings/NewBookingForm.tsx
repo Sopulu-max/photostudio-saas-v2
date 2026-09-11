@@ -51,6 +51,7 @@ import { PackagePicker } from '@/components/PackagePicker';
 import { toStored, hasPrice } from '@/kernel/money';
 // How money reads, from the one place that decides it.
 import { formatMoney } from '@/kernel/currency';
+import { CoverSlides } from '@/components/CoverSlides';
 import { toast, readableError } from '@/components/Toast';
 
 type Option = { id: string; name: string; email?: string; phone?: string };
@@ -1296,11 +1297,9 @@ export function NewBookingForm({
         * that here would be two places to do one thing.
         */}
       {startedFrom && (
-        <div
+        <CoverSlides
+          slides={startedFrom.images || []}
           className={startedFrom.coverUrl ? 'q-hero q-hero-short' : 'q-hero q-hero-short q-hero-blank'}
-          style={startedFrom.coverUrl
-            ? { backgroundImage: `url(${startedFrom.coverUrl})`, backgroundPosition: startedFrom.coverPosition || undefined }
-            : undefined}
         >
           <span className="q-hero-eyebrow">Booking</span>
           <span className="q-hero-title">{startedFrom.name}</span>
@@ -1329,7 +1328,7 @@ export function NewBookingForm({
               );
             })()}
           </span>
-        </div>
+        </CoverSlides>
       )}
 
       <div className="q-card q-section q-rise">
