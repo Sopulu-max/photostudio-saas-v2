@@ -1409,14 +1409,13 @@ export async function listBookings() {
        * frame reads this and falls to the client's initials when it is null
        * — the same reading ContactAvatar already makes for a person.
        *
-       * DELIBERATELY NOT the package's cover as a fallback. That column is
-       * being replaced by a table of slides in this same tree, and a join
-       * onto it here would break the day that migration runs. When slide one
-       * exists it is one line to add, and it belongs to the cover model.
+       * The booking's own cover, or failing that the first of its packages'
+       * pictures — derived, so a row leads with a photograph the moment the
+       * booking has a package, without anybody uploading one for it. The
+       * sheet first shipped reading only the booking's own column, with the
+       * package fallback left to the cover model; the cover model now
+       * provides it.
        */
-      /* The booking's own cover, or failing that the first of its packages'
-         pictures — derived, so a row leads with a photograph the moment the
-         booking has a package, without anybody uploading one for it. */
       coverUrl: picturesOf(b)[0]?.url ?? null,
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
