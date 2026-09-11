@@ -37,6 +37,9 @@ export {
   createBooking,
   // Intake from the public booking page — takes an explicit org, no session
   createBookingFromIntake,
+  // What a visitor hands over on the public page, and how the studio opens it
+  storeIntakeFile,
+  signIntakeFile,
   refreshBookingTitle,
   renameBooking,
   // The booking's own record, saved as one — what the edit page commits

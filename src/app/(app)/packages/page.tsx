@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listPackages } from '@/modules/packages/interface';
+import { listPackages, listPackagesPublicWithDimensions, shopWindowsOf } from '@/modules/packages/interface';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { PackagesClient } from './client';
 
@@ -28,6 +28,14 @@ export default async function PackagesPage(props: { searchParams: Promise<{ valu
     listPackages(), getStudioCurrency(), getStudio(),
   ]);
 
+  /*
+   * The studio's shop windows, derived from exactly the rows the public page
+   * derives them from — so the links offered here are the windows a client
+   * will actually find. Two or more and each gets a link of its own; one and
+   * the whole-catalogue link already is that window.
+   */
+  const windows = org ? shopWindowsOf(await listPackagesPublicWithDimensions(org.id)) : [];
+
   const carries = (dims: Tagged | undefined) => (dims || []).some((d) => d.values.some((v) => v.id === valueId));
   const packages = valueId
     ? (allPackages as any[]).filter((p) => carries(p.dimensions) || (p.services || []).some((s: any) => carries(s.dimensions)))
@@ -39,6 +47,7 @@ export default async function PackagesPage(props: { searchParams: Promise<{ valu
       initialPackages={packages}
       currencyCode={currencyCode}
       storefrontSlug={org?.slug ?? null}
+      windows={windows.length > 1 ? windows : []}
       activeFilter={activeFilter}
     />
   );

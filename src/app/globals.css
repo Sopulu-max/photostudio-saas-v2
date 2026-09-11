@@ -5047,3 +5047,173 @@ button.q-md-box:focus-visible {
   border-radius: inherit;
   color: var(--q-color-ink-500);
 }
+
+/* =====================================================================
+   Sizes, files and the frame
+   A size is drawn at its true proportion beside its neighbours; a file is
+   handed over and shown back; a picture is seen in the frame it will fill.
+   Geometry arrives as custom properties (--q-w, --q-h), the way .q-poster
+   takes --q-cover: the class owns the look, the data owns the numbers.
+   ===================================================================== */
+
+/* ---- The size picker: every option at true relative scale ---- */
+.q-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 18px;
+}
+.q-size {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--q-color-ink-600);
+  font: inherit;
+  transition: color var(--q-dur-2) var(--q-ease);
+}
+.q-size:disabled { cursor: default; opacity: 0.6; }
+.q-size-box {
+  width: var(--q-w, 40px);
+  height: var(--q-h, 40px);
+  box-sizing: border-box;
+  border: 1.5px solid var(--q-color-ink-300);
+  background: var(--q-color-paper);
+  border-radius: 2px;
+  transition: border-color var(--q-dur-2) var(--q-ease),
+              box-shadow var(--q-dur-2) var(--q-ease),
+              transform var(--q-dur-2) var(--q-spring);
+}
+.q-size:hover:not(:disabled) .q-size-box { border-color: var(--q-color-ink-600); transform: translateY(-2px); }
+.q-size:focus-visible { outline: none; }
+.q-size:focus-visible .q-size-box { box-shadow: 0 0 0 3px var(--q-color-accent-soft); }
+.q-size-on { color: var(--q-color-ink-900); }
+.q-size-on .q-size-box {
+  border-color: var(--q-color-accent);
+  box-shadow: 0 0 0 3px var(--q-color-accent-soft), var(--q-shadow-sm);
+}
+.q-size-label {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.q-size-on .q-size-label { font-weight: 600; }
+
+/* ---- A file handed over ---- */
+.q-file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1.5px dashed var(--q-color-ink-300);
+  border-radius: 12px;
+  background: var(--q-color-ink-50);
+  cursor: pointer;
+  transition: border-color var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease);
+}
+.q-file:hover, .q-file-over { border-color: var(--q-color-accent); background: var(--q-color-accent-soft); }
+.q-file:has(:focus-visible) { box-shadow: 0 0 0 3px var(--q-color-accent-soft); }
+.q-file input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.q-file-has { border-style: solid; border-color: var(--q-color-ink-200); background: var(--q-color-paper); cursor: default; }
+.q-file-thumb {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--q-color-ink-100);
+  box-shadow: var(--q-shadow-sm);
+}
+.q-file-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.q-file-name { font-weight: 500; color: var(--q-color-ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-file-hint { font-size: 0.82rem; color: var(--q-color-ink-500); }
+.q-file-busy { color: var(--q-color-accent); }
+
+/* ---- The frame: a picture seen at the size it will be ---- */
+.q-frame-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 20px 20px;
+  border-radius: 16px;
+  background: var(--q-color-ink-100);
+  border: 1px solid var(--q-color-ink-200);
+}
+.q-frame {
+  width: var(--q-w, 200px);
+  height: var(--q-h, 160px);
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6%;
+  background: var(--q-color-ink-900);
+  border-radius: 2px;
+  box-shadow: var(--q-shadow-lg), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: width var(--q-dur-4) var(--q-ease), height var(--q-dur-4) var(--q-ease);
+}
+.q-frame-mat {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 7%;
+  background: var(--q-color-paper);
+  box-shadow: inset 0 1px 3px rgba(26, 26, 29, 0.18);
+}
+.q-frame-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--q-color-ink-200);
+}
+.q-frame-photo-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+  font-size: 0.78rem;
+  color: var(--q-color-ink-400);
+  background: var(--q-color-ink-50);
+}
+.q-frame-caption {
+  font-size: 0.85rem;
+  color: var(--q-color-ink-600);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.q-frame-caption strong { color: var(--q-color-ink-900); font-weight: 600; }
+
+/* ---- A shop window: one domain's packages, headed by its name ---- */
+.q-window { margin-bottom: 44px; }
+.q-window-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--q-color-ink-200);
+}
+.q-window-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--q-color-ink-900);
+  margin: 0;
+}
+.q-window-count { font-size: 0.85rem; color: var(--q-color-ink-500); font-variant-numeric: tabular-nums; }
+.q-window-only {
+  font-size: 0.85rem;
+  color: var(--q-color-accent);
+  text-decoration: none;
+}
+.q-window-only:hover { text-decoration: underline; }

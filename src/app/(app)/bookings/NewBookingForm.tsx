@@ -792,6 +792,7 @@ export function NewBookingForm({
             // only once it is a number.
             value: parseVariableValue(v.kind, line.variableAnswers[v.id]),
             unit: v.unit ?? null,
+            kind: v.kind,
           }));
 
         // Every line this form writes is one of a package, so nothing here

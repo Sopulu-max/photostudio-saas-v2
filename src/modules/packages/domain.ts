@@ -8,7 +8,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
-import { fieldType, type IntakeQuestion } from '@/modules/services/fieldTypes';
+import { fieldType, normaliseOptions, type IntakeQuestion } from '@/modules/services/fieldTypes';
 // One definition of what a deliverable link looks like, shared by every reader.
 import {
   SERVICE_OFFERS, PACKAGE_PROMISE, PACKAGE_PROMISE_COUNT, PACKAGE_PROMISE_NAMED, DELIVERABLE_REF,
@@ -1325,8 +1325,8 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       id, name, description, short_description, duration_minutes,
       package_images(id, url, position, sort),
       price, price_unit,
-      package_services(id, service:services(
-        id, name
+      package_services(id, position, service:services(
+        id, name, domain:service_domains(id, name)
       ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
@@ -1335,7 +1335,16 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
     .order('created_at', { ascending: false });
 
   return ((data || []) as any[]).map((p) => {
-    const services = (p.package_services || []).map((ps: any) => ps.service).filter(Boolean);
+    /*
+     * In bundle order, because the FIRST service decides which shop window
+     * the package stands in. A package is sold from the domain of the thing
+     * it leads with: "Portrait session + framed print" is a photography
+     * package that includes a frame, and belongs in the photography window,
+     * not in both. Nothing is declared for this — see shopWindowsOf.
+     */
+    const bundle = [...(p.package_services || [])].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+    const services = bundle.map((ps: any) => ps.service).filter(Boolean);
+    const lead = services[0]?.domain ?? null;
     const links = (p.package_services || []).flatMap((ps: any) => ps.package_service_dimension_values || []);
     return {
       id: p.id as string,
@@ -1348,7 +1357,13 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
          package a studio quotes case by case. See kernel/money. */
       price: priceOf(p.price),
       price_unit: (p.price_unit ?? null) as string | null,
-      services: services.map((s: any) => ({ id: s.id as string, name: s.name as string })),
+      services: services.map((s: any) => ({
+        id: s.id as string,
+        name: s.name as string,
+        domain: s.domain ? { id: s.domain.id as string, name: s.domain.name as string } : null,
+      })),
+      /** The shop window this package stands in: its lead service's domain. */
+      window: lead ? { id: lead.id as string, name: lead.name as string } : null,
       deliverablesCount: (p.package_services || []).reduce((acc: number, ps: any) => acc + (ps.package_deliverables?.length || 0), 0),
       /*
        * WHAT IT PROMISES, BY NAME.
@@ -2134,7 +2149,7 @@ export async function updatePackageQuestions(input: { packageId: string; questio
     const label = (q.label || '').trim();
     if (!label) continue;
     const def = fieldType(q.type);
-    const options = def.needsOptions ? (q.options || []).map((o) => String(o).trim()).filter(Boolean) : undefined;
+    const options = def.needsOptions ? normaliseOptions(def.key, q.options) : undefined;
     if (def.needsOptions && (!options || options.length === 0)) throw new Error(`"${label}" needs at least one choice.`);
     questions.push({ id: q.id || crypto.randomUUID(), type: def.key, label, required: !!q.required, help: (q.help || '').trim() || undefined, options, serviceId: q.serviceId || undefined });
   }

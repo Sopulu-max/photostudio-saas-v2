@@ -5,8 +5,11 @@ import { fieldType } from '@/modules/services/fieldTypes';
 import { formatMoney } from '@/kernel/currency';
 import { CoverSlides } from '@/components/CoverSlides';
 import { VariableField } from '@/components/VariableField';
-import { parseVariableValue } from '@/modules/services/variableTypes';
-import { submitBookingForm, getPackageIntakePublic } from './actions';
+import { SizePicker } from '@/components/SizePicker';
+import { FileAnswer } from '@/components/FileAnswer';
+import { FramePreview } from '@/components/FramePreview';
+import { parseVariableValue, formatVariableValue } from '@/modules/services/variableTypes';
+import { submitBookingForm, getPackageIntakePublic, uploadIntakeFile } from './actions';
 // The studio's own published hours for a chosen day. Says nothing about
 // anyone else's booking.
 import { studioDayPublic } from '@/modules/bookings/interface';
@@ -779,6 +782,7 @@ export function BookingForm({
                       </>
                     ) : (
                       <PackageQuestions
+                        orgId={orgId}
                         openClassifications={effectiveOpenClassifications}
                         chosenClassifications={chosenClassifications}
                         setChosenClassifications={setChosenClassifications}
@@ -1016,6 +1020,7 @@ export function BookingForm({
                     Additional details for this package.
                   </p>
                   <PackageQuestions
+                    orgId={orgId}
                     openClassifications={effectiveOpenClassifications}
                     chosenClassifications={chosenClassifications}
                     setChosenClassifications={setChosenClassifications}
@@ -1070,7 +1075,12 @@ export function BookingForm({
                       for (const v of effectiveOpenVariables) {
                         const raw = variableAnswers[v.id];
                         if (raw != null && raw !== '') {
-                          answered.push({ label: v.label, value: v.unit ? `${raw} ${v.unit}${String(raw) === '1' ? '' : 's'}` : String(raw) });
+                          // The one formatter, not a fourth copy of it: this
+                          // pluralised every unit, so a size read "16×20 ins".
+                          answered.push({
+                            label: v.label,
+                            value: formatVariableValue({ value: parseVariableValue(v.kind, raw), unit: v.unit ?? null, kind: v.kind }),
+                          });
                         }
                       }
                       for (const field of effectiveFormSchema) {
@@ -1205,6 +1215,7 @@ export function BookingForm({
  * of them.
  */
 function PackageQuestions({
+  orgId,
   openClassifications,
   chosenClassifications,
   setChosenClassifications,
@@ -1216,6 +1227,7 @@ function PackageQuestions({
   customFields,
   setCustomFields,
 }: {
+  orgId: string;
   openClassifications: { dimensionId: string; name: string; question: string | null; values: { id: string; name: string }[] }[];
   chosenClassifications: Record<string, string>;
   setChosenClassifications: (v: Record<string, string>) => void;
@@ -1228,8 +1240,35 @@ function PackageQuestions({
   customFields: Record<string, any>;
   setCustomFields: (v: Record<string, any>) => void;
 }) {
+  /*
+   * THE PICTURE, WHILE THEY ARE STILL DECIDING.
+   *
+   * A file answer stores the path the server put it at; the preview wants the
+   * image now, from the browser's own copy. So each file question that holds a
+   * picture keeps a local object URL here, and the frame below draws the first
+   * of them into whichever size has been picked. Nothing about this is stored
+   * — it is the client's answers, read back to them as the thing they are
+   * about to buy.
+   */
+  const [previews, setPreviews] = useState<Record<string, { url: string; name: string }>>({});
+  const upload = (fd: FormData) => uploadIntakeFile(orgId, fd);
+
+  const sizeVariable = (openVariables || []).find((v: any) => v.kind === 'size');
+  const chosenSize = sizeVariable ? (variableAnswers[sizeVariable.id] ?? '') : '';
+  const picture = Object.values(previews)[0] ?? null;
+  const asksForFile = (formSchema || []).some((f: any) => f.type === 'file');
+
   return (
                       <div className="q-stack q-stack-lg">
+                        {/* What they are about to order, drawn: the picture in
+                            the frame at the size. Only where a size is being
+                            chosen — a portrait session has nothing to frame. */}
+                        {sizeVariable && (chosenSize || picture) && (
+                          chosenSize
+                            ? <FramePreview size={chosenSize} unit={sizeVariable.unit} imageUrl={picture?.url} imageName={picture?.name} />
+                            : <p className="q-meta">Pick a size below to see {asksForFile ? 'your picture' : 'it'} in the frame.</p>
+                        )}
+
                         {/*
                           * WHICH ONE, asked before anything that follows from it.
                           *
@@ -1322,7 +1361,8 @@ function PackageQuestions({
                                             heading that still says Occasion
                                             reads as a second, different one. */}
                                         {labelledByAnswer(v.label, v.dimensionName, answeredAs[v.dimensionId])}
-                                        {v.unit && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
+                                        {/* A size says its unit on every option it draws; saying "(ins)" above them would be a second, wrong plural. */}
+                                        {v.unit && v.kind !== 'size' && <span style={{ marginLeft: '6px', color: 'var(--q-color-ink-400)', fontWeight: 400 }}>({v.unit}s)</span>}
                                       </label>
                                       <VariableField
                                         kind={v.kind}
@@ -1355,7 +1395,20 @@ function PackageQuestions({
                                   <label className="q-label" style={{ fontSize: '0.95rem', marginBottom: '8px' }}>
                                     {field.label} {field.required && <span className="q-danger">*</span>}
                                   </label>
-                                  {field.type === 'textarea' ? (
+                                  {field.type === 'file' ? (
+                                    <FileAnswer
+                                      value={value || ''}
+                                      onChange={set}
+                                      upload={upload}
+                                      onPreview={(url, name) => setPreviews((p) => {
+                                        const next = { ...p };
+                                        if (url && name) next[field.id] = { url, name }; else delete next[field.id];
+                                        return next;
+                                      })}
+                                    />
+                                  ) : field.type === 'size' ? (
+                                    <SizePicker options={field.options || []} value={value || ''} onChange={set} />
+                                  ) : field.type === 'textarea' ? (
                                     <textarea className="q-textarea q-input-lg" required={field.required} rows={4} value={value || ''} onChange={(e) => set(e.target.value)} />
                                   ) : field.type === 'boolean' ? (
                                     <label className="q-row q-meta-plain" style={{ gap: '12px', padding: '16px', background: 'var(--q-color-ink-50)', borderRadius: '12px', fontSize: '1rem' }}>

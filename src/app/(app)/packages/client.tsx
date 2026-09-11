@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
+import { windowHref } from '@/modules/packages/windows';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { SheetRow, type SheetItem } from '@/components/Sheet';
@@ -34,11 +35,14 @@ export function PackagesClient({
   initialPackages,
   currencyCode = 'USD',
   storefrontSlug,
+  windows = [],
   activeFilter,
 }: {
   initialPackages: any[];
   currencyCode?: string;
   storefrontSlug?: string | null;
+  /** The studio's shop windows, when it has more than one. Each is a link a client can be sent to alone. */
+  windows?: { id: string; name: string; count: number }[];
   activeFilter?: { label: string } | null;
 }) {
   /*
@@ -395,6 +399,21 @@ export function PackagesClient({
             <span className="q-meta-sm">Everyone active above, in one link — hand this out instead of a single package&rsquo;s.</span>
           </div>
           <StorefrontLink slug={storefrontSlug} />
+          {/* A studio with two businesses has two shop windows. A client who
+              came for a frame is sent to the frames, not to the portraits. */}
+          {windows.length > 0 && (
+            <div className="q-stack q-stack-sm" style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--q-color-ink-100)' }}>
+              {windows.map((w) => (
+                <div key={w.id} className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                  <span>
+                    <strong className="q-strong">{w.name}</strong>
+                    <span className="q-meta-sm" style={{ marginLeft: '8px' }}>{w.count === 1 ? '1 package' : `${w.count} packages`} lead with it</span>
+                  </span>
+                  <StorefrontLink slug={storefrontSlug} path={windowHref(storefrontSlug, w.id)} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

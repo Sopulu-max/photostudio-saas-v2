@@ -286,6 +286,80 @@ export async function createBooking(input: {
 }
 
 /**
+ * What a visitor may hand over, and how much of it.
+ *
+ * Pictures, because a print shop prints pictures; PDFs, because a brief or a
+ * reference is often one. Not video — nothing on the public form has a use for
+ * it yet, and a bucket that accepts anything becomes storage for anybody.
+ * Fifteen megabytes is a full-resolution photograph with room to spare.
+ */
+const INTAKE_ACCEPTS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/tiff', 'application/pdf']);
+const INTAKE_MAX_BYTES = 15 * 1024 * 1024;
+
+/**
+ * A file a visitor hands over on the public page, put where the studio can
+ * find it — before there is any booking to hang it on.
+ *
+ * The visitor has no session, so this runs with the service role and scopes
+ * the path itself: intake/<org>/<id>-<name>. That prefix is the whole of what
+ * a `file` answer may later claim to be (see fieldTypes.isIntakePath), so a
+ * path that did not come out of here is refused before it is stored.
+ *
+ * NOT AN ASSET YET, DELIBERATELY. An asset is a production-plane record with
+ * provenance, and nothing in production reads or links one that arrived from
+ * a client — a print's `derived_from` has no surface to set it on. Writing a
+ * row nothing reads is the half-slice this codebase refuses. The path lives
+ * as the client's answer to the question that asked for it, which is where
+ * every other thing a client said already lives; when production learns to
+ * say "this print came from that picture", promoting the answer is one read
+ * away.
+ */
+export async function storeIntakeFile(organizationId: string, file: File): Promise<{ path: string; name: string }> {
+  if (!(file instanceof File) || file.size === 0) throw new Error('Choose a file to upload.');
+  if (file.size > INTAKE_MAX_BYTES) throw new Error('That file is over 15 MB. Send a smaller copy.');
+  if (!INTAKE_ACCEPTS.has(file.type)) throw new Error('Send a picture (JPEG, PNG, WebP, HEIC or TIFF) or a PDF.');
+
+  // The studio must exist and be the one whose page this is. Nothing here
+  // trusts the id alone.
+  const { data: org } = await supabaseAdmin
+    .from('organizations').select('id').eq('id', organizationId).maybeSingle();
+  if (!org) throw new Error('This studio could not be found.');
+
+  const safeName = (file.name || 'file').replace(/[^\w.\-]/g, '_').slice(-120);
+  const path = `${organizationId}/${randomUUID()}-${safeName}`;
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { error } = await supabaseAdmin.storage
+    .from('intake')
+    .upload(path, bytes, { contentType: file.type, upsert: false });
+  if (error) {
+    console.error('Intake upload failed:', error);
+    throw new Error('That file did not upload. Try again.');
+  }
+
+  // The answer records the bucket too, so a reader never has to guess where
+  // a bare path lives.
+  return { path: `intake/${path}`, name: file.name };
+}
+
+/**
+ * A link the studio can open to what a client sent — good for an hour.
+ *
+ * Read with the operator's org, and only for a path under that org's own
+ * prefix: a booking's answers are already tenant-scoped, but the path is a
+ * string a client once submitted, and a string is not a permission.
+ */
+export async function signIntakeFile(path: string): Promise<string | null> {
+  const { orgId } = await getAuthOrgId();
+  const prefix = `intake/${orgId}/`;
+  if (typeof path !== 'string' || !path.startsWith(prefix) || path.includes('..')) return null;
+  const { data } = await supabaseAdmin.storage
+    .from('intake')
+    .createSignedUrl(path.slice('intake/'.length), 60 * 60);
+  return data?.signedUrl ?? null;
+}
+
+/**
  * A booking arriving from outside — the public booking page. It is the same
  * booking as any other; the only real difference is that nobody is logged in,
  * so the organization comes in explicitly instead of from a session (the
@@ -688,7 +762,7 @@ export async function getLineConfiguration(lineId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('booking_line_variable_values')
-    .select('value, source, variable:variables(id, key, label, unit, position)')
+    .select('value, source, variable:variables(id, key, label, kind, unit, position)')
     .eq('organization_id', orgId)
     .eq('booking_line_id', lineId);
   if (error) {
@@ -701,6 +775,8 @@ export async function getLineConfiguration(lineId: string) {
       serviceVariableId: r.variable.id,
       key: r.variable.key,
       label: r.variable.label,
+      // The shape, so a size reads "16 × 20 in" on an invoice rather than "16×20 ins".
+      kind: (r.variable.kind ?? null) as string | null,
       unit: r.variable.unit ?? null,
       value: r.value,
       source: r.source as 'package' | 'client' | 'studio',
@@ -2421,14 +2497,24 @@ export async function getIntakeAnswersForBooking(bookingId: string) {
 
   const { fieldType } = await import('@/modules/services/fieldTypes');
 
-  const rows: { label: string; value: string; removed: boolean }[] = [];
+  const rows: {
+    label: string; value: string; removed: boolean;
+    /** A file the client sent, signed so the studio can open it. Only on a `file` answer. */
+    attachment?: { url: string; image: boolean };
+  }[] = [];
   // Asked questions first, in the order the studio arranged them.
   for (const q of questions) {
     if (!(q.id in answers)) continue;
     const v = answers[q.id];
     const empty = v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
     if (empty) continue;
-    rows.push({ label: q.label, value: fieldType(q.type).display(v), removed: false });
+    const row: (typeof rows)[number] = { label: q.label, value: fieldType(q.type).display(v), removed: false };
+    // The picture they sent is read back as a picture, not as a file name.
+    if (q.type === 'file' && typeof v === 'string') {
+      const url = await signIntakeFile(v);
+      if (url) row.attachment = { url, image: !/\.pdf$/i.test(v) };
+    }
+    rows.push(row);
   }
   // Then anything answered whose question has since been removed.
   for (const [qid, v] of Object.entries(answers)) {

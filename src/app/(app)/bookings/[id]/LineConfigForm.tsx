@@ -129,7 +129,7 @@ export function LineConfigForm({
                         <span>{f.label}</span>
                         <div className="q-row q-row-sm">
                           <strong className="q-strong" style={{ color: 'var(--q-color-ink-700)' }}>
-                            {formatVariableValue({ value: f.value, unit: f.unit })}
+                            {formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}
                           </strong>
                           {f.source && f.source !== 'package' && (
                             <span style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'var(--q-color-ink-100)', borderRadius: '12px', color: 'var(--q-color-ink-500)' }}>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { setServiceVariables } from '@/modules/services/interface';
 import {
   SERVICE_VARIABLE_KINDS, variableKindLabel, variableKindHint,
-  variableNeedsOptions, variableIsNumeric, narrowFor,
+  variableNeedsOptions, variableIsNumeric, variableHasUnit, narrowFor,
 } from '@/modules/services/interface';
 import type { ServiceVariable, ServiceVariableKind, VariableSuggestions } from '@/modules/services/interface';
 import { PickOne, PickMany } from '@/components/Pick';
@@ -93,7 +93,7 @@ export function ServiceVariablesEditor({
           key: r.key.trim() || deriveKey(r.label),
           label: r.label.trim(),
           kind: r.kind,
-          unit: variableIsNumeric(r.kind) ? r.unit.trim() || null : null,
+          unit: variableHasUnit(r.kind) ? r.unit.trim() || null : null,
           options: variableNeedsOptions(r.kind) ? r.options : [],
           min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
           max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
@@ -156,7 +156,7 @@ export function ServiceVariablesEditor({
               key: r.key.trim() || deriveKey(r.label),
               label: r.label.trim(),
               kind: r.kind,
-              unit: variableIsNumeric(r.kind) ? r.unit.trim() || null : null,
+              unit: variableHasUnit(r.kind) ? r.unit.trim() || null : null,
               options: variableNeedsOptions(r.kind) ? r.options : [],
               min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
               max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
@@ -218,29 +218,36 @@ export function ServiceVariablesEditor({
                 <button className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => remove(i)}>Remove</button>
               </div>
 
-              {variableIsNumeric(r.kind) && (
+              {variableHasUnit(r.kind) && (
                 <div className="q-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
                   <div style={{ width: '11rem' }}>
                     <PickOne
                       value={r.unit}
                       onChange={(v) => patch(i, { unit: v })}
                       options={unitOptions}
-                      placeholder="unit — e.g. outfit"
+                      placeholder={r.kind === 'size' ? 'unit — e.g. in, cm' : 'unit — e.g. outfit'}
                       disabled={isPending}
                     />
                   </div>
-                  <input
-                    className="q-input" type="number" value={r.min} disabled={isPending}
-                    onChange={(e) => patch(i, { min: e.target.value })}
-                    placeholder="min" style={{ width: '6rem' }}
-                  />
-                  <input
-                    className="q-input" type="number" value={r.max} disabled={isPending}
-                    onChange={(e) => patch(i, { max: e.target.value })}
-                    placeholder="max" style={{ width: '6rem' }}
-                  />
+                  {/* Only a number is bounded. A size is one of the sizes offered, and the options say which. */}
+                  {variableIsNumeric(r.kind) && (
+                    <>
+                      <input
+                        className="q-input" type="number" value={r.min} disabled={isPending}
+                        onChange={(e) => patch(i, { min: e.target.value })}
+                        placeholder="min" style={{ width: '6rem' }}
+                      />
+                      <input
+                        className="q-input" type="number" value={r.max} disabled={isPending}
+                        onChange={(e) => patch(i, { max: e.target.value })}
+                        placeholder="max" style={{ width: '6rem' }}
+                      />
+                    </>
+                  )}
                   <span className="q-meta-sm">
-                    {r.unit.trim() ? `reads as "2 ${r.unit.trim()}s"` : 'a unit makes it read as "2 outfits" rather than "2"'}
+                    {r.kind === 'size'
+                      ? (r.unit.trim() ? `reads as "16 × 20 ${r.unit.trim()}"` : 'a unit makes it read as "16 × 20 in" rather than "16 × 20"')
+                      : (r.unit.trim() ? `reads as "2 ${r.unit.trim()}s"` : 'a unit makes it read as "2 outfits" rather than "2"')}
                   </span>
                 </div>
               )}
@@ -252,13 +259,15 @@ export function ServiceVariablesEditor({
                     onChange={(v) => patch(i, { options: v })}
                     options={(suggestions?.shapeFor[r.label.trim().toLowerCase()]?.options || [])
                       .filter((o) => !r.options.includes(o))}
-                    placeholder="Add an option"
+                    placeholder={r.kind === 'size' ? 'Add a size, e.g. 16x20' : 'Add an option'}
                     disabled={isPending}
                   />
                   <span className="q-meta-sm" style={{ opacity: 0.7 }}>
                     {r.kind === 'multichoice'
                       ? 'The client may select more than one.'
-                      : 'The client selects exactly one.'}
+                      : r.kind === 'size'
+                        ? 'Typed as 16x20. Each is drawn at its true proportion beside the others.'
+                        : 'The client selects exactly one.'}
                   </span>
                 </div>
               )}

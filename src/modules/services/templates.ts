@@ -398,10 +398,14 @@ export const SERVICE_TEMPLATES: ServiceTemplate[] = [
     deliverables: ['Printed photographs'],
     variables: [
       { key: 'prints', label: 'Number of prints', kind: 'number', unit: 'print', min: 1 },
-      { key: 'size', label: 'Print size', kind: 'choice', options: ['8x10', '11x14', '16x20'] },
+      // A size, not a choice: drawn to scale for the client and compared as
+      // numbers, which '8x10' as a word could never be. The unit lives on the
+      // variable, said once.
+      { key: 'size', label: 'Print size', kind: 'size', unit: 'in', options: ['8×10', '11×14', '16×20'] },
     ],
     questions: [
-      { type: 'text', label: 'Which image (reference or file name)' },
+      // The picture itself, handed over — not a reference to one somewhere else.
+      { type: 'file', label: 'The image to print', required: true },
     ],
   },
   {
