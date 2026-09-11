@@ -2807,6 +2807,118 @@ body::before {
 }
 
 /*
+ * THE PLATE AND THE LABEL.
+ *
+ * A print on a wall has its label beside it, not above it. The page had the
+ * pictures as a wide band across the top and the words under the band, which
+ * is a cover photo - a website's arrangement, not a gallery's. Side by side,
+ * the photograph gets the height of everything the label has to say, and the
+ * label gets read against the picture it describes.
+ *
+ * The plate takes the left five parts of eleven; the label six. Not half and
+ * half: the words need a measure, and a plate that is exactly as wide as the
+ * text beside it reads as two columns of equal claim, which they are not -
+ * the picture is the thing, the label is about it.
+ *
+ * STRETCHED, NOT RATIOED. The plate's height is whatever the label needs, and
+ * the pictures cover it. A fixed ratio here left either a plate towering over
+ * a short label or a label overflowing a short plate; the label is the one
+ * that knows how tall it is. A floor keeps a sparse label from squashing the
+ * picture to a strip.
+ *
+ * Narrow, the plate goes above the label at 4:5, which is the print's own
+ * shape and the poster's.
+ */
+.q-print {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 0 40px;
+  align-items: stretch;
+  margin-bottom: 44px;
+}
+.q-print-plate {
+  min-height: 30rem;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--q-color-ink-100);
+  border: 1px solid var(--q-color-ink-100);
+}
+/* The slides fill whatever the plate is; a plate with nothing in it says so
+   in the same quiet register the empty frame on a sheet does. */
+.q-print-plate .q-slides { position: absolute; inset: 0; }
+.q-print-plate { position: relative; }
+.q-print-plate-empty {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: var(--q-color-ink-500);
+  font-size: 0.85rem;
+}
+.q-print-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-top: 4px;
+}
+.q-print-label .q-print-head { margin: 0 0 18px; }
+/*
+ * THE TWO FACTS A CLIENT ASKS FIRST, at the size they are asked.
+ *
+ * The price was one line among six. On a product page it is the largest
+ * figure on the label, because it is the fact everything else is measured
+ * against; and what you get for it sits directly under, counted, so the two
+ * are read as one statement. Everything after them is detail.
+ */
+.q-print-lede {
+  padding: 18px 0 20px;
+  border-top: 1px solid var(--q-color-ink-300);
+}
+.q-print-price {
+  font-family: var(--q-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.7rem, 2.6vw, 2.1rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--q-color-ink-900);
+}
+.q-print-price-unit { font-size: 0.55em; color: var(--q-color-ink-500); margin-left: 4px; letter-spacing: 0; }
+.q-print-promise {
+  margin-top: 10px;
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--q-color-ink-800);
+}
+.q-print-promise .q-lead-num { font-size: 1.3em; }
+.q-print-label .q-print-facts { margin: 0; }
+.q-print-label .q-print-fact:first-child { border-top: 0; }
+.q-print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+@media (max-width: 60rem) {
+  .q-print { grid-template-columns: 1fr; gap: 22px; }
+  .q-print-plate { min-height: 0; aspect-ratio: 4 / 5; }
+  .q-print-actions { margin-top: 4px; }
+}
+
+/* The parts below the print: what is in it, how it is sold, where it has
+   been booked. Hairlines and a stamp each, the way the facts are - the deep
+   read continues the label rather than restarting as cards. */
+.q-print-part { padding: 30px 0; border-top: 1px solid var(--q-color-ink-300); }
+.q-print-part-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+  gap: 8px 20px; margin-bottom: 18px;
+}
+.q-print-part-title {
+  margin: 0;
+  font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em;
+}
+.q-print-part-note { font-size: 0.88rem; color: var(--q-color-ink-500); max-width: 60ch; margin: 0; }
+
+/*
  * THE FACTS. Key on the left in the stamp register, value on the right at
  * body weight; a hairline between each. Not pills - a pill is a range marker
  * on a filter, and here every line is a statement about one thing. The key

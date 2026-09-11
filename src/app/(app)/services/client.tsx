@@ -6,7 +6,7 @@ import { Package } from 'lucide-react';
 
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { CatalogFilter } from '@/components/CatalogFilter';
-import { Counted } from '@/components/Counted';
+import { Sheet, type SheetItem } from '@/components/Sheet';
 
 /**
  * The ontology layer: what this studio actually knows how to do. Not what
@@ -67,95 +67,35 @@ export function ServicesClient({
    * anchors are why the classifications had to be built out of spans with
    * hand-written commas and inherited colours.
    */
-  const Card = ({ svc, withCover }: { svc: any; withCover: boolean }) => {
+  /*
+   * WHAT A SERVICE SAYS ABOUT ITSELF ON THE SHEET.                 (D1, D4, D7)
+   *
+   * The frame is its cover, or its initial. The caption is what it produces
+   * and then the first classification - the two facts that tell one service
+   * from the next. The figure is how much work it is: a service's equivalent
+   * of a price, and frequently the only thing that differs between two
+   * services producing the same deliverables. No workflow is worth seeing -
+   * booking such a service puts nobody on the job - so it is the absent
+   * figure, not a missing one.
+   */
+  const item = (svc: any): SheetItem => {
     const tags = (svc.dimensions || []) as ServiceDimensionTag[];
-    const produces = (svc.deliverables || []).map((d: any) => d.name);
+    const produces = (svc.deliverables || []).map((d: any) => d.name as string);
     const steps = svc.workflow?.tasks?.length ?? 0;
-
-    return (
-      <Link href={`/services/${svc.id}`} className="q-card q-stack q-plain-link q-card-interactive q-rise">
-        {/*
-          * Drawn whenever ANY service in this grid has one, exactly as the
-          * package catalogue does it. A row is stretched to its tallest card,
-          * so a service with a picture beside one without would put their
-          * titles at different heights; but a grid where NOTHING has a cover
-          * needs no band to align against, and twelve identical washes in the
-          * position the eye goes first is what makes a catalogue read as a loop.
-          */}
-        {withCover && (
-          <div
-            className={svc.cover_url ? 'q-cover' : 'q-cover q-cover-empty'}
-            // The focal point is a fact about this picture, so it travels with
-            // it rather than living in a stylesheet that knows neither.
-            style={svc.cover_url
-              ? { backgroundImage: `url(${svc.cover_url})`, backgroundPosition: svc.cover_position || undefined }
-              : undefined}
-          >
-            {!svc.cover_url && (
-              <span className="q-cover-initial">{(svc.name || '?').trim().charAt(0).toUpperCase()}</span>
-            )}
-          </div>
-        )}
-
-        <div>
-          <span className="q-eyebrow">{svc.domain?.name || 'No domain'}</span>
-          <h3 className="q-card-title">{svc.name}</h3>
-        </div>
-
-        {/* What it produces leads, because that is what a service is for. The
-            same three zones the package cards use, so the two catalogues read
-            the same way. */}
-        {/* Counted, the way the package card counts what it promises. A
-            deliverable that carries a quantity — "50 Edited images" — said the
-            50 at the weight of the word beside it, which is the one part of the
-            line that differs between two services producing the same thing. */}
-        <p className={produces.length > 0 ? 'q-lead q-clamp-2' : 'q-lead q-absent'}>
-          {produces.length > 0
-            ? produces.map((t: string, i: number) => (
-                <React.Fragment key={i}>{i > 0 ? ' · ' : ''}<Counted text={t} /></React.Fragment>
-              ))
-            : 'Produces nothing yet'}
-        </p>
-
-        {tags.length > 0 && (
-          <div className="q-facts">
-            {tags.map((d) => (
-              <span key={d.id} className="q-fact-group">
-                <span className="q-fact-key">{d.name}</span>
-                <span className="q-fact-values">
-                  {d.values.map((v) => (
-                    <span key={v.id} className="q-fact">{v.name}</span>
-                  ))}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/*
-          * How much work it is — a service's equivalent of a price, and now set
-          * like one. This band already existed and this comment already said
-          * that; both halves were q-meta-sm, so it carried two greys of equal
-          * weight and the eye had nothing to land on. In a catalogue where most
-          * services produce the same deliverables under the same workflow name,
-          * the step count is frequently the only thing that differs, and it was
-          * the smallest text on the card.
-          *
-          * The workflow's name takes the small grey opposite, where the package
-          * card puts its task count. No workflow at all is the absent state,
-          * and it is worth seeing: a service without one produces no tasks, so
-          * booking it puts nobody on the job.
-          */}
-        <div className="q-card-foot">
-          <span className={steps > 0 ? 'q-figure' : 'q-figure q-absent'}>
-            {steps > 0
-              ? <>{steps}<span className="q-figure-unit">{steps === 1 ? 'step' : 'steps'}</span></>
-              : 'No workflow, so it produces no tasks'}
-          </span>
-          {svc.workflow?.name && <span className="q-meta-sm">{svc.workflow.name}</span>}
-        </div>
-      </Link>
-    );
+    const retired = svc.status === 'retired';
+    return {
+      id: svc.id,
+      href: `/services/${svc.id}`,
+      name: svc.name,
+      caption: [...produces.slice(0, 2), tags[0]?.values[0]?.name ?? null].slice(0, 3),
+      absent: 'Produces nothing yet',
+      frame: { url: svc.cover_url, initials: (svc.name || '?').trim().charAt(0).toUpperCase() },
+      figure: steps > 0
+        ? { text: `${steps} ${steps === 1 ? 'step' : 'steps'}` }
+        : { text: 'No workflow', none: true },
+      badge: svc.domain?.name ? <span className="q-badge q-badge-neutral">{svc.domain.name}</span> : undefined,
+      dim: retired,
+    };
   };
 
   return (
@@ -227,15 +167,9 @@ export function ServicesClient({
           {(shown, { dense }) => {
             const offered = shown.filter((svc: any) => svc.status !== 'retired');
             const retired = shown.filter((svc: any) => svc.status === 'retired');
-            const grid = dense ? 'q-grid-rows' : 'q-grid-cards';
-            // Per grid: a row is only stretched by its own siblings.
-            const offeredCovers = offered.some((svc: any) => svc.cover_url);
-            const retiredCovers = retired.some((svc: any) => svc.cover_url);
             return (
               <>
-                <div className={grid}>
-                  {offered.map((svc: any) => <Card key={svc.id} svc={svc} withCover={offeredCovers} />)}
-                </div>
+                <Sheet items={offered.map(item)} dense={dense} />
 
                 {/* Below what is offered, and only when the narrowing in force
                     actually turned some up. */}
@@ -245,9 +179,7 @@ export function ServicesClient({
                     <p className="q-meta" style={{ marginBottom: '16px' }}>
                       Not offered for new packages. Packages already built from these are untouched.
                     </p>
-                    <div className={grid}>
-                      {retired.map((svc: any) => <Card key={svc.id} svc={svc} withCover={retiredCovers} />)}
-                    </div>
+                    <Sheet items={retired.map(item)} dense={dense} />
                   </section>
                 )}
               </>

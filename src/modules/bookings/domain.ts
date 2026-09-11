@@ -1350,6 +1350,55 @@ export async function getBooking(bookingId: string) {
 }
 
 /** Every booking, newest first — the list surface. */
+/**
+ * WHERE A CATALOGUE PACKAGE HAS BEEN BOOKED.
+ *
+ * A booking never points at the catalogue package; it points at its own
+ * private copy, which records instance_of. So "which bookings used this
+ * package" is a second reading of an edge the app already holds and had
+ * never read back: relatedness derived, not declared. Read from the
+ * booking line, joined through the instance to its origin.
+ *
+ * Newest first, because the question on a package's page is "is this
+ * selling", and the recent answer is the one that matters.
+ */
+export async function listBookingsOfPackage(packageId: string) {
+  const { orgId } = await getAuthOrgId();
+
+  const { data, error } = await supabaseAdmin
+    .from('booking_lines')
+    .select(`
+      id, price, created_at,
+      package:packages!inner(id, instance_of),
+      booking:bookings!inner(
+        id, title, scheduled_for, created_at,
+        stage:booking_stages(id, name, kind, color),
+        contact:contacts(display_name)
+      )
+    `)
+    .eq('organization_id', orgId)
+    .eq('package.instance_of', packageId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to list the bookings of a package:', error);
+    throw dbError('Failed to load where this package has been booked', error);
+  }
+
+  return ((data || []) as any[])
+    .filter((l) => l.booking)
+    .map((l) => ({
+      lineId: l.id as string,
+      id: l.booking.id as string,
+      title: l.booking.title as string,
+      scheduledFor: (l.booking.scheduled_for ?? null) as string | null,
+      bookedAt: l.created_at as string,
+      stage: l.booking.stage || null,
+      clientName: (l.booking.contact?.display_name ?? null) as string | null,
+      price: l.price ?? null,
+    }));
+}
+
 export async function listBookings() {
   const { orgId } = await getAuthOrgId();
 

@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { CoverSlides } from '@/components/CoverSlides';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { formatDeliverable, getPackage } from '@/modules/packages/interface';
+import { listBookingsOfPackage } from '@/modules/bookings/interface';
+import { stageBadgeClass } from '@/components/stageBadge';
+import { SheetRow, initialsFor } from '@/components/Sheet';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { formatVariableValue, splitVariables } from '@/modules/services/interface';
@@ -24,9 +27,12 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const [currencyCode, org] = await Promise.all([
+  const [currencyCode, org, bookedOn] = await Promise.all([
     getStudioCurrency(),
     getStudio(),
+    /* Where this package has been booked: derived from the lines that
+       instance it. A catalogue package is never on a booking itself. */
+    (pkg as any).instance_of ? Promise.resolve([]) : listBookingsOfPackage(pkg.id),
   ]);
 
   const services = (pkg as any).services || [];
@@ -36,48 +42,13 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       <Link className="q-back" href="/packages">&larr; Back to Packages</Link>
 
       {/*
-        * The work, before the words about it — and present either way.
+        * THE PRINT: THE PLATE AND THE LABEL.                    (D1, D2, D4)
         *
-        * Drawn only when a cover existed, this page gave no sign that a package
-        * could have one, so the only way to find out was to open the editor and
-        * scroll. Empty it is the same wash the card uses, and it says what it
-        * is for.
-        */}
-      {/* The whole set, playing. The banner is the biggest a package's own
-          pictures are ever drawn for the studio that took them. */}
-      <CoverSlides
-        slides={(pkg as any).images || []}
-        /* The frame is the banner: it has the shape, the radius and the border,
-           and the slides fill it. The link inside is only a click surface — it
-           paints nothing, or it would sit on top of the very pictures it opens. */
-        className={((pkg as any).images || []).length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
-      >
-        <Link
-          href={`/packages/${pkg.id}/edit`}
-          className="q-cover-banner-link q-plain-link"
-          title={((pkg as any).images || []).length ? 'Change the pictures' : 'Add a picture'}
-        >
-          {!((pkg as any).images || []).length && <span className="q-meta-sm">Add a picture</span>}
-        </Link>
-      </CoverSlides>
-
-      {/*
-        * THE PRINT'S HEAD.                                       (D1, D2, D4)
-        *
-        * This was a page header - name, a status badge, and a subtitle reading
-        * "What the client buys, and what it costs", which describes the page
-        * rather than the package - followed by the description, a Booking-link
-        * card, a Commercial-terms card and a Deliverables card. Four cards
-        * before the reader reached what the package is made of.
-        *
-        * A print is one thing, captioned. The photograph above; the bundle as
-        * a stamp; the name at the size of a name; then the facts on hairlines:
-        * what the client receives, the price, what it is for, what it fixes,
-        * the work. The Commercial-terms and Deliverables cards are those facts
-        * and nothing else, so they are gone as cards and present as lines.
-        *
-        * The status is said only when it is worth saying - "active" on every
-        * package is a badge that means nothing.
+        * The pictures on the left, the label beside them - a gallery's
+        * arrangement, not a website's cover photo. The label reads top to
+        * bottom the way a client asks: what is this made of, what is it
+        * called, what does it cost, what do I get, then the particulars, then
+        * Book. Everything below the print is the deep read, on hairlines.
         */}
       {(() => {
         const bundle = services.map((s: any) => s.name).join(' + ');
@@ -85,14 +56,11 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         const priced = pkg.price?.amount != null;
         const retired = pkg.status === 'retired';
         const instance = Boolean((pkg as any).instance_of);
+        const images = ((pkg as any).images || []) as any[];
 
-        /*
-         * What the package is FOR, collated across the bundle. The rule is the
-         * one Classifications.tsx states: a service that narrows nothing is
-         * classified as it is classified everywhere. Values are merged by
-         * question so a package of two services answering the same question
-         * lists that question once.
-         */
+        /* What it is FOR, collated across the bundle by the rule Classifications
+           states: a service that narrows nothing is classified as it is
+           everywhere. Values merged by question. */
         const byQuestion = new Map<string, { name: string; position: number; values: Map<string, string> }>();
         for (const s of services) {
           const narrowed = s.narrowedTo || [];
@@ -104,125 +72,159 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           }
         }
         const questions = [...byQuestion.values()].sort((a, b) => a.position - b.position);
-
-        /* What it fixes: the settled variables, across the bundle. */
         const { fixed } = splitVariables(
           services.flatMap((s: any) => s.variableValues || []),
           services.flatMap((s: any) => s.variables || []),
         );
-
-        /* The work: how many steps, and which roles they need. */
         const steps = services.flatMap((s: any) => s.tasks || []);
         const roles = [...new Set(steps.map((x: any) => x.roleName).filter(Boolean))] as string[];
-
         const SHOW = 3;
 
         return (
-          <>
-            <PrintHead
-              stamp={bundle || undefined}
-              name={pkg.name}
-              badge={(retired || instance)
-                ? <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
-                : undefined}
-              actions={<>
-                {/*
-                  * BOOK, WHERE THE PACKAGE IS. Primary and left of Edit: a
-                  * catalogue exists to take bookings. Withdrawn and borrowed
-                  * packages do not offer it - a studio that stopped selling
-                  * something should not be invited to sell it, and an
-                  * instance is a booking's private copy.
-                  */}
+          <section className="q-print">
+            <div className="q-print-plate">
+              {images.length > 0
+                ? <CoverSlides slides={images} className="q-slides" />
+                : <Link href={`/packages/${pkg.id}/edit`} className="q-print-plate-empty q-plain-link">Add a picture</Link>}
+            </div>
+
+            <div className="q-print-label">
+              <PrintHead
+                stamp={bundle || undefined}
+                name={pkg.name}
+                badge={(retired || instance)
+                  ? <span className="q-badge q-badge-neutral">{instance ? 'Booking copy' : 'Retired'}</span>
+                  : undefined}
+              />
+
+              <div className="q-print-lede">
+                <div className="q-print-price">
+                  {priced
+                    ? <>{formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
+                        {(pkg as any).price_unit && <span className="q-print-price-unit">/{(pkg as any).price_unit}</span>}</>
+                    : <span className="q-absent" style={{ fontSize: '0.6em', fontFamily: 'var(--q-font-sans)', fontWeight: 400 }}>Not priced</span>}
+                </div>
+                <div className="q-print-promise">
+                  {promised.length > 0
+                    ? promised.map((d: any, i: number) => (
+                        <span key={d.id ?? i}>{i > 0 && ' · '}<Counted text={formatDeliverable(d)} /></span>
+                      ))
+                    : <span className="q-absent">Nothing promised yet</span>}
+                </div>
+              </div>
+
+              <PrintFacts facts={[
+                ...questions.map((q) => {
+                  const names = [...q.values.values()];
+                  return { key: q.name, value: names.slice(0, SHOW).join(', '),
+                           more: names.length > SHOW ? `+${names.length - SHOW}` : undefined };
+                }),
+                ...fixed.map((v: any) => ({ key: v.label ?? v.name, value: formatVariableValue(v) })),
+                ...(pkg.duration_minutes != null ? [{ key: 'Duration', value: `${pkg.duration_minutes} minutes` }] : []),
+                {
+                  key: 'Work',
+                  value: steps.length > 0
+                    ? `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}${roles.length > 0 ? ` · needs ${roles.join(', ')}` : ''}`
+                    : null,
+                  absent: 'No work defined',
+                },
+              ]} />
+
+              {pkg.description && (
+                <p className="q-print-brief" style={{ marginTop: '18px', marginBottom: 0 }}>{pkg.description}</p>
+              )}
+
+              <div className="q-print-actions">
+                {/* Book leads: a catalogue exists to take bookings. Withdrawn
+                    and borrowed packages do not offer it. */}
                 {!retired && !instance && (
-                  <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>
-                    Book
-                  </Link>
+                  <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
                 )}
                 <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
-              </>}
-            />
-
-            <PrintFacts facts={[
-              {
-                key: 'Client receives',
-                value: promised.length > 0
-                  ? promised.map((d: any, i: number) => (
-                      <span key={d.id ?? i}>{i > 0 && ' · '}<Counted text={formatDeliverable(d)} /></span>
-                    ))
-                  : null,
-                absent: 'Nothing promised yet',
-              },
-              {
-                key: 'Price',
-                figure: priced ? { text: formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode)) } : undefined,
-                absent: 'Not priced',
-                more: pkg.duration_minutes != null ? `${pkg.duration_minutes} min` : undefined,
-              },
-              ...questions.map((q) => {
-                const names = [...q.values.values()];
-                return {
-                  key: q.name,
-                  value: names.slice(0, SHOW).join(', '),
-                  more: names.length > SHOW ? `+${names.length - SHOW}` : undefined,
-                };
-              }),
-              ...fixed.map((v: any) => ({ key: v.label ?? v.name, value: formatVariableValue(v) })),
-              {
-                key: 'Work',
-                value: steps.length > 0
-                  ? `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}${roles.length > 0 ? ` · needs ${roles.join(', ')}` : ''}`
-                  : null,
-                absent: 'No work defined',
-              },
-            ]} />
-          </>
+              </div>
+            </div>
+          </section>
         );
       })()}
 
-      {pkg.description && (
-        <p className="q-text-body" style={{ marginBottom: '24px', fontSize: '1.05rem', color: 'var(--q-color-ink-700)' }}>
-          {pkg.description}
-        </p>
+      {/*
+        * WHERE IT HAS BEEN BOOKED.
+        *
+        * The one thing this page never had: the question a studio actually
+        * brings to a package - is it selling. A booking never points at the
+        * catalogue package, only at its own copy, so this is the copies read
+        * back to their origin. Newest first. A borrowed package is a booking's
+        * copy and has no bookings of its own.
+        */}
+      {!(pkg as any).instance_of && (
+        <section className="q-print-part">
+          <div className="q-print-part-head">
+            <h2 className="q-print-part-title">Where it has been booked</h2>
+            <p className="q-print-part-note">
+              {bookedOn.length === 0
+                ? 'Not yet.'
+                : `${bookedOn.length} ${bookedOn.length === 1 ? 'booking' : 'bookings'}, newest first.`}
+            </p>
+          </div>
+          {bookedOn.length > 0 && (
+            <div className="q-sheet">
+              {bookedOn.slice(0, 8).map((b) => (
+                <SheetRow key={b.lineId} item={{
+                  id: b.lineId,
+                  href: `/bookings/${b.id}`,
+                  name: b.title,
+                  caption: [
+                    b.scheduledFor ? new Date(b.scheduledFor).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
+                    b.clientName,
+                  ],
+                  absent: 'No date or client yet',
+                  frame: { initials: initialsFor(b.clientName) },
+                  figure: b.price?.amount != null
+                    ? { text: formatMoney(Number(b.price.amount), String(b.price.currency || currencyCode)) }
+                    : undefined,
+                  badge: b.stage?.name ? <span className={`q-badge ${stageBadgeClass(b.stage)}`}>{b.stage.name}</span> : undefined,
+                }} />
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/*
-        * THE LINK FOR THIS ONE PACKAGE, below the facts: what the package is
-        * comes before how to hand it out. Shown only when the link would work -
-        * getPackagePublic requires status active, so offering it on a retired
-        * package or a booking's own instance would hand somebody a link that
-        * 404s in front of their client.
+        * HOW IT IS SOLD. The link for this one package - the commonest thing
+        * a studio hands out, and until recently nothing in the app would tell
+        * you its address. Shown only when the link would actually work.
         */}
       {org?.slug && (
-        <div className="q-card q-section" style={{ marginBottom: '24px' }}>
-          <h2 className="q-section-title">Booking link</h2>
-          {pkg.status === 'active' && !(pkg as any).instance_of ? (
-            <>
-              <p className="q-meta" style={{ margin: '4px 0 12px' }}>
-                Send this to a client to book this package.
-              </p>
-              <StorefrontLink slug={org.slug} path={`/book/${org.slug}/${pkg.id}`} />
-            </>
-          ) : (
-            <p className="q-meta" style={{ margin: '4px 0 0' }}>
-              {(pkg as any).instance_of
-                ? 'This is a booking\u2019s own copy of a package, not a catalogue one, so it has no public link.'
-                : 'Only an active package can be booked. Change its status to share a link.'}
+        <section className="q-print-part">
+          <div className="q-print-part-head">
+            <h2 className="q-print-part-title">How it is sold</h2>
+            <p className="q-print-part-note">
+              {pkg.status === 'active' && !(pkg as any).instance_of
+                ? 'Send this to a client to book this package.'
+                : (pkg as any).instance_of
+                  ? 'A booking’s own copy of a package has no public link.'
+                  : 'Only an active package can be booked. Change its status to share a link.'}
             </p>
+          </div>
+          {pkg.status === 'active' && !(pkg as any).instance_of && (
+            <StorefrontLink slug={org.slug} path={`/book/${org.slug}/${pkg.id}`} />
           )}
-        </div>
+        </section>
       )}
 
-      <div className="q-stack q-stack-lg">
-        <div className="q-card q-section q-rise">
-          <h2 className="q-section-title">Services</h2>
-          {services.length === 0 ? (
-            <p className="q-text-meta">No services bundled.</p>
-          ) : (
+      <section className="q-print-part">
+        <div className="q-print-part-head">
+          <h2 className="q-print-part-title">What is in it</h2>
+          <p className="q-print-part-note">
+            {services.length === 0
+              ? 'No services bundled.'
+              : 'What this package is built from. Everything it promises, is classified as, fixes and involves is said of one of these.'}
+          </p>
+        </div>
+        <div>
+          {services.length > 0 && (
             <>
-              <p className="q-meta" style={{ marginBottom: '16px' }}>
-                What this package is built from. Everything it promises, is classified as, fixes and
-                involves is said of one of these.
-              </p>
 
               <div className="q-stack q-stack-sm">
                 {services.map((s: any) => {
@@ -266,7 +268,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   const tasks = s.tasks || [];
 
                   return (
-                    <details key={s.id} className="q-details q-tile" open>
+                    <details key={s.id} className="q-details q-part" open>
                       <summary className="q-disclosure">
                         <span className="q-disclosure-mark" aria-hidden="true" />
                         <span>
@@ -365,8 +367,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             </>
           )}
         </div>
-
-      </div>
+      </section>
     </div>
   );
 }

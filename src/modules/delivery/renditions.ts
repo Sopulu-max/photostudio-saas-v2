@@ -15,6 +15,9 @@
  * like everything else in the module.
  */
 export const GALLERY_RENDITIONS = {
+  /* A frame on a sheet: 44px drawn, 240 fetched so a retina display is not
+     handed a blur. Under a tenth of the grid rendition. */
+  thumb: { width: 240, quality: 70 },
   grid: { width: 800, quality: 74 },
   full: { width: 2400, quality: 86 },
 } as const;

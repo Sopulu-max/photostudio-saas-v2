@@ -575,13 +575,14 @@ export async function listGalleries(): Promise<{
   bookingTitle: string | null;
   clientName: string | null;
   fileCount: number;
+  coverUrl: string | null;
 }[]> {
   const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
     .from('deliveries')
     // Pinned to the delivery_id key: cover_asset_id makes a bare embed ambiguous.
-    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, created_at, booking:bookings(id, title, contact:contacts(display_name)), delivery_assets!delivery_assets_delivery_id_fkey(id)')
+    .select('id, title, status, share_token, shared_at, last_viewed_at, archived_at, created_at, cover_asset_id, booking:bookings(id, title, contact:contacts(display_name)), delivery_assets!delivery_assets_delivery_id_fkey(id, position, asset:assets(storage_path, mime_type))')
     .eq('organization_id', orgId)
     .is('archived_at', null)
     .order('created_at', { ascending: false });
@@ -590,7 +591,31 @@ export async function listGalleries(): Promise<{
     throw dbError('Failed to load galleries', error);
   }
 
-  return (data || []).map((d: any) => ({
+  /*
+   * THE PICTURE THAT IDENTIFIES THE ROW.                                (D4)
+   *
+   * A gallery is the most photographic object in the app and its list showed
+   * a title. The studio never signed its own thumbnails - only the public,
+   * token-gated route does - so the sheet had nothing to put in the frame.
+   * The cover, or failing that the first picture by position, is signed here
+   * at the thumb rendition. One storage call per gallery, in parallel; a
+   * studio has dozens of galleries, not thousands, and a frame that is
+   * sometimes missing is not a column.
+   */
+  const rows = (data || []) as any[];
+  const coverUrls = await Promise.all(rows.map(async (d) => {
+    const images = ((d.delivery_assets || []) as any[])
+      .filter((f) => String(f.asset?.mime_type || '').startsWith('image/') && f.asset?.storage_path)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const chosen = images.find((f) => f.id === d.cover_asset_id) ?? images[0];
+    if (!chosen) return null;
+    const { data: signed } = await supabaseAdmin.storage
+      .from('deliveries')
+      .createSignedUrl(chosen.asset.storage_path, SIGNED_URL_TTL_SECONDS, { transform: GALLERY_RENDITIONS.thumb });
+    return signed?.signedUrl ?? null;
+  }));
+
+  return rows.map((d: any, i: number) => ({
     id: d.id,
     title: d.title,
     status: d.status,
@@ -602,6 +627,7 @@ export async function listGalleries(): Promise<{
     bookingTitle: d.booking?.title ?? null,
     clientName: d.booking?.contact?.display_name ?? null,
     fileCount: (d.delivery_assets || []).length,
+    coverUrl: coverUrls[i],
   }));
 }
 

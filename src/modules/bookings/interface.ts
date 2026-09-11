@@ -15,6 +15,7 @@ export {
   // Reads — the surfaces ask for these rather than querying the tables
   getBooking,
   listBookings,
+  listBookingsOfPackage,
   getBookingCountsByContact,
   // The dimension graph's one crossing into real work: what was actually booked
   // under a classification. Lives here because the chain ends here.
