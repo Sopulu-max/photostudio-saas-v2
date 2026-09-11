@@ -8,6 +8,8 @@ import { formatMoney } from '@/kernel/currency';
 import { StorefrontLink } from './StorefrontLink';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { CoverSlides } from '@/components/CoverSlides';
+import { Counted } from '@/components/Counted';
 // Reached at its source rather than through the module door: the interface is
 // a server-actions file, and this is a pure formatter a client card can hold.
 import { formatVariableValue, splitVariables } from '@/modules/services/variableTypes';
@@ -22,6 +24,10 @@ function byPrice(a: any, b: any, dir: 1 | -1) {
   if (bv == null) return -1;
   return (Number(av) - Number(bv)) * dir || a.name.localeCompare(b.name);
 }
+
+/* How many values of one question a poster shows before it starts
+   counting. Three: enough to say what kind of thing it is. */
+const PILLS_PER_QUESTION = 3;
 
 export function PackagesClient({
   initialPackages,
@@ -189,6 +195,218 @@ export function PackagesClient({
     );
   };
 
+  /*
+   * THE SAME PACKAGE AS A CARD. Cards view: the poster - the client's own
+   * card, one picture as the card, the words laid over it. Restored beside
+   * the row rather than instead of it: the sheet scans, the poster browses,
+   * and the toggle is which the operator is doing.
+   */
+  const Poster = ({ pkg, index }: { pkg: any; index: number }) => {
+    const tags = dimensionTags(pkg);
+    const bundle = (pkg.services || []).map((s: any) => s.name).join(' + ');
+    const promises = (pkg.deliverables || []).map((d: any) => formatDeliverable(d));
+    /*
+     * Fixed is what the package SAYS; asked and undecided are what it leaves.
+     * This read every package_variable_values row as a fixed value, so one the
+     * package had deliberately left to the client — which still has a row,
+     * because that is where the decision is recorded — printed its label with
+     * nothing beside it. "Location address" and then blank, on the card.
+     */
+    const { fixed, asked } = splitVariables(
+      (pkg.services || []).flatMap((s: any) => s.variableValues || []),
+      (pkg.services || []).flatMap((s: any) => s.variables || []),
+    );
+    const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
+    const priced = pkg.price?.amount != null;
+
+    return (
+      /*
+       * THE SAME CARD THE CLIENT SEES.
+       *
+       * This was a stack of six blocks — cover, eyebrow, title, promise, a
+       * two-column facts grid, a footer band — each sized independently, and
+       * every one of them a thing that could end up somewhere unintended as the
+       * width changed. It was rebuilt three times and broke somewhere new each
+       * time, because six boxes that must agree on a width is six chances to
+       * disagree.
+       *
+       * The public catalogue solved this by not having the problem. A poster is
+       * ONE box: the studio's own picture is the card, a scrim sits over it, and
+       * the words are laid on top from the bottom up. There is no internal
+       * layout to come apart, so there is nothing to make responsive — it is
+       * the same card at 1200px and at 360px.
+       *
+       * WHAT THE STUDIO NEEDS AND A CLIENT DOES NOT is carried in the two
+       * corners the poster already reserves: the price where the client sees
+       * it, and Book where the picker puts its Details link. Retired packages
+       * get the corner and not the button, for the reason they always did — a
+       * studio that withdrew something should not be invited to sell it.
+       */
+      <div
+        className={[
+          'q-poster', 'q-poster-tall',
+          pkg.cover_url ? '' : 'q-poster-blank',
+          pkg.status === 'retired' ? 'q-poster-dim' : '',
+        ].filter(Boolean).join(' ')}
+        style={{
+          ...(pkg.cover_url
+            ? {
+              ['--q-cover' as any]: `url(${pkg.cover_url})`,
+              ['--q-cover-pos' as any]: pkg.cover_position || undefined,
+            }
+            : null),
+          ['--i' as any]: index,
+        } as React.CSSProperties}
+      >
+        {/* More than one picture takes over the photograph layer; one picture
+            stays exactly the card it was, painted by --q-cover. */}
+        {(pkg.images || []).length > 1 && (
+          <CoverSlides slides={pkg.images} className="q-poster-photo" offset={(index % 7) * 650} />
+        )}
+
+        {/* The whole face opens the package. A link rather than a wrapper,
+            because the two corners below are links of their own and an <a>
+            inside an <a> is not valid markup. */}
+        <Link href={`/packages/${pkg.id}`} className="q-poster-face" aria-label={pkg.name} />
+
+        {priced && (
+          <span className="q-poster-price">
+            {formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode))}
+          </span>
+        )}
+
+        {pkg.status !== 'retired' && (
+          <Link
+            href={`/bookings/new?package=${pkg.id}`}
+            className="q-poster-link"
+            title={`Take a booking for ${pkg.name}`}
+          >
+            Book
+          </Link>
+        )}
+
+        <span className="q-poster-title">{pkg.name}</span>
+
+        {/*
+          * WHAT THE CLIENT ACTUALLY RECEIVES, AT THE WEIGHT THAT DESERVES.
+          *
+          * This sat in the poster's quiet note line — the slot the public card
+          * uses for a sentence of prose — at 0.78rem and 72% white, quieter
+          * than everything except the footnotes. But the deliverables ARE the
+          * product. A studio scanning its catalogue is telling four packages
+          * apart, and three of these are called Studio Portrait Photography:
+          * what separates them is 2 photographs against 3 against 4.
+          *
+          * Counted does the work and already existed for it — the number takes
+          * the size and the weight, the words step back — which is why the same
+          * list reads the same way here, on the package page, and in the
+          * editor. Its own note says it: on a card this list IS what the reader
+          * came for.
+          */}
+        {promises.length > 0 && (
+          <span className="q-poster-promise">
+            {promises.map((t: string, i: number) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span className="q-poster-promise-sep"> · </span>}
+                <Counted text={t} />
+              </React.Fragment>
+            ))}
+          </span>
+        )}
+
+        {/*
+          * GROUPED BY THE QUESTION EACH ANSWERS.
+          *
+          * These ran together as one strip — Studio, Birthday, Anniversary,
+          * Convocation, Maternity, 1 outfit — and a strip says "one list". It
+          * is three different claims:
+          *
+          *   Studio answers Context. The four after it answer Occasion. Run
+          *   together, nothing tells a reader that the first is not a fifth
+          *   occasion, and the classification graph's whole point is that a
+          *   value belongs to the question it answers.
+          *
+          *   "1 outfit" is not a classification at all. The others say this
+          *   package CAN BE for any of these — a range. That one says you get
+          *   exactly this — a fact. Drawn identically, a range reads as a fact.
+          *
+          * So values of one question sit tight together and questions sit
+          * apart, and what the package has SETTLED is filled in rather than
+          * outlined. Nothing is labelled: the grouping is the label, which is
+          * the same move the fact rows make on every other screen.
+          */}
+        {/*
+          * CAPPED, BECAUSE THE CARD IS FOR TELLING TWO PACKAGES APART.
+          *
+          * The promise line above has been capped at three since it was
+          * written, for a reason stated there: a package promising six things
+          * must not stand taller than one promising two, because they sit in a
+          * grid. The pills were exempt from their own card's rule, and they
+          * are the longest thing on it — six occasions and a context and a
+          * fixed value is eleven pills, and a package narrowed to two occasions
+          * gets four.
+          *
+          * Worse, it distinguishes nothing. The two packages in this catalogue
+          * both called Studio Portrait Photography carry the SAME pills in the
+          * same order; what separates them is the promise count and the price,
+          * and both were pushed down the card by the list that doesn't differ.
+          *
+          * Three per question, then a count. The full list is on the package's
+          * own page, which the whole face of this card opens.
+          */}
+        <span className="q-poster-tags">
+          {tags.map((d) => {
+            const shown = d.values.slice(0, PILLS_PER_QUESTION);
+            const rest = d.values.length - shown.length;
+            return (
+              <span key={d.id} className="q-poster-group" title={d.name}>
+                {shown.map((v: any) => (
+                  <span key={v.id} className="q-poster-tag">{v.name}</span>
+                ))}
+                {rest > 0 && (
+                  <span className="q-poster-tag-more" title={d.values.map((v: any) => v.name).join(', ')}>
+                    +{rest}
+                  </span>
+                )}
+              </span>
+            );
+          })}
+          {fixed.length > 0 && (
+            <span className="q-poster-group">
+              {fixed.slice(0, PILLS_PER_QUESTION).map((v: any) => (
+                <span key={v.serviceVariableId} className="q-poster-tag q-poster-tag-set">
+                  {formatVariableValue(v)}
+                </span>
+              ))}
+              {fixed.length > PILLS_PER_QUESTION && (
+                <span className="q-poster-tag-more">+{fixed.length - PILLS_PER_QUESTION}</span>
+              )}
+            </span>
+          )}
+        </span>
+
+        {/*
+          * AND WHAT IS TRUE OF THE RECORD, NOT OF THE OFFER.
+          *
+          * How many questions a package defers and how much work it carries
+          * are facts about the package as an object in this system — a client
+          * is never told either. They were pills in the same row as what the
+          * package is FOR, which put bookkeeping at the weight of the offer.
+          * Below a hairline, in plain text, they read as the footnote they are.
+          */}
+        {(asked.length > 0 || taskCount > 0 || !priced) && (
+          <span className="q-poster-notes">
+            {[
+              asked.length > 0 ? `${asked.length} asked at booking` : null,
+              taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : null,
+              !priced ? 'No price set' : null,
+            ].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <header className="q-page-header">
@@ -258,9 +476,9 @@ export function PackagesClient({
           noun="package"
           kind="catalogue"
           sorts={HOW_TO_ORDER}
-          /* A sheet has one form; the poster wall lives on the public
-             catalogue, where a client browses rather than scans. */
-          views={false}
+          /* Two views of one catalogue: Cards, the poster wall, for browsing;
+             List, the sheet, for finding one. */
+          views
           read={(pkg: any) => ({
             name: pkg.name,
             description: pkg.description,
@@ -276,23 +494,22 @@ export function PackagesClient({
             }))),
           })}
         >
-          {(shown) => {
+          {(shown, { dense }) => {
             const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
             const retired = shown.filter((pkg: any) => pkg.status === 'retired');
+            const Wall = ({ items }: { items: any[] }) => dense
+              ? <div className="q-sheet">{items.map((pkg: any) => <Row key={pkg.id} pkg={pkg} />)}</div>
+              : <div className="q-poster-grid q-poster-grid-lg">{items.map((pkg: any, i: number) => <Poster key={pkg.id} pkg={pkg} index={i} />)}</div>;
             return (
               <>
-                <div className="q-sheet">
-                  {offered.map((pkg: any) => <Row key={pkg.id} pkg={pkg} />)}
-                </div>
+                <Wall items={offered} />
                 {retired.length > 0 && (
                   <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
                     <h2 className="q-section-title">Retired</h2>
                     <p className="q-meta" style={{ marginBottom: '16px' }}>
                       Not offered on new bookings. Past bookings keep their line and price.
                     </p>
-                    <div className="q-sheet">
-                      {retired.map((pkg: any) => <Row key={pkg.id} pkg={pkg} />)}
-                    </div>
+                    <Wall items={retired} />
                   </section>
                 )}
               </>

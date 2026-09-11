@@ -2571,32 +2571,8 @@ body::before {
   border: 1px solid var(--q-color-ink-100);
   border-radius: 12px;
   overflow: hidden;
-  /*
-   * COLUMNS ON A WIDE SCREEN - AND THE SORT SURVIVES.
-   *
-   * The first cut capped each row's content at a measure and let the rest
-   * of the row run empty, on the argument that columns would scramble a
-   * sorted list. That argument was about the wrong layout: CSS GRID fills
-   * across then down, which does scramble "soonest first". MULTI-COLUMN
-   * fills down then across - column one top to bottom, then column two -
-   * so the order a reader follows is the order the list is sorted in. It
-   * is how a contact sheet is read and how a newspaper is read.
-   *
-   * column-width, not column-count: the sheet derives how many columns it
-   * can afford from the width it is given, so a laptop gets one, a 27-inch
-   * display two, a 4K panel three - and none of them is told which.
-   *
-   * The rule between columns is the same hairline that separates rows, so
-   * the sheet stays one object drawn with one line weight.
-   */
-  column-width: 34rem;
-  column-gap: 0;
-  column-rule: 1px solid var(--q-color-ink-100);
-  column-fill: balance;
 }
-/* A row never breaks across columns: half a job at the foot of one column
-   and the other half at the head of the next is not a row. */
-.q-sheet-row { break-inside: avoid; }
+
 /*
  * THE ROW SPANS; ITS CONTENT HAS A MEASURE.
  *
@@ -2723,6 +2699,67 @@ body::before {
   .q-sheet-row { grid-template-columns: 36px minmax(0, 1fr); }
   .q-sheet-frame { width: 36px; }
   .q-sheet-side { grid-column: 2; justify-items: start; text-align: left; margin-top: 2px; }
+}
+
+/*
+ * THE SHEET, TILED. Cards view.
+ *
+ * Two ways to look at one list: the sheet, one column, for scanning down; and
+ * this, three or more across, for a wide screen where a single column left
+ * two thirds of the page empty. Same facts in each cell as in a row - frame,
+ * name, caption, figure - laid vertically so the photograph can be the size a
+ * photograph deserves. The order reads across then down, which is how every
+ * grid is read and what the operator expects of one.
+ *
+ * minmax(20rem) gives a 1600px page four across, a laptop three, a phone one.
+ * auto-fill rather than auto-fit so a list of two does not become two
+ * enormous cards.
+ */
+.q-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 16px;
+}
+.q-sheet-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 12px;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--q-shadow-sm);
+  transition: transform var(--q-dur-3) var(--q-ease), box-shadow var(--q-dur-4) var(--q-ease);
+}
+.q-sheet-tile:hover { transform: translateY(-3px); box-shadow: var(--q-shadow-md); }
+.q-sheet-tile:focus-visible,
+.q-sheet-tile:has(> .q-sheet-face:focus-visible) { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+/* 3:2 - the photograph's own ratio, landscape, because a card is wider than
+   it is tall and the frame should fill its width. Initials sit in the same
+   frame when there is no picture, so the column of frames never breaks. */
+.q-sheet-tile-frame {
+  aspect-ratio: 3 / 2;
+  background: var(--q-color-ink-100);
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--q-color-ink-500);
+  overflow: hidden;
+}
+.q-sheet-tile-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.q-sheet-tile-body { padding: 14px 16px 16px; display: grid; gap: 4px; }
+.q-sheet-tile-body .q-sheet-name { white-space: normal; text-wrap: balance; }
+.q-sheet-tile-body .q-sheet-cap { white-space: normal; }
+.q-sheet-tile-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 /*
