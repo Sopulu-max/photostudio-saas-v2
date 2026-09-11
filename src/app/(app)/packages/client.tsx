@@ -187,7 +187,7 @@ export function PackagesClient({
         {/* More than one picture takes over the photograph layer; one picture
             stays exactly the card it was, painted by --q-cover. */}
         {(pkg.images || []).length > 1 && (
-          <CoverSlides slides={pkg.images} className="q-poster-photo" auto={false} />
+          <CoverSlides slides={pkg.images} className="q-poster-photo" offset={(index % 7) * 650} />
         )}
 
         {/* The whole face opens the package. A link rather than a wrapper,

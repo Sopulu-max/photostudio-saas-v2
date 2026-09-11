@@ -249,7 +249,7 @@ export function Catalogue({
               {/* More than one picture takes over the photograph layer. One
                   picture stays the card it was, painted by --q-cover. */}
               {(pkg.images || []).length > 1 && (
-                <CoverSlides slides={pkg.images!} className="q-poster-photo" auto={false} />
+                <CoverSlides slides={pkg.images!} className="q-poster-photo" offset={(index % 7) * 650} />
               )}
               {/* Absent when nobody has priced it — null and zero are
                   different, so an unpriced package says nothing at all

@@ -22,10 +22,11 @@ export type CoverSlide = { url: string; position: string | null };
  * before it could hold more than one. That is a real fallback rather than a
  * degraded one.
  *
- * ON A CARD IT PLAYS ONLY UNDER THE POINTER. A grid of a dozen packages
- * crossfading at once is a wall of movement with nothing to look at. Under a
- * hand, one card plays — and a little faster than a hero, because a hand on it
- * is a question that wants answering before it moves on.
+ * IT PLAYS WHEREVER IT IS DRAWN. Cards included — but each card starts on
+ * its own beat, so a grid drifts out of step instead of flipping in unison,
+ * and the observer means a card that has not been scrolled to costs nothing.
+ * Where `auto` is off it plays only under the pointer, a little faster,
+ * because a hand on it is a question.
  *
  * ONE PICTURE IS THE NORMAL CASE. With a single slide there is no timer, no
  * dots and no observer: it renders as the plain cover it always was, so nothing
@@ -38,12 +39,19 @@ export function CoverSlides({
   hold = 4200,
   /** Where it plays by itself, rather than only when pointed at. */
   auto = true,
+  /**
+   * Milliseconds before this one's FIRST change. A grid of cards that all
+   * fade on the same beat reads as a machine; given each a different start
+   * they drift out of step and read as a wall of prints, each on its own time.
+   */
+  offset = 0,
   children,
 }: {
   slides: CoverSlide[];
   className?: string;
   hold?: number;
   auto?: boolean;
+  offset?: number;
   children?: React.ReactNode;
 }) {
   const [at, setAt] = useState(0);
@@ -87,9 +95,12 @@ export function CoverSlides({
     if (!playing) return;
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (calm.matches) return;
-    const t = setInterval(() => setAt((i) => (i + 1) % slides.length), pace);
-    return () => clearInterval(t);
-  }, [playing, slides.length, pace]);
+    const step = () => setAt((i) => (i + 1) % slides.length);
+    // The first change waits its offset; every one after keeps the beat.
+    let tick: ReturnType<typeof setInterval> | null = null;
+    const first = setTimeout(() => { step(); tick = setInterval(step, pace); }, pace + offset);
+    return () => { clearTimeout(first); if (tick) clearInterval(tick); };
+  }, [playing, slides.length, pace, offset]);
 
   const enter = useCallback(() => setHeld(true), []);
   const leave = useCallback(() => setHeld(false), []);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fieldType } from '@/modules/services/fieldTypes';
 import { formatMoney } from '@/kernel/currency';
+import { CoverSlides } from '@/components/CoverSlides';
 import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { submitBookingForm, getPackageIntakePublic } from './actions';
@@ -83,6 +84,8 @@ type PackageWithDimensions = {
   /** The studio's own picture for it, shown on the card. */
   cover_url?: string | null;
   cover_position?: string | null;
+  /** The whole set, in order. The cover above is the first of it. */
+  images?: { url: string; position: string | null }[];
   /** What it promises, by name — what the client is actually buying. */
   deliverables?: { id: string; name: string; quantity: number | null }[];
   /** One line for the card. Falls back to the full description, trimmed. */
@@ -866,7 +869,7 @@ export function BookingForm({
                     * package actually PROMISES is named rather than counted.
                     */}
                   <div className="q-poster-grid">
-                    {scoredPackages.map(pkg => {
+                    {scoredPackages.map((pkg, index) => {
                       const isSelected = resolvedPackageId === pkg.id;
                       /*
                        * Dimmed only when something ELSE covers this and it does
@@ -902,6 +905,17 @@ export function BookingForm({
                           }}
                           onClick={() => choose(pkg.id, pkg.name)}
                         >
+                          {/* More than one picture takes over the photograph
+                              layer; one stays the card it was, painted by
+                              --q-cover. Offset by place, so the picker does not
+                              flip in unison. */}
+                          {(pkg.images || []).length > 1 && (
+                            <CoverSlides
+                              slides={pkg.images!}
+                              className="q-poster-photo"
+                              offset={(index % 7) * 650}
+                            />
+                          )}
                           {isSelected && <span className="q-poster-check">&#10003;</span>}
 
                           {/*
