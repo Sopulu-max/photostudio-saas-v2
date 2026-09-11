@@ -4930,19 +4930,17 @@ button.q-md-box:focus-visible {
 }
 
 /* ---- Choosing them ----
-   The editor's grid. Each picture keeps the frame it is dragged in, so what an
-   operator arranges here is what a client sees. */
-.q-slides-edit {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
-  gap: 14px;
-}
-.q-slide-edit {
+   One stage, one strip. The picture being placed sits in the drag frame,
+   once; the rest are a strip of thumbnails, each drawn at its own crop so
+   the strip is honest about what a client will see. Twenty pictures are
+   twenty thumbnails, not twenty editors. */
+.q-stage {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  max-width: 560px;
 }
-.q-slide-bar {
+.q-stage-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4962,6 +4960,55 @@ button.q-md-box:focus-visible {
   color: var(--q-color-accent);
   font-weight: 600;
 }
+.q-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.q-strip-thumb {
+  position: relative;
+  appearance: none;
+  padding: 0;
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: var(--q-color-ink-100);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  overflow: hidden;
+  outline-offset: 2px;
+  transition: border-color var(--q-dur-2) var(--q-ease),
+              transform var(--q-dur-2) var(--q-spring),
+              box-shadow var(--q-dur-2) var(--q-ease);
+}
+.q-strip-thumb:hover { transform: translateY(-2px); box-shadow: var(--q-shadow-md); }
+.q-strip-thumb:focus-visible { outline: 2px solid var(--q-color-accent); }
+.q-strip-thumb-on { border-color: var(--q-color-accent); box-shadow: 0 0 0 3px var(--q-color-accent-soft); }
+.q-strip-thumb:disabled { cursor: default; opacity: 0.6; transform: none; box-shadow: none; }
+/* A tag on the leading picture. Drawn on the thumbnail rather than beside
+   it, so the strip stays a strip. */
+.q-strip-cover {
+  position: absolute;
+  left: 6px;
+  bottom: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--q-color-accent);
+  color: var(--q-color-accent-text);
+  font-family: var(--q-font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  pointer-events: none;
+}
+/* The adder is the same control as a thumbnail's worth of space. Its inner
+   frame is the ordinary picker, sized down to sit in the strip. */
+.q-strip-add { width: 112px; }
+.q-strip-add .q-imagepick { border-radius: 8px; font-size: 0.7rem; }
 
 /* ---- A poster whose photograph is several ----
    The card's photograph is .q-poster::before: one layer, one image, its own
