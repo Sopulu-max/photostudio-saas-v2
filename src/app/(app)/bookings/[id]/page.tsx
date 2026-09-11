@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
+import { CoverSlides } from '@/components/CoverSlides';
 import { CreateContractButton, RestoreWorkButton } from './BookingActions';
 import { ResolveEnquiry } from './ResolveEnquiry';
 
@@ -231,19 +232,24 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         * the editor. Empty it is the same wash the card uses, and it says what
         * it is for. The whole band is the link to the editor.
         */}
-      <Link
-        href={`/bookings/${booking.id}/edit`}
-        className={(booking as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
-        style={(booking as any).cover_url
-          ? {
-              backgroundImage: `url(${(booking as any).cover_url})`,
-              backgroundPosition: (booking as any).cover_position || undefined,
-            }
-          : undefined}
-        title={(booking as any).cover_url ? 'Change the cover' : 'Add a cover'}
+      {/*
+        * What the booking looks like: its own cover leading, then the pictures
+        * of every package in it, shuffled. A booking with no cover of its own
+        * is no longer an empty band the moment it has a package — and the
+        * link still opens the editor, where the studio's own picture is set.
+        */}
+      <CoverSlides
+        slides={(booking as any).images || []}
+        className={((booking as any).images || []).length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
       >
-        {!(booking as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
-      </Link>
+        <Link
+          href={`/bookings/${booking.id}/edit`}
+          className="q-cover-banner-link q-plain-link"
+          title={(booking as any).cover_url ? 'Change the cover' : 'Add a cover'}
+        >
+          {!((booking as any).images || []).length && <span className="q-meta-sm">Add a cover</span>}
+        </Link>
+      </CoverSlides>
 
       <header className="q-page-header" style={{ alignItems: 'flex-start' }}>
         <div>

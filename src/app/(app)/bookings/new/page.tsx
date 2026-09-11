@@ -135,6 +135,8 @@ export default async function NewBookingPage(
       // shows: the picture, where to look in it, and the price.
       coverUrl: (p.cover_url ?? null) as string | null,
       coverPosition: (p.cover_position ?? null) as string | null,
+      // The whole set, for the hero a booking is started under.
+      images: (p.images ?? []) as { url: string; position: string | null }[],
       price: p.price ?? null,
     }));
 
