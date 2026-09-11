@@ -2571,7 +2571,32 @@ body::before {
   border: 1px solid var(--q-color-ink-100);
   border-radius: 12px;
   overflow: hidden;
+  /*
+   * COLUMNS ON A WIDE SCREEN - AND THE SORT SURVIVES.
+   *
+   * The first cut capped each row's content at a measure and let the rest
+   * of the row run empty, on the argument that columns would scramble a
+   * sorted list. That argument was about the wrong layout: CSS GRID fills
+   * across then down, which does scramble "soonest first". MULTI-COLUMN
+   * fills down then across - column one top to bottom, then column two -
+   * so the order a reader follows is the order the list is sorted in. It
+   * is how a contact sheet is read and how a newspaper is read.
+   *
+   * column-width, not column-count: the sheet derives how many columns it
+   * can afford from the width it is given, so a laptop gets one, a 27-inch
+   * display two, a 4K panel three - and none of them is told which.
+   *
+   * The rule between columns is the same hairline that separates rows, so
+   * the sheet stays one object drawn with one line weight.
+   */
+  column-width: 34rem;
+  column-gap: 0;
+  column-rule: 1px solid var(--q-color-ink-100);
+  column-fill: balance;
 }
+/* A row never breaks across columns: half a job at the foot of one column
+   and the other half at the head of the next is not a row. */
+.q-sheet-row { break-inside: avoid; }
 /*
  * THE ROW SPANS; ITS CONTENT HAS A MEASURE.
  *
@@ -2595,14 +2620,41 @@ body::before {
   gap: 14px;
   align-items: center;
   padding: 10px 16px;
-  border-top: 1px solid var(--q-color-ink-100);
+  /*
+   * THE HAIRLINE IS A SHADOW BELOW, NOT A BORDER ABOVE.
+   *
+   * With border-top the first row of every column after the first drew a
+   * line directly under the sheet's own top edge - a doubled line - and no
+   * selector can say "first in a column". A 1px shadow under each row puts
+   * nothing above any column's first row, and the sheet's overflow clips
+   * the shadow under the last row of the tallest column so it never doubles
+   * the bottom edge either.
+   */
+  box-shadow: 0 1px 0 var(--q-color-ink-100);
   color: inherit;
   text-decoration: none;
   transition: background-color var(--q-dur-2) var(--q-ease);
 }
-.q-sheet-row:first-child { border-top: 0; }
 .q-sheet-row:hover { background: var(--q-color-ink-50); }
-.q-sheet-row:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: -2px; }
+.q-sheet-row:focus-visible,
+.q-sheet-row:has(> .q-sheet-face:focus-visible) { outline: 2px solid var(--q-color-accent); outline-offset: -2px; }
+
+/*
+ * A ROW THAT CARRIES AN ACTION.
+ *
+ * A row that is a link cannot hold a Book button - an <a> inside an <a> is
+ * not markup. So a row that needs one is a box, the face is a link stretched
+ * over it, and the action sits above the face. Same device as the poster's
+ * q-poster-face, for the same reason.
+ */
+.q-sheet-row { position: relative; }
+.q-sheet-face { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.q-sheet-face:focus-visible { outline: none; }
+.q-sheet-act { position: relative; z-index: 2; }
+/* Withdrawn from sale, still on the sheet - a studio that retired something
+   should still be able to find it. */
+.q-sheet-row-dim .q-sheet-frame,
+.q-sheet-row-dim .q-sheet-name { opacity: 0.55; }
 
 /* 4:5, the print ratio, so a row's frame and the poster's are the same shape
    at two sizes — the thumbnail of the thing, not a different picture of it. */
