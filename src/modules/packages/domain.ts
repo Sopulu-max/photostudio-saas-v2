@@ -1100,7 +1100,7 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema,
   package_images(id, url, position, sort),
   package_services(id, position, service:services(
     id, name, description, domain:service_domains(id, name),

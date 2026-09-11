@@ -35,7 +35,9 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const services = (pkg as any).services || [];
 
   /* ── what the page says, computed once ─────────────────────────────── */
-  const bundle = services.map((s: any) => s.name).join(' + ');
+  /* The domains, not the services: the services are a section of their own
+     below, and a stamp that names them again is the same fact twice. */
+  const bundle = [...new Set(services.map((s: any) => s.domain?.name).filter(Boolean))].join(' + ');
   const promised = services.flatMap((s: any) => s.deliverables || []) as any[];
   const priced = pkg.price?.amount != null;
   const retired = pkg.status === 'retired';
@@ -195,6 +197,15 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         }
         const settled = [...byVariable.values()];
         const packageWide = (from: string[]) => from.length >= services.length;
+        const kept = settled.filter((v) => v.state !== 'asked');
+        const asked = settled.filter((v) => v.state === 'asked');
+        const nFixed = kept.filter((v) => v.state === 'fixed').length;
+        const nUndecided = kept.filter((v) => v.state === 'undecided').length;
+        /* A question with one answer is settled; with several it is asked. */
+        const settledQuestions = questions.filter((q) => q.values.size === 1);
+        const openQuestions = questions.filter((q) => q.values.size > 1);
+        const formFields = ((pkg as any).form_schema || []) as any[];
+        const nAsked = openQuestions.length + asked.length + formFields.length;
 
         /* The work, in the order it runs, with where each step came from. */
         const work: any[] = services.flatMap((s: any) =>
@@ -240,21 +251,44 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               )}
             </section>
 
-            {/* WHAT IT'S FOR: classification, one row per question. */}
-            {questions.length > 0 && (
+            {/* CLASSIFICATION: what the package has settled - a question with
+                one answer. A question still holding several is asked of the
+                client, and lives in the booking form below, once. */}
+            {settledQuestions.length > 0 && (
               <section className="q-print-chapter">
                 <div className="q-print-chapter-head">
                   <h2 className="q-print-chapter-title">Classification</h2>
-                  <p className="q-print-chapter-note">{questions.length} {questions.length === 1 ? 'question' : 'questions'}</p>
+                  <p className="q-print-chapter-note">{settledQuestions.length} settled</p>
                 </div>
                 <div className="q-print-facts q-print-for">
-                  {questions.map((q) => (
+                  {settledQuestions.map((q) => (
                     <div key={q.name} className="q-print-fact">
                       <span className="q-print-key">{q.name}</span>
+                      <span className="q-print-val">{[...q.values.values()][0]}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* VARIABLES: what the package fixes, and what nobody has decided. */}
+            {kept.length > 0 && (
+              <section className="q-print-chapter">
+                <div className="q-print-chapter-head">
+                  <h2 className="q-print-chapter-title">Variables</h2>
+                  <p className="q-print-chapter-note">
+                    {[
+                      nFixed > 0 ? `${nFixed} fixed` : null,
+                      nUndecided > 0 ? `${nUndecided} undecided` : null,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <div className="q-print-facts q-print-for">
+                  {kept.map((v) => (
+                    <div key={v.key} className="q-print-fact">
+                      <span className="q-print-key">{v.label}{!packageWide(v.from) && <From name={v.from.join(', ')} />}</span>
                       <span className="q-print-val">
-                        {[...q.values.values()].map((v, i) => (
-                          <span key={v}>{i > 0 && <>{' '}<span className="q-print-for-sep">·</span>{' '}</>}{v}</span>
-                        ))}
+                        {v.state === 'fixed' ? v.value : <span className="q-absent">Undecided</span>}
                       </span>
                     </div>
                   ))}
@@ -262,34 +296,46 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               </section>
             )}
 
-            {/* WHAT IT SETTLES: every variable, in its state. Undecided is the
-                row that should not be there - visible here, where before it
-                was a count inside a card. */}
-            {settled.length > 0 && (
+            {/* BOOKING FORM: everything the client answers, from three
+                sources - a classification left open, a variable left open,
+                the studio's own questions - in one place, each once. */}
+            {nAsked > 0 && (
               <section className="q-print-chapter">
                 <div className="q-print-chapter-head">
-                  <h2 className="q-print-chapter-title">Variables</h2>
-                  <p className="q-print-chapter-note">
-                    {(() => {
-                      const f = settled.filter((v) => v.state === 'fixed').length;
-                      const a = settled.filter((v) => v.state === 'asked').length;
-                      const u = settled.filter((v) => v.state === 'undecided').length;
-                      return [
-                        f > 0 ? `${f} fixed` : null,
-                        a > 0 ? `${a} asked at booking` : null,
-                        u > 0 ? `${u} undecided` : null,
-                      ].filter(Boolean).join(' · ');
-                    })()}
-                  </p>
+                  <h2 className="q-print-chapter-title">Booking form</h2>
+                  <p className="q-print-chapter-note">{nAsked} {nAsked === 1 ? 'question' : 'questions'}</p>
                 </div>
                 <div className="q-print-facts q-print-for">
-                  {settled.map((v) => (
+                  {openQuestions.map((q) => (
+                    <div key={`q-${q.name}`} className="q-print-fact">
+                      <span className="q-print-key">{q.name}</span>
+                      <span className="q-print-val">
+                        <span className="q-meta">One of</span>{' '}
+                        {[...q.values.values()].map((v, i) => (
+                          <span key={v}>{i > 0 && <>{' '}<span className="q-print-for-sep">·</span>{' '}</>}{v}</span>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                  {asked.map((v) => (
                     <div key={v.key} className="q-print-fact">
                       <span className="q-print-key">{v.label}{!packageWide(v.from) && <From name={v.from.join(', ')} />}</span>
+                      <span className="q-print-val"><span className="q-meta">Free answer</span></span>
+                    </div>
+                  ))}
+                  {formFields.map((f: any) => (
+                    <div key={f.id} className="q-print-fact">
+                      <span className="q-print-key">{f.label}<span className="q-print-from">Studio question</span></span>
                       <span className="q-print-val">
-                        {v.state === 'fixed' && v.value}
-                        {v.state === 'asked' && <span className="q-meta">Asked at booking</span>}
-                        {v.state === 'undecided' && <span className="q-absent">Undecided</span>}
+                        <span className="q-meta">
+                          {f.type === 'select' && Array.isArray(f.options)
+                            ? `One of ${f.options.join(' · ')}`
+                            : f.type === 'textarea' ? 'Free text'
+                            : f.type === 'number' ? 'A number'
+                            : f.type === 'date' ? 'A date'
+                            : 'Free answer'}
+                          {f.required ? ' · required' : ''}
+                        </span>
                       </span>
                     </div>
                   ))}
