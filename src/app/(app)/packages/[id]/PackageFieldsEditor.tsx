@@ -247,6 +247,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const blockClass = embedded ? 'q-subsection' : 'q-card q-section q-rise';
   const blockTitle = embedded ? 'q-subsection-title' : 'q-section-title';
+  /* Whether the Classification section will draw, for the numbering of what
+     follows it: it exists only when a bundled service's domain has questions. */
+  const kindsWithClassification = allServices
+    .filter((x) => serviceIds.includes(x.id))
+    .some((x) => x.domain?.name && (dimensionsByDomain[x.domain.name] || []).length > 0);
 
   /*
    * Declaring a variable while building the package.
@@ -516,7 +521,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * because scanning is exactly what you are doing when there are several. A
    * service just added always opens — you added it in order to configure it.
    */
-  const [openService, setOpenService] = useState<Record<string, boolean>>({});
 
   const createValue = (dim: any, asked: string, onCreated: (id: string) => void) => {
     if (!asked.trim() || !dim.domainId) return;
@@ -648,7 +652,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       } else {
         // Opened as it is added: you bundled it in order to say something about
         // it, and the place to say that is inside it.
-        setOpenService((prev) => ({ ...prev, [id]: true }));
         // Adding a service: auto-promise what it produces, to save clicks.
         const addedService = allServices.find((s) => s.id === id);
         if (addedService) {
@@ -827,7 +830,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     ((allServices.find((x) => x.id === serviceId)?.dimensions || []) as DimensionOption[])
       .flatMap((d) => d.values.map((v) => v.id));
 
-  const renderDimension = (dim: DimensionOption, serviceId: string) => {
+  const renderDimension = (dim: DimensionOption, serviceId: string, withLabel = true) => {
     /*
      * Untouched means "sells everything it offers" — so show that.
      *
@@ -856,7 +859,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
     return (
       <div className="q-field" key={dim.id}>
-        <label className="q-label">{dim.name}</label>
+        {withLabel && <label className="q-label">{dim.name}</label>}
         {/* The domain was restated under every dimension of the same service,
             beneath a heading that already names the service. What is worth
             saying here is the one thing that is not obvious: that these values
@@ -1051,7 +1054,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     );
   };
 
-  const renderVariables = (s: ServiceOption) => {
+  const variablesFor = (s: ServiceOption) => {
     // Whatever the service already declares, plus anything declared here since
     // the page loaded. Rendered even when there are none, because "nothing
     // varies about this yet" is where a studio most needs to be able to say
@@ -1092,95 +1095,90 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ...allVariables.filter((v: any) => v.deliverableId && promisedHere.has(v.deliverableId)),
       ...declaredVars.filter((v) => v.serviceId === s.id && !allVariables.some((a) => a.id === v.id)),
     ];
-    return (
-      <div className="q-stack q-stack-sm">
-        {vars.length === 0 && declaringFor !== s.id && (
-          <p className="q-meta-sm">
-            Nothing varies about {s.name} yet, so every package of it offers the same thing.
-          </p>
-        )}
-        {vars.map((v) => {
-          const current = variableValues[v.id] ?? '';
-          const who = answeredBy[v.id];
-          return (
-            <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
-              <div>
-                <strong className="q-strong">{v.label}</strong>
-                {!who && <span className="q-meta-sm"> &middot; nobody has decided</span>}
-              </div>
-              <div className="q-row">
-                {/*
-                  * The decision first, because it governs whether the box beside
-                  * it means anything. An empty box used to carry this, which is
-                  * how "ask the client" and "not got to it yet" became the same
-                  * thing — and the second of those was being asked.
-                  */}
-                <select
-                  className="q-select" value={who ?? ''} disabled={isPending}
-                  onChange={(e) => decide(v.id, (e.target.value || 'undecided') as any)}
-                  style={{ minWidth: '9rem' }}
-                >
-                  <option value="">Not decided</option>
-                  <option value="studio">We set it</option>
-                  <option value="client">The client chooses</option>
-                </select>
-                {/*
-                  * THE FIELD ITSELF, EITHER WAY.
-                  *
-                  * Choosing "the client chooses" used to print the sentence "a
-                  * field on the booking form" — a description of a thing,
-                  * standing where the thing could have stood. A studio deciding
-                  * what to ask a stranger should see what the stranger sees, at
-                  * the moment it decides, not read a promise about it.
-                  *
-                  * So the control is drawn both ways: live when the studio is
-                  * setting the value, and inert when the client will. And it is
-                  * not a mock of the client's field — VariableField IS the
-                  * component the public booking page renders, so a shape that
-                  * looks right here cannot look different there.
-                  *
-                  * That component exists because four surfaces once carried
-                  * their own `kind === 'number' && …` ladder over the same
-                  * shapes, and two of them already disagreed about what a
-                  * boolean was. This form was quietly the fifth, ten branches
-                  * long, and I edited it all day without noticing.
-                  */}
-                <VariableField
-                  kind={v.kind}
-                  value={who === 'client' ? '' : current}
-                  onChange={(next) => setVariable(v.id, Array.isArray(next) ? next.join(',') : next)}
-                  options={v.options || []}
-                  unit={v.unit}
-                  min={v.min}
-                  max={v.max}
-                  // Inert, not absent: a client fills this in, so the studio
-                  // reads it rather than answers it.
-                  disabled={isPending || who !== 'studio'}
-                  emptyLabel={who === 'client' ? 'The client fills this in' : '—'}
-                />
-                {who === 'studio' && current !== '' && (
-                  <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
-                    onClick={() => setVariable(v.id, '')}>Clear</button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    return vars;
+  };
 
-        {/*
-          * Declaring a new one, here, while building the package.
-          *
-          * It is added to the SERVICE — so it becomes available to every other
-          * package of that service and to the booking form — and this package
-          * then fixes a value for it like any other. That is what makes two
-          * packages of one service different: not different services, the same
-          * service with different values fixed.
-          */}
-        {declaringFor === s.id ? (
+  /*
+   * ONE VARIABLE, DECIDED ONCE.
+   *
+   * A variable a classification carries - Location Address, from Context -
+   * reaches every bundled service classified that way, and the per-service
+   * list drew it under each of them: one decision, shown twice, with the same
+   * state behind both. The Variables section collects across the bundle and
+   * draws each id once. `from` names the services it came through, and is
+   * shown only when that is not every service in the bundle.
+   */
+  const renderVariableRow = (v: any, from: string[] = []) => {
+    const bundledCount = serviceIds.length;
+    const showFrom = from.length > 0 && from.length < bundledCount;
+    const current = variableValues[v.id] ?? '';
+    const who = answeredBy[v.id];
+    return (
+      <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
+        <div>
+          <strong className="q-strong">{v.label}</strong>
+          {showFrom && <span className="q-print-from">{from.join(', ')}</span>}
+          {!who && <span className="q-meta-sm"> &middot; nobody has decided</span>}
+        </div>
+        <div className="q-row">
+          <select
+            className="q-select" value={who ?? ''} disabled={isPending}
+            onChange={(e) => decide(v.id, (e.target.value || 'undecided') as any)}
+            style={{ minWidth: '9rem' }}
+          >
+            <option value="">Not decided</option>
+            <option value="studio">We set it</option>
+            <option value="client">The client chooses</option>
+          </select>
+          {/* The control is drawn both ways: live when the studio sets the
+              value, inert when the client will. VariableField IS the component
+              the public booking page renders, so a shape that looks right here
+              cannot look different there. */}
+          <VariableField
+            kind={v.kind}
+            value={who === 'client' ? '' : current}
+            onChange={(next) => setVariable(v.id, Array.isArray(next) ? next.join(',') : next)}
+            options={v.options || []}
+            unit={v.unit}
+            min={v.min}
+            max={v.max}
+            disabled={isPending || who !== 'studio'}
+            emptyLabel={who === 'client' ? 'The client fills this in' : '—'}
+          />
+          {who === 'studio' && current !== '' && (
+            <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
+              onClick={() => setVariable(v.id, '')}>Clear</button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  /*
+   * Declaring a new variable, here, while building the package. It is added
+   * to ONE SERVICE - so every other package of that service, and the booking
+   * form, can use it - and this package then fixes a value for it like any
+   * other. With one service bundled that service is the target; with several
+   * the studio picks which.
+   */
+  const renderDeclareVariable = (bundled: ServiceOption[]) => {
+    const s = bundled.find((x) => x.id === declaringFor) ?? bundled[0];
+    if (!s) return null;
+    return (
+      <>
+        {declaringFor ? (
           <div className="q-tile q-stack q-stack-sm">
+            {bundled.length > 1 && (
+              <div className="q-field" style={{ maxWidth: '18rem' }}>
+                <label className="q-label">Service</label>
+                <select className="q-select" value={s.id} disabled={isPending} onChange={(e) => setDeclaringFor(e.target.value)}>
+                  {bundled.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="q-row">
               <div className="q-field" style={{ flex: 1, minWidth: '10rem' }}>
-                <label className="q-label">Variables</label>
+                <label className="q-label">Name</label>
                 <input
                   className="q-input"
                   value={newVar.label}
@@ -1269,9 +1267,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             </button>
           </div>
         )}
-      </div>
+      </>
     );
   };
+
 
   const renderPromises = (s: ServiceOption) => {
     const mine = promisesFor(s.id);
@@ -1393,7 +1392,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         */}
       <div className={embedded && derived ? 'q-stack q-stack-sm' : blockClass}>
         {!(embedded && derived) && (
-          <h2 className={blockTitle}>{heading(1, "Package Identity")}</h2>
+          <h2 className={blockTitle}>{heading(1, "Package")}</h2>
         )}
         <div className="q-stack q-stack-md">
           {/* First, because for a photography studio the picture is half of what
@@ -1498,6 +1497,16 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               </div>
             </div>
           )}
+          {/* Duration had state and a save path and no control: it could be
+              shown on a package's page and never set. */}
+          {!embedded && (
+            <div className="q-field">
+              <label className="q-label">Duration</label>
+              <select className="q-select" value={duration} onChange={(e) => setDuration(Number(e.target.value))} style={{ maxWidth: '16rem' }}>
+                {DURATION_CHOICES.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1592,129 +1601,49 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                     Nothing bundled yet. A package is one or more services sold together, so pick at
                     least one below.
                   </p>
-                ) : chosen.map((s) => {
-                  const isOpen = openService[s.id] ?? (chosen.length === 1);
-                  const domainDims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
+                ) : (
                   /*
-                   * What this package already says about the service, said on
-                   * the shut row. Collapsing may hide the controls; it must not
-                   * hide the fact that there is something under them, or a
-                   * closed row reads as a service nothing has been set on.
+                   * THE BUNDLE, AS A LIST. Each service was a fold holding
+                   * four lists - deliverables, classification, variables,
+                   * tasks - so a two-service package was eight lists in two
+                   * boxes, and a variable both services carry was decided
+                   * twice. The lists are sections of their own below, one
+                   * per kind, and this is only what the bundle is: each
+                   * service, what it brings, and the way to take it off.
                    */
-                  const summary = [
-                    `${promisesFor(s.id).length} promised`,
-                    `${(narrowings[s.id] ?? offeredBy(s.id)).length} classified`,
-                    // Counted the way the save counts them: a variable cleared
-                    // back to empty is not fixed, and a summary that disagreed
-                    // with what gets written would be worse than none.
-                    `${allVariables.filter((v) =>
-                      v.serviceId === s.id && (variableValues[v.id] ?? '') !== '').length} fixed`,
-                  ].join(' · ');
-
-                  return (
-                    /* A member of the group, not a box inside it — see
-                       .q-part. The deliverable and variable tiles below are
-                       then the only surfaces in here, which is the one level
-                       of box this actually needs. */
-                    <div key={s.id} className="q-part q-stack q-stack-sm">
-                      <div className="q-row q-row-between">
-                        <button
-                          type="button"
-                          className="q-disclosure"
-                          onClick={() => setOpenService((prev) => ({ ...prev, [s.id]: !isOpen }))}
-                          aria-expanded={isOpen}
-                        >
-                          <span className="q-disclosure-mark" aria-hidden="true" />
-                          <span>
-                            <span className="q-strong">{s.name}</span>{' '}
-                            <span className="q-meta-sm">{s.domain?.name || 'No domain'}</span>
-                            {!isOpen && <span className="q-meta-sm"> — {summary}</span>}
+                  <div className="q-sheet">
+                    {chosen.map((s) => {
+                      const nProduce = promisesFor(s.id).length;
+                      const nFor = (narrowings[s.id] ?? offeredBy(s.id)).length;
+                      const nVars = variablesFor(s).length;
+                      const savedS = initial.services?.find((is: any) => is.id === s.id);
+                      const nTasks = (savedS?.tasks || s.workflow?.tasks || []).length + addedTasks.filter((x) => x.serviceId === s.id).length;
+                      const say = (n: number, one: string, more: string) => n > 0 ? `${n} ${n === 1 ? one : more}` : null;
+                      return (
+                        <div key={s.id} className="q-sheet-row">
+                          <span className="q-sheet-frame" aria-hidden="true">{(s.name || '?').trim().charAt(0).toUpperCase()}</span>
+                          <span className="q-sheet-body">
+                            <span className="q-sheet-name">{s.name}</span>
+                            <span className="q-sheet-cap">
+                              {[say(nProduce, 'deliverable', 'deliverables'), say(nFor, 'classification', 'classifications'), say(nVars, 'variable', 'variables'), say(nTasks, 'task', 'tasks')].filter(Boolean).join(' · ') || <span className="q-absent">Nothing yet</span>}
+                            </span>
                           </span>
-                        </button>
-                        {/* Dropping a service is changing WHAT THE PACKAGE IS,
-                            not answering what it left open — so it is offered
-                            only once the operator has said they are adjusting.
-                            See `adjusting`. */}
-                        {!bundleLocked && (
-                          <button
-                            type="button" className="q-btn-ghost q-btn-xs"
-                            onClick={() => toggleService(s.id)}
-                            title={`Remove ${s.name} from this package`}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-
-                      {/*
-                        * Rendered whether or not it is open, because a height
-                        * cannot be animated from a thing that is not there. The
-                        * grid row does the opening; `inert` does what unmounting
-                        * used to do for everything except the drawing — a folded
-                        * service must not still be reachable by tabbing into
-                        * fields nobody can see.
-                        */}
-                      <div className={isOpen ? 'q-fold q-fold-open' : 'q-fold'} inert={!isOpen}>
-                        <div className="q-stack q-stack-lg q-tile-sub">
-                          <div className="q-stack q-stack-sm">
-                            <h4 className="q-list-title">Deliverables</h4>
-                            {renderPromises(s)}
-                          </div>
-
-                          <div className="q-stack q-stack-sm">
-                            <h4 className="q-list-title">Classifications</h4>
-                            {domainDims.length === 0 ? (
-                              <p className="q-meta-sm">
-                                {s.domain?.name
-                                  ? `${s.domain.name} defines no dimensions yet, so there is nothing to classify this by.`
-                                  : 'This service has no domain, so it carries no classifications.'}
-                              </p>
-                            ) : (
-                              /*
-                                * Stacked, not gridded.
-                                *
-                                * These sat in q-grid-cards — the grid built for
-                                * cards, at 250px minimum with a 24px gutter. Two
-                                * dimensions therefore became two columns, and
-                                * because one carries a row of chosen chips and
-                                * the next does not, their boxes came to rest at
-                                * different heights. Nothing was aligned with
-                                * anything, and there was no arrangement of a
-                                * card grid that would have aligned them: the
-                                * fields are different heights by nature.
-                                *
-                                * A field per row is what the rest of this form
-                                * does, and a dimension wants the width anyway —
-                                * its chosen values wrap along it.
-                                */
-                              <div className="q-stack q-stack-md">
-                                {domainDims.map((d: any) => renderDimension(
-                                  { ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, s.id))}
-                              </div>
+                          <span className="q-sheet-side">
+                            {s.domain?.name && <span className="q-badge q-badge-neutral">{s.domain.name}</span>}
+                            {/* Dropping a service changes WHAT THE PACKAGE IS,
+                                so it is offered only once the operator has
+                                said they are adjusting. See `adjusting`. */}
+                            {!bundleLocked && (
+                              <button type="button" className="q-btn-ghost q-btn-xs" onClick={() => toggleService(s.id)} title={`Remove ${s.name} from this package`}>
+                                Remove
+                              </button>
                             )}
-                          </div>
-
-                          <div className="q-stack q-stack-sm">
-                            <h4 className="q-list-title">Variables</h4>
-                            {renderVariables(s)}
-                          </div>
-
-                          <div className="q-stack q-stack-sm">
-                            <h4 className="q-list-title">Tasks</h4>
-                            {!s.workflow?.name && (
-                              <p className="q-meta-sm">
-                                No workflow defines how {s.name} is produced. Define one in Services to give
-                                every package of it the same steps, or add a step below that this package
-                                alone involves.
-                              </p>
-                            )}
-                            {renderTasks(s)}
-                          </div>
+                          </span>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/*
@@ -1787,70 +1716,106 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       </div>
 
       {/*
-        * WHAT THE PACKAGE PROMISES ALTOGETHER.
-        *
-        * Each deliverable is set inside the service that produces it, because
-        * that is where a quantity means anything — but a package bundling three
-        * services then has its whole promise spread across three folds, two of
-        * them shut, and the one question a studio most wants answered while
-        * building an offer is what the client ends up with.
-        *
-        * Read-only on purpose. Everything here is set a few inches above, and
-        * two places to change one number is how they come to disagree. This
-        * counts what is already there, and fills as the services above are
-        * filled in.
-        */}
-      <div className={blockClass}>
-        {/*
-          * NOT "Deliverables", because the fold above already has a heading
-          * reading exactly that — where a quantity is SET, per service. Two
-          * headings with one word on one screen, one of them editable and one
-          * a total, is a reader's problem however clear each is alone.
-          *
-          * The phrasing is the one the cards already use for this same figure,
-          * so the total on the form and the lead line on the catalogue card
-          * are recognisably the same fact.
-          */}
-        <h2 className={blockTitle}>{heading(3, 'What the client receives')}</h2>
-        {(() => {
-          const bundled = allServices.filter((x) => serviceIds.includes(x.id));
-          const promised = bundled.flatMap((x) =>
-            promisesFor(x.id).map((p) => ({ p, from: x.name })));
+       * ONE SECTION PER KIND, ACROSS THE BUNDLE.                        (form)
+       *
+       * The same rule the package's page keeps: deliverables, classification,
+       * variables and tasks are each one list, and the service a row comes
+       * through is a stamp on it - only when the bundle has more than one.
+       * Adding a deliverable or a variable declares it on a service, so those
+       * controls sit in a group per service inside the kind; classification
+       * is narrowed per bundle row, so it is grouped by question and then by
+       * service where two services answer the same one.
+       */}
+      {(() => {
+        const bundled = allServices.filter((x) => serviceIds.includes(x.id));
+        const many = bundled.length > 1;
+        const From = ({ name }: { name: string }) => many ? <span className="q-print-from">{name}</span> : null;
+        if (bundled.length === 0) return null;
 
-          if (bundled.length === 0) {
-            return <p className="q-empty">Nothing bundled yet, so nothing is promised yet.</p>;
-          }
-          if (promised.length === 0) {
-            return (
-              <p className="q-empty">
-                Nothing promised yet. Open a service above and say what the client receives.
-              </p>
-            );
-          }
+        /* Every variable once, with the services it came through. */
+        const byVar = new Map<string, { v: any; from: string[] }>();
+        for (const s of bundled) for (const v of variablesFor(s)) {
+          const row = byVar.get(v.id) ?? { v, from: [] };
+          row.from.push(s.name);
+          byVar.set(v.id, row);
+        }
+        const vars = [...byVar.values()];
 
-          return (
-            <div className="q-stack q-stack-sm">
-              {promised.map(({ p, from }, i) => {
-                const def = (allDeliverables as any[]).find((d) => d.id === p.deliverableId);
-                const name = def?.name
-                  ?? declaredOutputs.find((d) => d.id === p.deliverableId)?.name
-                  ?? p.deliverableId;
-                return (
-                  <div key={`${from}-${p.deliverableId}-${i}`} className="q-row q-row-between q-tile">
-                    <span className="q-text-body">
-                      <Counted text={formatDeliverable({
-                        name,
-                        quantity: p.quantity,
-                      } as any)} />
-                    </span>
-                    {bundled.length > 1 && <span className="q-meta-sm">{from}</span>}
+        /* Every question once, with the services that answer it. */
+        const byDim = new Map<string, { dim: DimensionOption; services: ServiceOption[] }>();
+        for (const s of bundled) {
+          const dims = s.domain?.name ? dimensionsByDomain[s.domain.name] || [] : [];
+          for (const d of dims) {
+            const row = byDim.get(d.id) ?? { dim: { ...d, domainName: s.domain?.name || '', domainId: s.domain?.id || '' }, services: [] };
+            row.services.push(s);
+            byDim.set(d.id, row);
+          }
+        }
+        const dims = [...byDim.values()];
+
+        return (
+          <>
+            <div className={blockClass}>
+              <h2 className={blockTitle}>{heading(3, 'Deliverables')}</h2>
+              <div className="q-stack q-stack-md">
+                {bundled.map((s) => (
+                  <div key={s.id} className="q-stack q-stack-sm">
+                    <From name={s.name} />
+                    {renderPromises(s)}
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          );
-        })()}
-      </div>
+
+            {dims.length > 0 && (
+              <div className={blockClass}>
+                <h2 className={blockTitle}>{heading(4, 'Classification')}</h2>
+                <div className="q-stack q-stack-md">
+                  {dims.map(({ dim, services }) => (
+                    <div key={dim.id} className="q-stack q-stack-sm">
+                      {/* The question once; a control per service that
+                          answers it, stamped when there is more than one. */}
+                      <label className="q-label">{dim.name}</label>
+                      {services.map((s) => (
+                        <div key={s.id}>
+                          {services.length > 1 && <From name={s.name} />}
+                          {renderDimension(dim, s.id, false)}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className={blockClass}>
+              <h2 className={blockTitle}>{heading(dims.length > 0 ? 5 : 4, 'Variables')}</h2>
+              <div className="q-stack q-stack-sm">
+                {vars.length === 0 && declaringFor === null && (
+                  <p className="q-meta-sm">Nothing varies about this package yet.</p>
+                )}
+                {vars.map(({ v, from }) => renderVariableRow(v, from))}
+                {renderDeclareVariable(bundled)}
+              </div>
+            </div>
+
+            <div className={blockClass}>
+              <h2 className={blockTitle}>{heading(dims.length > 0 ? 6 : 5, 'Tasks')}</h2>
+              <div className="q-stack q-stack-md">
+                {bundled.map((s) => (
+                  <div key={s.id} className="q-stack q-stack-sm">
+                    <From name={s.name} />
+                    {!s.workflow?.name && (
+                      <p className="q-meta-sm">No workflow defines how {s.name} is produced. Define one in Services, or add a step below that this package alone involves.</p>
+                    )}
+                    {renderTasks(s)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/*
         * THE BOOKING FORM, WHICH IS WHAT THIS ALWAYS WAS.
@@ -1875,7 +1840,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         */}
       {questions !== undefined && (
         <div className={blockClass}>
-          <h2 className={blockTitle}>{heading(4, 'Booking form')}</h2>
+          <h2 className={blockTitle}>{heading(serviceIds.length === 0 ? 3 : (kindsWithClassification ? 7 : 6), 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client fills in when they book this package.
           </p>
