@@ -4,7 +4,7 @@ import React, { useState, useTransition, forwardRef, useImperativeHandle } from 
 import { useRouter } from 'next/navigation';
 import { createPackage, updatePackage, setPackageStatus, duplicatePackage } from '@/modules/packages/interface';
 import { formatDeliverable } from '@/modules/packages/interface';
-import { DURATION_CHOICES } from '@/kernel/currency';
+import { DURATION_CHOICES, currencySymbol } from '@/kernel/currency';
 import { QuestionEditor } from './QuestionEditor';
 /*
  * The control this form kept rebuilding.
@@ -1527,36 +1527,40 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               </div>
             </>
           )}
-          {/*
-            * NOT WHEN EMBEDDED, BECAUSE THEN IT IS NOT THIS FORM'S TO SET.
-            *
-            * Inside the new-booking form this editor builds the booking's own
-            * instance of a package, and the price of that instance is decided
-            * beside it, by the line — submitBooking assigns payload.price from
-            * the line's figure unconditionally, so anything typed here was
-            * overwritten on the way out.
-            *
-            * So there were two price fields on one line, for one price: this
-            * one, blank and inert, and the line's, carrying the catalogue
-            * figure. An operator looking for the package's price found the
-            * blank one first, which is exactly the wrong half of the pair to
-            * find. A field that takes input and discards it is worse than no
-            * field.
-            */}
-          {!embedded && (
-            <div className="q-field">
-              <label className="q-label">Base Price</label>
-              <div className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-                <span className="q-meta-sm q-strong" style={{ width: '40px' }}>{currencyCode}</span>
-                <input type="number" className="q-input q-num" value={priceAmount} onChange={(e) => setPriceAmount(e.target.value)} placeholder="0.00" step="0.01" style={{ width: '120px' }} />
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
+      {/*
+        * THE PRICE, ON ITS OWN. It was the last field of the identity group,
+        * a small box after the description. It is what the package sells for
+        * - the first figure on its page - so it is a section, and the figure
+        * is drawn at the size it is read at.
+        *
+        * Not when embedded: inside the new-booking form the line decides the
+        * price of its instance, and a field here that took input and was
+        * overwritten on the way out was worse than none.
+        */}
+      {!embedded && (
+        <div className={blockClass}>
+          <h2 className={blockTitle}>{heading(2, 'Price')}</h2>
+          <div className="q-price-field">
+            <span className="q-price-sym">{currencySymbol(currencyCode) || currencyCode}</span>
+            <input
+              type="number"
+              className="q-price-input"
+              value={priceAmount}
+              onChange={(e) => setPriceAmount(e.target.value)}
+              placeholder="0"
+              min={0}
+              step="0.01"
+              aria-label={`Price in ${currencyCode}`}
+            />
+          </div>
+        </div>
+      )}
+
       <div className={blockClass}>
-        <h2 className={blockTitle}>{heading(2, "Services")}</h2>
+        <h2 className={blockTitle}>{heading(3, "Services")}</h2>
         {/*
           * INSTRUCTIONS FOR AUTHORING A PACKAGE, ON THE PAGE THAT AUTHORS ONE.
           *
@@ -1804,7 +1808,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         return (
           <>
             <div className={blockClass}>
-              <h2 className={blockTitle}>{heading(3, 'Deliverables')}</h2>
+              <h2 className={blockTitle}>{heading(4, 'Deliverables')}</h2>
               <div className="q-stack q-stack-md">
                 {bundled.map((s) => (
                   <div key={s.id} className="q-stack q-stack-sm">
@@ -1817,7 +1821,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
             {dims.length > 0 && (
               <div className={blockClass}>
-                <h2 className={blockTitle}>{heading(4, 'Classification')}</h2>
+                <h2 className={blockTitle}>{heading(5, 'Classification')}</h2>
                 <div className="q-stack q-stack-md">
                   {dims.map(({ dim, services }) => (
                     <div key={dim.id} className="q-stack q-stack-sm">
@@ -1837,7 +1841,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             )}
 
             <div className={blockClass}>
-              <h2 className={blockTitle}>{heading(dims.length > 0 ? 5 : 4, 'Variables')}</h2>
+              <h2 className={blockTitle}>{heading(dims.length > 0 ? 6 : 5, 'Variables')}</h2>
               <div className="q-stack q-stack-sm">
                 {vars.length === 0 && declaringFor === null && (
                   <p className="q-meta-sm">Nothing varies about this package yet.</p>
@@ -1848,7 +1852,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             </div>
 
             <div className={blockClass}>
-              <h2 className={blockTitle}>{heading(dims.length > 0 ? 6 : 5, 'Tasks')}</h2>
+              <h2 className={blockTitle}>{heading(dims.length > 0 ? 7 : 6, 'Tasks')}</h2>
               <div className="q-stack q-stack-md">
                 {bundled.map((s) => (
                   <div key={s.id} className="q-stack q-stack-sm">
@@ -1888,7 +1892,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         */}
       {questions !== undefined && (
         <div className={blockClass}>
-          <h2 className={blockTitle}>{heading(serviceIds.length === 0 ? 3 : (kindsWithClassification ? 7 : 6), 'Booking form')}</h2>
+          <h2 className={blockTitle}>{heading(serviceIds.length === 0 ? 4 : (kindsWithClassification ? 8 : 7), 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             What a client fills in when they book this package.
           </p>

@@ -2702,6 +2702,44 @@ body::before {
 }
 
 /*
+ * THE PRICE, AT THE SIZE IT IS READ AT.
+ *
+ * One figure, drawn as the print draws it - the mono at stat size - with the
+ * currency's symbol before it and a hairline under it. A box around a number
+ * this size would be a box for its own sake.
+ */
+.q-price-field { display: flex; align-items: baseline; gap: 10px; }
+.q-price-sym {
+  font-family: var(--q-font-mono);
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+  font-weight: 500;
+  color: var(--q-color-ink-500);
+}
+.q-price-input {
+  width: 12ch;
+  max-width: 100%;
+  padding: 4px 0 6px;
+  border: 0;
+  border-bottom: 1px solid var(--q-color-ink-300);
+  border-radius: 0;
+  background: transparent;
+  color: var(--q-color-ink-900);
+  font-family: var(--q-font-mono);
+  font-size: clamp(2rem, 3.4vw, 2.6rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  transition: border-color var(--q-dur-2) var(--q-ease);
+}
+.q-price-input::-webkit-outer-spin-button,
+.q-price-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.q-price-input::placeholder { color: var(--q-color-ink-300); }
+.q-price-input:focus { outline: none; border-bottom-color: var(--q-color-accent); }
+
+/*
  * THE CATALOGUE, CLICK TO TAKE.
  *
  * A package's deliverables, per service: every kind the domain produces as a
