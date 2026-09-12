@@ -291,6 +291,34 @@ that invents a dimension the service does not recognize is a bug.
 
 **Booking** instantiates a Package for a client and creates the production work.
 
+### Families: a package that leaves things to its members
+
+Tiers - 1 / 2 / 3 outfits, Bronze / Silver / Gold, Studio / Outdoor - are not
+three packages that happen to resemble each other. They are one offer with
+some things left open on purpose.
+
+**Every row a package holds has a decider: fixed here, or left to the member.**
+A package with anything left to the member is a **family**; a package with
+nothing left is sellable. A **member declares nothing**: its services,
+classification, promises, tasks and booking form are the family's, read
+through `packages.member_of`, and it holds only its answers to what was left
+to it (`package_member_answers`), its price, its name and its pictures.
+Change the family and every member changes, always, because none of them ever
+had a copy. A booking's instance of a member is materialised - member resolved
+through its family, then copied - so it does not move afterwards.
+
+What may be left to a member: a bundled service (in / out), a promise's
+quantity (0 = not promised), a variable (the member then fixes it or hands it
+to the client), and always the price, the name and the pictures. Narrowings
+and tasks are inherited whole. A member that leaves something open would be a
+family in turn; one level is what is built.
+
+A member is born through its family - **New member** on the family's page is
+the only door - so membership is never inferred or ticked afterwards, and a
+standalone package is never adopted into a family. A family is not sold; its
+members are. This is not classification (what the work is) and not a shelf
+(where it appears): it is how a group of offers is built.
+
 ---
 
 ## 9. Status: built, partial, proposed, open

@@ -5,6 +5,8 @@ import { PackageFieldsEditor } from '../PackageFieldsEditor';
 // What this editor needs, and how a package reads back into it, live next to
 // the editor rather than in each of the three screens that render it.
 import { loadPackageEditorCatalogs, loadPackageForEditor } from '../editorData';
+import { getLeftToMember, getMemberAnswers } from '@/modules/packages/interface';
+import { MemberForm } from '../MemberForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +23,32 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   const { pkg, questions, lockedQuestionIds, initial } = loaded;
 
   const catalogs = await loadPackageEditorCatalogs();
+
+  /* A member is edited through its family: the form is what the family left
+     to it, and nothing else - a member has no structure of its own to edit. */
+  if ((pkg as any).memberOf) {
+    const [{ family, left }, answers] = await Promise.all([
+      getLeftToMember((pkg as any).memberOf),
+      getMemberAnswers(pkg.id),
+    ]);
+    return (
+      <div className="q-page-narrow">
+        <Link className="q-back" href={`/packages/${pkg.id}`}>&larr; Back to Package</Link>
+        <header className="q-page-header">
+          <div>
+            <span className="q-eyebrow">Editing a member of {family.name}</span>
+            <h1 className="q-page-title">{pkg.name}</h1>
+          </div>
+        </header>
+        <MemberForm
+          family={family}
+          left={left}
+          currencyCode={catalogs.currencyCode}
+          initial={{ id: pkg.id, name: pkg.name, price: (pkg as any).price?.amount ?? null, answers }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="q-page-narrow">

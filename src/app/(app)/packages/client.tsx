@@ -154,8 +154,10 @@ export function PackagesClient({
       figure: priced
         ? { text: formatMoney(Number(pkg.price.amount), String(pkg.price.currency || currencyCode)) }
         : { text: 'No price', none: true },
-      badge: retired ? <span className="q-badge q-badge-neutral">Retired</span> : undefined,
-      action: retired ? undefined
+      badge: retired ? <span className="q-badge q-badge-neutral">Retired</span>
+        : pkg.isFamily ? <span className="q-badge q-badge-neutral">Family</span> : undefined,
+      // A family is not booked; its members are.
+      action: retired || pkg.isFamily ? undefined
         : <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-secondary q-btn-xs">Book</Link>,
       dim: retired,
     };
@@ -388,6 +390,7 @@ export function PackagesClient({
               stopped existing when domains took ownership of their own. */}
           <Link href="/services/classifications" className="q-btn q-btn-secondary">By classification</Link>
           <Link href="/services/settings" className="q-btn q-btn-secondary">Domains, deliverables &amp; workflows</Link>
+          <Link href="/packages/new?family=1" className="q-btn q-btn-secondary">New family</Link>
           <Link href="/packages/new" className="q-btn q-btn-primary">Build package</Link>
         </div>
       </header>
@@ -476,8 +479,15 @@ export function PackagesClient({
           })}
         >
           {(shown, { dense }) => {
-            const offered = shown.filter((pkg: any) => pkg.status !== 'retired');
+            const live = shown.filter((pkg: any) => pkg.status !== 'retired');
             const retired = shown.filter((pkg: any) => pkg.status === 'retired');
+            /* GROUPED BY FAMILY. A member belongs to its family, so it lists
+               under it rather than beside it; the family heads the group and
+               is not itself for sale. Packages in no family come first. */
+            const families = live.filter((pkg: any) => pkg.isFamily);
+            const offered = live.filter((pkg: any) => !pkg.isFamily && !pkg.memberOf);
+            const membersOf = (id: string) => live.filter((pkg: any) => pkg.memberOf === id);
+            const orphans = live.filter((pkg: any) => pkg.memberOf && !families.some((f: any) => f.id === pkg.memberOf));
             /* List is the shared sheet; Cards is the poster, the one list in
                the app whose card is not the shared tile - because a package
                already has a card of its own that the client sees. */
@@ -486,7 +496,25 @@ export function PackagesClient({
               : <div className="q-poster-grid q-poster-grid-lg">{items.map((pkg: any, i: number) => <Poster key={pkg.id} pkg={pkg} index={i} />)}</div>;
             return (
               <>
-                <Wall items={offered} />
+                <Wall items={[...offered, ...orphans]} />
+                {families.map((f: any) => {
+                  const members = membersOf(f.id);
+                  return (
+                    <section key={f.id} className="q-section-gap">
+                      <div className="q-row q-row-between" style={{ alignItems: 'baseline', marginBottom: '12px' }}>
+                        <h2 className="q-section-title" style={{ margin: 0 }}>
+                          <Link href={`/packages/${f.id}`} className="q-plain-link">{f.name}</Link>
+                          <span className="q-print-from">Family</span>
+                        </h2>
+                        <span className="q-row q-row-sm">
+                          <span className="q-meta-sm">{members.length === 0 ? 'No members yet' : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}</span>
+                          <Link href={`/packages/${f.id}/members/new`} className="q-btn q-btn-secondary q-btn-xs">New member</Link>
+                        </span>
+                      </div>
+                      {members.length > 0 && <Wall items={members} />}
+                    </section>
+                  );
+                })}
                 {retired.length > 0 && (
                   <section className={offered.length > 0 ? 'q-section-gap' : undefined}>
                     <h2 className="q-section-title">Retired</h2>

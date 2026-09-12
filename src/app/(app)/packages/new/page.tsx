@@ -13,8 +13,13 @@ export const dynamic = 'force-dynamic';
  * you re-say Birthday. The value is preselected; everything else is the same
  * builder.
  */
-export default async function NewPackagePage(props: { searchParams: Promise<{ value?: string }> }) {
+export default async function NewPackagePage(props: { searchParams: Promise<{ value?: string; family?: string }> }) {
   const sp = await props.searchParams;
+  /* The same editor. A family is a package that leaves something to its
+     members - mark it "Left to the member" on a variable, a promise's
+     quantity or a bundled service - so the only difference is what the
+     page says it is for. */
+  const family = sp.family === '1';
   try {
     await getAuthOrgId();
   } catch {
@@ -63,8 +68,12 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     <div className="q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">Build a package</h1>
-          <p className="q-page-subtitle">Bundle one or more services into something a client can buy.</p>
+          <h1 className="q-page-title">{family ? 'Build a family' : 'Build a package'}</h1>
+          <p className="q-page-subtitle">
+            {family
+              ? 'Bundle the services and settle what every member shares. Mark "Left to the member" on whatever each member decides for itself - a quantity, a variable, a service in or out - then add members from the family\u2019s page.'
+              : 'Bundle one or more services into something a client can buy.'}
+          </p>
         </div>
       </header>
       <PackageFieldsEditor

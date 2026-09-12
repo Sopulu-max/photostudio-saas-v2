@@ -79,10 +79,13 @@ export function packageEditorInitial(pkg: any) {
     images: (pkg as any).images ?? [],
     durationMinutes: pkg.duration_minutes,
     serviceIds: services.map((s) => s.id),
+    /* What this package leaves to its members, if it is a family. */
+    memberServices: services.filter((s) => s.decidedBy === 'member').map((s) => s.id as string),
     deliverables: services.flatMap((s) =>
       ((s.deliverables || []) as any[]).map((d) => ({
         serviceId: s.id as string, deliverableId: d.id as string,
         quantity: d.quantity ?? null, unit: d.unit ?? null, spec: d.spec ?? null,
+        decidedBy: (d.decidedBy ?? 'studio') as 'studio' | 'member',
       }))),
     narrowings: services.flatMap((s) =>
       ((s.narrowedTo || []) as { values: { id: string }[] }[])

@@ -72,7 +72,7 @@ export function byPromiseOrder(
 
 /** What a package promises: the kind and how many. */
 export const PACKAGE_PROMISE =
-  `package_deliverables(quantity, ${DELIVERABLE_WITH_SHAPE})`;
+  `package_deliverables(quantity, decided_by, ${DELIVERABLE_WITH_SHAPE})`;
 
 /**
  * The answers a bundle row holds, enough to say what was settled about a
@@ -84,7 +84,7 @@ export const PACKAGE_PROMISE =
  * those answers.
  */
 export const PROMISE_ANSWERS =
-  'package_variable_values(value, variable:variables(id, key, deliverable_id))';
+  'package_variable_values(value, answered_by, variable:variables(id, key, deliverable_id))';
 
 /** The same, where only the name is rendered. */
 export const PACKAGE_PROMISE_NAMED =

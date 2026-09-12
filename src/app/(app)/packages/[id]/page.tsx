@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { CoverSlides } from '@/components/CoverSlides';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { formatDeliverable, getPackage } from '@/modules/packages/interface';
+import { formatDeliverable, getPackage, listPackages } from '@/modules/packages/interface';
 import { listBookingsOfPackage } from '@/modules/bookings/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { SheetRow, initialsFor } from '@/components/Sheet';
@@ -24,12 +24,17 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
   const pkg = await getPackage(params.id);
   if (!pkg) notFound();
 
-  const [currencyCode, org, bookedOn] = await Promise.all([
+  const isFamily = Boolean((pkg as any).isFamily);
+  const family = (pkg as any).family as { id: string; name: string } | null;
+  const [currencyCode, org, bookedOn, members] = await Promise.all([
     getStudioCurrency(),
     getStudio(),
     /* Where this package has been booked: derived from the lines that
        instance it. A catalogue package is never on a booking itself. */
     (pkg as any).instance_of ? Promise.resolve([]) : listBookingsOfPackage(pkg.id),
+    /* A family's members: packages whose member_of is this one. Each reads
+       as the family with its own answers, so they list like any package. */
+    isFamily ? listPackages().then((all: any[]) => all.filter((m) => m.memberOf === pkg.id)) : Promise.resolve([] as any[]),
   ]);
 
   const services = (pkg as any).services || [];
@@ -92,7 +97,13 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
       </div>
 
       <div className="q-print-title">
-        {bundle && <span className="q-print-stamp">{bundle}</span>}
+        {(bundle || family || isFamily) && (
+          <span className="q-print-stamp">
+            {family && <><Link href={`/packages/${family.id}`} className="q-plain-link">Member of {family.name}</Link>{bundle && ' · '}</>}
+            {isFamily && <>Family{bundle && ' · '}</>}
+            {bundle}
+          </span>
+        )}
         <div className="q-row" style={{ alignItems: 'center', gap: '14px' }}>
           <h1 className="q-print-display">{pkg.name}</h1>
           {(retired || instance) && (
@@ -106,10 +117,12 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               borrowed packages do not offer it, for the reasons the card
               gives. The link is here too, because "send this to a client"
               is the second thing a studio does from this page. */}
-          {!retired && !instance && (
-            <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
-          )}
-          <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">Edit package</Link>
+          {isFamily
+            ? <Link href={`/packages/${pkg.id}/members/new`} className="q-btn q-btn-primary">New member</Link>
+            : (!retired && !instance && (
+              <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
+            ))}
+          <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">{family ? 'Edit member' : isFamily ? 'Edit family' : 'Edit package'}</Link>
         </div>
       </div>
 
@@ -139,7 +152,9 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             const many = services.length > 1;
             return (
               <div key={d.id ?? i} className="q-print-stat">
-                {num
+                {d.decidedBy === 'member'
+                  ? <><span className="q-print-stat-word">{label}</span><span className="q-print-stat-label">Member decides{many && <span className="q-print-from">{from}</span>}</span></>
+                  : num
                   ? <><span className="q-print-stat-num">{num}</span><span className="q-print-stat-label">{label}{many && <span className="q-print-from">{from}</span>}</span></>
                   : <><span className="q-print-stat-word">{label}</span><span className="q-print-stat-label">Included{many && <span className="q-print-from">{from}</span>}</span></>}
               </div>
@@ -182,10 +197,14 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         /* Every variable across the bundle, in its three states, with its
            service. splitVariables works per service; the states are then
            read as one list of one kind. */
-        type Settled = { key: string; label: string; state: 'fixed' | 'asked' | 'undecided'; value: string | null; from: string[] };
+        type Settled = { key: string; label: string; state: 'fixed' | 'asked' | 'undecided' | 'member'; value: string | null; from: string[] };
         const byVariable = new Map<string, Settled>();
         for (const s of services) {
-          const { fixed: f, asked: a, undecided: u } = splitVariables(s.variableValues || [], s.variables || []);
+          /* Left to the member: a family's fourth state, kept apart before
+             splitVariables reads the rest as fixed / asked / undecided. */
+          const toMember = ((s.variableValues || []) as any[]).filter((v) => v.answeredBy === 'member');
+          const rest = ((s.variableValues || []) as any[]).filter((v) => v.answeredBy !== 'member');
+          const { fixed: f, asked: a, undecided: u } = splitVariables(rest, (s.variables || []).filter((v: any) => !toMember.some((m) => m.serviceVariableId === v.id)));
           const put = (id: string, label: string, state: Settled['state'], value: string | null) => {
             const row = byVariable.get(id) ?? { key: id, label, state, value, from: [] };
             row.from.push(s.name);
@@ -194,6 +213,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           for (const v of f) put(v.serviceVariableId, v.label, 'fixed', formatVariableValue(v));
           for (const v of a) put(v.id, v.label, 'asked', null);
           for (const v of u) put(v.id, v.label, 'undecided', null);
+          for (const v of toMember) put(v.serviceVariableId, v.label, 'member', null);
         }
         const settled = [...byVariable.values()];
         const packageWide = (from: string[]) => from.length >= services.length;
@@ -213,6 +233,40 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
         return (
           <>
+            {/* A FAMILY'S MEMBERS. Each is the family with its own answers:
+                what it settled, at its price. The family itself is not sold. */}
+            {isFamily && (
+              <section className="q-print-chapter">
+                <div className="q-print-chapter-head">
+                  <h2 className="q-print-chapter-title">Members</h2>
+                  <p className="q-print-chapter-note">{members.length === 0 ? 'None yet' : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}</p>
+                </div>
+                {members.length > 0 && (
+                  <div className="q-sheet">
+                    {members.map((m: any) => (
+                      <SheetRow key={m.id} item={{
+                        id: m.id,
+                        href: `/packages/${m.id}`,
+                        name: m.name,
+                        caption: ((m.deliverables || []) as any[]).slice(0, 3).map((d) => formatDeliverable(d)),
+                        absent: 'Nothing promised',
+                        frame: { url: m.cover_url ?? null, initials: initialsFor(m.name) },
+                        figure: m.price?.amount != null
+                          ? { text: formatMoney(Number(m.price.amount), String(m.price.currency || currencyCode)) }
+                          : { text: 'No price', none: true },
+                        action: m.status !== 'retired'
+                          ? <Link href={`/bookings/new?package=${m.id}`} className="q-btn q-btn-secondary q-btn-xs">Book</Link>
+                          : undefined,
+                      }} />
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: '12px' }}>
+                  <Link href={`/packages/${pkg.id}/members/new`} className="q-btn q-btn-secondary q-btn-sm">New member</Link>
+                </div>
+              </section>
+            )}
+
             {/* WHAT'S IN IT: the bundle, and what each service brings. */}
             <section className="q-print-chapter">
               <div className="q-print-chapter-head">
@@ -288,7 +342,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                     <div key={v.key} className="q-print-fact">
                       <span className="q-print-key">{v.label}{!packageWide(v.from) && <From name={v.from.join(', ')} />}</span>
                       <span className="q-print-val">
-                        {v.state === 'fixed' ? v.value : <span className="q-absent">Undecided</span>}
+                        {v.state === 'fixed' ? v.value : v.state === 'member' ? 'Member decides' : <span className="q-absent">Undecided</span>}
                       </span>
                     </div>
                   ))}

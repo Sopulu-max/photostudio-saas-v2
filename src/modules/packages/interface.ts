@@ -53,6 +53,9 @@ export {
 } from './domain';
 
 // How a deliverable's specification reads — one phrasing everywhere a client sees it.
+export { createMember, updateMember, getLeftToMember, getMemberAnswers } from './family';
+export type { MemberAnswerWrite, LeftToMember } from './familyShape';
+
 export { formatDeliverable } from './deliverableSpec';
 export type { DeliverableSpec } from './deliverableSpec';
 

@@ -20,6 +20,9 @@ import {
 } from '@/modules/deliverables/domain';
 import { narrowOptions, specFromAnswers, byPromiseOrder, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
+// A family's members resolve through the family; the rule is written once, there.
+import { overlayMember, isFamily, leftToMember } from './familyShape';
+import { structureIdOf, memberAnswersOf } from './family';
 // A failure keeps the reason it failed — and says so plainly when the reason
 // is that the database was never reached. See kernel/errors.
 import { dbError } from '@/kernel/errors';
@@ -132,7 +135,8 @@ async function listPriceOf(orgId: string, packageId: string) {
  */
 export type PackageVariableWrite = {
   serviceVariableId: string;
-  answeredBy?: 'studio' | 'client';
+  /* member: this package is a family and leaves the answer to each member. */
+  answeredBy?: 'studio' | 'client' | 'member';
   value?: unknown;
 };
 
@@ -343,7 +347,7 @@ async function writePackageVariableValues(
     if (!v.serviceVariableId) return false;
     // A studio answer needs a value; a client answer is the absence of one, on
     // purpose, and the check constraint on the table says the same thing.
-    if (v.answeredBy === 'client') return true;
+    if (v.answeredBy === 'client' || v.answeredBy === 'member') return true;
     return v.value !== undefined && v.value !== null && v.value !== '';
   });
 
@@ -390,14 +394,14 @@ async function writePackageVariableValues(
           ? rows.filter((r) => promised.some((l: any) => l.package_service_id === r.id && l.deliverable_id === deliverableId))
           : rows;
       if (targets.length === 0) throw new Error('That option belongs to a service this package does not include.');
-      const asked = v.answeredBy === 'client';
+      const open = v.answeredBy === 'client' || v.answeredBy === 'member';
       // Every bundle row of that service, so bundling it twice decides both.
       return targets.map((r) => ({
         organization_id: orgId,
         package_service_id: r.id,
         variable_id: v.serviceVariableId,
-        value: asked ? null : v.value,
-        answered_by: asked ? 'client' : 'studio',
+        value: open ? null : v.value,
+        answered_by: open ? v.answeredBy : 'studio',
       }));
     });
   }
@@ -417,7 +421,7 @@ async function writePackageVariableValues(
 async function writePackageDeliverables(
   orgId: string,
   rows: { id: string; service_id: string }[],
-  promises?: { serviceId: string; deliverableId: string; quantity?: number | null }[]
+  promises?: { serviceId: string; deliverableId: string; quantity?: number | null; decidedBy?: 'studio' | 'member' }[]
 ) {
   const rowIdOf = new Map(rows.map((r) => [r.service_id, r.id]));
   const seen = new Set<string>();
@@ -434,6 +438,7 @@ async function writePackageDeliverables(
       package_service_id: packageServiceId,
       deliverable_id: p.deliverableId,
       quantity: p.quantity ?? null,
+      decided_by: p.decidedBy === 'member' ? 'member' : 'studio',
     });
   }
   /*
@@ -517,6 +522,8 @@ export async function createPackage(input: {
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
   serviceIds?: string[];
+  /* Bundled services whose in/out is left to each member - this package is then a family. */
+  memberServices?: string[];
   /**
    * This package is a booking's own instance, not catalog.
    *
@@ -532,7 +539,7 @@ export async function createPackage(input: {
    * kind of thing it produces; this is where it gets specific, which is what a
    * package is for. Each promise names the bundled service that produces it.
    */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; decidedBy?: 'studio' | 'member' }[];
   /** The production sequences to run, each on the bundled service it belongs to. */
   /*
    * Never read and never written — no caller passes it and nothing consumes it.
@@ -615,7 +622,8 @@ export async function createPackage(input: {
   if (serviceIds.length > 0) {
     // The bundle is the package's spine — everything below hangs off it, so a
     // lost insert here leaves a package that names services it does not have.
-    const { error: bundleError } = await supabaseAdmin.from('package_services').insert(serviceIds.map((service_id, i) => ({ organization_id: orgId, package_id: pkg.id, service_id, position: i })));
+    const memberServices = new Set(input.memberServices || []);
+    const { error: bundleError } = await supabaseAdmin.from('package_services').insert(serviceIds.map((service_id, i) => ({ organization_id: orgId, package_id: pkg.id, service_id, position: i, decided_by: memberServices.has(service_id) ? 'member' : 'studio' })));
     if (bundleError) { console.error('Failed to bundle services into package:', bundleError); throw new Error('Failed to add the services to the package'); }
 
     // Everything below hangs off the bundle rows just written, so they are read
@@ -650,8 +658,9 @@ export async function updatePackage(input: {
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
   serviceIds?: string[];
+  memberServices?: string[];
   /** What the package promises, each on the bundled service that produces it. */
-  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null }[];
+  deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; decidedBy?: 'studio' | 'member' }[];
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
   variableValues?: PackageVariableWrite[];
   /**
@@ -667,8 +676,15 @@ export async function updatePackage(input: {
   tasks?: PackageTaskWrite[];
 }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
-  const { data: existing } = await supabaseAdmin.from('packages').select('id, name').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
+  const { data: existing } = await supabaseAdmin.from('packages').select('id, name, member_of').eq('id', input.packageId).eq('organization_id', orgId).maybeSingle();
   if (!existing) throw new Error('Package not found');
+  /* A member declares nothing. Its structure is its family's; its answers are
+     written through updateMember. Refused rather than silently written onto
+     rows it does not have. */
+  if ((existing as any).member_of && (input.serviceIds !== undefined || input.deliverables !== undefined
+      || input.variableValues !== undefined || input.narrowings !== undefined || input.tasks !== undefined)) {
+    throw new Error('A member is edited through its family: only its name, price and pictures are its own.');
+  }
 
   // Everything a package points at comes from the form, so each set is checked
   // against this studio before any of it is linked. The relink is destructive
@@ -745,6 +761,12 @@ export async function updatePackage(input: {
   // changed — so it is read once, here, rather than taken from the input. A
   // service dropped up there took its promises with it by cascade.
   const rows = await bundleRows(orgId, input.packageId);
+  if (input.memberServices !== undefined) {
+    const member = new Set(input.memberServices);
+    const [toMember, toStudio] = [rows.filter((r) => member.has(r.service_id)), rows.filter((r) => !member.has(r.service_id))];
+    if (toMember.length) await supabaseAdmin.from('package_services').update({ decided_by: 'member' }).in('id', toMember.map((r) => r.id)).eq('organization_id', orgId);
+    if (toStudio.length) await supabaseAdmin.from('package_services').update({ decided_by: 'studio' }).in('id', toStudio.map((r) => r.id)).eq('organization_id', orgId);
+  }
   if (input.deliverables !== undefined) await writePackageDeliverables(orgId, rows, input.deliverables);
   if (input.narrowings !== undefined) await writePackageNarrowings(orgId, input.packageId, input.narrowings);
   if (input.variableValues !== undefined) await writePackageVariableValues(orgId, rows, input.variableValues);
@@ -769,13 +791,34 @@ async function copyPackage(
   packageId: string,
   as: { name: (original: string) => string; status: PackageStatus },
 ) {
-  const { data: existing } = await supabaseAdmin
+  const { data: own } = await supabaseAdmin
     .from('packages')
-    // price was missing here, so every copy silently became unpriced. A booking's
-    // own instance carrying no price is the whole quote lost, not a cosmetic gap.
-    .select('name, description, duration_minutes, extra_stages, form_schema, price')
+    .select('name, description, short_description, duration_minutes, extra_stages, form_schema, price, member_of')
     .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-  if (!existing) throw new Error('Package not found');
+  if (!own) throw new Error('Package not found');
+  /*
+   * A MEMBER IS COPIED AS ITS FAMILY, WITH ITS ANSWERS - MATERIALISED.
+   *
+   * The copy (an instance for a booking, or a duplicate) gets real rows of its
+   * own, resolved from the family at this moment: the family's description
+   * and form, the bundle less any service the member left out, promises at
+   * the member's quantities, variables as the member fixed or asked them. A
+   * booking made in March does not move when the family changes in June.
+   */
+  const structureId = (own.member_of as string | null) ?? packageId;
+  const memberAnswers = own.member_of ? ((await memberAnswersOf(orgId, [packageId]))[packageId] || []) : [];
+  const { data: familyRow } = own.member_of
+    ? await supabaseAdmin.from('packages').select('description, short_description, duration_minutes, extra_stages, form_schema')
+        .eq('id', own.member_of).eq('organization_id', orgId).maybeSingle()
+    : { data: null };
+  const existing = {
+    ...own,
+    description: own.description ?? familyRow?.description ?? null,
+    short_description: own.short_description ?? familyRow?.short_description ?? null,
+    duration_minutes: own.duration_minutes ?? familyRow?.duration_minutes ?? null,
+    extra_stages: (Array.isArray(own.extra_stages) && own.extra_stages.length ? own.extra_stages : familyRow?.extra_stages) ?? [],
+    form_schema: (Array.isArray(own.form_schema) && own.form_schema.length ? own.form_schema : familyRow?.form_schema) ?? [],
+  };
 
   const { data: copy, error } = await supabaseAdmin
     .from('packages')
@@ -828,7 +871,14 @@ async function copyPackage(
   // Everything else hangs off a bundle row, so the copy's rows are matched back
   // to the originals by service and every link is rewritten through that map.
   // Nothing here can be copied by carrying an id across.
-  const original = await bundleRows(orgId, packageId).catch(undo);
+  const structureRows = await bundleRows(orgId, structureId).catch(undo);
+  // The family's rows the member left out are not copied.
+  const { data: deciders } = await supabaseAdmin.from('package_services').select('id, decided_by').eq('organization_id', orgId).in('id', structureRows.map((r) => r.id));
+  const outRows = new Set(((deciders || []) as any[])
+    .filter((d) => d.decided_by === 'member')
+    .filter((d) => memberAnswers.some((a) => a.kind === 'service' && a.package_service_id === d.id && a.value === false))
+    .map((d) => d.id as string));
+  const original = structureRows.filter((r) => !outRows.has(r.id));
   if (original.length === 0) return made;
 
   const { data: inserted, error: bundleError } = await supabaseAdmin.from('package_services')
@@ -890,7 +940,7 @@ async function copyPackage(
   await Promise.all([
     /* orgId passed, not read: copyPackage runs for a client instancing a
        package on the public page, who has no session. */
-    copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap, organizationId: orgId }),
+    copyPackageDeliverables({ fromPackageServiceIds: originalIds, rowMap, organizationId: orgId, memberAnswers }),
     carry('package_service_dimension_values', narrowings.data, (r, to) => ({ organization_id: orgId, package_service_id: to, dimension_value_id: r.dimension_value_id })),
     /*
      * WHO ANSWERS IT COMES WITH THE ANSWER.
@@ -911,7 +961,12 @@ async function copyPackage(
      * been worse in the other direction: a question quietly reassigned from
      * the client to the studio, unanswered, on every booking.
      */
-    carry('package_variable_values', fixed.data, (r, to) => ({
+    carry('package_variable_values', ((fixed.data || []) as any[]).flatMap((r) => {
+      // What the family left to the member, as the member answered it.
+      if (r.answered_by !== 'member') return [r];
+      const a = memberAnswers.find((x) => x.kind === 'variable' && x.package_service_id === r.package_service_id && x.ref_id === r.variable_id);
+      return a ? [{ ...r, value: a.value, answered_by: a.answered_by }] : [];
+    }), (r, to) => ({
       organization_id: orgId, package_service_id: to,
       variable_id: r.variable_id, value: r.value, answered_by: r.answered_by,
     })),
@@ -1122,9 +1177,9 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema, member_of,
   package_images(id, url, position, sort),
-  package_services(id, position, service:services(
+  package_services(id, position, decided_by, service:services(
     id, name, description, domain:service_domains(id, name),
     workflow:workflows(id, name),
     ${SERVICE_OFFERS},
@@ -1177,6 +1232,57 @@ function coverOf(images: PackageImage[]) {
   };
 }
 
+/*
+ * A MEMBER READS AS ITS FAMILY, WITH ITS ANSWERS APPLIED.
+ *
+ * A member row has no bundle rows, no description, no form of its own. Every
+ * read that returns packages passes through here: the families of any members
+ * in the result are fetched with the same select, and each member is handed
+ * its family's structure with its own answers laid over it (familyShape). The
+ * caller then shapes it exactly as it shapes any package - nothing downstream
+ * knows the difference, which is the point.
+ */
+async function resolveMembers(orgId: string, rows: any[], select: string): Promise<any[]> {
+  const members = rows.filter((r) => r?.member_of);
+  if (members.length === 0) return rows;
+  const familyIds = [...new Set(members.map((m) => m.member_of as string))];
+  const [{ data: families }, answers] = await Promise.all([
+    supabaseAdmin.from('packages').select(select).eq('organization_id', orgId).in('id', familyIds),
+    memberAnswersOf(orgId, members.map((m) => m.id as string)),
+  ]);
+  const familyById = new Map(((families || []) as any[]).map((f) => [f.id, f]));
+  return rows.map((r) => {
+    if (!r?.member_of) return r;
+    const f = familyById.get(r.member_of);
+    if (!f) return r;
+    return {
+      ...r,
+      description: r.description ?? f.description ?? null,
+      short_description: r.short_description ?? f.short_description ?? null,
+      duration_minutes: r.duration_minutes ?? f.duration_minutes ?? null,
+      extra_stages: (Array.isArray(r.extra_stages) && r.extra_stages.length ? r.extra_stages : f.extra_stages) ?? [],
+      form_schema: (Array.isArray(r.form_schema) && r.form_schema.length ? r.form_schema : f.form_schema) ?? [],
+      package_images: (Array.isArray(r.package_images) && r.package_images.length ? r.package_images : f.package_images) ?? [],
+      package_services: overlayMember(f.package_services, answers[r.id] || []),
+      family: { id: f.id, name: f.name },
+    };
+  });
+}
+
+/** The packages that leave anything to a member - families are never sold directly. */
+async function familyIdsOf(orgId: string): Promise<Set<string>> {
+  const [a, b, c] = await Promise.all([
+    supabaseAdmin.from('package_services').select('package_id').eq('organization_id', orgId).eq('decided_by', 'member'),
+    supabaseAdmin.from('package_deliverables').select('package_service:package_services(package_id)').eq('organization_id', orgId).eq('decided_by', 'member'),
+    supabaseAdmin.from('package_variable_values').select('package_service:package_services(package_id)').eq('organization_id', orgId).eq('answered_by', 'member'),
+  ]);
+  const ids = new Set<string>();
+  for (const r of ((a.data || []) as any[])) if (r.package_id) ids.add(r.package_id);
+  for (const r of ((b.data || []) as any[])) if (r.package_service?.package_id) ids.add(r.package_service.package_id);
+  for (const r of ((c.data || []) as any[])) if (r.package_service?.package_id) ids.add(r.package_service.package_id);
+  return ids;
+}
+
 function shapePackage(p: any) {
   const bundle = ((p.package_services || []) as any[]).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const promised = bundle.flatMap((ps) =>
@@ -1189,6 +1295,10 @@ function shapePackage(p: any) {
   return {
     ...p,
     ...coverOf(images),
+    memberOf: (p.member_of ?? null) as string | null,
+    family: (p.family ?? null) as { id: string; name: string } | null,
+    isFamily: !p.member_of && isFamily(p.package_services),
+    leftToMember: p.member_of ? null : leftToMember(p.package_services),
     /*
      * One shape for the price, decided here rather than by each screen.
      *
@@ -1216,6 +1326,7 @@ function shapePackage(p: any) {
     services: bundle.map((ps) => ({
       ...ps.service,
       packageServiceId: ps.id,
+      decidedBy: (ps.decided_by ?? 'studio') as 'studio' | 'member',
       // What the service offers, and what this package sells of it.
       offers: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
       /*
@@ -1232,6 +1343,7 @@ function shapePackage(p: any) {
         .map((pd: any) => ({
           ...pd.deliverable,
           quantity: pd.quantity,
+          decidedBy: (pd.decided_by ?? 'studio') as 'studio' | 'member',
           spec_values: specFromAnswers(ps.package_variable_values, pd.deliverable.id),
         })),
       dimensions: shapeDimensionLinks(ps.service?.service_dimension_values),
@@ -1248,7 +1360,7 @@ function shapePackage(p: any) {
           deliverableId: pv.variable.deliverable_id ?? null,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
-          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
+          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client' | 'member',
         })),
       tasks: (ps.package_tasks || [])
         .sort((a: any, b: any) => a.position - b.position)
@@ -1272,7 +1384,7 @@ function shapePackage(p: any) {
           deliverableId: pv.variable.deliverable_id ?? null,
           key: pv.variable.key, label: pv.variable.label,
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
-          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client',
+          answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client' | 'member',
         }))
     ),
   };
@@ -1307,16 +1419,20 @@ export async function listPackages() {
     .neq('status', 'custom')
     .order('created_at', { ascending: false });
   if (error) { console.error('Failed to list packages:', error); throw new Error('Failed to load packages'); }
-  return (data || []).map(shapePackage);
+  return (await resolveMembers(orgId, data || [], PACKAGE_SELECT)).map(shapePackage);
 }
 
 export async function listPackagesPublic(orgId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
-    .select('id, name, description, duration_minutes, package_services(service:services(id, name))')
+    .select('id, name, description, duration_minutes, member_of, package_services(id, decided_by, service:services(id, name))')
     .eq('organization_id', orgId).eq('status', 'active').order('created_at', { ascending: false });
   if (error) { console.error('Failed to list public packages:', error); return []; }
-  return (data || []).map((p: any) => ({ ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean) }));
+  // Families are not sold; their members are.
+  const families = await familyIdsOf(orgId);
+  const rows = await resolveMembers(orgId, (data || []).filter((p: any) => !families.has(p.id)),
+    'id, name, description, duration_minutes, member_of, package_services(id, decided_by, service:services(id, name))');
+  return rows.map((p: any) => ({ ...p, services: (p.package_services || []).map((ps: any) => ps.service).filter(Boolean) }));
 }
 
 /**
@@ -1344,10 +1460,10 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
      * mapper spoke about but the query never asked for.
      */
     .select(`
-      id, name, description, short_description, duration_minutes,
+      id, name, description, short_description, duration_minutes, member_of,
       package_images(id, url, position, sort),
       price, price_unit,
-      package_services(id, position, service:services(
+      package_services(id, position, decided_by, service:services(
         id, name, domain:service_domains(id, name)
       ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
@@ -1355,8 +1471,18 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
     `)
     .eq('organization_id', orgId).eq('status', 'active')
     .order('created_at', { ascending: false });
-
-  return ((data || []) as any[]).map((p) => {
+  const families = await familyIdsOf(orgId);
+  const resolved = await resolveMembers(orgId, ((data || []) as any[]).filter((p) => !families.has(p.id)), `
+      id, name, description, short_description, duration_minutes, member_of,
+      package_images(id, url, position, sort),
+      price, price_unit,
+      package_services(id, position, decided_by, service:services(
+        id, name, domain:service_domains(id, name)
+      ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
+        id, name, dimension:dimensions(id, name)
+      )))
+    `);
+  return resolved.map((p) => {
     /*
      * In bundle order, because the FIRST service decides which shop window
      * the package stands in. A package is sold from the domain of the thing
@@ -1428,10 +1554,11 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, short_description, pricing_variant, duration_minutes, form_schema,
+      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, member_of,
       package_images(id, url, position, sort),
       price, price_unit,
       package_services(
+        id, decided_by,
         service:services(name),
         ${PACKAGE_PROMISE},
         ${PROMISE_ANSWERS}
@@ -1441,6 +1568,20 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     .eq('organization_id', orgId)
     .eq('status', 'active')
     .maybeSingle();
+  // A family is not for sale; a member reads as its family with its answers.
+  if (data && isFamily((data as any).package_services)) return null;
+  const [resolved] = data ? await resolveMembers(orgId, [data], `
+      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, member_of,
+      package_images(id, url, position, sort),
+      price, price_unit,
+      package_services(
+        id, decided_by,
+        service:services(name),
+        ${PACKAGE_PROMISE},
+        ${PROMISE_ANSWERS}
+      )
+    `) : [null];
+  const data_ = resolved;
   /*
    * A bad select here reads exactly like a retired package.
    *
@@ -1453,8 +1594,8 @@ export async function getPackagePublic(orgId: string, packageId: string) {
    * indistinguishable from the ordinary not-found it is here to express.
    */
   if (error) { console.error('Failed to get public package:', error); return null; }
-  if (!data) return null;
-  const p: any = data;
+  if (!data_) return null;
+  const p: any = data_;
   return {
     id: p.id as string,
     name: p.name as string,
@@ -1505,7 +1646,8 @@ export async function getPackage(packageId: string) {
     .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
   if (error) { console.error('Failed to get package:', error, error?.message, error?.details); throw new Error('Failed to load the package'); }
   if (!data) return null;
-  return shapePackage(data);
+  const [row] = await resolveMembers(orgId, [data], PACKAGE_SELECT);
+  return shapePackage(row);
 }
 
 /**
@@ -1562,7 +1704,7 @@ export async function getOpenClassificationsForPackagePublic(orgId: string, pack
       service:services(id, service_dimension_values(dimension_value:dimension_values(id, name, position, dimension_id))),
       package_service_dimension_values(dimension_value:dimension_values(id, name, position, dimension_id))
     `)
-    .eq('package_id', packageId)
+    .eq('package_id', await structureIdOf(orgId, packageId))
     .eq('organization_id', orgId)
     .order('position');
   if (error) throw new Error(`Could not read what this package is classified as: ${error.message}`);
@@ -1739,7 +1881,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
   // would quietly let someone book without ever being asked what they are
   // buying. What the package fixed now hangs off the same bundle row as the
   // service that declares the variable, so it comes back in the same pass.
-  const { data: rows, error: rowsError } = await supabaseAdmin
+  const { data: rows_, error: rowsError } = await supabaseAdmin
     .from('package_services')
     .select(`
       service:services(
@@ -1748,14 +1890,17 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
         service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
         service_deliverables(id, deliverable_id)
       ),
+      id, decided_by,
       package_service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
-      package_deliverables(deliverable_id),
+      package_deliverables(deliverable_id, decided_by),
       package_variable_values(variable_id, answered_by)
     `)
-    .eq('package_id', packageId)
+    .eq('package_id', await structureIdOf(orgId, packageId))
     .eq('organization_id', orgId)
     .order('position');
   if (rowsError) throw new Error(`Could not read the package's services: ${rowsError.message}`);
+  // A member: its family's rows, with what the member answered laid over.
+  const rows = overlayMember(rows_, (await memberAnswersOf(orgId, [packageId]))[packageId] || []);
 
   /*
    * WHAT THE CLASSIFICATIONS BRING WITH THEM.
@@ -2103,11 +2248,13 @@ export async function getDeliverablesForPackages(packageIds: string[]): Promise<
   if (packageIds.length === 0) return [];
   const { orgId } = await getAuthOrgId();
   // Read through the bundle, since that is where a promise now lives.
+  const { data: heads } = await supabaseAdmin.from('packages').select('id, member_of').eq('organization_id', orgId).in('id', packageIds);
+  const structureIds = [...new Set(((heads || []) as any[]).map((h) => (h.member_of as string | null) ?? (h.id as string)))];
   const { data, error } = await supabaseAdmin
     .from('package_services')
     .select(`package_deliverables(${DELIVERABLE_REF})`)
     .eq('organization_id', orgId)
-    .in('package_id', packageIds);
+    .in('package_id', structureIds.length ? structureIds : packageIds);
   if (error) {
     console.error('Failed to list promised deliverables:', error);
     return [];
@@ -2306,9 +2453,9 @@ export async function packagesAdmitting(answers: { dimensionId: string; valueId:
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, price, status,
+      id, name, price, status, member_of,
       package_services(
-        id,
+        id, decided_by,
         service:services(id, name),
         package_service_dimension_values(
           dimension_value:dimension_values(id, dimension:dimensions(id, name))
@@ -2322,10 +2469,21 @@ export async function packagesAdmitting(answers: { dimensionId: string; valueId:
     console.error('Failed to read what the studio offers:', error);
     return [];
   }
+  const families = await familyIdsOf(orgId);
+  const data_ = await resolveMembers(orgId, ((data || []) as any[]).filter((p) => !families.has(p.id)), `
+      id, name, price, status, member_of,
+      package_services(
+        id, decided_by,
+        service:services(id, name),
+        package_service_dimension_values(
+          dimension_value:dimension_values(id, dimension:dimensions(id, name))
+        )
+      )
+    `);
 
   const { narrowingFrom, rankByFit } = await import('@/kernel/classification');
 
-  const candidates = ((data || []) as any[]).map((p) => {
+  const candidates = data_.map((p) => {
     /*
      * Gathered across the whole bundle. A narrowing belongs to a service inside
      * the package, but the question being asked is of the package as a whole —
@@ -2371,7 +2529,7 @@ export async function packageNarrowingValueIds(orgId: string, packageId: string)
     .from('packages')
     .select('id, package_services(package_service_dimension_values(dimension_value_id))')
     .eq('organization_id', orgId)
-    .eq('id', packageId)
+    .eq('id', await structureIdOf(orgId, packageId))
     .maybeSingle();
   if (error || !data) return [];
 

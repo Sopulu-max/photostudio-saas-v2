@@ -516,7 +516,7 @@ export async function listDeliverableIdsForServices(serviceIds: string[]): Promi
  */
 
 /** Every column a package's promise carries. The one definition of that shape. */
-const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity';
+const PACKAGE_DELIVERABLE_COLUMNS = 'package_service_id, deliverable_id, quantity, decided_by';
 
 /** What these bundle rows promise. */
 export async function listPackageDeliverableLinks(packageServiceIds: string[], forOrgId?: string) {
@@ -590,6 +590,9 @@ export async function copyPackageDeliverables(input: {
    * as listServiceDeliverableOptions.
    */
   organizationId?: string;
+  /* Copying a family's rows for one of its members: a promise the family left
+     to the member takes the member's quantity, and 0 means not promised. */
+  memberAnswers?: { package_service_id: string; kind: string; ref_id: string | null; value: unknown }[];
 }) {
   const orgId = input.organizationId ?? (await getAuthOrgId()).orgId;
   const source = await listPackageDeliverableLinks(input.fromPackageServiceIds, orgId);
@@ -597,12 +600,20 @@ export async function copyPackageDeliverables(input: {
   const links = source
     .map((r) => ({ r, to: input.rowMap[r.package_service_id] }))
     .filter((x) => Boolean(x.to))
-    .map(({ r, to }) => ({
-      organization_id: orgId,
-      package_service_id: to,
-      deliverable_id: r.deliverable_id,
-      quantity: r.quantity,
-    }));
+    .map(({ r, to }) => {
+      let quantity = r.quantity;
+      if (r.decided_by === 'member') {
+        const a = (input.memberAnswers || []).find((x) => x.kind === 'promise' && x.package_service_id === r.package_service_id && x.ref_id === r.deliverable_id);
+        quantity = a ? Number(a.value) : null;
+      }
+      return {
+        organization_id: orgId,
+        package_service_id: to,
+        deliverable_id: r.deliverable_id,
+        quantity,
+      };
+    })
+    .filter((l) => l.quantity !== 0);
   if (links.length === 0) return { ok: true, copied: 0 };
 
   const { error } = await supabaseAdmin.from('package_deliverables').insert(links);

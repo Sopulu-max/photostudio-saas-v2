@@ -75,7 +75,7 @@ type Stage = { name: string; roleName: string; frontStage: boolean };
  * like any other, so what it settles travels with the variable answers rather
  * than beside the promise.
  */
-type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null };
+type Promise_ = { serviceId: string; deliverableId: string; quantity: number | null; unit: string | null; spec: string | null; decidedBy?: 'studio' | 'member' };
 
 import type { ServiceVariable } from '@/modules/services/interface';
 import { toast, readableError } from '@/components/Toast';
@@ -146,12 +146,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
      */
     price?: { amount?: number; base_price?: number; currency?: string } | null;
     serviceIds?: string[];
+    /** Bundled services whose in/out this package leaves to each member. */
+    memberServices?: string[];
     /** What the package promises, each on the bundled service that produces it. */
     deliverables?: Promise_[];
     /** Each value paired with the bundled service this package narrows to it. */
     narrowings?: { serviceId: string; valueId: string }[];
     extraStages?: Stage[];
-    variableValues?: { serviceVariableId: string; value: unknown; answeredBy?: 'studio' | 'client' }[];
+    variableValues?: { serviceVariableId: string; value: unknown; answeredBy?: 'studio' | 'client' | 'member' }[];
     tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
     services?: any[];
   };
@@ -594,8 +596,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * Undecided is now its own state, and it is asked of nobody. A package with
    * undecided variables is unfinished, which is a thing worth being able to see.
    */
-  const [answeredBy, setAnsweredBy] = useState<Record<string, 'studio' | 'client'>>(() => {
-    const seed: Record<string, 'studio' | 'client'> = {};
+  const [answeredBy, setAnsweredBy] = useState<Record<string, 'studio' | 'client' | 'member'>>(() => {
+    const seed: Record<string, 'studio' | 'client' | 'member'> = {};
     for (const v of (initial.variableValues || [])) {
       if (v.answeredBy) seed[v.serviceVariableId] = v.answeredBy;
       else if (v.value !== null && v.value !== undefined && v.value !== '') seed[v.serviceVariableId] = 'studio';
@@ -603,7 +605,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     return seed;
   });
 
-  const decide = (id: string, next: 'studio' | 'client' | 'undecided') => {
+  /*
+   * THE FOURTH DECIDER. Left to the member: this package is then a family,
+   * and each member fixes the answer or hands it to the client. Nothing else
+   * about the editor changes - a family is an ordinary package that left
+   * something open on purpose.
+   */
+  const [memberServices, setMemberServices] = useState<string[]>(initial.memberServices || []);
+  const decide = (id: string, next: 'studio' | 'client' | 'member' | 'undecided') => {
     setAnsweredBy((prev) => {
       const copy = { ...prev };
       if (next === 'undecided') delete copy[id];
@@ -724,11 +733,12 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
      * tells the module nobody has decided — and it is then asked of no one
      * rather than of everyone.
      */
-    type VariableDecision = { serviceVariableId: string; answeredBy: 'studio' | 'client'; value?: unknown };
+    type VariableDecision = { serviceVariableId: string; answeredBy: 'studio' | 'client' | 'member'; value?: unknown };
     const payloadVariableValues: VariableDecision[] =
       activeVariables.flatMap<VariableDecision>((v) => {
       const chosen = answeredBy[v.id];
       if (chosen === 'client') return [{ serviceVariableId: v.id, answeredBy: 'client' as const }];
+      if (chosen === 'member') return [{ serviceVariableId: v.id, answeredBy: 'member' as const }];
       const raw = variableValues[v.id];
       if ((raw ?? '') === '') return [];
       /*
@@ -758,12 +768,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         ? { base_price: Number(priceAmount), currency: currencyCode }
         : (wasGivenPrice ? null : undefined),
       serviceIds,
+      memberServices: memberServices.filter((id) => serviceIds.includes(id)),
       // Everything below is filtered to services still bundled, so deselecting
       // one cannot leave a link behind that the server would then reject.
       deliverables: promises.filter((p) => serviceIds.includes(p.serviceId)).map(p => ({
         serviceId: p.serviceId,
         deliverableId: p.deliverableId,
-        quantity: p.quantity,
+        quantity: p.decidedBy === 'member' ? null : p.quantity,
+        decidedBy: p.decidedBy === 'member' ? 'member' as const : 'studio' as const,
       })),
       /*
        * The tasks, which this form rendered and then threw away.
@@ -1136,6 +1148,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             <option value="">Not decided</option>
             <option value="studio">We set it</option>
             <option value="client">The client chooses</option>
+            {!embedded && <option value="member">Left to the member</option>}
           </select>
           {/* The control is drawn both ways: live when the studio sets the
               value, inert when the client will. VariableField IS the component
@@ -1143,14 +1156,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               cannot look different there. */}
           <VariableField
             kind={v.kind}
-            value={who === 'client' ? '' : current}
+            value={who === 'studio' ? current : ''}
             onChange={(next) => setVariable(v.id, Array.isArray(next) ? next.join(',') : next)}
             options={v.options || []}
             unit={v.unit}
             min={v.min}
             max={v.max}
             disabled={isPending || who !== 'studio'}
-            emptyLabel={who === 'client' ? 'The client fills this in' : '—'}
+            emptyLabel={who === 'client' ? 'The client fills this in' : who === 'member' ? 'Each member decides' : '—'}
           />
           {who === 'studio' && current !== '' && (
             <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending}
@@ -1356,12 +1369,22 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 <span className="q-sheet-name">{d.name}</span>
                 <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} title="Not promised" onClick={() => removePromise(s.id, d.id)}>×</button>
               </div>
-              <input
-                className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
-                value={p.quantity ?? ''}
-                onChange={(e) => patchPromise(s.id, d.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
-                style={{ maxWidth: '7rem' }}
-              />
+              <div className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
+                  value={p.decidedBy === 'member' ? '' : (p.quantity ?? '')}
+                  disabled={p.decidedBy === 'member'}
+                  onChange={(e) => patchPromise(s.id, d.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
+                  style={{ maxWidth: '7rem' }}
+                />
+                {!embedded && (
+                  <label className="q-meta-sm q-row q-row-sm" style={{ cursor: 'pointer' }}>
+                    <input type="checkbox" checked={p.decidedBy === 'member'} disabled={isPending}
+                      onChange={(e) => patchPromise(s.id, d.id, { decidedBy: e.target.checked ? 'member' : 'studio', quantity: e.target.checked ? null : p.quantity })} />
+                    Quantity left to the member
+                  </label>
+                )}
+              </div>
               {/* What this deliverable needs settling - its own questions, fixed
                   here or left to the client - and the way to declare one more.
                   Edited photographs asks Softcopy or Hardcopy; Edited video asks
@@ -1678,6 +1701,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                             </span>
                           </span>
                           <span className="q-sheet-side">
+                            {!embedded && (
+                              <label className="q-meta-sm q-row q-row-sm" style={{ cursor: 'pointer' }} title="Each member says whether this service is in or out">
+                                <input type="checkbox" checked={memberServices.includes(s.id)} disabled={isPending}
+                                  onChange={(e) => setMemberServices((prev) => e.target.checked ? [...new Set([...prev, s.id])] : prev.filter((id) => id !== s.id))} />
+                                Member decides
+                              </label>
+                            )}
                             {s.domain?.name && <span className="q-badge q-badge-neutral">{s.domain.name}</span>}
                             {/* Dropping a service changes WHAT THE PACKAGE IS,
                                 so it is offered only once the operator has
