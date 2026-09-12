@@ -1499,16 +1499,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
               </div>
             </div>
           )}
-          {/* Duration had state and a save path and no control: it could be
-              shown on a package's page and never set. */}
-          {!embedded && (
-            <div className="q-field">
-              <label className="q-label">Duration</label>
-              <select className="q-select" value={duration} onChange={(e) => setDuration(Number(e.target.value))} style={{ maxWidth: '16rem' }}>
-                {DURATION_CHOICES.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
-              </select>
-            </div>
-          )}
         </div>
       </div>
 
