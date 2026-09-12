@@ -155,6 +155,23 @@ export function PackageCovers({
           : `${slides.length} of ${MAX_PACKAGE_IMAGES}. The first is the cover — drag a picture to choose what shows.`}
       </p>
 
+      {/* Nothing yet: the adder stands where the stage will, at the stage's
+          size, because the first picture is the cover and the cover is seen
+          in this frame. As a strip tile it was 112px - a thumbnail of a
+          picture that did not exist. */}
+      {!slide && (
+        <div className="q-stage">
+          <ImageUpload
+            url={null}
+            folder="packages"
+            label="cover"
+            maxEdge={2400}
+            disabled={disabled || isPending}
+            onUploaded={add}
+          />
+        </div>
+      )}
+
       {/* The stage: the one picture being placed, in the frame a client sees it in. */}
       {slide && (
         <div className="q-stage">
@@ -242,12 +259,12 @@ export function PackageCovers({
             {i === 0 && <span className="q-strip-cover">Cover</span>}
           </button>
         ))}
-        {!full && (
+        {!full && slides.length > 0 && (
           <div className="q-strip-add">
             <ImageUpload
               url={null}
               folder="packages"
-              label={slides.length === 0 ? 'cover' : 'picture'}
+              label="picture"
               maxEdge={2400}
               disabled={disabled || isPending}
               onUploaded={add}
