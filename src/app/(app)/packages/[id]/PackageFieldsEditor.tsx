@@ -111,7 +111,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   currencyCode: string;
   allServices: ServiceOption[];
   allVariables: (ServiceVariable & { serviceName: string })[];
-  allDeliverables: { id: string; name: string }[];
+  allDeliverables: { id: string; name: string; serviceDomainId?: string | null }[];
   /** Domain name → the dimensions it classifies by. A package may draw on several. */
   dimensionsByDomain: Record<string, { id: string; name: string; values: { id: string; name: string }[] }[]>;
   roleOptions: string[];
@@ -1287,6 +1287,23 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ?? produces.find((d: any) => d.id === id)?.name
       ?? id;
     const suggested = produces.filter((d: any) => !mine.some((p) => p.deliverableId === d.id));
+    /*
+     * THE CATALOGUE, OFFERED.
+     *
+     * The deliverables module is the studio's catalogue of outputs, and this
+     * box offered none of it - only what the service already declared, so a
+     * studio adding Album to a package had to remember the name and type it,
+     * and a typo made a second Album. The offer is now the service's own
+     * outputs first, then the rest of its domain's catalogue; choosing one
+     * the service does not yet declare declares it, through the same
+     * find-or-create the typed path already used, so nothing is duplicated.
+     */
+    const domainId = s.domain?.id;
+    const fromCatalogue = (allDeliverables as any[])
+      .filter((d) => (!domainId || d.serviceDomainId === domainId)
+        && !produces.some((p: any) => p.id === d.id)
+        && !mine.some((p) => p.deliverableId === d.id));
+    const offered = [...suggested, ...fromCatalogue];
     return (
       <div className="q-stack q-stack-sm">
         {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
@@ -1346,12 +1363,15 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           * with the same name.
           */}
         <PickToAdd
-          options={suggested.map((d: any) => d.name)}
-          placeholder="Choose or type an output"
+          options={offered.map((d: any) => d.name)}
+          placeholder="Choose from the catalogue, or type a new output"
           onAdd={(name) => {
             const hit = produces.find((d: any) => d.name.trim().toLowerCase() === name.trim().toLowerCase());
             if (hit) addPromise(s.id, hit.id);
-            // Onto the service, so every package of it can promise one too.
+            // A catalogue deliverable the service does not yet declare, or a
+            // new name: declared onto the service either way, so every
+            // package of it can promise one too. find-or-create by name in
+            // the domain means an existing one is reused, not copied.
             else declareOutput(s.id, name);
           }}
         />
