@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
-import type { ServiceVariable, ServiceVariableInput } from './variableTypes';
+import { rowToVariable, type ServiceVariable, type ServiceVariableInput } from './variableTypes';
 import { findByName } from '@/kernel/naming';
 // One definition of what a deliverable link looks like, shared by every reader.
 import { SERVICE_OFFERS } from '@/modules/deliverables/shape';
@@ -862,23 +862,6 @@ export async function getService(serviceId: string) {
 // this particular service — outfits, edited images, coverage hours. The
 // service declares what may vary; a package fixes a value (see Packages).
 
-function rowToVariable(r: any): ServiceVariable {
-  return {
-    id: r.id,
-    serviceId: r.service_id ?? null,
-    dimensionId: r.dimension_id ?? null,
-    deliverableId: r.deliverable_id ?? null,
-    key: r.key,
-    label: r.label,
-    kind: r.kind,
-    unit: r.unit ?? null,
-    options: Array.isArray(r.options) ? r.options : [],
-    defaultValue: r.default_value ?? null,
-    min: r.min_value ?? null,
-    max: r.max_value ?? null,
-    position: r.position ?? 0,
-  };
-}
 
 export async function listServiceVariables(serviceId: string): Promise<ServiceVariable[]> {
   const { orgId } = await getAuthOrgId();

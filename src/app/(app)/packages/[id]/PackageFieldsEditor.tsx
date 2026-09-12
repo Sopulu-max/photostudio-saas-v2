@@ -279,6 +279,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [questions, setQuestions] = useState<any[] | undefined>(initialQuestions);
 
   const [declaringFor, setDeclaringFor] = useState<string | null>(null);
+  const [newOutputFor, setNewOutputFor] = useState<string | null>(null);
+  const [newOutputName, setNewOutputName] = useState('');
   const [newVar, setNewVar] = useState<{ label: string; kind: string; unit: string; options: string }>(
     { label: '', kind: 'number', unit: '', options: '' },
   );
@@ -1288,22 +1290,24 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ?? id;
     const suggested = produces.filter((d: any) => !mine.some((p) => p.deliverableId === d.id));
     /*
-     * THE CATALOGUE, OFFERED.
+     * WHAT THE SERVICE PRODUCES, FIRST AND ONLY.
      *
-     * The deliverables module is the studio's catalogue of outputs, and this
-     * box offered none of it - only what the service already declared, so a
-     * studio adding Album to a package had to remember the name and type it,
-     * and a typo made a second Album. The offer is now the service's own
-     * outputs first, then the rest of its domain's catalogue; choosing one
-     * the service does not yet declare declares it, through the same
-     * find-or-create the typed path already used, so nothing is duplicated.
+     * A package promises through a service, so the box offers what the
+     * service already declares it produces - nothing else. The catalogue is
+     * consulted at the moment of adding a new output to the service, below,
+     * where the service delivering it is named; a package does not pick from
+     * the catalogue directly, because a deliverable with no service behind
+     * it has no workflow behind it either.
      */
     const domainId = s.domain?.id;
-    const fromCatalogue = (allDeliverables as any[])
+    const catalogueForReuse = (allDeliverables as any[])
       .filter((d) => (!domainId || d.serviceDomainId === domainId)
-        && !produces.some((p: any) => p.id === d.id)
-        && !mine.some((p) => p.deliverableId === d.id));
-    const offered = [...suggested, ...fromCatalogue];
+        && !produces.some((p: any) => p.id === d.id));
+    const ownQuestions = (id: string) => allVariables.filter((v: any) => v.deliverableId === id);
+    const specOf = (id: string) => Object.fromEntries(
+      ownQuestions(id)
+        .filter((v: any) => answeredBy[v.id] === 'studio' && (variableValues[v.id] ?? '') !== '')
+        .map((v: any) => [v.label, variableValues[v.id]]));
     return (
       <div className="q-stack q-stack-sm">
         {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
@@ -1340,8 +1344,20 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 * by the same decision. There is nothing left to draw here.
                 */}
 
+              {/*
+                * THE DELIVERABLE'S OWN QUESTIONS, HERE. Edited photographs
+                * asks Softcopy or Hardcopy; that is part of what arrives, not
+                * a parameter of the work, so it is settled on the promise
+                * rather than in the Variables section - same control, same
+                * state, and the answer travels into how the promise reads.
+                */}
+              {ownQuestions(p.deliverableId).length > 0 && (
+                <div className="q-stack q-stack-sm">
+                  {ownQuestions(p.deliverableId).map((v: any) => renderVariableRow(v))}
+                </div>
+              )}
               <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity })}
+                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, spec_values: specOf(p.deliverableId) })}
               </span>
             </div>
           );
@@ -1363,18 +1379,58 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           * with the same name.
           */}
         <PickToAdd
-          options={offered.map((d: any) => d.name)}
-          placeholder="Choose from the catalogue, or type a new output"
+          options={suggested.map((d: any) => d.name)}
+          placeholder={suggested.length ? `Choose an output of ${s.name}` : `${s.name} declares no other outputs`}
           onAdd={(name) => {
             const hit = produces.find((d: any) => d.name.trim().toLowerCase() === name.trim().toLowerCase());
             if (hit) addPromise(s.id, hit.id);
-            // A catalogue deliverable the service does not yet declare, or a
-            // new name: declared onto the service either way, so every
-            // package of it can promise one too. find-or-create by name in
-            // the domain means an existing one is reused, not copied.
             else declareOutput(s.id, name);
           }}
         />
+
+        {/*
+          * A NEW OUTPUT, DECLARED ON THIS SERVICE.
+          *
+          * Explicit, like adding a variable or a step. The name is offered
+          * from the domain's catalogue so an existing kind is reused rather
+          * than copied - find-or-create by name in the domain - and the
+          * service delivering it is stated, because that is what ties the
+          * output to the work that produces it.
+          */}
+        {newOutputFor === s.id ? (
+          <div className="q-tile q-stack q-stack-sm">
+            <div className="q-field">
+              <label className="q-label">Deliverable</label>
+              <input
+                className="q-input"
+                list={`catalogue-${s.id}`}
+                value={newOutputName}
+                disabled={isPending}
+                onChange={(e) => setNewOutputName(e.target.value)}
+                placeholder="e.g. Album"
+              />
+              <datalist id={`catalogue-${s.id}`}>
+                {catalogueForReuse.map((d: any) => <option key={d.id} value={d.name} />)}
+              </datalist>
+            </div>
+            <span className="q-meta-sm">Delivered by {s.name}. An existing deliverable of this name is reused; a new name is added to the catalogue.</span>
+            <div className="q-row">
+              <button type="button" className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending}
+                disabled={isPending || !newOutputName.trim()}
+                onClick={() => { declareOutput(s.id, newOutputName); setNewOutputName(''); setNewOutputFor(null); }}>
+                {isPending ? 'Adding…' : 'Add'}
+              </button>
+              <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending}
+                onClick={() => { setNewOutputFor(null); setNewOutputName(''); }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setNewOutputFor(s.id)}>
+              New deliverable
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -1627,7 +1683,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                     {chosen.map((s) => {
                       const nProduce = promisesFor(s.id).length;
                       const nFor = (narrowings[s.id] ?? offeredBy(s.id)).length;
-                      const nVars = variablesFor(s).length;
+                      const nVars = variablesFor(s).filter((x: any) => !x.deliverableId).length;
                       const savedS = initial.services?.find((is: any) => is.id === s.id);
                       const nTasks = (savedS?.tasks || s.workflow?.tasks || []).length + addedTasks.filter((x) => x.serviceId === s.id).length;
                       const say = (n: number, one: string, more: string) => n > 0 ? `${n} ${n === 1 ? one : more}` : null;
@@ -1746,7 +1802,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
         /* Every variable once, with the services it came through. */
         const byVar = new Map<string, { v: any; from: string[] }>();
-        for (const s of bundled) for (const v of variablesFor(s)) {
+        /* A deliverable's own questions are settled on its promise row; here
+           are the variables of the work - the service's, and what its
+           classification carries. */
+        for (const s of bundled) for (const v of variablesFor(s).filter((x: any) => !x.deliverableId)) {
           const row = byVar.get(v.id) ?? { v, from: [] };
           row.from.push(s.name);
           byVar.set(v.id, row);

@@ -70,6 +70,33 @@ export type ServiceVariable = {
   position: number;
 };
 
+/**
+ * A variables row, in the shape every reader expects.
+ *
+ * One mapper for the three owners - service, dimension, deliverable - because
+ * the deliverables module returned raw rows and the editor read `deliverableId`
+ * off them: the field arrived as `deliverable_id`, matched nothing, and every
+ * question a deliverable asks was silently absent from the package form. The
+ * type checker could not see it; the rows were `any`.
+ */
+export function rowToVariable(r: any): ServiceVariable {
+  return {
+    id: r.id,
+    serviceId: r.service_id ?? null,
+    dimensionId: r.dimension_id ?? null,
+    deliverableId: r.deliverable_id ?? null,
+    key: r.key,
+    label: r.label,
+    kind: r.kind,
+    unit: r.unit ?? null,
+    options: Array.isArray(r.options) ? r.options : [],
+    defaultValue: r.default_value ?? null,
+    min: r.min_value ?? null,
+    max: r.max_value ?? null,
+    position: r.position ?? 0,
+  };
+}
+
 export type ServiceVariableInput = {
   /** Present when editing an existing variable; absent when adding one. */
   id?: string;

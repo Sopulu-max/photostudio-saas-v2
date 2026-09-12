@@ -1,5 +1,6 @@
 'use server';
 
+import { rowToVariable } from '@/modules/services/variableTypes';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
@@ -699,7 +700,9 @@ export async function listVariablesForDeliverables(deliverableIds: string[]) {
     console.error('Failed to list what these deliverables need settling:', error);
     return [];
   }
-  return (data || []) as any[];
+  /* The same shape the service and dimension reads return. Raw rows carried
+     deliverable_id, the editor read deliverableId, and nothing matched. */
+  return ((data || []) as any[]).map(rowToVariable);
 }
 
 /**
