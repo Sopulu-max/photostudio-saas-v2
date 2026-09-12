@@ -247,11 +247,6 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
   const blockClass = embedded ? 'q-subsection' : 'q-card q-section q-rise';
   const blockTitle = embedded ? 'q-subsection-title' : 'q-section-title';
-  /* Whether the Classification section will draw, for the numbering of what
-     follows it: it exists only when a bundled service's domain has questions. */
-  const kindsWithClassification = allServices
-    .filter((x) => serviceIds.includes(x.id))
-    .some((x) => x.domain?.name && (dimensionsByDomain[x.domain.name] || []).length > 0);
 
   /*
    * Declaring a variable while building the package.
@@ -324,6 +319,13 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   const [description, setDescription] = useState(initial.description ?? '');
   const [shortDescription, setShortDescription] = useState(initial.shortDescription ?? '');
   const [serviceIds, setServiceIds] = useState<string[]>(initial.serviceIds || []);
+  /* After serviceIds, which it reads: placed above the state it depends on
+     it threw in the temporal dead zone at runtime, and the type checker
+     cannot see that. Whether the Classification section will draw, for the numbering of what
+     follows it: it exists only when a bundled service's domain has questions. */
+  const kindsWithClassification = allServices
+    .filter((x) => serviceIds.includes(x.id))
+    .some((x) => x.domain?.name && (dimensionsByDomain[x.domain.name] || []).length > 0);
   const [duration, setDuration] = useState(initial.durationMinutes ?? 0);
   
   // Reads either key, so a package priced before the shape was corrected still
