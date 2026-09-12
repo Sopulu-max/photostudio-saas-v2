@@ -16,6 +16,7 @@ import {
 // A link to a deliverable is written by the module that defines one.
 import {
   setPackageDeliverables, copyPackageDeliverables, listServiceDeliverableOptions, listServiceDeliverableOptionsFor,
+  listPackageDeliverableLinks, listVariablesForDeliverables,
 } from '@/modules/deliverables/domain';
 import { narrowOptions, specFromAnswers, byPromiseOrder, PROMISE_ANSWERS } from '@/modules/deliverables/shape';
 import { formatDeliverable } from './deliverableSpec';
@@ -354,10 +355,29 @@ async function writePackageVariableValues(
       (await listVariablesForServices(rows.map((r) => r.service_id))).map((v: any) => [v.id, v.serviceId])
     );
 
+    /*
+     * A DELIVERABLE'S QUESTION BELONGS TO THE ROWS THAT PROMISE IT.
+     *
+     * Edited video asks Format; the package answers on the bundle row through
+     * which it promises Edited video, not on every row. Before this, a
+     * deliverable's variable had no service to match and fell into the
+     * classification case below - written against every bundle row, so a
+     * package bundling videography and photography recorded the video's
+     * format against the photography too. The promises are what was just
+     * written, read back from the module that keeps them.
+     */
+    const promised = await listPackageDeliverableLinks(rows.map((r) => r.id), orgId);
+    const promisedIds = [...new Set(promised.map((l: any) => l.deliverable_id as string))];
+    const deliverableOfVariable = new Map(
+      (await listVariablesForDeliverables(promisedIds)).map((v: any) => [v.id, v.deliverableId as string])
+    );
+
     links = wanted.flatMap((v) => {
       const serviceId = serviceOfVariable.get(v.serviceVariableId);
+      const deliverableId = deliverableOfVariable.get(v.serviceVariableId);
       /*
-       * A variable with no service among these is a DIMENSION'S, not a stray.
+       * A variable with neither a service nor a promised deliverable among
+       * these is a DIMENSION'S, not a stray.
        *
        * It is in play because of how the package is classified rather than what
        * it bundles, so it has no service to match and belongs to the package as
@@ -366,7 +386,9 @@ async function writePackageVariableValues(
        */
       const targets = serviceId
         ? rows.filter((r) => r.service_id === serviceId)
-        : rows;
+        : deliverableId
+          ? rows.filter((r) => promised.some((l: any) => l.package_service_id === r.id && l.deliverable_id === deliverableId))
+          : rows;
       if (targets.length === 0) throw new Error('That option belongs to a service this package does not include.');
       const asked = v.answeredBy === 'client';
       // Every bundle row of that service, so bundling it twice decides both.
