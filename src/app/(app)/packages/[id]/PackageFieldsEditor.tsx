@@ -16,11 +16,12 @@ import { QuestionEditor } from './QuestionEditor';
  * classifications and one for outputs, because each felt like a different
  * feature while it was being written. They were the same feature twice.
  */
-import { PickMany, PickToAdd } from '@/components/Pick';
+import { PickMany } from '@/components/Pick';
 // The same narrowing the catalogues do. A picker differs only in excluding
 // what is chosen and bounding what it draws, and both are arguments.
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { NewDeliverableForm } from '../../deliverables/new/NewDeliverableForm';
+import { DeclaredQuestions } from '@/components/DeclaredQuestions';
 import { PackageCovers, type Slide } from './PackageCovers';
 import { addPackageImage, type PackageImage } from '@/modules/packages/interface';
 import { Counted } from '@/components/Counted';
@@ -1285,26 +1286,33 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ...(s.deliverables || []),
       ...declaredOutputs.filter((d) => d.serviceId === s.id && !(s.deliverables || []).some((e: any) => e.id === d.id)),
     ];
+    const producesIt = (id: string) => produces.some((d: any) => d.id === id);
     const nameOf = (id: string) =>
       allDeliverables.find((d) => d.id === id)?.name
       ?? declaredOutputs.find((d) => d.id === id)?.name
       ?? produces.find((d: any) => d.id === id)?.name
       ?? id;
-    const suggested = produces.filter((d: any) => !mine.some((p) => p.deliverableId === d.id));
     /*
-     * WHAT THE SERVICE PRODUCES, FIRST AND ONLY.
+     * THE CATALOGUE, CLICK TO TAKE.
      *
-     * A package promises through a service, so the box offers what the
-     * service already declares it produces - nothing else. The catalogue is
-     * consulted at the moment of adding a new output to the service, below,
-     * where the service delivering it is named; a package does not pick from
-     * the catalogue directly, because a deliverable with no service behind
-     * it has no workflow behind it either.
+     * One list, not a picker and a button and a form and a list of names
+     * that could not be clicked. Everything the domain produces is a tile:
+     * what this package promises is open, with its quantity and what it
+     * needs settling; what the service produces but this package does not
+     * promise is a tile to click; what the domain has that this service does
+     * not yet produce is a tile to click too, and clicking it declares it on
+     * the service first - through the services module - then promises it.
+     * The catalogue is never written to from here.
      */
     const domainId = s.domain?.id;
-    const catalogueForReuse = (allDeliverables as any[])
-      .filter((d) => (!domainId || d.serviceDomainId === domainId)
-        && !produces.some((p: any) => p.id === d.id));
+    const inDomain = (allDeliverables as any[]).filter((d) => !domainId || d.serviceDomainId === domainId);
+    const seen = new Set<string>();
+    const catalogue: { id: string; name: string }[] = [];
+    for (const d of [...mine.map((p) => ({ id: p.deliverableId, name: nameOf(p.deliverableId) })), ...produces, ...inDomain]) {
+      if (seen.has(d.id)) continue;
+      seen.add(d.id);
+      catalogue.push({ id: d.id, name: d.name });
+    }
     const ownQuestions = (id: string) => [
       ...allVariables.filter((v: any) => v.deliverableId === id),
       ...deliverableVars.filter((v: any) => v.deliverableId === id && !allVariables.some((a: any) => a.id === v.id)),
@@ -1313,112 +1321,76 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       ownQuestions(id)
         .filter((v: any) => answeredBy[v.id] === 'studio' && (variableValues[v.id] ?? '') !== '')
         .map((v: any) => [v.label, variableValues[v.id]]));
+    const take = (id: string) => (producesIt(id) ? addPromise(s.id, id) : declareOutput(s.id, nameOf(id)));
+    /* A question declared here lands on the deliverable, through the service,
+       and is held locally so it appears on the open tile at once. */
+    const settle = (id: string, qs: { label: string; kind: string; unit: string | null; options: string[] }[]) => {
+      startTransition(async () => {
+        try {
+          const { declareServiceDeliverableVariable } = await import('@/modules/services/interface');
+          for (const q of qs) {
+            const made: any = await declareServiceDeliverableVariable({ serviceId: s.id, deliverableId: id, variable: q });
+            if (made) setDeliverableVars((prev) => prev.some((v) => v.id === made.id) ? prev : [...prev, made]);
+          }
+        } catch (e: any) {
+          toast.bad(readableError(e, 'Could not add that.'));
+        }
+      });
+    };
     return (
-      <div className="q-stack q-stack-sm">
-        {mine.length === 0 && <p className="q-empty" style={{ margin: 0 }}>Nothing promised from this service yet.</p>}
-        {mine.map((p) => {
-          const dName = nameOf(p.deliverableId);
+      <div className="q-take-grid">
+        {catalogue.map((d) => {
+          const p = mine.find((x) => x.deliverableId === d.id);
+          if (!p) {
+            return (
+              <button key={d.id} type="button" className="q-take" disabled={isPending} onClick={() => take(d.id)}>
+                <span className="q-sheet-name">{d.name}</span>
+                <span className="q-sheet-cap">{producesIt(d.id) ? `${s.name} produces this` : `In ${s.domain?.name ?? 'the catalogue'}`}</span>
+              </button>
+            );
+          }
+          const qs = ownQuestions(d.id);
           return (
-            <div key={p.deliverableId} className="q-tile q-stack q-stack-sm">
+            <div key={d.id} className="q-take q-take-open q-stack q-stack-sm">
               <div className="q-row q-row-between">
-                <strong className="q-strong">{dName}</strong>
-                <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} onClick={() => removePromise(s.id, p.deliverableId)}>×</button>
+                <span className="q-sheet-name">{d.name}</span>
+                <button type="button" className="q-btn-ghost" style={{ padding: '0 4px' }} title="Not promised" onClick={() => removePromise(s.id, d.id)}>×</button>
               </div>
-              <div className="q-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                <input
-                  className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
-                  value={p.quantity ?? ''}
-                  onChange={(e) => patchPromise(s.id, p.deliverableId, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
-                  style={{ maxWidth: '7rem' }}
-                />
-              </div>
-
-              {/*
-                * THE SPEC FORM MOVED, IT DID NOT DISAPPEAR.
-                *
-                * A block here read def.spec_schema — a jsonb column carrying a
-                * field shape invented for this screen — and drew inputs from
-                * it. That was a second variable system: three field types
-                * against the eight the real one checks, no unit, no bounds, no
-                * default, and no share of the one parser.
-                *
-                * A deliverable declares real variables now, owned the way a
-                * service's and a classification's are. So its questions appear
-                * with all the others in the section above, asked by the same
-                * control, answered through the same values, and fixed-or-open
-                * by the same decision. There is nothing left to draw here.
-                */}
-
-              {/*
-                * THE DELIVERABLE'S OWN QUESTIONS, HERE. Edited photographs
-                * asks Softcopy or Hardcopy; that is part of what arrives, not
-                * a parameter of the work, so it is settled on the promise
-                * rather than in the Variables section - same control, same
-                * state, and the answer travels into how the promise reads.
-                */}
-              {ownQuestions(p.deliverableId).length > 0 && (
+              <input
+                className="q-input q-input-sm" type="number" min={0} placeholder="Quantity"
+                value={p.quantity ?? ''}
+                onChange={(e) => patchPromise(s.id, d.id, { quantity: e.target.value === '' ? null : Number(e.target.value) })}
+                style={{ maxWidth: '7rem' }}
+              />
+              {/* What this deliverable needs settling - its own questions, fixed
+                  here or left to the client - and the way to declare one more.
+                  Edited photographs asks Softcopy or Hardcopy; Edited video asks
+                  nothing until someone says what it varies by. */}
+              {qs.length > 0 && (
                 <div className="q-stack q-stack-sm">
-                  {ownQuestions(p.deliverableId).map((v: any) => renderVariableRow(v))}
+                  {qs.map((v: any) => renderVariableRow(v))}
                 </div>
               )}
+              <DeclaredQuestions questions={[]} emptyHint={null} disabled={isPending} onChange={(next) => settle(d.id, next)} />
               <span className="q-meta-sm" style={{ opacity: 0.8 }}>
-                Appears as: {formatDeliverable({ name: dName, quantity: p.quantity, spec_values: specOf(p.deliverableId) })}
+                Appears as: {formatDeliverable({ name: d.name, quantity: p.quantity, spec_values: specOf(d.id) })}
               </span>
             </div>
           );
         })}
 
-        {/*
-          * The same box, and here the caller keeps its own chips.
-          *
-          * PickMany owns the chips it draws; a promise is not a chip. It is a
-          * tile with a quantity and whatever spec the output defines, so the
-          * chips are already rendered above and all that is wanted is the box —
-          * which is exactly what PickToAdd is for and says it is for.
-          *
-          * "All outputs produced by this service have been promised" was a dead
-          * end that stated a limit and offered no way past it. Typing past the
-          * list is the way past it, and because declareServiceDeliverable finds
-          * or creates by name within the domain, typing the name of an output
-          * the studio already has attaches that one rather than making a second
-          * with the same name.
-          */}
-        <PickToAdd
-          options={suggested.map((d: any) => d.name)}
-          placeholder={suggested.length ? `Choose an output of ${s.name}` : `${s.name} declares no other outputs`}
-          onAdd={(name) => {
-            const hit = produces.find((d: any) => d.name.trim().toLowerCase() === name.trim().toLowerCase());
-            if (hit) addPromise(s.id, hit.id);
-            else declareOutput(s.id, name);
-          }}
-        />
-
-        {/*
-          * A NEW OUTPUT, DECLARED ON THIS SERVICE.
-          *
-          * Explicit, like adding a variable or a step. The name is offered
-          * from the domain's catalogue so an existing kind is reused rather
-          * than copied - find-or-create by name in the domain - and the
-          * service delivering it is stated, because that is what ties the
-          * output to the work that produces it.
-          */}
+        {/* A name the domain does not have yet: the deliverables module's own
+            form, with the service delivering it fixed. Declared on the service
+            by the submit, then promised here with its questions. */}
         {newOutputFor === s.id && s.domain?.id ? (
-          <div className="q-tile q-stack q-stack-sm">
-            <span className="q-meta-sm">New deliverable, delivered by <strong className="q-strong">{s.name}</strong>. It joins the catalogue in {s.domain?.name} and is declared on this service.</span>
-            {/* The deliverables module's own form - name, what one is counted
-                in, what it needs settling - with the domain fixed by the
-                service. On success it is declared on the service and promised
-                here, and its questions are fetched so they appear on the
-                promise row at once. */}
+          <div className="q-take q-take-open q-stack q-stack-sm">
+            <span className="q-meta-sm">New deliverable, delivered by <strong className="q-strong">{s.name}</strong>. It joins {s.domain?.name} and is declared on this service.</span>
             <NewDeliverableForm
               domains={[{ id: s.domain.id, name: s.domain.name }]}
               fixedDomainId={s.domain.id}
               forServiceId={s.id}
-              existingByDomain={{ [s.domain.name]: catalogueForReuse.map((d: any) => ({ id: d.id, name: d.name })) }}
+              existingByDomain={{ [s.domain.name]: inDomain.map((d: any) => ({ id: d.id, name: d.name })) }}
               onCreated={async (made) => {
-                /* Already declared on the service by the submit; here it is
-                   promised on this package and its questions fetched so they
-                   appear on the promise row at once. */
                 setNewOutputFor(null);
                 setDeclaredOutputs((prev) =>
                   prev.some((d) => d.id === made.id && d.serviceId === s.id) ? prev : [...prev, { ...made, serviceId: s.id }]);
@@ -1431,11 +1403,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             />
           </div>
         ) : (
-          <div>
-            <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending || !s.domain?.id} onClick={() => setNewOutputFor(s.id)}>
-              New deliverable
-            </button>
-          </div>
+          <button type="button" className="q-take q-take-new" disabled={isPending || !s.domain?.id} onClick={() => setNewOutputFor(s.id)}>
+            <span className="q-sheet-name">+ New deliverable</span>
+            <span className="q-sheet-cap">Not in {s.domain?.name ?? 'the catalogue'} yet</span>
+          </button>
         )}
       </div>
     );

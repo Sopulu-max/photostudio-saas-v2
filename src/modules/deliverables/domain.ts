@@ -771,7 +771,9 @@ export async function declareDeliverableVariable(input: {
 
   revalidatePath('/deliverables');
   revalidatePath('/packages');
-  return data as any;
+  /* The same shape the list returns - deliverableId, not deliverable_id - so a
+     caller holding the new one filters it the way it filters the rest. */
+  return rowToVariable(data);
 }
 
 export async function removeDeliverableVariable(variableId: string) {

@@ -1266,6 +1266,30 @@ export async function declareServiceDeliverable(input: {
   return { id: deliverableId, name: (stored?.name as string) ?? asked, refused };
 }
 
+/*
+ * A QUESTION ON WHAT THE SERVICE PRODUCES, THROUGH THE SERVICE.
+ *
+ * Edited video carried no questions - format, kind, length - so a package
+ * promising it could say nothing more than "1 edited video". Its page could
+ * declare them, but the package editor could not, and that is where the
+ * studio finds out it needs them. A package does not write to the deliverables
+ * module; it tells the service, and the service checks the deliverable is one
+ * it produces before the kind's owner records the question. The question is
+ * the deliverable's (variables.deliverable_id): every package promising it,
+ * through any service, is asked.
+ */
+export async function declareServiceDeliverableVariable(input: {
+  serviceId: string;
+  deliverableId: string;
+  variable: { label: string; kind?: string; unit?: string | null; options?: string[] };
+}) {
+  const produced = await listDeliverableIdsForServices([input.serviceId]);
+  if (!produced.includes(input.deliverableId)) {
+    throw new Error('That service does not produce this deliverable.');
+  }
+  return declareDeliverableVariable({ deliverableId: input.deliverableId, variable: input.variable });
+}
+
 export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 

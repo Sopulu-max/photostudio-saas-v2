@@ -291,7 +291,7 @@ export function NewDeliverableForm({
               />
             </div>
 
-            {already.length > 0 && (
+            {!embedded && already.length > 0 && (
               <div className="q-field">
                 <span className="q-label">{domainName} already produces</span>
                 <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>

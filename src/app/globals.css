@@ -2702,6 +2702,48 @@ body::before {
 }
 
 /*
+ * THE CATALOGUE, CLICK TO TAKE.
+ *
+ * A package's deliverables, per service: every kind the domain produces as a
+ * tile, and the ones this package promises open across the row with their
+ * quantity and what they need settling. A closed tile is a button - one click
+ * takes it - so it is drawn like a sheet tile, not like a form control.
+ * minmax(12rem) because a name and a caption need less room than a photograph.
+ */
+.q-take-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.q-take {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  text-align: left;
+  padding: 14px 16px;
+  font: inherit;
+  color: inherit;
+  background: var(--q-color-paper-elevated);
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 12px;
+  box-shadow: var(--q-shadow-sm);
+  cursor: pointer;
+  transition: transform var(--q-dur-3) var(--q-ease), box-shadow var(--q-dur-4) var(--q-ease), border-color var(--q-dur-3) var(--q-ease);
+}
+.q-take:hover:not(:disabled) { transform: translateY(-3px); box-shadow: var(--q-shadow-md); }
+.q-take:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+.q-take:disabled { cursor: default; opacity: 0.6; }
+.q-take-new { border-style: dashed; background: transparent; box-shadow: none; }
+.q-take-open {
+  grid-column: 1 / -1;
+  cursor: default;
+  border-color: var(--q-color-accent);
+  display: flex;
+}
+.q-take-open:hover { transform: none; box-shadow: var(--q-shadow-sm); }
+
+/*
  * THE SHEET, TILED. Cards view.
  *
  * Two ways to look at one list: the sheet, one column, for scanning down; and

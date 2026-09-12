@@ -42,7 +42,8 @@ export function DeclaredQuestions({
   questions: DeclaredQuestion[];
   onChange: (next: DeclaredQuestion[]) => void;
   disabled?: boolean;
-  emptyHint?: string;
+  /** null: the caller draws what exists; this control only adds. */
+  emptyHint?: string | null;
 }) {
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState('');
@@ -79,7 +80,7 @@ export function DeclaredQuestions({
 
   return (
     <div className="q-stack q-stack-sm">
-      {questions.length === 0 && (
+      {questions.length === 0 && emptyHint !== null && (
         <p className="q-meta-sm">
           {emptyHint ?? 'Nothing yet. If this has a size, a length, a material or anything else that changes from one package to the next, say so once and every package promising it is asked.'}
         </p>
