@@ -237,6 +237,7 @@ function shapeServiceDimensions(row: any): ServiceDimensionTag[] {
 import {
   findOrCreateDeliverableNamed, setDeliverablesForService, copyDeliverablesBetweenServices,
   attachDeliverableToService, listDeliverableIdsForServices,
+  updateDeliverableConfig, declareDeliverableVariable,
 } from '@/modules/deliverables/domain';
 
 type Facet = { id: string; name: string; position: number };
@@ -1188,7 +1189,21 @@ export async function declareServiceVariable(input: {
 export async function declareServiceDeliverable(input: {
   serviceId: string;
   name: string;
-}): Promise<{ id: string; name: string } | null> {
+  /*
+   * THE WHOLE DECLARATION, THROUGH THE SERVICE.
+   *
+   * A package building itself can say "this service now produces X, counted
+   * in Y, needing Z settled" - and it says it HERE, to the service, not to
+   * the deliverables module. This module owns "what a service produces"; the
+   * deliverables module owns the kind. So this door takes all of it and has
+   * the owner of each part write it: find-or-create the kind in the service's
+   * domain and attach it, then the unit, then each question. A package that
+   * wrote to the catalogue directly would be a package defining a deliverable
+   * with no service behind it, and therefore no workflow behind it.
+   */
+  unit?: string | null;
+  questions?: { label: string; kind?: string; unit?: string | null; options?: string[] }[];
+}): Promise<{ id: string; name: string; refused: string[] } | null> {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
   const asked = (input.name || '').trim();
@@ -1215,6 +1230,24 @@ export async function declareServiceDeliverable(input: {
   });
   const deliverableId = stored.id;
 
+  /* A unit typed here lands on the kind either way - the same rule the
+     deliverables module's own form keeps, since find-or-create may have
+     handed back an existing row that never had one. */
+  if (input.unit?.trim()) {
+    await updateDeliverableConfig(deliverableId, { default_unit: input.unit.trim() });
+  }
+  /* Each question in turn. A failure does not lose the deliverable - it is
+     already made and attached - so the refused are reported, not thrown. */
+  const refused: string[] = [];
+  for (const q of input.questions ?? []) {
+    try {
+      await declareDeliverableVariable({ deliverableId, variable: q });
+    } catch (e) {
+      console.error(`Could not declare "${q.label}" on ${asked}:`, e);
+      refused.push(q.label);
+    }
+  }
+
   await logEvent({
     organizationId: orgId,
     entityType: 'service',
@@ -1229,7 +1262,7 @@ export async function declareServiceDeliverable(input: {
   revalidatePath('/packages');
   revalidatePath('/deliverables');
 
-  return { id: deliverableId, name: (stored?.name as string) ?? asked };
+  return { id: deliverableId, name: (stored?.name as string) ?? asked, refused };
 }
 
 export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {

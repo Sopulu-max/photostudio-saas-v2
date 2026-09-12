@@ -20,6 +20,7 @@ import { PickMany, PickToAdd } from '@/components/Pick';
 // The same narrowing the catalogues do. A picker differs only in excluding
 // what is chosen and bounding what it draws, and both are arguments.
 import { CatalogFilter } from '@/components/CatalogFilter';
+import { NewDeliverableForm } from '../../deliverables/new/NewDeliverableForm';
 import { PackageCovers, type Slide } from './PackageCovers';
 import { addPackageImage, type PackageImage } from '@/modules/packages/interface';
 import { Counted } from '@/components/Counted';
@@ -280,7 +281,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
 
   const [declaringFor, setDeclaringFor] = useState<string | null>(null);
   const [newOutputFor, setNewOutputFor] = useState<string | null>(null);
-  const [newOutputName, setNewOutputName] = useState('');
+  /* Questions of deliverables declared here since the page loaded. */
+  const [deliverableVars, setDeliverableVars] = useState<any[]>([]);
   const [newVar, setNewVar] = useState<{ label: string; kind: string; unit: string; options: string }>(
     { label: '', kind: 'number', unit: '', options: '' },
   );
@@ -1303,7 +1305,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     const catalogueForReuse = (allDeliverables as any[])
       .filter((d) => (!domainId || d.serviceDomainId === domainId)
         && !produces.some((p: any) => p.id === d.id));
-    const ownQuestions = (id: string) => allVariables.filter((v: any) => v.deliverableId === id);
+    const ownQuestions = (id: string) => [
+      ...allVariables.filter((v: any) => v.deliverableId === id),
+      ...deliverableVars.filter((v: any) => v.deliverableId === id && !allVariables.some((a: any) => a.id === v.id)),
+    ];
     const specOf = (id: string) => Object.fromEntries(
       ownQuestions(id)
         .filter((v: any) => answeredBy[v.id] === 'studio' && (variableValues[v.id] ?? '') !== '')
@@ -1397,36 +1402,37 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           * service delivering it is stated, because that is what ties the
           * output to the work that produces it.
           */}
-        {newOutputFor === s.id ? (
+        {newOutputFor === s.id && s.domain?.id ? (
           <div className="q-tile q-stack q-stack-sm">
-            <div className="q-field">
-              <label className="q-label">Deliverable</label>
-              <input
-                className="q-input"
-                list={`catalogue-${s.id}`}
-                value={newOutputName}
-                disabled={isPending}
-                onChange={(e) => setNewOutputName(e.target.value)}
-                placeholder="e.g. Album"
-              />
-              <datalist id={`catalogue-${s.id}`}>
-                {catalogueForReuse.map((d: any) => <option key={d.id} value={d.name} />)}
-              </datalist>
-            </div>
-            <span className="q-meta-sm">Delivered by {s.name}. An existing deliverable of this name is reused; a new name is added to the catalogue.</span>
-            <div className="q-row">
-              <button type="button" className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending}
-                disabled={isPending || !newOutputName.trim()}
-                onClick={() => { declareOutput(s.id, newOutputName); setNewOutputName(''); setNewOutputFor(null); }}>
-                {isPending ? 'Adding…' : 'Add'}
-              </button>
-              <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending}
-                onClick={() => { setNewOutputFor(null); setNewOutputName(''); }}>Cancel</button>
-            </div>
+            <span className="q-meta-sm">New deliverable, delivered by <strong className="q-strong">{s.name}</strong>. It joins the catalogue in {s.domain?.name} and is declared on this service.</span>
+            {/* The deliverables module's own form - name, what one is counted
+                in, what it needs settling - with the domain fixed by the
+                service. On success it is declared on the service and promised
+                here, and its questions are fetched so they appear on the
+                promise row at once. */}
+            <NewDeliverableForm
+              domains={[{ id: s.domain.id, name: s.domain.name }]}
+              fixedDomainId={s.domain.id}
+              forServiceId={s.id}
+              existingByDomain={{ [s.domain.name]: catalogueForReuse.map((d: any) => ({ id: d.id, name: d.name })) }}
+              onCreated={async (made) => {
+                /* Already declared on the service by the submit; here it is
+                   promised on this package and its questions fetched so they
+                   appear on the promise row at once. */
+                setNewOutputFor(null);
+                setDeclaredOutputs((prev) =>
+                  prev.some((d) => d.id === made.id && d.serviceId === s.id) ? prev : [...prev, { ...made, serviceId: s.id }]);
+                addPromise(s.id, made.id);
+                const { listVariablesForDeliverables } = await import('@/modules/deliverables/interface');
+                const qs = await listVariablesForDeliverables([made.id]);
+                setDeliverableVars((prev) => [...prev.filter((v) => v.deliverableId !== made.id), ...qs]);
+              }}
+              onCancel={() => setNewOutputFor(null)}
+            />
           </div>
         ) : (
           <div>
-            <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending} onClick={() => setNewOutputFor(s.id)}>
+            <button type="button" className="q-btn q-btn-secondary q-btn-sm" disabled={isPending || !s.domain?.id} onClick={() => setNewOutputFor(s.id)}>
               New deliverable
             </button>
           </div>

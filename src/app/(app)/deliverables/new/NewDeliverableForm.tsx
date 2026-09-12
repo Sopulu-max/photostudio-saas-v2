@@ -34,17 +34,44 @@ export function NewDeliverableForm({
   domains,
   existingByDomain,
   suggestions,
+  fixedDomainId,
+  forServiceId,
+  onCreated,
+  onCancel,
 }: {
   domains: { id: string; name: string }[];
   /** What each domain already holds, so a near-duplicate is visible before it is typed. */
   existingByDomain: Record<string, { id: string; name: string }[]>;
   suggestions?: Narrowed;
+  /*
+   * EMBEDDED IN ANOTHER FORM.
+   *
+   * The package editor lets a studio declare a new output on a service while
+   * building a package, and it must be THIS form - name, what one is counted
+   * in, what it needs settling - rather than a thinner copy that asked for a
+   * name alone. Embedded, the domain is the service's and is not chosen; only
+   * a deliverable can be made, not a container; success is reported to the
+   * caller instead of navigating away; and the sections are groups rather
+   * than cards, since the caller's page owns the cards.
+   */
+  fixedDomainId?: string;
+  /*
+   * Declared on a SERVICE, not into the catalogue. When a service is named,
+   * the form submits through the services module - "this service produces
+   * this" - and that module has the deliverables module make the kind. The
+   * package editor uses it this way; nothing a package does writes to the
+   * deliverables module directly.
+   */
+  forServiceId?: string;
+  onCreated?: (made: { id: string; name: string }) => void;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
+  const embedded = Boolean(fixedDomainId);
   const [kind, setKind] = useState<Kind>('deliverable');
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
-  const [domainId, setDomainId] = useState(domains[0]?.id ?? '');
+  const [domainId, setDomainId] = useState(fixedDomainId ?? domains[0]?.id ?? '');
   /*
    * What it needs settling, collected here and written once the row exists.
    *
@@ -58,9 +85,19 @@ export function NewDeliverableForm({
   const domainName = domains.find((d) => d.id === domainId)?.name ?? '';
   const already = existingByDomain[domainName] ?? [];
 
-  /* The library's and this studio's own, minus what the domain already has. */
-  const options = narrowFor(suggestions, domainName, '')
+  /*
+   * What the box offers. On the module's page: the library's suggestions
+   * minus what the domain already has, because there the point is a new
+   * kind. Declared on a service, the point is usually an EXISTING kind the
+   * service does not yet produce - Event Videography should see every other
+   * Videography deliverable and search it - so the domain's own catalogue
+   * leads, and the library's suggestions follow.
+   */
+  const fromLibrary = narrowFor(suggestions, domainName, '')
     .filter((o) => !already.some((d) => d.name.toLowerCase() === o.toLowerCase()));
+  const options = forServiceId
+    ? [...already.map((d) => d.name), ...fromLibrary]
+    : fromLibrary;
 
   /*
    * Said before submitting, not after.
@@ -84,17 +121,32 @@ export function NewDeliverableForm({
         router.push('/deliverables');
         return;
       }
-      const { id, refused } = await createDeliverableAction({
-        domainId,
-        name: name.trim(),
-        unit: unit.trim() || null,
-        questions: questions.map((q) => ({
-          label: q.label, kind: q.kind, unit: q.unit, options: q.options,
-        })),
-      });
+      const asked = questions.map((q) => ({
+        label: q.label, kind: q.kind, unit: q.unit, options: q.options,
+      }));
+      const { id, refused } = forServiceId
+        ? await (async () => {
+            const { declareServiceDeliverable } = await import('@/modules/services/interface');
+            const made = await declareServiceDeliverable({
+              serviceId: forServiceId, name: name.trim(), unit: unit.trim() || null, questions: asked,
+            });
+            if (!made) throw new Error('That could not be declared on the service.');
+            return { id: made.id, refused: made.refused };
+          })()
+        : await createDeliverableAction({
+            domainId,
+            name: name.trim(),
+            unit: unit.trim() || null,
+            questions: asked,
+          });
       toast.ok(name.trim() + ' added to ' + domainName + '.');
       if (refused.length > 0) {
         toast.bad('Could not declare ' + refused.join(' or ') + '. You can add that on its page.');
+      }
+      if (onCreated) {
+        onCreated({ id, name: name.trim() });
+        setName(''); setUnit(''); setQuestions([]); setSaving(false);
+        return;
       }
       // To the thing just made, where what it needs settling is declared.
       router.push('/deliverables/' + id + '?type=output');
@@ -118,7 +170,8 @@ export function NewDeliverableForm({
   ];
 
   return (
-    <form className="q-form q-stack q-stack-lg" onSubmit={submit}>
+    <form className={embedded ? 'q-form q-stack q-stack-md' : 'q-form q-stack q-stack-lg'} onSubmit={submit}>
+      {!embedded && (
       <div className="q-card q-section">
         <h2 className="q-section-title">Type</h2>
         <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
@@ -145,9 +198,10 @@ export function NewDeliverableForm({
           ))}
         </div>
       </div>
+      )}
 
-      <div className="q-card q-section q-stack q-stack-md">
-        {kind === 'deliverable' && (
+      <div className={embedded ? 'q-stack q-stack-md' : 'q-card q-section q-stack q-stack-md'}>
+        {kind === 'deliverable' && !embedded && (
           <div className="q-field">
             <label className="q-label">Domain</label>
             <select
@@ -188,8 +242,10 @@ export function NewDeliverableForm({
           )}
 
           {clash && (
-            <span className="q-meta-sm q-warm">
-              {domainName} already produces {clash.name}. Adding this will use that one.
+            <span className={forServiceId ? 'q-meta-sm' : 'q-meta-sm q-warm'}>
+              {forServiceId
+                ? `${clash.name} is already in ${domainName}. It will be declared on this service as it is.`
+                : `${domainName} already produces ${clash.name}. Adding this will use that one.`}
             </span>
           )}
         </div>
@@ -262,7 +318,7 @@ export function NewDeliverableForm({
           type="button"
           className="q-btn q-btn-secondary"
           disabled={saving}
-          onClick={() => router.push('/deliverables')}
+          onClick={() => (onCancel ? onCancel() : router.push('/deliverables'))}
         >
           Cancel
         </button>
