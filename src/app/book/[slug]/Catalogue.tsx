@@ -8,6 +8,7 @@ import { CoverSlides } from '@/components/CoverSlides';
 // A count, set apart from the thing being counted — the same component the
 // studio's own catalogue uses, so a package reads the same to both.
 import { Counted } from '@/components/Counted';
+import { shopWindowsOf, windowHref } from '@/modules/packages/windows';
 
 type Money = { amount: number; currency: string | null };
 
@@ -22,7 +23,9 @@ type CataloguePackage = {
   images?: { url: string; position: string | null }[];
   price: Money | null;
   price_unit: string | null;
-  services: { id: string; name: string }[];
+  services: { id: string; name: string; domain?: { id: string; name: string } | null }[];
+  /** The shop window it stands in — its lead service's domain. See modules/packages/windows. */
+  window?: { id: string; name: string } | null;
   deliverables?: { id: string; name: string; quantity: number | null }[];
   dimensions?: { valueId: string; valueName: string; dimensionId: string; dimensionName: string }[];
 };
@@ -48,11 +51,17 @@ type CataloguePackage = {
  * classification.
  */
 export function Catalogue({
-  packages, slug, currencyCode,
+  packages, slug, currencyCode, only,
 }: {
   packages: CataloguePackage[];
   slug: string;
   currencyCode: string | null;
+  /**
+   * One shop window, when the studio handed out that window's own link.
+   * The page has already narrowed `packages` to it; this is so the head can
+   * say which window this is and offer the way back to the whole catalogue.
+   */
+  only?: { id: string; name: string } | null;
 }) {
   /** Chosen dimension values, by value id. */
   const [activeValues, setActiveValues] = useState<Set<string>>(new Set());
@@ -143,74 +152,20 @@ export function Catalogue({
   const hasFilters = dimensionRows.length > 0 || serviceRow.length > 1;
   const narrowed = activeValues.size > 0 || activeServices.size > 0;
 
-  return (
-    <>
-      {hasFilters && (
-        <div style={{ marginBottom: '28px' }}>
-          <div className="q-facts">
-            {dimensionRows.map((dim) => (
-              <div key={dim.id} className="q-fact-group">
-                <span className="q-eyebrow">{dim.name}</span>
-                <span className="q-fact-values">
-                  {dim.values.map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      aria-pressed={activeValues.has(v.id)}
-                      className={activeValues.has(v.id) ? 'q-fact q-fact-pick q-fact-on' : 'q-fact q-fact-pick'}
-                      onClick={() => toggle(activeValues, setActiveValues, v.id)}
-                    >
-                      {v.name}
-                    </button>
-                  ))}
-                </span>
-              </div>
-            ))}
+  /*
+   * TWO SHOP WINDOWS, ONE CATALOGUE.
+   *
+   * A studio that photographs and prints has two businesses in one page, and
+   * a portrait session and a framed print are not the same kind of thing to
+   * choose between. When more than one window has something in it, each is
+   * headed by its domain's name and can be handed out alone; when only one
+   * has, the heading would say what the whole page already says, and goes.
+   */
+  const windows = useMemo(() => shopWindowsOf(packages), [packages]);
+  const grouped = !only && windows.length > 1;
+  const unwindowed = shown.filter((p) => !p.window);
 
-            {serviceRow.length > 1 && (
-              <div className="q-fact-group">
-                <span className="q-eyebrow">Service</span>
-                <span className="q-fact-values">
-                  {serviceRow.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-pressed={activeServices.has(s.id)}
-                      className={activeServices.has(s.id) ? 'q-fact q-fact-pick q-fact-on' : 'q-fact q-fact-pick'}
-                      onClick={() => toggle(activeServices, setActiveServices, s.id)}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {narrowed && (
-            <button
-              type="button"
-              className="q-btn q-btn-ghost q-btn-sm"
-              style={{ marginTop: '12px' }}
-              onClick={() => { setActiveValues(new Set()); setActiveServices(new Set()); }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Said plainly, and only when it is true. A narrowing that matches
-          nothing is a normal outcome, not an error — the door below is the
-          answer to it. */}
-      {narrowed && shown.length === 0 && (
-        <p className="q-meta" style={{ marginBottom: '16px' }}>
-          No package matches all of that.
-        </p>
-      )}
-
-      <div className="q-poster-grid q-poster-grid-lg">
-        {shown.map((pkg, index) => {
+  const card = (pkg: CataloguePackage, index: number) => {
           const cover = pkg.cover_url;
           const note = pkg.short_description
             || (pkg.description
@@ -292,8 +247,122 @@ export function Catalogue({
               {note && <span className="q-poster-note">{note}</span>}
             </Link>
           );
-        })}
+        };
 
+  return (
+    <>
+      {hasFilters && (
+        <div style={{ marginBottom: '28px' }}>
+          <div className="q-facts">
+            {dimensionRows.map((dim) => (
+              <div key={dim.id} className="q-fact-group">
+                <span className="q-eyebrow">{dim.name}</span>
+                <span className="q-fact-values">
+                  {dim.values.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      aria-pressed={activeValues.has(v.id)}
+                      className={activeValues.has(v.id) ? 'q-fact q-fact-pick q-fact-on' : 'q-fact q-fact-pick'}
+                      onClick={() => toggle(activeValues, setActiveValues, v.id)}
+                    >
+                      {v.name}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            ))}
+
+            {serviceRow.length > 1 && (
+              <div className="q-fact-group">
+                <span className="q-eyebrow">Service</span>
+                <span className="q-fact-values">
+                  {serviceRow.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-pressed={activeServices.has(s.id)}
+                      className={activeServices.has(s.id) ? 'q-fact q-fact-pick q-fact-on' : 'q-fact q-fact-pick'}
+                      onClick={() => toggle(activeServices, setActiveServices, s.id)}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {narrowed && (
+            <button
+              type="button"
+              className="q-btn q-btn-ghost q-btn-sm"
+              style={{ marginTop: '12px' }}
+              onClick={() => { setActiveValues(new Set()); setActiveServices(new Set()); }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Said plainly, and only when it is true. A narrowing that matches
+          nothing is a normal outcome, not an error — the door below is the
+          answer to it. */}
+      {narrowed && shown.length === 0 && (
+        <p className="q-meta" style={{ marginBottom: '16px' }}>
+          No package matches all of that.
+        </p>
+      )}
+
+      {grouped ? (
+        <>
+          {windows.map((w) => {
+            const list = shown.filter((p) => p.window?.id === w.id);
+            if (list.length === 0) return null;
+            return (
+              <section key={w.id} className="q-window" aria-label={w.name}>
+                <div className="q-window-head">
+                  <h2 className="q-window-title">{w.name}</h2>
+                  <span className="q-row q-row-sm">
+                    <span className="q-window-count">{list.length === 1 ? '1 package' : `${list.length} packages`}</span>
+                    <Link href={windowHref(slug, w.id)} className="q-window-only">Only this</Link>
+                  </span>
+                </div>
+                <div className="q-poster-grid q-poster-grid-lg">
+                  {list.map((pkg, index) => card(pkg, index))}
+                </div>
+              </section>
+            );
+          })}
+          {/* A package whose lead service has no domain yet stands in no window.
+              Shown rather than hidden — the studio made it visible — under no
+              heading, because no name would be true. */}
+          {unwindowed.length > 0 && (
+            <section className="q-window">
+              <div className="q-poster-grid q-poster-grid-lg">
+                {unwindowed.map((pkg, index) => card(pkg, index))}
+              </div>
+            </section>
+          )}
+        </>
+      ) : (
+        <section className="q-window" aria-label={only?.name}>
+          {/* One window, handed out alone. Headed with its name so the page
+              says what it is, and with the way back to everything else. */}
+          {only && (
+            <div className="q-window-head">
+              <h2 className="q-window-title">{only.name}</h2>
+              <Link href={`/book/${slug}`} className="q-window-only">Everything the studio offers</Link>
+            </div>
+          )}
+          <div className="q-poster-grid q-poster-grid-lg">
+            {shown.map((pkg, index) => card(pkg, index))}
+          </div>
+        </section>
+      )}
+
+      <div className="q-poster-grid q-poster-grid-lg">
         {/*
           * The way in for work the studio has not packaged.
           *

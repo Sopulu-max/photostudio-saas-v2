@@ -5,6 +5,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { revalidatePath } from 'next/cache';
 import { rowToVariable, type ServiceVariable, type ServiceVariableInput } from './variableTypes';
+import { normaliseOptions } from './fieldTypes';
 import { findByName } from '@/kernel/naming';
 // One definition of what a deliverable link looks like, shared by every reader.
 import { SERVICE_OFFERS } from '@/modules/deliverables/shape';
@@ -950,7 +951,7 @@ export async function declareDimensionVariable(input: {
       label,
       kind: input.variable.kind || 'text',
       unit: (input.variable.unit || '').trim() || null,
-      options: input.variable.options || [],
+      options: normaliseOptions(input.variable.kind || 'text', input.variable.options),
       default_value: input.variable.defaultValue ?? null,
       min_value: input.variable.min ?? null,
       max_value: input.variable.max ?? null,
@@ -1120,7 +1121,7 @@ export async function declareServiceVariable(input: {
       label,
       kind: input.variable.kind || 'number',
       unit: (input.variable.unit || '').trim() || null,
-      options: input.variable.options || [],
+      options: normaliseOptions(input.variable.kind || 'number', input.variable.options),
       default_value: input.variable.defaultValue ?? null,
       min_value: input.variable.min ?? null,
       max_value: input.variable.max ?? null,
@@ -1299,7 +1300,7 @@ export async function setServiceVariables(input: { serviceId: string; variables:
       label: v.label,
       kind: v.raw.kind || 'number',
       unit: (v.raw.unit || '').trim() || null,
-      options: v.raw.options || [],
+      options: normaliseOptions(v.raw.kind || 'number', v.raw.options),
       default_value: v.raw.defaultValue ?? null,
       min_value: v.raw.min ?? null,
       max_value: v.raw.max ?? null,

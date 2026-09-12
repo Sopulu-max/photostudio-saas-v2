@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SERVICE_VARIABLE_KINDS, variableKindLabel } from '@/modules/services/variableTypes';
+import { SERVICE_VARIABLE_KINDS, variableKindLabel, variableNeedsOptions, describeSize } from '@/modules/services/interface';
+import type { ServiceVariableKind } from '@/modules/services/interface';
 import { ConfirmButton } from '@/components/ConfirmButton';
 
 export type DeclaredQuestion = {
@@ -60,9 +61,11 @@ export function DeclaredQuestions({
       label: clean,
       kind,
       unit: unit.trim() || null,
-      // Only a choice has answers to list; carrying them onto a text field
-      // would leave them in the row saying nothing.
-      options: (kind === 'choice' || kind === 'multichoice')
+      // Only a kind with answers has answers to list; carrying them onto a
+      // text field would leave them in the row saying nothing. Sizes are
+      // typed as '16x20' and settled to one spelling on the way in, by the
+      // registry rather than here.
+      options: variableNeedsOptions(kind as ServiceVariableKind)
         ? options.split(',').map((o) => o.trim()).filter(Boolean)
         : [],
     }]);
@@ -71,7 +74,8 @@ export function DeclaredQuestions({
 
   const remove = (i: number) => onChange(questions.filter((_, idx) => idx !== i));
 
-  const wantsOptions = kind === 'choice' || kind === 'multichoice';
+  const wantsOptions = variableNeedsOptions(kind as ServiceVariableKind);
+  const isSize = kind === 'size';
 
   return (
     <div className="q-stack q-stack-sm">
@@ -86,10 +90,14 @@ export function DeclaredQuestions({
           <span>
             <span className="q-meta-plain">{q.label}</span>
             {q.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({q.unit})</span>}
-            {q.options.length > 0 && <div className="q-meta-sm">{q.options.join(' · ')}</div>}
+            {q.options.length > 0 && (
+              <div className="q-meta-sm">
+                {q.options.map((o) => (q.kind === 'size' ? describeSize(o, q.unit) : o)).join(' · ')}
+              </div>
+            )}
           </span>
           <span className="q-row q-row-sm">
-            <span className="q-meta-sm">{variableKindLabel(q.kind as any)}</span>
+            <span className="q-meta-sm">{variableKindLabel(q.kind as ServiceVariableKind)}</span>
             <ConfirmButton
               className="q-btn-ghost q-btn-xs"
               disabled={disabled}
@@ -141,7 +149,7 @@ export function DeclaredQuestions({
               <input
                 className="q-input q-input-sm"
                 value={unit}
-                placeholder="inch, page"
+                placeholder={isSize ? 'in, cm' : 'inch, page'}
                 disabled={disabled}
                 onChange={(e) => setUnit(e.target.value)}
               />
@@ -154,12 +162,14 @@ export function DeclaredQuestions({
               <input
                 className="q-input q-input-sm"
                 value={options}
-                placeholder="Softcopy, Hardcopy"
+                placeholder={isSize ? '8x10, 11x14, 16x20' : 'Softcopy, Hardcopy'}
                 disabled={disabled}
                 onChange={(e) => setOptions(e.target.value)}
               />
               <span className="q-meta-sm">
-                Separated by commas. A service can later say it only does some of them.
+                {isSize
+                  ? 'Separated by commas, width by height. Drawn to scale for the client; a service can later say it only does some of them.'
+                  : 'Separated by commas. A service can later say it only does some of them.'}
               </span>
             </div>
           )}

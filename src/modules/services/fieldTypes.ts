@@ -25,7 +25,24 @@ export type FieldTypeKey =
   | 'choice'
   | 'multichoice'
   | 'boolean'
-  | 'url';
+  | 'url'
+  /*
+   * Two shapes the print shop needed and every domain gets.
+   *
+   * `size` — width × height in the variable's unit, chosen from sizes the
+   * studio declares. A choice with options like '16x20' could be read out but
+   * not drawn or compared, and reading '16x20' as two numbers would have been
+   * the inference from a name that 20261020000000 forbids. So it is a shape:
+   * one canonical spelling the engine writes, parsed by one module wherever
+   * it is read. See sizes.ts.
+   *
+   * `file` — something the client hands over: the picture to be printed, a
+   * brief, a reference. Stored as the path the server put it at, never the
+   * bytes. A question only: a package cannot fix a file and a service cannot
+   * vary one, so variableTypes leaves it off the list a variable may take.
+   */
+  | 'size'
+  | 'file';
 
 /** A question as the studio configured it. `id` is immutable — answers key off it. */
 export type IntakeQuestion = {
@@ -56,7 +73,27 @@ export type FieldTypeDef = {
   display: (value: unknown) => string;
 };
 
+import { normaliseSize, parseSize, describeSize } from './sizes';
+
 const isBlank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+
+/**
+ * Where the server puts what a visitor hands over: intake/<org>/<file>.
+ *
+ * The prefix is the whole of what a `file` answer may claim to be. A path
+ * anywhere else — another bucket, another studio's folder, a URL — is not
+ * something this form issued, and is refused before it is stored.
+ */
+export const INTAKE_PREFIX = 'intake/';
+export const isIntakePath = (v: unknown) =>
+  typeof v === 'string' && v.startsWith(INTAKE_PREFIX) && !v.includes('..') && v.length > INTAKE_PREFIX.length + 1;
+
+/** The name a stored path reads back as — the last segment, minus the id the server prefixed. */
+const fileNameOf = (path: string) => {
+  const last = path.split('/').pop() || path;
+  // The server writes <uuid>-<original name>; the id is for uniqueness, not for reading.
+  return last.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '');
+};
 
 const requiredCheck = (value: unknown, q: IntakeQuestion) =>
   q.required && isBlank(value) ? `${q.label} is required.` : null;
@@ -183,9 +220,59 @@ export const FIELD_TYPES: Record<FieldTypeKey, FieldTypeDef> = {
     },
     display: (v) => (isBlank(v) ? '—' : String(v)),
   },
+
+  size: {
+    key: 'size',
+    label: 'Size',
+    hint: 'A print size, a page format — width × height',
+    needsOptions: true,
+    validate: (v, q) => {
+      const req = requiredCheck(v, q);
+      if (req) return req;
+      if (isBlank(v)) return null;
+      // Compared in canonical form, so '16x20' typed by a client matches the
+      // '16×20' the studio declared.
+      const chosen = normaliseSize(String(v));
+      const declared = (q.options || []).map(normaliseSize);
+      if (!declared.includes(chosen)) return `${q.label}: that isn't one of the sizes offered.`;
+      return parseSize(chosen) ? null : `${q.label} should be a size like 16×20.`;
+    },
+    store: (v) => (isBlank(v) ? null : normaliseSize(String(v))),
+    display: (v) => (isBlank(v) ? '—' : describeSize(v)),
+  },
+
+  file: {
+    key: 'file',
+    label: 'File',
+    hint: 'A picture to print, a brief, a reference',
+    needsOptions: false,
+    validate: (v, q) => {
+      const req = requiredCheck(v, q);
+      if (req) return req;
+      if (isBlank(v)) return null;
+      return isIntakePath(v) ? null : `${q.label}: that file did not upload. Try again.`;
+    },
+    store: (v) => (isBlank(v) ? null : String(v)),
+    display: (v) => (isBlank(v) ? '—' : fileNameOf(String(v))),
+  },
 };
 
 export const FIELD_TYPE_LIST = Object.values(FIELD_TYPES);
+
+/**
+ * A declared option, in the form the engine stores it.
+ *
+ * Five places write a variable's options and one place must decide what an
+ * option looks like once written — otherwise a size typed '16x20' on the
+ * deliverable page and '16 × 20' on the service page are two options that
+ * mean one thing and compare as different strings. Every kind but size is
+ * left as typed, trimmed; empties go.
+ */
+export function normaliseOptions(kind: string, options: unknown): string[] {
+  const list = Array.isArray(options) ? options.map((o) => String(o).trim()).filter(Boolean) : [];
+  if (kind !== 'size') return list;
+  return [...new Set(list.map(normaliseSize))];
+}
 
 export function fieldType(key: string): FieldTypeDef {
   return FIELD_TYPES[key as FieldTypeKey] ?? FIELD_TYPES.text;

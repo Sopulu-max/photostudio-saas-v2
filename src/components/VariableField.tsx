@@ -3,6 +3,7 @@
 import React from 'react';
 import { variableIsNumeric } from '@/modules/services/variableTypes';
 import type { ServiceVariableKind } from '@/modules/services/variableTypes';
+import { SizePicker } from '@/components/SizePicker';
 
 /**
  * One widget for one variable, whatever shape it is.
@@ -56,6 +57,14 @@ export function VariableField({
   width?: string;
 }) {
   const single = Array.isArray(value) ? (value[0] ?? '') : value;
+
+  if (kind === 'size') {
+    // Drawn, not listed: the choice between sizes is a choice between areas,
+    // and a dropdown of number pairs hides exactly that. See SizePicker.
+    return (
+      <SizePicker options={options} value={single} onChange={onChange} unit={unit} disabled={disabled} />
+    );
+  }
 
   if (kind === 'choice') {
     return (

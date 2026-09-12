@@ -1,7 +1,21 @@
 import { notFound } from 'next/navigation';
-import { listPackagesPublicWithDimensions } from '@/modules/packages/interface';
+import { listPackagesPublicWithDimensions, shopWindowsOf, inWindow } from '@/modules/packages/interface';
 import { getStudioBySlug } from '@/kernel/organizations';
 import { Catalogue } from './Catalogue';
+
+type Search = Promise<{ in?: string | string[] }>;
+
+/** The window a link asked for — only when it is one this studio actually has. */
+async function windowAskedFor(orgId: string, searchParams: Search | undefined) {
+  const sp = (await searchParams) || {};
+  const id = Array.isArray(sp.in) ? sp.in[0] : sp.in;
+  if (!id) return { packages: await listPackagesPublicWithDimensions(orgId), only: null };
+  const packages = await listPackagesPublicWithDimensions(orgId);
+  const w = shopWindowsOf(packages).find((x) => x.id === id) || null;
+  // A window that no longer has anything in it falls back to the whole
+  // catalogue rather than an empty page: the link is old, not wrong.
+  return { packages: w ? inWindow(packages, w.id) : packages, only: w ? { id: w.id, name: w.name } : null };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -14,20 +28,26 @@ export const dynamic = 'force-dynamic';
  * business. A studio sending a client to its own shop window should not be
  * advertising its supplier.
  */
-export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }>; searchParams?: Search }) {
   const params = await props.params;
   const org = await getStudioBySlug(params.slug);
   if (!org) return { title: 'Not found' };
 
   const meta = (org.metadata || {}) as Record<string, any>;
   const image = meta.cover_url || meta.logo_url || null;
-  const description = `Packages available to book with ${org.name}.`;
+  // A window's link previews as that window — "Glamour — Printing" — so a
+  // client sent to the print shop sees the print shop.
+  const { only } = await windowAskedFor(org.id, props.searchParams);
+  const title = only ? `${org.name} — ${only.name}` : org.name;
+  const description = only
+    ? `${only.name} packages available to book with ${org.name}.`
+    : `Packages available to book with ${org.name}.`;
 
   return {
-    title: org.name,
+    title,
     description,
     openGraph: {
-      title: org.name,
+      title,
       description,
       siteName: org.name,
       type: 'website' as const,
@@ -35,7 +55,7 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
     },
     twitter: {
       card: (image ? 'summary_large_image' : 'summary') as 'summary_large_image' | 'summary',
-      title: org.name,
+      title,
       description,
       ...(image ? { images: [image] } : {}),
     },
@@ -64,13 +84,13 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
  * the same loader, so there is one idea of what a package looks like to a
  * client rather than two that drift.
  */
-export default async function StudioCataloguePage(props: { params: Promise<{ slug: string }> }) {
+export default async function StudioCataloguePage(props: { params: Promise<{ slug: string }>; searchParams?: Search }) {
   const params = await props.params;
 
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const packages = await listPackagesPublicWithDimensions(org.id);
+  const { packages, only } = await windowAskedFor(org.id, props.searchParams);
   const meta = org.metadata;
 
   return (
@@ -89,7 +109,7 @@ export default async function StudioCataloguePage(props: { params: Promise<{ slu
             in the studio's first person that this software has no standing to
             write for them. This states what the page is. */}
         <p className="q-page-subtitle" style={{ margin: '12px auto 0', maxWidth: '480px' }}>
-          Packages available to book.
+          {only ? `${only.name} packages available to book.` : 'Packages available to book.'}
         </p>
       </header>
 
@@ -103,6 +123,7 @@ export default async function StudioCataloguePage(props: { params: Promise<{ slu
             packages={packages as any}
             slug={params.slug}
             currencyCode={org.currency}
+            only={only}
           />
         )}
       </main>

@@ -58,10 +58,13 @@ export {
   // The three states a package's variables are actually in. One place,
   // because every surface was deriving two of them and getting it wrong.
   splitVariables,
-  variableKindLabel, variableKindHint, variableNeedsOptions, variableIsNumeric,
+  variableKindLabel, variableKindHint, variableNeedsOptions, variableIsNumeric, variableHasUnit,
 } from './variableTypes';
 export type { ServiceVariable, ServiceVariableInput, ServiceVariableKind, PackageVariableValue,
   VariableAnswer, VariableQuestion } from './variableTypes';
+
+/** A size as a shape: one spelling in storage, drawn to scale wherever it is read. */
+export { parseSize, formatSize, normaliseSize, describeSize, fitSizes, type Size } from './sizes';
 
 export {
   // Intake question field-type registry — shared vocabulary, used wherever a

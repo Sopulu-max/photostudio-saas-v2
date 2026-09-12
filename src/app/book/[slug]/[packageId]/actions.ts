@@ -6,9 +6,23 @@ import {
   getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic,
   instantiatePackageForBooking,
 } from '@/modules/packages/interface';
-import { createBookingFromIntake } from '@/modules/bookings/interface';
+import { createBookingFromIntake, storeIntakeFile } from '@/modules/bookings/interface';
 import { findOrCreateClientPublic } from '@/modules/clients/interface';
 import { validateAnswers, storeAnswers } from '@/modules/services/fieldTypes';
+
+/**
+ * A file the visitor is handing over, sent the moment they choose it.
+ *
+ * Uploaded ahead of the booking rather than with it, so the form can show the
+ * picture back — in the frame, at the size — while they are still deciding.
+ * What comes back is the path the answer will carry; the bytes never travel
+ * through the booking submission itself.
+ */
+export async function uploadIntakeFile(orgId: string, formData: FormData) {
+  const file = formData.get('file');
+  if (!(file instanceof File)) throw new Error('Choose a file to upload.');
+  return storeIntakeFile(orgId, file);
+}
 
 /**
  * Public booking intake — the outside world's way in. A lead is just a booking
@@ -122,6 +136,21 @@ export async function submitBookingForm(
     const firstError = Object.values(errors)[0];
     if (firstError) throw new Error(firstError);
     storedAnswers = storeAnswers(questions, formData.customFields || {});
+
+    /*
+     * A file answer must be one THIS studio's page issued. The registry checks
+     * that it is an intake path at all; only here is the studio known, so only
+     * here can the path be held to that studio's own folder. A path under
+     * another studio's prefix is not an upload gone wrong — it is a claim on
+     * somebody else's storage, and it is refused as such.
+     */
+    for (const q of questions) {
+      if (q.type !== 'file') continue;
+      const v = storedAnswers[q.id];
+      if (v && !String(v).startsWith(`intake/${orgId}/`)) {
+        throw new Error(`${q.label}: that file did not upload. Try again.`);
+      }
+    }
 
     /*
      * A client who came the custom way said something before they matched.

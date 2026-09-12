@@ -364,7 +364,21 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     <strong className="q-strong">{row.label}</strong>
                     {row.removed && <span className="q-meta-sm"> · no longer asked</span>}
                   </div>
-                  <span className="q-meta-plain">{row.value}</span>
+                  {/* A file the client sent opens as itself — the picture to
+                      be printed is read as a picture, not as its file name. */}
+                  {row.attachment ? (
+                    <a href={row.attachment.url} target="_blank" rel="noopener noreferrer" className="q-file q-file-has" style={{ padding: '8px 12px' }}>
+                      {row.attachment.image
+                        ? <img className="q-file-thumb" src={row.attachment.url} alt={row.value} />
+                        : <span className="q-file-thumb" aria-hidden="true" />}
+                      <span className="q-file-body">
+                        <span className="q-file-name">{row.value}</span>
+                        <span className="q-file-hint">Open</span>
+                      </span>
+                    </a>
+                  ) : (
+                    <span className="q-meta-plain">{row.value}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -443,7 +457,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     {heldVars.length > 0 && (
                       <div className="q-meta" style={{ marginTop: '16px' }}>
                         <strong className="q-strong" style={{ marginRight: '4px' }}>Variables:</strong>
-                        {heldVars.map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit })}`).join(', ')}
+                        {heldVars.map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}`).join(', ')}
                       </div>
                     )}
 

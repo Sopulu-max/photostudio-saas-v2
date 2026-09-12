@@ -21,12 +21,21 @@
  */
 
 import { FIELD_TYPES, type FieldTypeKey } from './fieldTypes';
+import { describeSize, normaliseSize } from './sizes';
 
 export type ServiceVariableKind = FieldTypeKey;
 
-/** Every shape a variable can take, in the order a studio should meet them. */
+/**
+ * Every shape a variable can take, in the order a studio should meet them.
+ *
+ * `file` is in the registry and deliberately not here. A variable is what
+ * varies about the work or what needs settling about an output — a thing a
+ * package can FIX. A file is neither: no package fixes the client's picture
+ * in advance. It is a question about one engagement, and questions take any
+ * registry shape without passing through this list.
+ */
 export const SERVICE_VARIABLE_KINDS = [
-  'number', 'choice', 'multichoice', 'boolean', 'text', 'textarea', 'date', 'url',
+  'number', 'size', 'choice', 'multichoice', 'boolean', 'text', 'textarea', 'date', 'url',
 ] as const satisfies readonly FieldTypeKey[];
 
 /** How each shape reads to a studio, borrowed from the registry rather than restated. */
@@ -36,8 +45,14 @@ export const variableKindHint = (kind: ServiceVariableKind) => FIELD_TYPES[kind]
 /** Which kinds need the studio to supply a list of answers. */
 export const variableNeedsOptions = (kind: ServiceVariableKind) => !!FIELD_TYPES[kind]?.needsOptions;
 
-/** Only a number is bounded by min/max, and only a number reads with a unit. */
+/** Only a number is bounded by min/max. */
 export const variableIsNumeric = (kind: ServiceVariableKind) => kind === 'number';
+
+/**
+ * Which shapes read with a unit. A number does — "2 outfits". A size does too,
+ * but once for the pair rather than pluralised: "16 × 20 in", never "16×20 ins".
+ */
+export const variableHasUnit = (kind: ServiceVariableKind) => kind === 'number' || kind === 'size';
 
 export type ServiceVariable = {
   id: string;
@@ -149,16 +164,26 @@ export function parseVariableValue(kind: ServiceVariableKind, raw: unknown): unk
     }
     case 'multichoice':
       return Array.isArray(raw) ? raw.filter(Boolean) : [String(raw)];
+    case 'size':
+      // One spelling in storage, whatever was typed — see sizes.ts.
+      return normaliseSize(String(raw));
     default:
       return String(raw);
   }
 }
 
-/** "2 outfits", "8 hours", "Yes" — how a fixed value reads on a package. */
-export function formatVariableValue(v: { value: unknown; unit: string | null }): string {
+/**
+ * "2 outfits", "8 hours", "16 × 20 in", "Yes" — how a fixed value reads.
+ *
+ * `kind` is optional because most callers hold an answer without its shape,
+ * and for every shape but size the value alone says how to read it. A size
+ * needs the kind to be told not to pluralise its unit.
+ */
+export function formatVariableValue(v: { value: unknown; unit: string | null; kind?: string | null }): string {
   if (v.value === null || v.value === undefined || v.value === '') return '';
   if (typeof v.value === 'boolean') return v.value ? 'Yes' : 'No';
   if (Array.isArray(v.value)) return v.value.join(', ');
+  if (v.kind === 'size') return describeSize(v.value, v.unit);
   const body = String(v.value);
   if (!v.unit) return body;
   // "1 hour", not "1 hours"

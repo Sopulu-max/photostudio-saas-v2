@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { revalidatePath } from 'next/cache';
 import { findByName } from '@/kernel/naming';
+import { normaliseOptions } from '@/modules/services/fieldTypes';
 import { DELIVERABLE_REF } from './shape';
 // A failure keeps the reason it failed — and says so plainly when the reason
 // is that the database was never reached. See kernel/errors.
@@ -755,7 +756,7 @@ export async function declareDeliverableVariable(input: {
       label,
       kind: input.variable.kind || 'text',
       unit: (input.variable.unit || '').trim() || null,
-      options: input.variable.options || [],
+      options: normaliseOptions(input.variable.kind || 'text', input.variable.options),
       default_value: input.variable.defaultValue ?? null,
       min_value: input.variable.min ?? null,
       max_value: input.variable.max ?? null,

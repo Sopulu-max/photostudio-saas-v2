@@ -443,7 +443,7 @@ export async function createInvoiceForBooking(input: {
     const config = await getLineConfiguration(l.id);
     const detail = config
       .filter((c: any) => c.value != null)
-      .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit }))
+      .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit, kind: c.kind }))
       .join(' · ');
     const quantity = Number(l.quantity ?? 1);
     const { amount, unitPrice } = invoiceLineAmount({
