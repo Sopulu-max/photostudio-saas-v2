@@ -58,7 +58,7 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
             takes the logo takes this. */}
         <ImageUpload
           url={coverUrl || null}
-          label="cover"
+          label="cover picture or video"
           aspect="3 / 1"
           maxEdge={2400}
           onUploaded={setCoverUrl}

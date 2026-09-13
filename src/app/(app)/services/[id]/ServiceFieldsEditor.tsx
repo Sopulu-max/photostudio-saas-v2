@@ -342,7 +342,7 @@ export function ServiceFieldsEditor({
             <ImageUpload
               url={coverUrl || null}
               folder="services"
-              label="cover"
+              label="cover picture or video"
               // Twice the widest a cover is ever drawn, which is as much as the
               // densest display can resolve.
               maxEdge={2400}

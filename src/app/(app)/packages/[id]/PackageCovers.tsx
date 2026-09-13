@@ -148,7 +148,7 @@ export function PackageCovers({
 
   return (
     <div className="q-field">
-      <label className="q-label">Pictures</label>
+      <label className="q-label">Pictures & Videos</label>
       <p className="q-meta-sm" style={{ marginBottom: '10px' }}>
         {slides.length === 0
           ? `What the work looks like. Up to ${MAX_PACKAGE_IMAGES}; the first is the cover.`
@@ -164,7 +164,7 @@ export function PackageCovers({
           <ImageUpload
             url={null}
             folder="packages"
-            label="cover"
+            label="cover picture or video"
             maxEdge={2400}
             disabled={disabled || isPending}
             onUploaded={add}
@@ -270,7 +270,7 @@ export function PackageCovers({
             <ImageUpload
               url={null}
               folder="packages"
-              label="picture"
+              label="picture or video"
               maxEdge={2400}
               disabled={disabled || isPending}
               onUploaded={add}
