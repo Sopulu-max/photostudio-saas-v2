@@ -1246,6 +1246,25 @@ function coverOf(images: PackageImage[]) {
  * caller then shapes it exactly as it shapes any package - nothing downstream
  * knows the difference, which is the point.
  */
+function shuffleImagesForMember(images: any[], memberId: string) {
+  if (!images || images.length <= 1) return images;
+  let seedValue = 0;
+  for (let i = 0; i < memberId.length; i++) {
+    seedValue += memberId.charCodeAt(i);
+  }
+  const result = [...images];
+  let currentIndex = result.length;
+  while (currentIndex !== 0) {
+    seedValue = (seedValue * 9301 + 49297) % 233280;
+    const randomIndex = Math.floor((seedValue / 233280) * currentIndex);
+    currentIndex -= 1;
+    const temp = result[currentIndex];
+    result[currentIndex] = result[randomIndex];
+    result[randomIndex] = temp;
+  }
+  return result.map((img, idx) => ({ ...img, sort: idx }));
+}
+
 async function resolveMembers(orgId: string, rows: any[], select: string): Promise<any[]> {
   const members = rows.filter((r) => r?.member_of);
   if (members.length === 0) return rows;
@@ -1266,7 +1285,7 @@ async function resolveMembers(orgId: string, rows: any[], select: string): Promi
       duration_minutes: r.duration_minutes ?? f.duration_minutes ?? null,
       extra_stages: (Array.isArray(r.extra_stages) && r.extra_stages.length ? r.extra_stages : f.extra_stages) ?? [],
       form_schema: (Array.isArray(r.form_schema) && r.form_schema.length ? r.form_schema : f.form_schema) ?? [],
-      package_images: (Array.isArray(r.package_images) && r.package_images.length ? r.package_images : f.package_images) ?? [],
+      package_images: (Array.isArray(r.package_images) && r.package_images.length ? r.package_images : shuffleImagesForMember(f.package_images ?? [], r.id)) ?? [],
       package_services: overlayMember(f.package_services, answers[r.id] || []),
       family: { id: f.id, name: f.name },
     };
