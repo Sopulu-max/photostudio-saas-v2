@@ -7,6 +7,8 @@ import { VariableField } from '@/components/VariableField';
 import { parseVariableValue } from '@/modules/services/variableTypes';
 import { currencySymbol } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
+import { PackageCovers, type Slide } from './PackageCovers';
+import { addPackageImage, type PackageImage } from '@/modules/packages/interface';
 
 /**
  * A member of a family: the form is what the family left to it, nothing else.
@@ -28,7 +30,7 @@ export function MemberForm({
   left: LeftToMember;
   rows: any[];
   currencyCode: string;
-  initial?: { id: string; name: string; price: number | null; answers: MemberAnswerWrite[] };
+  initial?: { id: string; name: string; price: number | null; answers: MemberAnswerWrite[]; images?: PackageImage[] };
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -54,6 +56,10 @@ export function MemberForm({
       const a = find('variable', v.packageServiceId, v.variableId);
       return [`${v.packageServiceId}:${v.variableId}`, a?.value != null ? String(a.value) : ''];
     })));
+
+  const [stagedSlides, setStagedSlides] = useState<Slide[]>(
+    (initial?.images || []).map((i) => ({ id: i.id, url: i.url, position: i.position })),
+  );
 
   const answers = (): MemberAnswerWrite[] => [
     ...left.services.map((s) => ({ packageServiceId: s.packageServiceId, kind: 'service' as const, value: services[s.packageServiceId] !== false })),
@@ -83,6 +89,9 @@ export function MemberForm({
           router.push(`/packages/${initial.id}`);
         } else {
           const made = await createMember({ memberOf: family.id, name: name.trim() || null, price: priceNum, answers: answers() });
+          for (const slide of stagedSlides) {
+            await addPackageImage({ packageId: made.id, url: slide.url });
+          }
           toast.ok(`${made.name} added to ${family.name}.`);
           router.push(`/packages/${made.id}`);
         }
@@ -108,6 +117,13 @@ export function MemberForm({
   const nothingLeft = left.services.length + left.promises.length + left.variables.length === 0;
   return (
     <form className="q-form q-stack q-stack-lg" onSubmit={submit}>
+      <PackageCovers
+        packageId={initial?.id ?? null}
+        initial={initial?.images ?? []}
+        onStaged={setStagedSlides}
+        disabled={isPending}
+      />
+
       {(left.services.length > 0 || fixedServices.length > 0) && (
         <div className="q-card q-section">
           <h2 className="q-section-title">Services</h2>

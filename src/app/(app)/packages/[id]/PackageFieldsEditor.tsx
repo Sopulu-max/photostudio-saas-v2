@@ -1483,7 +1483,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {/* First, because for a photography studio the picture is half of what
               a package is — and because two packages of one service are told
               apart on a card by almost nothing else. */}
-          {(!derived && !intendedAsFamily) && (
+          {!derived && (
             <PackageCovers
               packageId={packageId || null}
               initial={initial.images || []}

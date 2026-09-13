@@ -45,7 +45,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           left={left}
           rows={rows}
           currencyCode={catalogs.currencyCode}
-          initial={{ id: pkg.id, name: pkg.name, price: (pkg as any).price?.amount ?? null, answers }}
+          initial={{ id: pkg.id, name: pkg.name, price: (pkg as any).price?.amount ?? null, answers, images: (pkg as any).images ?? [] }}
         />
       </div>
     );
