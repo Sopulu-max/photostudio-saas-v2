@@ -90,17 +90,34 @@ export default async function BookingPage(props: {
     const members = all.filter((p) => p.memberOf === pkg.id);
     
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)' }}>
-        {pkg.coverUrl && (
-          <div style={{ width: '100%', height: '320px', backgroundImage: `url(${pkg.coverUrl})`, backgroundSize: 'cover', backgroundPosition: pkg.coverPosition || 'center' }} />
-        )}
-        <header style={{ padding: pkg.coverUrl ? '48px 24px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
-          <h1 className="q-page-title">{pkg.name}</h1>
-          {pkg.description && <p className="q-page-description" style={{ marginTop: '16px' }}>{pkg.description}</p>}
-        </header>
-        <main style={{ padding: '0 24px 80px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)', padding: 'clamp(32px, 6vw, 80px) 24px' }}>
+        <div style={{ width: '100%', maxWidth: '1040px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '40px' }}>
+            <a href={`/book/${params.slug}`} className="q-plain-link" style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--q-color-ink-500)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>&larr;</span> {org.name}
+            </a>
+          </div>
+
+          <div style={{ maxWidth: '640px', margin: '0 auto 48px' }}>
+            <CoverSlides
+              slides={pkg.images || []}
+              className={pkg.coverUrl ? 'q-hero' : 'q-hero q-hero-blank'}
+            >
+              <h1 className="q-hero-title">{pkg.name}</h1>
+              {pkg.shortDescription && <p className="q-hero-note">{pkg.shortDescription}</p>}
+            </CoverSlides>
+
+            {pkg.description && (
+              <div className="q-card" style={{ marginTop: '24px', padding: '32px', borderRadius: '16px' }}>
+                <p className="q-text-body q-prewrap" style={{ margin: 0, lineHeight: 1.65 }}>
+                  {pkg.description}
+                </p>
+              </div>
+            )}
+          </div>
+
           <Catalogue slug={org.slug} currencyCode={org.currency} packages={members as any} />
-        </main>
+        </div>
       </div>
     );
   }
