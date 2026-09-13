@@ -134,11 +134,7 @@ export function composeMemberName(familyName: string, left: LeftToMember, answer
     const a = answers.find((x) => x.packageServiceId === s.packageServiceId && x.kind === 'service');
     if (a && a.value === true) parts.push(s.name);
   }
-  for (const p of left.promises) {
-    const a = answers.find((x) => x.packageServiceId === p.packageServiceId && x.kind === 'promise' && x.refId === p.deliverableId);
-    const q = a ? Number(a.value) : NaN;
-    if (Number.isFinite(q) && q > 0) parts.push(`${q} ${p.name.toLowerCase()}`);
-  }
+
   for (const v of left.variables) {
     const a = answers.find((x) => x.packageServiceId === v.packageServiceId && x.kind === 'variable' && x.refId === v.variableId);
     if (!a || a.answeredBy === 'client' || a.value == null || a.value === '') continue;
