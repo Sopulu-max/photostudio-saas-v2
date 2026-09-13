@@ -67,7 +67,7 @@ export function overlayMember(packageServices: any[] | null | undefined, answers
           const a = find(ps.id, 'promise', promiseRef(pd));
           return { ...pd, quantity: a ? Number(a.value) : null, decided_by: 'studio', member_decided: true };
         })
-        .filter((pd) => !(pd.member_decided && pd.quantity === 0)),
+        .filter((pd) => !(pd.member_decided && (pd.quantity === 0 || pd.quantity === null))),
       package_variable_values: ((ps.package_variable_values || []) as any[])
         .flatMap((pv) => {
           if (pv.answered_by !== 'member') return [pv];

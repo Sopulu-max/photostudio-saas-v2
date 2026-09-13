@@ -161,7 +161,7 @@ export function MemberForm({
                     <input className="q-input q-input-sm" type="number" min={0} placeholder="Quantity" style={{ maxWidth: '7rem' }}
                       value={quantities[k] ?? ''} disabled={isPending}
                       onChange={(e) => setQuantities((prev) => ({ ...prev, [k]: e.target.value }))} />
-                    <span className="q-meta-sm">{quantities[k] === '0' ? 'Not promised' : ''}</span>
+                    <span className="q-meta-sm">{quantities[k] === '0' || !quantities[k] ? 'Not promised' : ''}</span>
                   </div>
                 </div>
               );
