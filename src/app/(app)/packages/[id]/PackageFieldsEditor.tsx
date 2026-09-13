@@ -1965,7 +1965,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         <>
           <div className="q-row">
             {mode === 'create' ? (
-              <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : 'Create package'}</button>
+              <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submitCreate}>{isPending ? 'Creating…' : intendedAsFamily ? 'Create family' : 'Create package'}</button>
             ) : (
               <>
                 <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending} onClick={submit}>{isPending ? 'Saving…' : 'Save changes'}</button>
