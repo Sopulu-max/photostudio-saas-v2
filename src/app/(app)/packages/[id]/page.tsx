@@ -191,8 +191,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         * with each service's contribution counted, so a zero shows.
         */}
       {(() => {
-        const many = services.length > 1;
-        const From = ({ name }: { name: string }) => many ? <span className="q-print-from">{name}</span> : null;
+
 
         /* Every variable across the bundle, in its three states, with its
            service. splitVariables works per service; the states are then
@@ -216,7 +215,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
           for (const v of toMember) put(v.serviceVariableId, v.label, 'member', null);
         }
         const settled = [...byVariable.values()];
-        const packageWide = (from: string[]) => from.length >= services.length;
+
         const kept = settled.filter((v) => v.state !== 'asked');
         const asked = settled.filter((v) => v.state === 'asked');
         const nFixed = kept.filter((v) => v.state === 'fixed').length;
@@ -231,16 +230,15 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         const work: any[] = services.flatMap((s: any) =>
           ((s.tasks || []) as any[]).map((x) => ({ ...x, from: s.name })));
 
+        const deliverables = services.flatMap((s: any) =>
+          ((s.deliverables || []) as any[]).map((d) => ({ ...d, from: s.name })));
+
         return (
-          <>
-            {/* A FAMILY'S MEMBERS. Each is the family with its own answers:
-                what it settled, at its price. The family itself is not sold. */}
+          <div className="q-stack q-stack-xl">
+            {/* A FAMILY'S MEMBERS */}
             {isFamily && (
-              <section className="q-print-chapter">
-                <div className="q-print-chapter-head">
-                  <h2 className="q-print-chapter-title">Members</h2>
-                  <p className="q-print-chapter-note">{members.length === 0 ? 'None yet' : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}</p>
-                </div>
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Members</h2>
                 {members.length > 0 && (
                   <div className="q-sheet">
                     {members.map((m: any) => (
@@ -267,163 +265,117 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               </section>
             )}
 
-            {/* WHAT'S IN IT: the bundle, and what each service brings. */}
-            <section className="q-print-chapter">
-              <div className="q-print-chapter-head">
-                <h2 className="q-print-chapter-title">Services</h2>
-                <p className="q-print-chapter-note">
-                  {services.length === 0 ? 'None' : `${services.length} ${services.length === 1 ? 'service' : 'services'}`}
-                </p>
-              </div>
-              {services.length > 0 && (
-                <div className="q-sheet">
-                  {services.map((s: any) => {
-                    const { fixed: f, asked: a, undecided: u } = splitVariables(s.variableValues || [], s.variables || []);
-                    const nProduce = (s.deliverables || []).length;
-                    const narrowed = s.narrowedTo || [];
-                    const nFor = ((narrowed.length ? narrowed : (s.dimensions || [])) as any[]).reduce((n, d) => n + (d.values || []).length, 0);
-                    const nWork = (s.tasks || []).length;
-                    const say = (n: number, one: string, more: string) => `${n} ${n === 1 ? one : more}`;
-                    return (
-                      <SheetRow key={s.id} item={{
-                        id: s.id,
-                        href: `/services/${s.id}`,
-                        name: s.name,
-                        caption: [
-                          nProduce > 0 ? say(nProduce, 'deliverable', 'deliverables') : null,
-                          nFor > 0 ? say(nFor, 'classification', 'classifications') : null,
-                          (f.length + a.length + u.length) > 0 ? say(f.length + a.length + u.length, 'variable', 'variables') : null,
-                          nWork > 0 ? say(nWork, 'task', 'tasks') : null,
-                        ],
-                        absent: 'Nothing yet',
-                        frame: { url: s.cover_url, initials: (s.name || '?').trim().charAt(0).toUpperCase() },
-                        badge: s.domain?.name ? <span className="q-badge q-badge-neutral">{s.domain.name}</span> : undefined,
-                      }} />
-                    );
-                  })}
+            {/* DELIVERABLES */}
+            {deliverables.length > 0 && (
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Deliverables</h2>
+                <div className="q-take-grid">
+                  {deliverables.map((d: any, i: number) => (
+                    <div key={`${d.id}-${i}`} className="q-take q-take-open">
+                      <span className="q-sheet-name">{d.name}</span>
+                      <span className="q-sheet-cap">{d.from.toUpperCase()}</span>
+                      {d.quantity != null && (
+                        <div className="q-meta-sm" style={{ marginTop: '6px' }}>Quantity: {d.quantity}</div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </section>
+              </section>
+            )}
 
-            {/* CLASSIFICATION: what the package has settled - a question with
-                one answer. A question still holding several is asked of the
-                client, and lives in the booking form below, once. */}
+            {/* CLASSIFICATION */}
             {settledQuestions.length > 0 && (
-              <section className="q-print-chapter">
-                <div className="q-print-chapter-head">
-                  <h2 className="q-print-chapter-title">Classification</h2>
-                  <p className="q-print-chapter-note">{settledQuestions.length} settled</p>
-                </div>
-                <div className="q-print-facts q-print-for">
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Classification</h2>
+                <div className="q-take-grid">
                   {settledQuestions.map((q) => (
-                    <div key={q.name} className="q-print-fact">
-                      <span className="q-print-key">{q.name}</span>
-                      <span className="q-print-val">{[...q.values.values()][0]}</span>
+                    <div key={q.name} className="q-take q-take-open">
+                      <span className="q-sheet-name">{q.name}</span>
+                      <span className="q-sheet-cap">{[...q.values.values()][0].toUpperCase()}</span>
                     </div>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* VARIABLES: what the package fixes, and what nobody has decided. */}
+            {/* VARIABLES */}
             {kept.length > 0 && (
-              <section className="q-print-chapter">
-                <div className="q-print-chapter-head">
-                  <h2 className="q-print-chapter-title">Variables</h2>
-                  <p className="q-print-chapter-note">
-                    {[
-                      nFixed > 0 ? `${nFixed} fixed` : null,
-                      nUndecided > 0 ? `${nUndecided} undecided` : null,
-                    ].filter(Boolean).join(' · ')}
-                  </p>
-                </div>
-                <div className="q-print-facts q-print-for">
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Variables</h2>
+                <div className="q-take-grid">
                   {kept.map((v) => (
-                    <div key={v.key} className="q-print-fact">
-                      <span className="q-print-key">{v.label}{!packageWide(v.from) && <From name={v.from.join(', ')} />}</span>
-                      <span className="q-print-val">
+                    <div key={v.key} className="q-take q-take-open">
+                      <span className="q-sheet-name">{v.label}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px', color: 'var(--q-color-ink-600)' }}>
                         {v.state === 'fixed' ? v.value : v.state === 'member' ? 'Member decides' : <span className="q-absent">Undecided</span>}
-                      </span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* BOOKING FORM: everything the client answers, from three
-                sources - a classification left open, a variable left open,
-                the studio's own questions - in one place, each once. */}
+            {/* BOOKING FORM */}
             {nAsked > 0 && (
-              <section className="q-print-chapter">
-                <div className="q-print-chapter-head">
-                  <h2 className="q-print-chapter-title">Booking form</h2>
-                  <p className="q-print-chapter-note">{nAsked} {nAsked === 1 ? 'question' : 'questions'}</p>
-                </div>
-                <div className="q-print-facts q-print-for">
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Booking form</h2>
+                <div className="q-take-grid">
                   {openQuestions.map((q) => (
-                    <div key={`q-${q.name}`} className="q-print-fact">
-                      <span className="q-print-key">{q.name}</span>
-                      <span className="q-print-val">
-                        <span className="q-meta">One of</span>{' '}
-                        {[...q.values.values()].map((v, i) => (
-                          <span key={v}>{i > 0 && <>{' '}<span className="q-print-for-sep">·</span>{' '}</>}{v}</span>
-                        ))}
-                      </span>
+                    <div key={`q-${q.name}`} className="q-take q-take-open">
+                      <span className="q-sheet-name">{q.name}</span>
+                      <span className="q-sheet-cap">CLASSIFICATION</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>
+                        One of: {[...q.values.values()].join(', ')}
+                      </div>
                     </div>
                   ))}
                   {asked.map((v) => (
-                    <div key={v.key} className="q-print-fact">
-                      <span className="q-print-key">{v.label}{!packageWide(v.from) && <From name={v.from.join(', ')} />}</span>
-                      <span className="q-print-val"><span className="q-meta">Free answer</span></span>
+                    <div key={v.key} className="q-take q-take-open">
+                      <span className="q-sheet-name">{v.label}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>Free answer</div>
                     </div>
                   ))}
                   {formFields.map((f: any) => (
-                    <div key={f.id} className="q-print-fact">
-                      <span className="q-print-key">{f.label}<span className="q-print-from">Studio question</span></span>
-                      <span className="q-print-val">
-                        <span className="q-meta">
-                          {f.type === 'select' && Array.isArray(f.options)
-                            ? `One of ${f.options.join(' · ')}`
-                            : f.type === 'textarea' ? 'Free text'
-                            : f.type === 'number' ? 'A number'
-                            : f.type === 'date' ? 'A date'
-                            : 'Free answer'}
-                          {f.required ? ' · required' : ''}
-                        </span>
-                      </span>
+                    <div key={f.id} className="q-take q-take-open">
+                      <span className="q-sheet-name">{f.label}</span>
+                      <span className="q-sheet-cap">STUDIO QUESTION</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>
+                        {f.type === 'select' && Array.isArray(f.options)
+                          ? `One of ${f.options.join(' · ')}`
+                          : f.type === 'textarea' ? 'Free text'
+                          : f.type === 'number' ? 'A number'
+                          : f.type === 'date' ? 'A date'
+                          : 'Free answer'}
+                        {f.required ? ' · required' : ''}
+                      </div>
                     </div>
                   ))}
                 </div>
               </section>
             )}
 
-            {/* THE WORK: the steps in order, the role each needs, where each
-                came from. The band said "5 steps"; this is the five. */}
-            <section className="q-print-chapter">
-              <div className="q-print-chapter-head">
-                <h2 className="q-print-chapter-title">Tasks</h2>
-                <p className="q-print-chapter-note">
-                  {work.length === 0
-                    ? 'No workflow'
-                    : `${work.length} ${work.length === 1 ? 'step' : 'steps'}`}
-                </p>
-              </div>
-              {work.length > 0 && (
-                <div className="q-print-facts q-print-for">
+            {/* TASKS */}
+            {work.length > 0 && (
+              <section className="q-subsection">
+                <h2 className="q-subsection-title">Tasks</h2>
+                <div className="q-take-grid">
                   {work.map((x: any, i: number) => (
-                    <div key={x.id} className="q-print-fact">
-                      <span className="q-print-key">{i + 1}<From name={x.from} /></span>
-                      <span className="q-print-val">
-                        <span className={x.isActive ? '' : 'q-text-struck'}>{x.name}</span>
-                        {x.roleName && <span className="q-print-more">{x.roleName}</span>}
-                        {!x.workflowTaskId && <span className="q-print-more">this package only</span>}
-                      </span>
+                    <div key={x.id} className="q-take q-take-open">
+                      <span className="q-sheet-name" style={{ textDecoration: x.isActive ? 'none' : 'line-through' }}>{i + 1}. {x.name}</span>
+                      <span className="q-sheet-cap">{x.from.toUpperCase()}</span>
+                      {(x.roleName || !x.workflowTaskId) && (
+                        <div className="q-meta-sm" style={{ marginTop: '6px' }}>
+                          {[x.roleName, !x.workflowTaskId ? 'this package only' : null].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              )}
-            </section>
-          </>
+              </section>
+            )}
+          </div>
         );
       })()}
 
