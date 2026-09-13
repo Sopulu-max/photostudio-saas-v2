@@ -598,8 +598,8 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * Undecided is now its own state, and it is asked of nobody. A package with
    * undecided variables is unfinished, which is a thing worth being able to see.
    */
-  const [answeredBy, setAnsweredBy] = useState<Record<string, 'studio' | 'client' | 'member'>>(() => {
-    const seed: Record<string, 'studio' | 'client' | 'member'> = {};
+  const [answeredBy, setAnsweredBy] = useState<Record<string, 'studio' | 'client' | 'member' | 'ignored'>>(() => {
+    const seed: Record<string, 'studio' | 'client' | 'member' | 'ignored'> = {};
     for (const v of (initial.variableValues || [])) {
       if (v.answeredBy) seed[v.serviceVariableId] = v.answeredBy;
       else if (v.value !== null && v.value !== undefined && v.value !== '') seed[v.serviceVariableId] = 'studio';
@@ -614,7 +614,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * something open on purpose.
    */
   const [memberServices, setMemberServices] = useState<string[]>(initial.memberServices || []);
-  const decide = (id: string, next: 'studio' | 'client' | 'member' | 'undecided') => {
+  const decide = (id: string, next: 'studio' | 'client' | 'member' | 'ignored' | 'undecided') => {
     setAnsweredBy((prev) => {
       const copy = { ...prev };
       if (next === 'undecided') delete copy[id];
@@ -738,7 +738,9 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     type VariableDecision = { serviceVariableId: string; answeredBy: 'studio' | 'client' | 'member'; value?: unknown };
     const payloadVariableValues: VariableDecision[] =
       activeVariables.flatMap<VariableDecision>((v) => {
-      const chosen = answeredBy[v.id];
+      let chosen = answeredBy[v.id];
+      if (!chosen && intendedAsFamily) chosen = 'member';
+      if (chosen === 'ignored') return [];
       if (chosen === 'client') return [{ serviceVariableId: v.id, answeredBy: 'client' as const }];
       if (chosen === 'member') return [{ serviceVariableId: v.id, answeredBy: 'member' as const }];
       const raw = variableValues[v.id];
@@ -1134,13 +1136,14 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     const bundledCount = serviceIds.length;
     const showFrom = from.length > 0 && from.length < bundledCount;
     const current = variableValues[v.id] ?? '';
-    const who = answeredBy[v.id];
+    let who = answeredBy[v.id];
+    if (!who && intendedAsFamily) who = 'member';
     return (
       <div key={v.id} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
         <div>
           <strong className="q-strong">{v.label}</strong>
           {showFrom && <span className="q-print-from">{from.join(', ')}</span>}
-          {!who && <span className="q-meta-sm"> &middot; nobody has decided</span>}
+          {(!who || who === 'ignored') && <span className="q-meta-sm"> &middot; nobody has decided</span>}
         </div>
         <div className="q-row">
           <select
@@ -1148,10 +1151,11 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             onChange={(e) => decide(v.id, (e.target.value || 'undecided') as any)}
             style={{ minWidth: '9rem' }}
           >
-            <option value="">Not decided</option>
+            {!intendedAsFamily && <option value="">Not decided</option>}
             <option value="studio">We set it</option>
             <option value="client">The client chooses</option>
             {!embedded && <option value="member">Left to the member</option>}
+            {intendedAsFamily && <option value="ignored">Not applicable (Ignored)</option>}
           </select>
           {/* The control is drawn both ways: live when the studio sets the
               value, inert when the client will. VariableField IS the component
