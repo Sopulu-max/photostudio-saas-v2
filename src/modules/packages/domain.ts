@@ -1520,6 +1520,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
     return {
       id: p.id as string,
       name: p.name as string,
+      memberOf: (p.member_of ?? null) as string | null,
       description: (p.description ?? null) as string | null,
       short_description: (p.short_description ?? null) as string | null,
       ...coverOf(imagesOf(p)),
