@@ -659,6 +659,7 @@ export async function updatePackage(input: {
   shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
+  isFamily?: boolean;
   serviceIds?: string[];
   memberServices?: string[];
   /** What the package promises, each on the bundled service that produces it. */

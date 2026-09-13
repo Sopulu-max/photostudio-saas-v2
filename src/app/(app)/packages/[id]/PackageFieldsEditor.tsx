@@ -98,6 +98,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
   dimensionsByDomain,
   roleOptions,
   intendedValueIds = [],
+  intendedAsFamily = false,
   questions: initialQuestions,
   lockedQuestionIds = [],
   initial,
