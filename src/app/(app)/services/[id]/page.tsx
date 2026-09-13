@@ -49,7 +49,7 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
       <Link
         href={`/services/${service.id}/edit`}
         className={(service as any).cover_url ? 'q-cover-banner q-plain-link' : 'q-cover-banner q-cover-empty q-plain-link'}
-        style={(service as any).cover_url
+        style={(service as any).cover_url && !(service as any).cover_url.match(/\.(mp4|webm|mov)(\?.*)?$/i)
           ? {
               backgroundImage: `url(${(service as any).cover_url})`,
               backgroundPosition: (service as any).cover_position || undefined,
@@ -57,6 +57,9 @@ export default async function ServiceDetailsPage(props: { params: Promise<{ id: 
           : undefined}
         title={(service as any).cover_url ? 'Change the cover' : 'Add a cover'}
       >
+        {(service as any).cover_url && (service as any).cover_url.match(/\.(mp4|webm|mov)(\?.*)?$/i) && (
+          <video src={(service as any).cover_url} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: (service as any).cover_position || 'center', pointerEvents: 'none' }} autoPlay loop muted playsInline />
+        )}
         {!(service as any).cover_url && <span className="q-meta-sm">Add a cover</span>}
       </Link>
       

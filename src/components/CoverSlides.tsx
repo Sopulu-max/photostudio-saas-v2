@@ -114,18 +114,32 @@ export function CoverSlides({
       onMouseEnter={enter}
       onMouseLeave={leave}
     >
-      {slides.map((slide, i) => (
-        <span
-          key={slide.url}
-          className={i === at ? 'q-slide q-slide-on' : 'q-slide'}
-          style={{
-            /* The picture and its own framing — data, not a design decision. */
-            backgroundImage: `url(${slide.url})`,
-            backgroundPosition: slide.position || undefined,
-          }}
-          aria-hidden="true"
-        />
-      ))}
+      {slides.map((slide, i) => {
+        const isVideo = slide.url.match(/\.(mp4|webm|mov)(\?.*)?$/i);
+        return (
+          <span
+            key={slide.url}
+            className={i === at ? 'q-slide q-slide-on' : 'q-slide'}
+            style={{
+              /* The picture and its own framing — data, not a design decision. */
+              backgroundImage: isVideo ? undefined : `url(${slide.url})`,
+              backgroundPosition: isVideo ? undefined : (slide.position || undefined),
+            }}
+            aria-hidden="true"
+          >
+            {isVideo && (
+              <video
+                src={slide.url}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: slide.position || 'center', pointerEvents: 'none' }}
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            )}
+          </span>
+        );
+      })}
 
       {many && (
         <span className="q-slide-pips" aria-hidden="true">

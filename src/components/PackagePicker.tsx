@@ -274,10 +274,13 @@ export function PackagePicker({
                                 >
                                   <div
                                     className={p.coverUrl ? 'q-cover' : 'q-cover q-cover-empty'}
-                                    style={p.coverUrl
+                                    style={p.coverUrl && !p.coverUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i)
                                       ? { backgroundImage: `url(${p.coverUrl})`, backgroundPosition: p.coverPosition || undefined }
                                       : undefined}
                                   >
+                                    {p.coverUrl && p.coverUrl.match(/\.(mp4|webm|mov)(\?.*)?$/i) && (
+                                      <video src={p.coverUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: p.coverPosition || 'center', pointerEvents: 'none' }} autoPlay loop muted playsInline />
+                                    )}
                                     {!p.coverUrl && (
                                       <span className="q-cover-initial">
                                         {(p.name || '?').trim().charAt(0).toUpperCase()}

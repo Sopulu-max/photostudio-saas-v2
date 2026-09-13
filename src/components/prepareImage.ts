@@ -83,11 +83,15 @@ export async function prepareImage(
   file: File,
   { maxEdge = DEFAULT_MAX_EDGE }: { maxEdge?: number } = {},
 ): Promise<PreparedImage> {
-  if (!file.type.startsWith('image/')) throw new Error('That is not an image file.');
-  // A vector is already the right size at every size.
-  if (file.type === 'image/svg+xml') return { file, originalBytes: file.size, resized: false };
+  if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+    throw new Error('That is not an image or video file.');
+  }
+  // Vectors and videos are already the right size or too complex to resize here.
+  if (file.type === 'image/svg+xml' || file.type.startsWith('video/')) {
+    return { file, originalBytes: file.size, resized: false };
+  }
   if (file.size > DECODE_CEILING) {
-    throw new Error('That image is too large for a browser to open. Export it at a smaller size first.');
+    throw new Error('That file is too large for a browser to open. Export it at a smaller size first.');
   }
 
   const source = await decode(file);

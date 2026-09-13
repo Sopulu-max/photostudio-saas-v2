@@ -252,10 +252,16 @@ export function PackageCovers({
             aria-selected={i === at}
             aria-label={i === 0 ? 'Cover' : `Picture ${i + 1}`}
             className={i === at ? 'q-strip-thumb q-strip-thumb-on' : 'q-strip-thumb'}
-            style={{ backgroundImage: `url(${s.url})`, backgroundPosition: s.position ?? '50% 50%' }}
+            style={{
+              backgroundImage: s.url.match(/\.(mp4|webm|mov)(\?.*)?$/i) ? undefined : `url(${s.url})`,
+              backgroundPosition: s.url.match(/\.(mp4|webm|mov)(\?.*)?$/i) ? undefined : (s.position ?? '50% 50%')
+            }}
             disabled={disabled}
             onClick={() => setSelected(i)}
           >
+            {s.url.match(/\.(mp4|webm|mov)(\?.*)?$/i) && (
+              <video src={s.url} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: s.position ?? '50% 50%', pointerEvents: 'none', borderRadius: 'inherit' }} autoPlay loop muted playsInline />
+            )}
             {i === 0 && <span className="q-strip-cover">Cover</span>}
           </button>
         ))}

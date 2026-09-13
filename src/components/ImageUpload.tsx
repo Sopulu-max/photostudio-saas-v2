@@ -193,10 +193,12 @@ export function ImageUpload({
     }
   };
 
+  const isVideo = url ? url.match(/\.(mp4|webm|mov)(\?.*)?$/i) : false;
+
   return (
     <div className="q-stack q-stack-sm">
       {/*
-        * A frame that is a label while empty and a drag surface once filled.
+        * A DRAG SURFACE, OR A LABEL.
         *
         * They cannot be the same element: a label opens the file dialog on
         * click, and a drag ends in a click. So once there is a picture to
@@ -207,23 +209,26 @@ export function ImageUpload({
         <div
           ref={frame}
           className="q-imagepick q-imagepick-filled q-imagepick-movable"
-          style={{ aspectRatio: aspect, backgroundImage: `url(${url})`, backgroundPosition: shown }}
+          style={{ aspectRatio: aspect, backgroundImage: isVideo ? undefined : `url(${url})`, backgroundPosition: isVideo ? undefined : shown }}
           onPointerDown={startDrag}
           onPointerMove={onDrag}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           title="Drag the picture to choose what shows"
-        />
+        >
+          {isVideo && <video src={url!} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: shown, pointerEvents: 'none', borderRadius: 'inherit' }} autoPlay loop muted playsInline />}
+        </div>
       ) : (
         <label
           htmlFor={inputId}
           className={url ? 'q-imagepick q-imagepick-filled' : 'q-imagepick'}
           style={{
             aspectRatio: aspect,
-            backgroundImage: url ? `url(${url})` : undefined,
-            backgroundPosition: url ? shown : undefined,
+            backgroundImage: url && !isVideo ? `url(${url})` : undefined,
+            backgroundPosition: url && !isVideo ? shown : undefined,
           }}
         >
+          {isVideo && <video src={url!} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: shown, pointerEvents: 'none', borderRadius: 'inherit' }} autoPlay loop muted playsInline />}
           {!url && <span className="q-meta-sm">{busy ? 'Uploading…' : `Add a ${label}`}</span>}
         </label>
       )}
@@ -233,7 +238,7 @@ export function ImageUpload({
       <input
         id={inputId}
         type="file"
-        accept="image/*"
+        accept="image/*,video/mp4,video/webm,video/quicktime"
         className="q-visually-hidden"
         disabled={disabled || busy}
         onChange={pick}

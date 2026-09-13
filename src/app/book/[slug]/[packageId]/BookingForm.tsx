@@ -909,11 +909,11 @@ export function BookingForm({
                           }}
                           onClick={() => choose(pkg.id, pkg.name)}
                         >
-                          {/* More than one picture takes over the photograph
+                          {/* More than one picture (or any video) takes over the photograph
                               layer; one stays the card it was, painted by
                               --q-cover. Offset by place, so the picker does not
                               flip in unison. */}
-                          {(pkg.images || []).length > 1 && (
+                          {((pkg.images || []).length > 1 || ((pkg.images || [])[0]?.url || '').match(/\.(mp4|webm|mov)(\?.*)?$/i)) && (
                             <CoverSlides
                               slides={pkg.images!}
                               className="q-poster-photo"

@@ -96,7 +96,13 @@ export default async function StudioCataloguePage(props: { params: Promise<{ slu
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)' }}>
       {meta.cover_url && (
-        <div style={{ width: '100%', height: '240px', backgroundImage: `url(${meta.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        meta.cover_url.match(/\.(mp4|webm|mov)(\?.*)?$/i) ? (
+          <div style={{ width: '100%', height: '240px', overflow: 'hidden' }}>
+            <video src={meta.cover_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} autoPlay loop muted playsInline />
+          </div>
+        ) : (
+          <div style={{ width: '100%', height: '240px', backgroundImage: `url(${meta.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        )
       )}
 
       <header style={{ padding: meta.cover_url ? '32px 24px 48px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto', position: 'relative' }}>
