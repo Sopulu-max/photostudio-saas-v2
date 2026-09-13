@@ -1591,8 +1591,8 @@ export async function getPackagePublic(orgId: string, packageId: string) {
     .eq('organization_id', orgId)
     .eq('status', 'active')
     .maybeSingle();
-  // A family is not for sale; a member reads as its family with its answers.
-  if (data && isFamily((data as any).package_services)) return null;
+  // A family is not for sale directly, but its public link should show a catalogue of its members.
+  // We no longer return null here; the booking page handles families by rendering their members.
   const [resolved] = data ? await resolveMembers(orgId, [data], `
       id, name, description, short_description, pricing_variant, duration_minutes, form_schema, member_of,
       package_images(id, url, position, sort),

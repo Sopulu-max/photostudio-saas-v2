@@ -2,9 +2,10 @@ import { notFound } from 'next/navigation';
 import { CoverSlides } from '@/components/CoverSlides';
 import { formatMoney } from '@/kernel/currency';
 import { getStudioBySlug } from '@/kernel/organizations';
-import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic, packageNarrowingValueIds } from '@/modules/packages/interface';
+import { getPackagePublic, getOpenVariablesForPackagePublic, getOpenClassificationsForPackagePublic, packageNarrowingValueIds, listPackagesPublicWithDimensions } from '@/modules/packages/interface';
 import { premisesValueIdsFor } from '@/modules/services/interface';
 import { BookingForm } from './BookingForm';
+import { Catalogue } from '../Catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,26 @@ export default async function BookingPage(props: {
 
   const pkg = await getPackagePublic(org.id, params.packageId);
   if (!pkg) notFound();
+
+  if (pkg.isFamily) {
+    const all = await listPackagesPublicWithDimensions(org.id);
+    const members = all.filter((p) => p.memberOf === pkg.id);
+    
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)' }}>
+        {pkg.coverUrl && (
+          <div style={{ width: '100%', height: '320px', backgroundImage: `url(${pkg.coverUrl})`, backgroundSize: 'cover', backgroundPosition: pkg.coverPosition || 'center' }} />
+        )}
+        <header style={{ padding: pkg.coverUrl ? '48px 24px' : 'clamp(48px, 8vw, 80px) 24px 32px', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
+          <h1 className="q-page-title">{pkg.name}</h1>
+          {pkg.description && <p className="q-page-description" style={{ marginTop: '16px' }}>{pkg.description}</p>}
+        </header>
+        <main style={{ padding: '0 24px 80px' }}>
+          <Catalogue slug={org.slug} studioName={org.name} window={null} packages={members} />
+        </main>
+      </div>
+    );
+  }
 
   // What this package deliberately left open becomes the questions asked below.
   const openVariables = await getOpenVariablesForPackagePublic(org.id, params.packageId);
