@@ -88,6 +88,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
           // its Save button that saved them separately.
           questions={questions}
           lockedQuestionIds={lockedQuestionIds}
+          intendedAsFamily={(pkg as any).isFamily}
           initial={initial}
         />
       </div>

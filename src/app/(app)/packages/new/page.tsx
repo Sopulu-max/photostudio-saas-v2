@@ -88,6 +88,7 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
         // It cannot become a narrowing until a service is chosen to narrow, so it
         // is carried as intent and applied to the first service that speaks it.
         intendedValueIds={sp.value ? [String(sp.value)] : []}
+        intendedAsFamily={family}
         /* Given, so the Booking form section renders on create: a form that
            is not handed the questions does not edit them, and a new package
            had no way to ask its own until it was saved and reopened. */

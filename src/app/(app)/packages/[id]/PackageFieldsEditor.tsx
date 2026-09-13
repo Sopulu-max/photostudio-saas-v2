@@ -128,6 +128,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * turns into a blank form.
    */
   intendedValueIds?: string[];
+  intendedAsFamily?: boolean;
   initial: {
     name?: string;
     description?: string | null;
@@ -767,6 +768,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
       price: priceAmount
         ? { base_price: Number(priceAmount), currency: currencyCode }
         : (wasGivenPrice ? null : undefined),
+      isFamily: intendedAsFamily,
       serviceIds,
       memberServices: memberServices.filter((id) => serviceIds.includes(id)),
       // Everything below is filtered to services still bundled, so deselecting

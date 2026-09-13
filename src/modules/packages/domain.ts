@@ -521,6 +521,7 @@ export async function createPackage(input: {
   shortDescription?: string | null;
   durationMinutes?: number | null;
   price?: Record<string, unknown> | null;
+  isFamily?: boolean;
   serviceIds?: string[];
   /* Bundled services whose in/out is left to each member - this package is then a family. */
   memberServices?: string[];
@@ -606,6 +607,7 @@ export async function createPackage(input: {
       short_description: input.shortDescription || null,
       duration_minutes: input.durationMinutes ?? null,
       price: input.price || {},
+      is_family: input.isFamily ?? false,
       extra_stages: await buildExtraStages(input.extraStages || []),
       form_schema: input.formSchema || [],
       status: (input.instanceOf ? 'custom' : 'active') satisfies PackageStatus,
@@ -703,6 +705,7 @@ export async function updatePackage(input: {
   if (input.shortDescription !== undefined) patch.short_description = input.shortDescription || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.price !== undefined) patch.price = input.price || {};
+  if (input.isFamily !== undefined) patch.is_family = input.isFamily;
   // Absent leaves the cover alone; null takes it off. The same distinction the
   // price makes, and for the same reason: a form that was not shown the cover
   // must not be able to erase it by saying nothing about it.
@@ -1177,7 +1180,7 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema, member_of,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema, member_of, is_family,
   package_images(id, url, position, sort),
   package_services(id, position, decided_by, service:services(
     id, name, description, domain:service_domains(id, name),
@@ -1297,7 +1300,7 @@ function shapePackage(p: any) {
     ...coverOf(images),
     memberOf: (p.member_of ?? null) as string | null,
     family: (p.family ?? null) as { id: string; name: string } | null,
-    isFamily: !p.member_of && isFamily(p.package_services),
+    isFamily: !p.member_of && (p.is_family || isFamily(p.package_services)),
     leftToMember: p.member_of ? null : leftToMember(p.package_services),
     /*
      * One shape for the price, decided here rather than by each screen.
