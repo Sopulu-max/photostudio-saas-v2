@@ -1479,7 +1479,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
           {/* First, because for a photography studio the picture is half of what
               a package is — and because two packages of one service are told
               apart on a card by almost nothing else. */}
-          {!derived && (
+          {(!derived && !intendedAsFamily) && (
             <PackageCovers
               packageId={packageId || null}
               initial={initial.images || []}
@@ -1566,7 +1566,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * price of its instance, and a field here that took input and was
         * overwritten on the way out was worse than none.
         */}
-      {!embedded && (
+      {(!embedded && !intendedAsFamily) && (
         <div className={blockClass}>
           <h2 className={blockTitle}>{heading(2, 'Price')}</h2>
           <div className="q-price-field">
@@ -1923,7 +1923,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         * pass them is not editing them, and a form that reports on what it was
         * never given deletes it.
         */}
-      {questions !== undefined && (
+      {(questions !== undefined && !intendedAsFamily) && (
         <div className={blockClass}>
           <h2 className={blockTitle}>{heading(serviceIds.length === 0 ? 4 : (kindsWithClassification ? 8 : 7), 'Booking form')}</h2>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
