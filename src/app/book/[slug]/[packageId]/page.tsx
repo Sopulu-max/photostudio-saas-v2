@@ -99,7 +99,7 @@ export default async function BookingPage(props: {
           {pkg.description && <p className="q-page-description" style={{ marginTop: '16px' }}>{pkg.description}</p>}
         </header>
         <main style={{ padding: '0 24px 80px' }}>
-          <Catalogue slug={org.slug} studioName={org.name} window={null} packages={members} />
+          <Catalogue slug={org.slug} currencyCode={org.currency} packages={members as any} />
         </main>
       </div>
     );
