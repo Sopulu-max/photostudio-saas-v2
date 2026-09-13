@@ -1621,6 +1621,7 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const p: any = data_;
   return {
     id: p.id as string,
+    isFamily: !p.member_of && (p.is_family || isFamily(p.package_services)),
     name: p.name as string,
     description: (p.description ?? null) as string | null,
     /** One line for a card. Falls back to the long one, trimmed. */
