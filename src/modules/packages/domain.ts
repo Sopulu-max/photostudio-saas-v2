@@ -1292,7 +1292,7 @@ function shapePackage(p: any) {
   const promised = bundle.flatMap((ps) =>
     (ps.package_deliverables || [])
       .filter((pd: any) => pd.deliverable)
-      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, serviceId: ps.service?.id }))
+      .map((pd: any) => ({ ...pd.deliverable, quantity: pd.quantity, decidedBy: pd.decided_by, serviceId: ps.service?.id }))
   /* In the studio's own order, not the order the join happened to return. */
   ).sort(byPromiseOrder);
   const images = imagesOf(p);
