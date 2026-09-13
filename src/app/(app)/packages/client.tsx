@@ -184,7 +184,7 @@ export function PackagesClient({
       (pkg.services || []).flatMap((s: any) => s.variableValues || []),
       (pkg.services || []).flatMap((s: any) => s.variables || []),
     );
-    const taskCount = (pkg.services || []).reduce((acc: number, s: any) => acc + (s.tasks || []).length, 0);
+
     const priced = pkg.price?.amount != null;
 
     return (
@@ -362,11 +362,10 @@ export function PackagesClient({
           * package is FOR, which put bookkeeping at the weight of the offer.
           * Below a hairline, in plain text, they read as the footnote they are.
           */}
-        {(asked.length > 0 || taskCount > 0 || !priced) && (
+        {(asked.length > 0 || !priced) && (
           <span className="q-poster-notes">
             {[
               asked.length > 0 ? `${asked.length} asked at booking` : null,
-              taskCount > 0 ? `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : null,
               !priced ? 'No price set' : null,
             ].filter(Boolean).join(' · ')}
           </span>
