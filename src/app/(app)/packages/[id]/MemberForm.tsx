@@ -20,11 +20,13 @@ import { toast, readableError } from '@/components/Toast';
 export function MemberForm({
   family,
   left,
+  rows,
   currencyCode,
   initial,
 }: {
   family: { id: string; name: string };
   left: LeftToMember;
+  rows: any[];
   currencyCode: string;
   initial?: { id: string; name: string; price: number | null; answers: MemberAnswerWrite[] };
 }) {
@@ -91,14 +93,33 @@ export function MemberForm({
     });
   };
 
-  const nothingLeft = left.services.length + left.promises.length + left.variables.length === 0;
+  const fixedServices = (rows || []).filter((r) => r.decided_by !== 'member' && r.service);
+  const fixedPromises = (rows || []).flatMap((r) => 
+    (r.package_deliverables || [])
+      .filter((pd: any) => pd.decided_by !== 'member' && pd.deliverable)
+      .map((pd: any) => ({ serviceName: r.service?.name, name: pd.deliverable.name, quantity: pd.quantity, decidedBy: pd.decided_by }))
+  );
+  const fixedVariables = (rows || []).flatMap((r) => 
+    (r.package_variable_values || [])
+      .filter((pv: any) => pv.answered_by !== 'member' && pv.variable)
+      .map((pv: any) => ({ serviceName: r.service?.name, label: pv.variable.label, value: pv.value, answeredBy: pv.answered_by }))
+  );
 
+  const nothingLeft = left.services.length + left.promises.length + left.variables.length === 0;
   return (
     <form className="q-form q-stack q-stack-lg" onSubmit={submit}>
-      {left.services.length > 0 && (
+      {(left.services.length > 0 || fixedServices.length > 0) && (
         <div className="q-card q-section">
           <h2 className="q-section-title">Services</h2>
           <div className="q-stack q-stack-sm">
+            {fixedServices.map((s, i) => (
+              <div key={'fixed-'+i} className="q-tile q-row q-row-between">
+                <div>
+                  <strong className="q-strong" style={{ opacity: 0.6 }}>{s.service.name}</strong>
+                </div>
+                <span className="q-meta-sm">Fixed by family</span>
+              </div>
+            ))}
             {left.services.map((s) => (
               <label key={s.packageServiceId} className="q-tile q-row q-row-between" style={{ cursor: 'pointer' }}>
                 <strong className="q-strong">{s.name}</strong>
@@ -113,10 +134,21 @@ export function MemberForm({
         </div>
       )}
 
-      {left.promises.length > 0 && (
+      {(left.promises.length > 0 || fixedPromises.length > 0) && (
         <div className="q-card q-section">
           <h2 className="q-section-title">Deliverables</h2>
           <div className="q-stack q-stack-sm">
+            {fixedPromises.map((p, i) => (
+              <div key={'fixed-'+i} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
+                <div>
+                  <strong className="q-strong" style={{ opacity: 0.6 }}>{p.name}</strong>
+                  <span className="q-print-from">{p.serviceName}</span>
+                </div>
+                <div className="q-meta-sm">
+                  {p.decidedBy === 'client' ? 'Client chooses quantity' : p.quantity ? `Fixed: ${p.quantity}` : 'Fixed: none'}
+                </div>
+              </div>
+            ))}
             {left.promises.map((p) => {
               const k = `${p.packageServiceId}:${p.deliverableId}`;
               return (
@@ -138,10 +170,21 @@ export function MemberForm({
         </div>
       )}
 
-      {left.variables.length > 0 && (
+      {(left.variables.length > 0 || fixedVariables.length > 0) && (
         <div className="q-card q-section">
           <h2 className="q-section-title">Variables</h2>
           <div className="q-stack q-stack-sm">
+            {fixedVariables.map((v, i) => (
+              <div key={'fixed-'+i} className="q-tile q-row q-row-between" style={{ flexWrap: 'wrap' }}>
+                <div>
+                  <strong className="q-strong" style={{ opacity: 0.6 }}>{v.label}</strong>
+                  <span className="q-print-from">{v.serviceName}</span>
+                </div>
+                <div className="q-meta-sm">
+                  {v.answeredBy === 'client' ? 'Client decides' : 'Fixed by family'}
+                </div>
+              </div>
+            ))}
             {left.variables.map((v) => {
               const k = `${v.packageServiceId}:${v.variableId}`;
               const w = who[k];

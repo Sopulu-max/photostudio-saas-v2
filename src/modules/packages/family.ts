@@ -57,8 +57,8 @@ async function familyRows(orgId: string, familyId: string) {
     .from('package_services')
     .select(`
       id, decided_by, service:services(id, name),
-      package_deliverables(deliverable_id, decided_by, deliverable:deliverables(id, name)),
-      package_variable_values(answered_by, variable:variables(id, key, label, kind, unit, options, deliverable_id))
+      package_deliverables(deliverable_id, decided_by, quantity, deliverable:deliverables(id, name)),
+      package_variable_values(answered_by, value, variable:variables(id, key, label, kind, unit, options, deliverable_id))
     `)
     .eq('package_id', familyId).eq('organization_id', orgId).order('position');
   return { family: family as { id: string; name: string }, rows: (rows || []) as any[] };
@@ -187,7 +187,7 @@ export async function updateMember(input: {
 export async function getLeftToMember(familyId: string) {
   const { orgId } = await getAuthOrgId();
   const { family, rows } = await familyRows(orgId, familyId);
-  return { family, left: leftToMember(rows) };
+  return { family, left: leftToMember(rows), rows };
 }
 
 /** A member's own answers, for its edit form. */

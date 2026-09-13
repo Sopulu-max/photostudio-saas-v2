@@ -27,7 +27,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
   /* A member is edited through its family: the form is what the family left
      to it, and nothing else - a member has no structure of its own to edit. */
   if ((pkg as any).memberOf) {
-    const [{ family, left }, answers] = await Promise.all([
+    const [{ family, left, rows }, answers] = await Promise.all([
       getLeftToMember((pkg as any).memberOf),
       getMemberAnswers(pkg.id),
     ]);
@@ -43,6 +43,7 @@ export default async function PackageEditPage(props: { params: Promise<{ id: str
         <MemberForm
           family={family}
           left={left}
+          rows={rows}
           currencyCode={catalogs.currencyCode}
           initial={{ id: pkg.id, name: pkg.name, price: (pkg as any).price?.amount ?? null, answers }}
         />

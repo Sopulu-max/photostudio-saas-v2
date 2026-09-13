@@ -36,7 +36,7 @@ export default async function NewMemberPage(props: { params: Promise<{ id: strin
           <h1 className="q-page-title">{loaded.family.name}</h1>
         </div>
       </header>
-      <MemberForm family={loaded.family} left={loaded.left} currencyCode={currencyCode} />
+      <MemberForm family={loaded.family} left={loaded.left} rows={loaded.rows} currencyCode={currencyCode} />
     </div>
   );
 }
