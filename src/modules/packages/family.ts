@@ -101,6 +101,7 @@ export async function createMember(input: {
   price?: number | null;
   answers: MemberAnswerWrite[];
 }) {
+  try {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { family, rows } = await familyRows(orgId, input.memberOf);
   const left = validAnswers(rows, input.answers);
@@ -135,6 +136,10 @@ export async function createMember(input: {
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: made.id, action: 'created', actorId: actorId ?? undefined, payload: { memberOf: family.id, name } });
   revalidatePath('/packages');
   return { id: made.id as string, name };
+  } catch (err) {
+    console.error('BIG ERROR IN CREATEMEMBER', err);
+    throw err;
+  }
 }
 
 export async function updateMember(input: {
@@ -143,6 +148,7 @@ export async function updateMember(input: {
   price?: number | null;
   answers?: MemberAnswerWrite[];
 }) {
+  try {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: member } = await supabaseAdmin
     .from('packages').select('id, name, member_of')
@@ -181,6 +187,10 @@ export async function updateMember(input: {
   revalidatePath(`/packages/${member.id}`);
   revalidatePath(`/packages/${family.id}`);
   return { id: member.id as string };
+  } catch (err) {
+    console.error('BIG ERROR IN UPDATEMEMBER', err);
+    throw err;
+  }
 }
 
 /** What a family leaves to its members, for the member form. */
