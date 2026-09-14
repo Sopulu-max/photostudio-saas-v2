@@ -269,15 +269,13 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             {deliverables.length > 0 && (
               <section className="q-subsection">
                 <h2 className="q-subsection-title">Deliverables</h2>
-                <div className="q-stack q-stack-sm">
+                <div className="q-take-grid">
                   {deliverables.map((d: any, i: number) => (
-                    <div key={`${d.id}-${i}`} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{d.name}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d.from}</span>
-                      </div>
+                    <div key={`${d.id}-${i}`} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{d.name}</span>
+                      <span className="q-sheet-cap">{d.from.toUpperCase()}</span>
                       {d.quantity != null && (
-                        <div className="q-meta-sm">Quantity: {d.quantity}</div>
+                        <div className="q-meta-sm" style={{ marginTop: '6px' }}>Quantity: {d.quantity}</div>
                       )}
                     </div>
                   ))}
@@ -289,13 +287,11 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             {settledQuestions.length > 0 && (
               <section className="q-subsection">
                 <h2 className="q-subsection-title">Classification</h2>
-                <div className="q-stack q-stack-sm">
+                <div className="q-take-grid">
                   {settledQuestions.map((q) => (
-                    <div key={q.name} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{q.name}</strong>
-                      </div>
-                      <div className="q-meta-sm">{[...q.values.values()][0]}</div>
+                    <div key={q.name} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{q.name}</span>
+                      <span className="q-sheet-cap">{[...q.values.values()][0].toUpperCase()}</span>
                     </div>
                   ))}
                 </div>
@@ -306,14 +302,12 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             {kept.length > 0 && (
               <section className="q-subsection">
                 <h2 className="q-subsection-title">Variables</h2>
-                <div className="q-stack q-stack-sm">
+                <div className="q-take-grid">
                   {kept.map((v) => (
-                    <div key={v.key} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{v.label}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{v.from.join(', ')}</span>
-                      </div>
-                      <div className="q-meta-sm" style={{ color: 'var(--q-color-ink-600)' }}>
+                    <div key={v.key} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{v.label}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px', color: 'var(--q-color-ink-600)' }}>
                         {v.state === 'fixed' ? v.value : v.state === 'member' ? 'Member decides' : <span className="q-absent">Undecided</span>}
                       </div>
                     </div>
@@ -326,34 +320,28 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             {nAsked > 0 && (
               <section className="q-subsection">
                 <h2 className="q-subsection-title">Booking form</h2>
-                <div className="q-stack q-stack-sm">
+                <div className="q-take-grid">
                   {openQuestions.map((q) => (
-                    <div key={`q-${q.name}`} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{q.name}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Classification</span>
-                      </div>
-                      <div className="q-meta-sm">
+                    <div key={`q-${q.name}`} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{q.name}</span>
+                      <span className="q-sheet-cap">CLASSIFICATION</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>
                         One of: {[...q.values.values()].join(', ')}
                       </div>
                     </div>
                   ))}
                   {asked.map((v) => (
-                    <div key={v.key} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{v.label}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{v.from.join(', ')}</span>
-                      </div>
-                      <div className="q-meta-sm">Free answer</div>
+                    <div key={v.key} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{v.label}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>Free answer</div>
                     </div>
                   ))}
                   {formFields.map((f: any) => (
-                    <div key={f.id} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong">{f.label}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Studio question</span>
-                      </div>
-                      <div className="q-meta-sm">
+                    <div key={f.id} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name">{f.label}</span>
+                      <span className="q-sheet-cap">STUDIO QUESTION</span>
+                      <div className="q-meta-sm" style={{ marginTop: '6px' }}>
                         {f.type === 'select' && Array.isArray(f.options)
                           ? `One of ${f.options.join(' · ')}`
                           : f.type === 'textarea' ? 'Free text'
@@ -372,15 +360,13 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
             {work.length > 0 && (
               <section className="q-subsection">
                 <h2 className="q-subsection-title">Tasks</h2>
-                <div className="q-stack q-stack-sm">
+                <div className="q-take-grid">
                   {work.map((x: any, i: number) => (
-                    <div key={x.id} className="q-tile q-row q-row-between" style={{ alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                      <div className="q-row" style={{ gap: '8px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <strong className="q-strong" style={{ textDecoration: x.isActive ? 'none' : 'line-through' }}>{i + 1}. {x.name}</strong>
-                        <span className="q-meta-sm" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{x.from}</span>
-                      </div>
+                    <div key={x.id} className="q-take" style={{ cursor: 'default' }}>
+                      <span className="q-sheet-name" style={{ textDecoration: x.isActive ? 'none' : 'line-through' }}>{i + 1}. {x.name}</span>
+                      <span className="q-sheet-cap">{x.from.toUpperCase()}</span>
                       {(x.roleName || !x.workflowTaskId) && (
-                        <div className="q-meta-sm">
+                        <div className="q-meta-sm" style={{ marginTop: '6px' }}>
                           {[x.roleName, !x.workflowTaskId ? 'this package only' : null].filter(Boolean).join(' · ')}
                         </div>
                       )}
