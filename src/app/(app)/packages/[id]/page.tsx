@@ -230,8 +230,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         const work: any[] = services.flatMap((s: any) =>
           ((s.tasks || []) as any[]).map((x) => ({ ...x, from: s.name })));
 
-        const deliverables = services.flatMap((s: any) =>
-          ((s.deliverables || []) as any[]).map((d) => ({ ...d, from: s.name })));
 
         return (
           <div className="q-stack q-stack-xl">
@@ -261,24 +259,6 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                 )}
                 <div style={{ marginTop: '12px' }}>
                   <Link href={`/packages/${pkg.id}/members/new`} className="q-btn q-btn-secondary q-btn-sm">New member</Link>
-                </div>
-              </section>
-            )}
-
-            {/* DELIVERABLES */}
-            {deliverables.length > 0 && (
-              <section className="q-subsection">
-                <h2 className="q-subsection-title">Deliverables</h2>
-                <div className="q-take-grid">
-                  {deliverables.map((d: any, i: number) => (
-                    <div key={`${d.id}-${i}`} className="q-take" style={{ cursor: 'default' }}>
-                      <span className="q-sheet-name">{d.name}</span>
-                      <span className="q-sheet-cap">{d.from.toUpperCase()}</span>
-                      {d.quantity != null && (
-                        <div className="q-meta-sm" style={{ marginTop: '6px' }}>Quantity: {d.quantity}</div>
-                      )}
-                    </div>
-                  ))}
                 </div>
               </section>
             )}
