@@ -147,11 +147,17 @@ export interface Package {
   id: string;
   organization_id: string;
   name: string;
+  short_description: string | null;
   description: string | null;
   price: Record<string, unknown>;
+  list_price: Record<string, unknown> | null;
   status: string;
   duration_minutes: number | null;
   extra_stages: any[];
+  instance_of: string | null;
+  member_of: string | null;
+  is_family: boolean;
+  contract_terms: string | null;
   created_at: string;
   updated_at: string;
 }

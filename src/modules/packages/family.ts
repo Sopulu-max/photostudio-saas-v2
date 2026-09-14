@@ -146,6 +146,7 @@ export async function updateMember(input: {
   memberId: string;
   name?: string | null;
   price?: number | null;
+  contractTerms?: string | null;
   answers?: MemberAnswerWrite[];
 }) {
   try {
@@ -153,14 +154,18 @@ export async function updateMember(input: {
   const { data: member } = await supabaseAdmin
     .from('packages').select('id, name, member_of')
     .eq('id', input.memberId).eq('organization_id', orgId).maybeSingle();
-  if (!member?.member_of) throw new Error('That package is not a member of a family.');
+  if (!member) throw new Error('Member not found');
+  if (!member.member_of) throw new Error('Not a family member');
   const { family, rows } = await familyRows(orgId, member.member_of);
 
   const patch: Record<string, unknown> = {};
+  if (input.name !== undefined) patch.name = input.name?.trim() || member.name;
   if (input.price !== undefined) {
     const currency = await getStudioCurrency();
     patch.price = input.price != null ? { base_price: input.price, currency } : {};
   }
+  if (input.contractTerms !== undefined) patch.contract_terms = input.contractTerms || null;
+
   if (input.answers !== undefined) {
     const left = validAnswers(rows, input.answers);
     const { error: clearErr } = await supabaseAdmin

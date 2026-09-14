@@ -336,6 +336,36 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               </section>
             )}
 
+            {/* CONTRACT */}
+            <section className="q-subsection">
+              <h2 className="q-subsection-title">Contract</h2>
+              <div className="q-take-grid">
+                <Link href={`/packages/${pkg.id}/contract`} className="q-take q-take-hover" style={{ textDecoration: 'none' }}>
+                  <span className="q-sheet-name">
+                    {pkg.contract_terms
+                      ? 'Custom terms written'
+                      : pkg.member_of
+                        ? 'Inherited from family'
+                        : 'Using studio default'}
+                  </span>
+                  <span className="q-sheet-cap">
+                    {pkg.contract_terms
+                      ? 'OVERRIDES STUDIO TEMPLATE'
+                      : pkg.member_of
+                        ? 'INHERITS FAMILY TERMS'
+                        : 'STUDIO TEMPLATE'}
+                  </span>
+                  <div className="q-meta-sm" style={{ marginTop: '6px', color: 'var(--q-color-ink-600)' }}>
+                    {pkg.contract_terms
+                      ? 'This package carries its own contractual terms.'
+                      : pkg.member_of
+                        ? 'This member defaults to its family\'s contract.'
+                        : 'This package uses the studio\'s standard contract.'}
+                  </div>
+                </Link>
+              </div>
+            </section>
+
             {/* TASKS */}
             {work.length > 0 && (
               <section className="q-subsection">

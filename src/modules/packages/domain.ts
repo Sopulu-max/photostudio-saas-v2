@@ -664,6 +664,7 @@ export async function updatePackage(input: {
   memberServices?: string[];
   /** What the package promises, each on the bundled service that produces it. */
   deliverables?: { serviceId: string; deliverableId: string; quantity?: number | null; decidedBy?: 'studio' | 'member' }[];
+  contractTerms?: string | null;
   /** What this package fixes. Omit to leave untouched; pass [] to clear. */
   variableValues?: PackageVariableWrite[];
   /**
@@ -686,7 +687,7 @@ export async function updatePackage(input: {
      rows it does not have. */
   if ((existing as any).member_of && (input.serviceIds !== undefined || input.deliverables !== undefined
       || input.variableValues !== undefined || input.narrowings !== undefined || input.tasks !== undefined)) {
-    throw new Error('A member is edited through its family: only its name, price and pictures are its own.');
+    throw new Error('A member is edited through its family: only its name, price, contract terms, and pictures are its own.');
   }
 
   // Everything a package points at comes from the form, so each set is checked
@@ -704,6 +705,7 @@ export async function updatePackage(input: {
   if (input.name !== undefined) patch.name = input.name.trim() || existing.name;
   if (input.description !== undefined) patch.description = input.description || null;
   if (input.shortDescription !== undefined) patch.short_description = input.shortDescription || null;
+  if (input.contractTerms !== undefined) patch.contract_terms = input.contractTerms || null;
   if (input.durationMinutes !== undefined) patch.duration_minutes = input.durationMinutes;
   if (input.price !== undefined) patch.price = input.price || {};
   if (input.isFamily !== undefined) patch.is_family = input.isFamily;
@@ -1181,7 +1183,7 @@ export async function setPackageStatus(input: { packageId: string; status: Opera
  * at package level except the package's own commercial terms.
  */
 const PACKAGE_SELECT = `
-  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema, member_of, is_family,
+  id, name, description, short_description, status, duration_minutes, extra_stages, price, instance_of, list_price, created_at, form_schema, member_of, is_family, contract_terms,
   package_images(id, url, position, sort),
   package_services(id, position, decided_by, service:services(
     id, name, description, domain:service_domains(id, name),

@@ -1195,7 +1195,7 @@ export async function createContractForBooking(
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('title, price, quantity, package_id, package:packages(name, price)')
+    .select('title, price, quantity, package_id, package:packages(name, price, contract_terms, member_of)')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
 
@@ -1282,7 +1282,34 @@ export async function createContractForBooking(
   const terms: Record<string, unknown> = {
     base_price: total, deposit_percentage: depositPercentage, currency, line_items: lineItems,
   };
-  if (typeof options?.agreementText === 'string') terms.agreement_text = options.agreementText;
+
+  let agreementText = typeof options?.agreementText === 'string' ? options.agreementText : undefined;
+
+  if (agreementText === undefined) {
+    // Find the first package on the booking that defines contract terms.
+    // If it's a member without its own terms, inherit from its family.
+    for (const l of lines || []) {
+      const pkg = l.package as any;
+      if (!pkg) continue;
+      if (typeof pkg.contract_terms === 'string') {
+        agreementText = pkg.contract_terms;
+        break;
+      }
+      if (pkg.member_of) {
+        const { data: family } = await supabaseAdmin
+          .from('packages')
+          .select('contract_terms')
+          .eq('id', pkg.member_of)
+          .maybeSingle();
+        if (typeof family?.contract_terms === 'string') {
+          agreementText = family.contract_terms;
+          break;
+        }
+      }
+    }
+  }
+
+  if (agreementText !== undefined) terms.agreement_text = agreementText;
 
   // Ask the Contracts module to draft it — Bookings never writes that table.
   const { contractId } = await draftContractForBooking({
