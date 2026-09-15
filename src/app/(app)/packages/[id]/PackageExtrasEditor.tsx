@@ -32,9 +32,9 @@ export function PackageExtrasEditor({ packageId, extras, services, deliverables,
         await createPackageExtra(packageId, draft);
         setAdding(false);
         setDraft({ name: '', description: '', target_type: 'custom', price: { amount: 0, currency } });
-        toast('Extra added successfully');
+        toast.ok('Extra added successfully');
       } catch (err) {
-        toast(readableError(err));
+        toast.bad(readableError(err, 'Something went wrong.'));
       }
     });
   };
@@ -44,9 +44,9 @@ export function PackageExtrasEditor({ packageId, extras, services, deliverables,
     startTransition(async () => {
       try {
         await deletePackageExtra(id);
-        toast('Extra removed');
+        toast.ok('Extra removed');
       } catch (err) {
-        toast(readableError(err));
+        toast.bad(readableError(err, 'Something went wrong.'));
       }
     });
   };

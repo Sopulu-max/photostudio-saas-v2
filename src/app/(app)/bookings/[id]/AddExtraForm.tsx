@@ -38,9 +38,9 @@ export function AddExtraForm({
         });
         setAdding(false);
         setSelectedExtraId('');
-        toast('Extra added to booking');
+        toast.ok('Extra added to booking');
       } catch (err) {
-        toast(readableError(err));
+        toast.bad(readableError(err, 'Something went wrong.'));
       }
     });
   };
