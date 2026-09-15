@@ -26,6 +26,18 @@ function useAction() {
 export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: string; stages: Stage[]; currentStageId: string }) {
   const { isPending, run } = useAction();
   const [pendingCancel, setPendingCancel] = useState<{ stage: Stage; effects: any } | null>(null);
+  /*
+   * WHAT WAS CHOSEN, HELD UNTIL THE PAGE CATCHES UP.
+   *
+   * The select was driven by the server's value alone, so the moment a stage
+   * was picked it snapped back to the old one and stayed there until the
+   * action returned and the page re-rendered - on a slow connection, minutes
+   * of "nothing happened" while the move had in fact been written. The
+   * choice is shown at once and only given up if the move fails.
+   */
+  const [chosen, setChosen] = useState<string | null>(null);
+  const shown = chosen ?? currentStageId;
+  if (chosen && chosen === currentStageId) setChosen(null);
 
   const move = (stage: Stage) => {
     // Moving to a cancelled stage: show what else is affected first. Nothing is
@@ -37,7 +49,8 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
       });
       return;
     }
-    run(() => setBookingStage({ bookingId, stageId: stage.id }));
+    setChosen(stage.id);
+    run(() => setBookingStage({ bookingId, stageId: stage.id }).catch((e) => { setChosen(null); throw e; }));
   };
 
   if (pendingCancel) {
@@ -68,18 +81,22 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
   }
 
   return (
-    <select
-      className="q-select"
-      value={currentStageId}
-      disabled={isPending}
-      onChange={(e) => {
-        const stage = stages.find((s) => s.id === e.target.value);
-        if (stage && stage.id !== currentStageId) move(stage);
-      }}
-      style={{ minWidth: '11rem' }}
-    >
-      {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-    </select>
+    <span className="q-row q-row-sm">
+      <select
+        className="q-select"
+        value={shown}
+        disabled={isPending}
+        aria-busy={isPending}
+        onChange={(e) => {
+          const stage = stages.find((s) => s.id === e.target.value);
+          if (stage && stage.id !== currentStageId) move(stage);
+        }}
+        style={{ minWidth: '11rem' }}
+      >
+        {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      {isPending && <span className="q-meta-sm">Moving…</span>}
+    </span>
   );
 }
 
