@@ -37,8 +37,18 @@ CREATE INDEX IF NOT EXISTS idx_package_extras_package ON package_extras(package_
 CREATE INDEX IF NOT EXISTS idx_package_extras_org ON package_extras(organization_id);
 
 ALTER TABLE package_extras ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Tenant Isolation" ON package_extras FOR ALL USING (organization_id IN (SELECT auth_org_ids()));
 
+DO $$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'package_extras' AND policyname = 'Tenant Isolation'
+    ) THEN
+        CREATE POLICY "Tenant Isolation" ON package_extras FOR ALL USING (organization_id IN (SELECT auth_org_ids()));
+    END IF;
+END
+$$$;
+
+DROP TRIGGER IF EXISTS trg_package_extras_updated ON package_extras;
 CREATE TRIGGER trg_package_extras_updated
   BEFORE UPDATE ON package_extras
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
