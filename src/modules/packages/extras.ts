@@ -19,7 +19,11 @@ export async function listPackageExtras(packageId: string): Promise<PackageExtra
     .order('position', { ascending: true })
     .order('created_at', { ascending: true });
 
-  if (error) throw dbError(error);
+  if (error) {
+    // If the migration hasn't been applied yet, degrade gracefully rather than crashing pages.
+    if (error.code === '42P01') return [];
+    throw dbError(error);
+  }
   return (data || []) as PackageExtra[];
 }
 
