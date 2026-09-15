@@ -7,8 +7,9 @@ import { logEvent } from '@/kernel/events';
 import { dbError } from '@/kernel/errors';
 import { revalidatePath } from 'next/cache';
 import {
-  type MemberAnswer, type MemberAnswerWrite, leftToMember, composeMemberName,
+  type MemberAnswerWrite, leftToMember, composeMemberName,
 } from './familyShape';
+import { memberAnswersOf } from './familyInternal';
 
 /**
  * A family's members: the doors.
@@ -18,31 +19,6 @@ import {
  * reads them back; the resolution of a member's structure through its family
  * lives in familyShape and is applied by every package reader in domain.ts.
  */
-
-/** The package whose bundle rows hold this package's structure: the family's for a member, its own otherwise. */
-export async function structureIdOf(orgId: string, packageId: string): Promise<string> {
-  const { data } = await supabaseAdmin
-    .from('packages').select('member_of')
-    .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-  return (data?.member_of as string | null) ?? packageId;
-}
-
-export async function memberAnswersOf(orgId: string, memberIds: string[]): Promise<Record<string, MemberAnswer[]>> {
-  const out: Record<string, MemberAnswer[]> = {};
-  if (memberIds.length === 0) return out;
-  const { data } = await supabaseAdmin
-    .from('package_member_answers')
-    .select('member_id, package_service_id, kind, ref_id, value, answered_by')
-    .eq('organization_id', orgId)
-    .in('member_id', memberIds);
-  for (const r of ((data || []) as any[])) {
-    (out[r.member_id] ||= []).push({
-      package_service_id: r.package_service_id, kind: r.kind, ref_id: r.ref_id,
-      value: r.value, answered_by: r.answered_by,
-    });
-  }
-  return out;
-}
 
 /** The family's own bundle rows with what it leaves to members - what a member form asks. */
 async function familyRows(orgId: string, familyId: string) {

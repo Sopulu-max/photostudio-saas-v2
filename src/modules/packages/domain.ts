@@ -22,7 +22,8 @@ import { narrowOptions, specFromAnswers, byPromiseOrder, PROMISE_ANSWERS } from 
 import { formatDeliverable } from './deliverableSpec';
 // A family's members resolve through the family; the rule is written once, there.
 import { overlayMember, isFamily, leftToMember } from './familyShape';
-import { structureIdOf, memberAnswersOf } from './family';
+import { structureIdOf, memberAnswersOf } from './familyInternal';
+import { snapshotFamilyRows, keepMembersWhole } from './familyInternal';
 // A failure keeps the reason it failed — and says so plainly when the reason
 // is that the database was never reached. See kernel/errors.
 import { dbError } from '@/kernel/errors';
@@ -767,6 +768,9 @@ export async function updatePackage(input: {
   // changed — so it is read once, here, rather than taken from the input. A
   // service dropped up there took its promises with it by cascade.
   const rows = await bundleRows(orgId, input.packageId);
+  /* A family edited while it has members: anything that goes from fixed to
+     "left to the member" leaves each member its old value as an answer. */
+  const before = await snapshotFamilyRows(orgId, input.packageId);
   if (input.memberServices !== undefined) {
     const member = new Set(input.memberServices);
     const [toMember, toStudio] = [rows.filter((r) => member.has(r.service_id)), rows.filter((r) => !member.has(r.service_id))];
@@ -777,6 +781,7 @@ export async function updatePackage(input: {
   if (input.narrowings !== undefined) await writePackageNarrowings(orgId, input.packageId, input.narrowings);
   if (input.variableValues !== undefined) await writePackageVariableValues(orgId, rows, input.variableValues);
   if (input.tasks !== undefined) await writePackageTasks(orgId, input.packageId, input.tasks);
+  await keepMembersWhole(orgId, input.packageId, before);
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: input.packageId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/packages');

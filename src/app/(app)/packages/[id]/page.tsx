@@ -123,6 +123,14 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
               <Link href={`/bookings/new?package=${pkg.id}`} className="q-btn q-btn-primary" title={`Take a booking for ${pkg.name}`}>Book</Link>
             ))}
           <Link href={`/packages/${pkg.id}/edit`} className="q-btn q-btn-secondary">{family ? 'Edit member' : isFamily ? 'Edit family' : 'Edit package'}</Link>
+          {/* Standing alone is not final: a package can join a family it
+              fits, or become the first member of a new one. */}
+          {!family && !isFamily && !instance && !retired && (
+            <>
+              <Link href={`/packages/${pkg.id}/make-family`} className="q-btn q-btn-secondary">Make a family</Link>
+              <Link href={`/packages/${pkg.id}/move`} className="q-btn q-btn-secondary">Move to family</Link>
+            </>
+          )}
         </div>
       </div>
 

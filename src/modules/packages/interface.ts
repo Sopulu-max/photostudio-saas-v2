@@ -54,6 +54,8 @@ export {
 
 // How a deliverable's specification reads — one phrasing everywhere a client sees it.
 export { createMember, updateMember, getLeftToMember, getMemberAnswers } from './family';
+export { planMoveToFamily, moveToFamily, makeFamilyFrom, listFamilies, whatCouldBeLeft } from './familyMoves';
+export type { MovePlan, MoveConflict } from './familyMoves';
 export type { MemberAnswerWrite, LeftToMember } from './familyShape';
 
 export { formatDeliverable } from './deliverableSpec';
