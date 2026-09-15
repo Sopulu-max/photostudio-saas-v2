@@ -71,7 +71,7 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
         )}
         <div className="q-row">
           <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
-            onClick={() => run(() => setBookingStage({ bookingId, stageId: pendingCancel.stage.id }), () => setPendingCancel(null))}>
+            onClick={() => { setChosen(pendingCancel.stage.id); run(() => setBookingStage({ bookingId, stageId: pendingCancel.stage.id }).catch((e) => { setChosen(null); throw e; }), () => setPendingCancel(null)); }}>
             Move it
           </button>
           <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setPendingCancel(null)}>Keep as is</button>
