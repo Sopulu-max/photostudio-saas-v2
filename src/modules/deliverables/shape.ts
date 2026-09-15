@@ -97,7 +97,7 @@ export const PACKAGE_PROMISE_NAMED =
    * place to forget a column, which is the fault this whole file exists to
    * stop.
    */
-  `package_deliverables(quantity, ${DELIVERABLE_REF})`;
+  `package_deliverables(quantity, decided_by, ${DELIVERABLE_REF})`;
 
 /** Enough to count promises without carrying what they say. */
 export const PACKAGE_PROMISE_COUNT = 'package_deliverables(id)';

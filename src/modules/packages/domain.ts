@@ -1495,7 +1495,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       price, price_unit,
       package_services(id, position, decided_by, service:services(
         id, name, domain:service_domains(id, name)
-      ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
+      ), ${PACKAGE_PROMISE_NAMED}, ${PROMISE_ANSWERS}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
     `)
@@ -1508,7 +1508,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       price, price_unit,
       package_services(id, position, decided_by, service:services(
         id, name, domain:service_domains(id, name)
-      ), ${PACKAGE_PROMISE_NAMED}, package_service_dimension_values(dimension_value:dimension_values(
+      ), ${PACKAGE_PROMISE_NAMED}, ${PROMISE_ANSWERS}, package_service_dimension_values(dimension_value:dimension_values(
         id, name, dimension:dimensions(id, name)
       )))
     `);
@@ -1556,13 +1556,16 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
        */
       deliverables: [...new Map(
         ((p.package_services || []) as any[])
-          .flatMap((ps: any) => (ps.package_deliverables || []) as any[])
-          .filter((d: any) => d.deliverable?.id)
-          .map((d: any) => [d.deliverable.id as string, {
+          .flatMap((ps: any) => ((ps.package_deliverables || []) as any[]).map((d: any) => ({ d, ps })))
+          .filter(({ d }: any) => d.deliverable?.id)
+          .map(({ d, ps }: any) => [d.deliverable.id as string, {
             id: d.deliverable.id as string,
             name: d.deliverable.name as string,
             position: (d.deliverable.position ?? null) as number | null,
             quantity: (d.quantity ?? null) as number | null,
+            /* What was settled about it - Softcopy - read by the one reader
+               every surface uses, so a card says what the page says. */
+            spec_values: specFromAnswers(ps.package_variable_values, d.deliverable.id),
           }] as const),
       ).values()]
         /* The client's card and the studio's read one package the same way. */
