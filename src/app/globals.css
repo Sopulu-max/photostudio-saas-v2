@@ -5003,19 +5003,16 @@ button.q-md-box:focus-visible {
 }
 
 /* Anything the host draws over the picture — a title, a price — sits above the
-<<<<<<< HEAD
    slides rather than under whichever one happens to be showing.
 
    :where() so this carries the specificity of `.q-slides` alone. Written as
    `> *:not(.q-slide):not(.q-slide-pips)` it outranked `.q-hero > .q-hero-price`,
    and the storefront's price pill lost its corner: it fell into the flex flow
    as a full-width bar, and its top:16px became a relative nudge down into the
-   title. A host must be able to place its own child over the slides. */
+   title. A host must be able to place its own child over the slides - any
+   child, which is why this lowers the rule rather than naming the two
+   classes it happened to break. */
 .q-slides > :where(*:not(.q-slide):not(.q-slide-pips)) {
-=======
-   slides rather than under whichever one happens to be showing. */
-.q-slides > *:not(.q-slide):not(.q-slide-pips):not(.q-hero-price):not(.q-poster-price) {
->>>>>>> f862a43 (feat(packages): Build Level 2 Smart Extras architecture)
   position: relative;
   z-index: 1;
 }
