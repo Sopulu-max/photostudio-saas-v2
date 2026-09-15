@@ -10,7 +10,7 @@ import type { PackageExtra } from '@/lib/types/engine';
  * Returns all extras specifically offered by a package.
  */
 export async function listPackageExtras(packageId: string): Promise<PackageExtra[]> {
-  const orgId = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('package_extras')
     .select('*')
@@ -22,7 +22,7 @@ export async function listPackageExtras(packageId: string): Promise<PackageExtra
   if (error) {
     // If the migration hasn't been applied yet, degrade gracefully rather than crashing pages.
     if (error.code === '42P01') return [];
-    throw dbError(error);
+    throw dbError('Could not read the extras', error);
   }
   return (data || []) as PackageExtra[];
 }
@@ -31,7 +31,7 @@ export async function listPackageExtras(packageId: string): Promise<PackageExtra
  * Appends a new extra to a package's offering.
  */
 export async function createPackageExtra(packageId: string, extra: Partial<PackageExtra>) {
-  const orgId = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
   
   // ensure required fields exist
   if (!extra.name || !extra.price || !extra.target_type) {
@@ -57,7 +57,7 @@ export async function createPackageExtra(packageId: string, extra: Partial<Packa
     .select()
     .single();
 
-  if (error) throw dbError(error);
+  if (error) throw dbError('Could not read the extras', error);
   revalidatePath('/packages/' + packageId);
   return data as PackageExtra;
 }
@@ -66,7 +66,7 @@ export async function createPackageExtra(packageId: string, extra: Partial<Packa
  * Updates an existing package extra.
  */
 export async function updatePackageExtra(extraId: string, updates: Partial<PackageExtra>) {
-  const orgId = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
   
   const { data, error } = await supabaseAdmin
     .from('package_extras')
@@ -84,7 +84,7 @@ export async function updatePackageExtra(extraId: string, updates: Partial<Packa
     .select()
     .single();
 
-  if (error) throw dbError(error);
+  if (error) throw dbError('Could not read the extras', error);
   revalidatePath('/packages/' + data.package_id);
   return data as PackageExtra;
 }
@@ -93,7 +93,7 @@ export async function updatePackageExtra(extraId: string, updates: Partial<Packa
  * Removes an extra from a package.
  */
 export async function deletePackageExtra(extraId: string) {
-  const orgId = await getAuthOrgId();
+  const { orgId } = await getAuthOrgId();
   
   // Need to get the package_id first to revalidate correctly
   const { data: existing, error: fetchErr } = await supabaseAdmin
@@ -111,7 +111,7 @@ export async function deletePackageExtra(extraId: string) {
     .eq('id', extraId)
     .eq('organization_id', orgId);
 
-  if (error) throw dbError(error);
+  if (error) throw dbError('Could not read the extras', error);
   
   if (existing?.package_id) {
     revalidatePath('/packages/' + existing.package_id);
