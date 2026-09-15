@@ -6,6 +6,7 @@ import { CoverSlides } from '@/components/CoverSlides';
 import { PrintHead, PrintFacts } from '@/components/Print';
 import { CreateContractButton, RestoreWorkButton } from './BookingActions';
 import { ResolveEnquiry } from './ResolveEnquiry';
+import { AddExtraForm } from './AddExtraForm';
 
 import { listClients } from '@/modules/clients/interface';
 import { listEmployees, listRoles } from '@/modules/team/interface';
@@ -14,7 +15,7 @@ import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
 import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
-import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
+import { listPackages, getPackage, formatDeliverable, listPackageExtras } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
 import { formatVariableValue } from '@/modules/services/interface';
@@ -154,6 +155,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const undelivered = fulfilment.filter((f) => !f.shared);
 
   const lines: any[] = booking.lines;
+  const packageIds = [...new Set(lines.map((l: any) => l.package_id).filter(Boolean))] as string[];
+  const allExtrasNested = await Promise.all(packageIds.map(pid => listPackageExtras(pid)));
+  const availableExtras = allExtrasNested.flat();
   const contracts: any[] = booking.contracts;
   const txns: any[] = booking.transactions;
 
@@ -525,8 +529,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * set a role, add a step and remove one, and narrows the assignee
             * list to people who actually hold the role. Nothing was lost here.
             */}
+          {/* Add-ons & Extras */}
+          {lines.length > 0 && availableExtras.length > 0 && (
+            <AddExtraForm 
+              bookingId={booking.id} 
+              availableExtras={availableExtras} 
+              currencyCode={currencyCode} 
+            />
+          )}
+
           {lines.length > 0 && (
-            <div className="q-tile-sub q-row q-row-between">
+            <div className="q-tile-sub q-row q-row-between" style={{ marginTop: availableExtras.length > 0 ? '16px' : 0 }}>
               <span className="q-meta">Total</span>
               <strong className="q-stat-value">
                 {formatMoney(lines.reduce((sum: number, l: any) => sum + lineTotal(l), 0), (lines[0]?.price as any)?.currency)}

@@ -85,6 +85,17 @@ export default async function BookingPage(props: {
   const pkg = await getPackagePublic(org.id, params.packageId);
   if (!pkg) notFound();
 
+  const currencyCode = org.currency;
+  const services = pkg.serviceNames;
+  const deliverables = pkg.deliverableNames;
+  const durationMin: number | null = pkg.durationMinutes;
+
+  const durationLabel = durationMin
+    ? durationMin >= 60
+      ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ''}`
+      : `${durationMin}m`
+    : null;
+
   if (pkg.isFamily) {
     const all = await listPackagesPublicWithDimensions(org.id);
     const members = all.filter((p) => p.memberOf === pkg.id);
@@ -103,8 +114,22 @@ export default async function BookingPage(props: {
               slides={pkg.images || []}
               className={pkg.coverUrl ? 'q-hero' : 'q-hero q-hero-blank'}
             >
+              {pkg.price && (
+                <span className="q-hero-price">
+                  {formatMoney(pkg.price.amount, pkg.price.currency || currencyCode)}
+                  {pkg.priceUnit && <span className="q-poster-price-unit">/{pkg.priceUnit}</span>}
+                </span>
+              )}
               <h1 className="q-hero-title">{pkg.name}</h1>
               {pkg.shortDescription && <p className="q-hero-note">{pkg.shortDescription}</p>}
+              {(durationLabel || deliverables.length > 0) && (
+                <div className="q-hero-tags">
+                  {durationLabel && <span className="q-hero-tag">{durationLabel}</span>}
+                  {deliverables.map((d) => (
+                    <span key={d} className="q-hero-tag">{d}</span>
+                  ))}
+                </div>
+              )}
             </CoverSlides>
 
             {pkg.description && (
@@ -143,17 +168,6 @@ export default async function BookingPage(props: {
     premisesValueIdsFor(org.id),
     packageNarrowingValueIds(org.id, params.packageId),
   ]);
-
-  const currencyCode = org.currency;
-  const services = pkg.serviceNames;
-  const deliverables = pkg.deliverableNames;
-  const durationMin: number | null = pkg.durationMinutes;
-
-  const durationLabel = durationMin
-    ? durationMin >= 60
-      ? `${Math.floor(durationMin / 60)}h${durationMin % 60 > 0 ? ` ${durationMin % 60}m` : ''}`
-      : `${durationMin}m`
-    : null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)', padding: 'clamp(32px, 6vw, 80px) 24px' }}>

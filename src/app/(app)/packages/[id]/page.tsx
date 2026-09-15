@@ -2,14 +2,16 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { CoverSlides } from '@/components/CoverSlides';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { formatDeliverable, getPackage, listPackages } from '@/modules/packages/interface';
+import { formatDeliverable, getPackage, listPackages, listPackageExtras } from '@/modules/packages/interface';
 import { listBookingsOfPackage } from '@/modules/bookings/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { SheetRow, initialsFor } from '@/components/Sheet';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
-import { formatVariableValue, splitVariables } from '@/modules/services/interface';
+import { formatVariableValue, splitVariables, listServices } from '@/modules/services/interface';
+import { listDeliverables } from '@/modules/deliverables/interface';
 import { StorefrontLink } from '../StorefrontLink';
+import { PackageExtrasEditor } from './PackageExtrasEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +28,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
 
   const isFamily = Boolean((pkg as any).isFamily);
   const family = (pkg as any).family as { id: string; name: string } | null;
-  const [currencyCode, org, bookedOn, members] = await Promise.all([
+  const [currencyCode, org, bookedOn, members, allPackages, allServices, allDeliverables, extras] = await Promise.all([
     getStudioCurrency(),
     getStudio(),
     /* Where this package has been booked: derived from the lines that
@@ -35,6 +37,10 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
     /* A family's members: packages whose member_of is this one. Each reads
        as the family with its own answers, so they list like any package. */
     isFamily ? listPackages().then((all: any[]) => all.filter((m) => m.memberOf === pkg.id)) : Promise.resolve([] as any[]),
+    listPackages(),
+    listServices(),
+    listDeliverables(),
+    listPackageExtras(pkg.id),
   ]);
 
   const services = (pkg as any).services || [];
@@ -393,6 +399,18 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                 </div>
               </section>
             )}
+            {/* EXTRAS (ADD-ONS) */}
+            <section className="q-subsection">
+              <h2 className="q-subsection-title">Add-ons & Extras</h2>
+              <PackageExtrasEditor 
+                packageId={pkg.id} 
+                extras={extras} 
+                services={allServices} 
+                deliverables={allDeliverables} 
+                packages={allPackages}
+                currency={currencyCode}
+              />
+            </section>
           </div>
         );
       })()}

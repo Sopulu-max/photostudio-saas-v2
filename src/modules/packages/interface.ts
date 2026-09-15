@@ -63,3 +63,6 @@ export type { DeliverableSpec } from './deliverableSpec';
 
 /** The studio's shop windows — one per domain a package leads with. Derived, never declared. */
 export { shopWindowsOf, inWindow, windowHref, type ShopWindow } from './windows';
+
+// Extras (Add-ons)
+export * from './extras';
