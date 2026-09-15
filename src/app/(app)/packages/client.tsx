@@ -81,8 +81,12 @@ export function PackagesClient({
         for (const v of d.values) if (!target.values.some((x) => x.id === v.id)) target.values.push(v);
       }
     };
-    absorb(pkg.dimensions);
-    (pkg.services || []).forEach((s: any) => absorb(s.dimensions));
+    
+    (pkg.services || []).forEach((s: any) => {
+      const narrowed = s.narrowedTo || [];
+      absorb(narrowed.length ? narrowed : (s.dimensions || []));
+    });
+    
     /*
      * In the studio's order, like everywhere else.
      *

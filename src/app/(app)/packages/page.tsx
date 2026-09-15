@@ -37,8 +37,12 @@ export default async function PackagesPage(props: { searchParams: Promise<{ valu
   const windows = org ? shopWindowsOf(await listPackagesPublicWithDimensions(org.id)) : [];
 
   const carries = (dims: Tagged | undefined) => (dims || []).some((d) => d.values.some((v) => v.id === valueId));
+  const packageMatches = (p: any) => (p.services || []).some((s: any) => {
+    const narrowed = s.narrowedTo || [];
+    return carries(narrowed.length ? narrowed : (s.dimensions || []));
+  });
   const packages = valueId
-    ? (allPackages as any[]).filter((p) => carries(p.dimensions) || (p.services || []).some((s: any) => carries(s.dimensions)))
+    ? (allPackages as any[]).filter(packageMatches)
     : allPackages;
   const activeFilter = valueId ? { label: sp.label || 'this classification' } : null;
 
