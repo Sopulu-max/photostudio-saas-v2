@@ -14,7 +14,7 @@ import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
 import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
-import { listPackages, formatDeliverable } from '@/modules/packages/interface';
+import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
 import { formatVariableValue } from '@/modules/services/interface';
@@ -84,6 +84,21 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   // The catalogue of what can be added to this booking — asked of Packages,
   // never read from its table. Retired packages aren't offered for new lines.
   const packageRows = await listPackages();
+  /*
+   * THE LINE'S OWN PACKAGE, READ AS ITSELF.
+   *
+   * A line points at the booking's own instance of a package, and the
+   * catalogue listing above filters instances out - so looking the line's
+   * package up in it found nothing, and the Packages section said a booked
+   * package had no services. The instance is a real package with real rows
+   * (a member's is materialised from its family at booking), so it is read
+   * by id, in the same shape the catalogue rows have.
+   */
+  const linePackages = new Map<string, any>();
+  await Promise.all(((booking.lines || []) as any[])
+    .map((l) => l.package_id as string | null)
+    .filter((id, i, all): id is string => Boolean(id) && all.indexOf(id) === i)
+    .map(async (id) => { const p = await getPackage(id).catch(() => null); if (p) linePackages.set(id, p); }));
   const packageOptions = (packageRows as any[])
     .filter((p) => p.status !== 'retired')
     .map((p) => ({ id: p.id as string, name: p.name as string }))
@@ -398,7 +413,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           ) : (
             <div className="q-stack">
               {lines.map((l) => {
-                const pkg = (packageRows as any[]).find((p) => p.id === l.package_id);
+                const pkg = linePackages.get(l.package_id) ?? (packageRows as any[]).find((p) => p.id === l.package_id);
                 const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
                 
                 // Classifications logic matching Packages
