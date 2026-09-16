@@ -82,6 +82,7 @@ export function AddExtraForm({
   if (!adding) {
     return (
       <button 
+        type="button"
         className="q-btn q-btn-secondary q-btn-sm" 
         onClick={() => setAdding(true)}
         style={{ marginTop: '12px' }}
@@ -95,7 +96,7 @@ export function AddExtraForm({
     <div className="q-card q-stack" style={{ padding: '16px', marginTop: '12px', border: '1px dashed var(--q-color-ink-200)' }}>
       <div className="q-row q-row-between">
         <strong>Add Extra</strong>
-        <button className="q-btn-icon" onClick={() => setAdding(false)} disabled={isPending}>?</button>
+        <button type="button" className="q-btn-icon" onClick={() => setAdding(false)} disabled={isPending}>✕</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
@@ -143,6 +144,7 @@ export function AddExtraForm({
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
         <button 
+          type="button"
           className="q-btn q-btn-primary" 
           onClick={handleSave} 
           disabled={isPending || (targetType !== 'custom' && !selectedId) || !title.trim()}

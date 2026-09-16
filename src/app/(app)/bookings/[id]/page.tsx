@@ -16,9 +16,10 @@ import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
 import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
 import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
+import { listDeliverables } from '@/modules/deliverables/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
-import { formatVariableValue } from '@/modules/services/interface';
+import { formatVariableValue, listServices } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl, CoverButton } from './DeliveryForms';
@@ -156,9 +157,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
   const lines: any[] = booking.lines;
   const [availablePackages, availableServices, availableDeliverables] = await Promise.all([
-    import('@/modules/packages/interface').then(m => m.listPackages()),
-    import('@/modules/services/interface').then(m => m.listServices()),
-    import('@/modules/deliverables/interface').then(m => m.listDeliverables())
+    listPackages(),
+    listServices(),
+    listDeliverables()
   ]);
   const contracts: any[] = booking.contracts;
   const txns: any[] = booking.transactions;
