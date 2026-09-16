@@ -15,7 +15,7 @@ import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
 import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
-import { listPackages, getPackage, formatDeliverable, listPackageExtras } from '@/modules/packages/interface';
+import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
 import { formatVariableValue } from '@/modules/services/interface';
