@@ -1068,7 +1068,10 @@ export async function restoreWorkForBooking(bookingId: string) {
 export async function addBookingLine(input: {
   bookingId: string;
   packageId?: string | null;
-  packageExtraId?: string | null;
+  targetType?: 'package' | 'service' | 'deliverable' | 'custom';
+  targetDeliverableId?: string | null;
+  targetDeliverableQuantity?: number | null;
+  targetServiceId?: string | null;
   title: string;
   price?: Record<string, unknown>;
   quantity?: number;
@@ -1078,7 +1081,8 @@ export async function addBookingLine(input: {
   await assertOurs(orgId, [
     { table: 'bookings', id: input.bookingId, label: 'booking' },
     { table: 'packages', id: input.packageId, label: 'package' },
-    { table: 'package_extras', id: input.packageExtraId, label: 'extra' },
+    { table: 'deliverables', id: input.targetDeliverableId, label: 'target_deliverable' },
+    { table: 'services', id: input.targetServiceId, label: 'target_service' },
   ]);
 
   /*
@@ -1123,7 +1127,10 @@ export async function addBookingLine(input: {
       organization_id: orgId,
       booking_id: input.bookingId,
       package_id: packageId,
-      package_extra_id: input.packageExtraId ?? null,
+      target_type: input.targetType ?? 'package',
+      target_deliverable_id: input.targetDeliverableId ?? null,
+      target_deliverable_quantity: input.targetDeliverableQuantity ?? null,
+      target_service_id: input.targetServiceId ?? null,
       title,
       price,
       quantity: input.quantity ?? 1,

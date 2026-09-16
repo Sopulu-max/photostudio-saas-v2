@@ -70,7 +70,10 @@ export interface BookingLine {
   package_service_id: string | null;
   title: string;
   package_id: string | null;
-  package_extra_id: string | null;
+  target_type: 'package' | 'service' | 'deliverable' | 'custom';
+  target_deliverable_id: string | null;
+  target_deliverable_quantity: number | null;
+  target_service_id: string | null;
   status: 'draft' | 'confirmed' | 'completed' | 'cancelled';
   current_label_id: string | null;
   created_at: string;
@@ -169,24 +172,6 @@ export interface Deliverable {
   name: string;
   default_unit: string | null;
   created_at: string;
-}
-
-export interface PackageExtra {
-  id: string;
-  organization_id: string;
-  package_id: string;
-  name: string;
-  description: string | null;
-  price: Record<string, unknown>;
-  target_type: 'deliverable' | 'service' | 'package' | 'custom';
-  target_deliverable_id: string | null;
-  target_deliverable_quantity: number | null;
-  target_service_id: string | null;
-  target_package_id: string | null;
-  position: number;
-  status: 'active' | 'archived';
-  created_at: string;
-  updated_at: string;
 }
 
 

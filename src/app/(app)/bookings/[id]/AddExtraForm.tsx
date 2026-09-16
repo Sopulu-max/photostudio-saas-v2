@@ -1,43 +1,77 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useMemo } from 'react';
 import { addBookingLine } from '@/modules/bookings/interface';
-import { formatMoney } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
-import type { PackageExtra } from '@/lib/types/engine';
 
 export function AddExtraForm({
   bookingId,
-  availableExtras,
+  packages,
+  services,
+  deliverables,
   currencyCode,
 }: {
   bookingId: string;
-  availableExtras: PackageExtra[];
+  packages: any[];
+  services: any[];
+  deliverables: any[];
   currencyCode: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
-  const [selectedExtraId, setSelectedExtraId] = useState<string>('');
+  const [targetType, setTargetType] = useState<'deliverable' | 'service' | 'package' | 'custom'>('deliverable');
+  
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState<string>('');
 
-  if (availableExtras.length === 0) return null;
+  const handleTypeChange = (t: any) => {
+    setTargetType(t);
+    setSelectedId('');
+    setTitle('');
+  };
+
+  const handleTargetChange = (id: string) => {
+    setSelectedId(id);
+    if (!id) return;
+    
+    if (targetType === 'deliverable') {
+      const d = deliverables.find(x => x.id === id);
+      if (d) setTitle(d.name);
+    } else if (targetType === 'service') {
+      const s = services.find(x => x.id === id);
+      if (s) setTitle(s.name);
+    } else if (targetType === 'package') {
+      const p = packages.find(x => x.id === id);
+      if (p) setTitle(p.name);
+    }
+  };
 
   const handleSave = () => {
-    if (!selectedExtraId) return;
-    const extra = availableExtras.find(e => e.id === selectedExtraId);
-    if (!extra) return;
-
+    if (!title.trim()) {
+      toast.bad('Please enter a title');
+      return;
+    }
+    
     startTransition(async () => {
       try {
         await addBookingLine({
           bookingId,
-          title: extra.name,
-          packageExtraId: extra.id,
-          packageId: extra.package_id,
-          price: extra.price as Record<string, unknown>,
-          quantity: 1,
+          title: title.trim(),
+          targetType,
+          targetDeliverableId: targetType === 'deliverable' ? selectedId : null,
+          targetDeliverableQuantity: targetType === 'deliverable' ? quantity : null,
+          targetServiceId: targetType === 'service' ? selectedId : null,
+          packageId: targetType === 'package' ? selectedId : null,
+          price: { amount: price ? parseFloat(price) : 0, currency: currencyCode },
+          quantity: 1, // The line quantity itself is 1. Deliverable quantity is nested if applicable.
         });
         setAdding(false);
-        setSelectedExtraId('');
+        setSelectedId('');
+        setTitle('');
+        setPrice('');
+        setQuantity(1);
         toast.ok('Extra added to booking');
       } catch (err) {
         toast.bad(readableError(err, 'Something went wrong.'));
@@ -59,34 +93,61 @@ export function AddExtraForm({
 
   return (
     <div className="q-card q-stack" style={{ padding: '16px', marginTop: '12px', border: '1px dashed var(--q-color-ink-200)' }}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <select 
-          className="q-select"
-          value={selectedExtraId}
-          onChange={e => setSelectedExtraId(e.target.value)}
-          style={{ flex: 1 }}
-        >
-          <option value="">Select an extra to add...</option>
-          {availableExtras.map(ex => (
-            <option key={ex.id} value={ex.id}>
-              {ex.name} (+{formatMoney(Number((ex.price as any)?.amount || 0), (ex.price as any)?.currency || currencyCode)})
-            </option>
-          ))}
-        </select>
+      <div className="q-row q-row-between">
+        <strong>Add Extra</strong>
+        <button className="q-btn-icon" onClick={() => setAdding(false)} disabled={isPending}>?</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+        <div>
+          <label className="q-label">What kind of extra?</label>
+          <select className="q-select" value={targetType} onChange={e => handleTypeChange(e.target.value)} disabled={isPending}>
+            <option value="deliverable">Deliverable (e.g. Photos)</option>
+            <option value="service">Service (e.g. Hair styling)</option>
+            <option value="package">Whole Package</option>
+            <option value="custom">Custom Fee / Other</option>
+          </select>
+        </div>
+
+        {targetType !== 'custom' && (
+          <div>
+            <label className="q-label">Select {targetType}</label>
+            <select className="q-select" value={selectedId} onChange={e => handleTargetChange(e.target.value)} disabled={isPending}>
+              <option value="">-- Select --</option>
+              {targetType === 'deliverable' && deliverables.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {targetType === 'service' && services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {targetType === 'package' && packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: targetType === 'deliverable' ? '3fr 1fr 1fr' : '3fr 1fr', gap: '16px' }}>
+        <div>
+          <label className="q-label">Line Title</label>
+          <input className="q-input" type="text" placeholder="E.g. 5 Extra Photos" value={title} onChange={e => setTitle(e.target.value)} disabled={isPending} />
+        </div>
         
+        {targetType === 'deliverable' && (
+          <div>
+            <label className="q-label">Quantity</label>
+            <input className="q-input" type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} disabled={isPending} />
+          </div>
+        )}
+
+        <div>
+          <label className="q-label">Price ({currencyCode})</label>
+          <input className="q-input" type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} disabled={isPending} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
         <button 
           className="q-btn q-btn-primary" 
           onClick={handleSave} 
-          disabled={isPending || !selectedExtraId}
+          disabled={isPending || (targetType !== 'custom' && !selectedId) || !title.trim()}
         >
-          Add
-        </button>
-        <button 
-          className="q-btn q-btn-secondary" 
-          onClick={() => setAdding(false)} 
-          disabled={isPending}
-        >
-          Cancel
+          {isPending ? 'Adding...' : 'Save Extra'}
         </button>
       </div>
     </div>
