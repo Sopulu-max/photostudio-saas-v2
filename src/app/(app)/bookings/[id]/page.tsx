@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
+import { CoverSlides } from '@/components/CoverSlides';
 import { PrintHead, PrintFacts } from '@/components/Print';
 import { CreateContractButton, RestoreWorkButton } from './BookingActions';
 import { ResolveEnquiry } from './ResolveEnquiry';
@@ -246,8 +247,32 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     <div className="q-page-narrow">
       <Link href="/bookings" className="q-back">&larr; Back to Bookings</Link>
 
-      {/* No cover on a booking: a booking is a job, and its pictures
-          belong to the packages in it and to the galleries it produces. */}
+      {/*
+        * The work, before the words about it — and present either way.
+        *
+        * Drawn only when a cover exists, this page would give no sign that a
+        * booking could have one, so the only way to find out would be to open
+        * the editor. Empty it is the same wash the card uses, and it says what
+        * it is for. The whole band is the link to the editor.
+        */}
+      {/*
+        * What the booking looks like: its own cover leading, then the pictures
+        * of every package in it, shuffled. A booking with no cover of its own
+        * is no longer an empty band the moment it has a package — and the
+        * link still opens the editor, where the studio's own picture is set.
+        */}
+      <CoverSlides
+        slides={(booking as any).images || []}
+        className={((booking as any).images || []).length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
+      >
+        <Link
+          href={`/bookings/${booking.id}/edit`}
+          className="q-cover-banner-link q-plain-link"
+          title={(booking as any).cover_url ? 'Change the cover' : 'Add a cover'}
+        >
+          {!((booking as any).images || []).length && <span className="q-meta-sm">Add a cover</span>}
+        </Link>
+      </CoverSlides>
 
       {/*
         * THE PRINT'S HEAD.                                       (D1, D2, D4)
