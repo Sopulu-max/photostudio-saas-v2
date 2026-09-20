@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { listEmployees, listRoles } from '@/modules/team/interface';
+import { listWorkLoad } from '@/modules/production/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { AddEmployeeForm, NewRoleForm, AssignRoleControl } from './TeamForms';
 import { RoleManager } from './RoleManager';
@@ -15,7 +16,12 @@ export default async function TeamPage() {
     redirect('/login');
   }
 
-  const [employees, roles] = await Promise.all([listEmployees(), listRoles()]);
+  const [employees, roles, load] = await Promise.all([listEmployees(), listRoles(), listWorkLoad()]);
+  // Who is carrying what, read off the live bookings - the Work sheet by person.
+  const loadOf = new Map(load.map((l) => [l.employeeId, l]));
+  const say = (d: string | null) => d
+    ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    : null;
   // Named by a process, held by nobody — the gap between what the studio says
   // it does and who it has to do it.
   const unfilled = (roles as any[]).filter((r) => (r.heldBy ?? 0) === 0);
@@ -41,13 +47,14 @@ export default async function TeamPage() {
                 <th className="q-table-th">Email</th>
                 <th className="q-table-th">Phone</th>
                 <th className="q-table-th">Roles</th>
+                <th className="q-table-th">Work</th>
                 <th className="q-table-th">Status</th>
               </tr>
             </thead>
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="q-table-td q-center-text q-muted">
+                  <td colSpan={7} className="q-table-td q-center-text q-muted">
                     No employees yet.
                   </td>
                 </tr>
@@ -72,6 +79,16 @@ export default async function TeamPage() {
                           roles={roles.filter((r: any) => !(e.employee_roles || []).some((er: any) => er.role?.id === r.id))}
                         />
                       </div>
+                    </td>
+                    <td className="q-table-td q-meta">
+                      {(() => {
+                        const l = loadOf.get(e.id);
+                        if (!l) return '—';
+                        const parts = [`${l.jobs} ${l.jobs === 1 ? 'job' : 'jobs'}`];
+                        if (l.open > 0) parts.push(`${l.open} open ${l.open === 1 ? 'step' : 'steps'}`);
+                        if (say(l.next)) parts.push(`next ${say(l.next)}`);
+                        return parts.join(' · ');
+                      })()}
                     </td>
                     <td className="q-table-td">
                       <span className={`q-badge ${e.status === 'active' ? 'q-badge-success' : 'q-badge-neutral'}`}>{e.status}</span>

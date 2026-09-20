@@ -2,26 +2,15 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getEmployee, listAttendanceForEmployee } from '@/modules/team/interface';
+import { getEmployeeWork } from '@/modules/production/interface';
 import { getStudio } from '@/kernel/organizations';
 import { ContactAvatar } from '@/components/ContactAvatar';
 import { WorkingDaysForm } from './WorkingDaysForm';
 import { AttendanceHistory } from './AttendanceHistory';
 import { stageBadgeClass } from '@/components/stageBadge';
+import { initialsFor } from '@/components/Sheet';
 
 export const dynamic = 'force-dynamic';
-
-const TASK_BADGE: Record<string, string> = {
-  in_progress: 'q-badge-accent',
-  blocked:     'q-badge-danger',
-  assigned:    'q-badge-warning',
-  created:     'q-badge-neutral',
-  completed:   'q-badge-success',
-};
-
-const TASK_LABEL: Record<string, string> = {
-  created: 'Created', assigned: 'Assigned', in_progress: 'In progress',
-  blocked: 'Blocked', completed: 'Done',
-};
 
 export default async function EmployeeProfilePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -34,13 +23,15 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
   const employee: any = await getEmployee(params.id);
   if (!employee) notFound();
 
-  const [attendance, studio] = await Promise.all([
-    
-    
+  const [attendance, studio, work] = await Promise.all([
     listAttendanceForEmployee(params.id, 14),
     getStudio(),
+    getEmployeeWork(params.id),
   ]);
   const timezone = studio?.timezone || 'UTC';
+  const say = (d: string | null) => d
+    ? new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+    : null;
 
   const contact = employee.contact || {};
   const roles: { id: string; name: string }[] = (employee.employee_roles || [])
@@ -114,7 +105,51 @@ export default async function EmployeeProfilePage(props: { params: Promise<{ id:
           </Section>
         )}
 
-        {/* Task load — current work */}
+        {/*
+          * Their work: the live bookings they are crewed on or doing a step of,
+          * soonest first. The Work sheet turned around - a reading, stored
+          * nowhere. A step carries the booking's date, not its own, so open
+          * steps are a load, not a schedule.
+          */}
+        <Section title="Work">
+          {work.jobs.length === 0 ? (
+            <p className="q-empty">On no live bookings.</p>
+          ) : (
+            <div className="q-stack q-stack-md">
+              <p className="q-meta">
+                {work.jobs.length} live {work.jobs.length === 1 ? 'booking' : 'bookings'}
+                {work.open + work.done > 0 && <> &middot; {work.open} of {work.open + work.done} steps still to do</>}
+              </p>
+              <div className="q-sheet">
+                {work.jobs.map((j) => (
+                  <div key={j.bookingId} className="q-sheet-row">
+                    <span className="q-sheet-frame" aria-hidden="true">{initialsFor(j.clientName ?? j.title)}</span>
+                    <span className="q-sheet-body">
+                      <span className="q-row q-row-sm" style={{ alignItems: 'baseline', flexWrap: 'wrap' }}>
+                        <Link href={`/bookings/${j.bookingId}`} className="q-sheet-name q-plain-link">{j.title}</Link>
+                        {j.stage && <span className={`q-badge ${stageBadgeClass(j.stage as any)}`}>{j.stage.name}</span>}
+                        {say(j.scheduledFor) && <span className="q-meta-sm">{say(j.scheduledFor)}</span>}
+                      </span>
+                      {j.roles.length > 0 && (
+                        <span className="q-meta-sm" style={{ display: 'block' }}>On the crew as {j.roles.join(', ')}</span>
+                      )}
+                      {j.tasks.length > 0 && (
+                        <span className="q-row q-row-sm" style={{ flexWrap: 'wrap', marginTop: '4px' }}>
+                          {j.tasks.map((t) => (
+                            <span key={t.id} className={`q-badge ${t.done ? 'q-badge-success' : 'q-badge-neutral'}`}>
+                              {t.done ? '✓ ' : ''}{t.name}{t.fromService ? ` · ${t.fromService}` : ''}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+
         {/*
           * When they were actually here. Every other section on this page is
           * planned work — this is the only one that says what happened.

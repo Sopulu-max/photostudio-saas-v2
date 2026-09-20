@@ -1,8 +1,7 @@
 'use server';
 
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { resolveBookingTasks, type ResolvedBookingTask } from './resolve';
+import { resolveBookingTasks, liveBookings, type ResolvedBookingTask } from './resolve';
 
 /**
  * WHERE THE WORK IS. Two scales of one thing: a job moving through a sequence.
@@ -97,20 +96,15 @@ export type WorkSheetRow = {
  */
 export async function listWorkSheet(): Promise<WorkSheetRow[]> {
   const { orgId } = await getAuthOrgId();
-  const { data: bookings } = await supabaseAdmin
-    .from('bookings')
-    .select('id, title, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name)')
-    .eq('organization_id', orgId)
-    .order('scheduled_for', { ascending: true, nullsFirst: false });
-  const live = ((bookings || []) as any[]).filter((b) => !b.stage || b.stage.kind === 'enquiry' || b.stage.kind === 'booked');
+  const live = await liveBookings(orgId);
   if (live.length === 0) return [];
   const byBooking = await resolveBookingTasks(orgId, live.map((b) => b.id));
   return live.map((b) => ({
-    bookingId: b.id as string,
-    title: b.title as string,
-    clientName: (b.contact?.display_name ?? null) as string | null,
-    scheduledFor: (b.scheduled_for ?? null) as string | null,
-    stage: b.stage ? { name: b.stage.name, kind: b.stage.kind, color: b.stage.color ?? null } : null,
+    bookingId: b.id,
+    title: b.title,
+    clientName: b.clientName,
+    scheduledFor: b.scheduledFor,
+    stage: b.stage,
     work: readWork(byBooking.get(b.id) || []),
   }));
 }

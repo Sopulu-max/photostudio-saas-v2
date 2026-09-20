@@ -244,3 +244,34 @@ export async function ensureTaskRow(orgId: string, ref: TaskRef): Promise<string
   }
   return row.id as string;
 }
+
+export type LiveBooking = {
+  id: string;
+  title: string;
+  clientName: string | null;
+  scheduledFor: string | null;
+  stage: { name: string; kind: string; color: string | null } | null;
+};
+
+/**
+ * The bookings that carry work to do, soonest first. Cancelled and completed
+ * ones do not; an enquiry with nothing on it yet does, since it is still a
+ * job the studio holds. One definition, read by the Work sheet and by the
+ * person-reading, so "live" cannot mean two things.
+ */
+export async function liveBookings(orgId: string): Promise<LiveBooking[]> {
+  const { data } = await supabaseAdmin
+    .from('bookings')
+    .select('id, title, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name)')
+    .eq('organization_id', orgId)
+    .order('scheduled_for', { ascending: true, nullsFirst: false });
+  return ((data || []) as any[])
+    .filter((b) => !b.stage || b.stage.kind === 'enquiry' || b.stage.kind === 'booked')
+    .map((b) => ({
+      id: b.id as string,
+      title: b.title as string,
+      clientName: (b.contact?.display_name ?? null) as string | null,
+      scheduledFor: (b.scheduled_for ?? null) as string | null,
+      stage: b.stage ? { name: b.stage.name, kind: b.stage.kind, color: b.stage.color ?? null } : null,
+    }));
+}
