@@ -58,7 +58,7 @@ export function AddExtraForm({
       try {
         await addBookingLine({
           bookingId,
-          title: title.trim(),
+          title: title.trim() || 'Extra',
           targetType,
           targetDeliverableId: targetType === 'deliverable' ? selectedId : null,
           targetDeliverableQuantity: targetType === 'deliverable' ? quantity : null,
@@ -123,16 +123,18 @@ export function AddExtraForm({
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: targetType === 'deliverable' ? '3fr 1fr 1fr' : '3fr 1fr', gap: '16px' }}>
-        <div>
-          <label className="q-label">Line Title</label>
-          <input className="q-input" type="text" placeholder="E.g. 5 Extra Photos" value={title} onChange={e => setTitle(e.target.value)} disabled={isPending} />
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: targetType === 'custom' ? '3fr 1fr' : (targetType === 'deliverable' ? '1fr 1fr' : '1fr'), gap: '16px' }}>
+        {targetType === 'custom' && (
+          <div>
+            <label className="q-label">Line Title</label>
+            <input className="q-input" type="text" placeholder="E.g. Travel Fee" value={title} onChange={e => setTitle(e.target.value)} disabled={isPending} />
+          </div>
+        )}
         
         {targetType === 'deliverable' && (
           <div>
             <label className="q-label">Quantity</label>
-            <input className="q-input" type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} disabled={isPending} />
+            <input className="q-input" type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} disabled={isPending} />
           </div>
         )}
 
@@ -147,7 +149,7 @@ export function AddExtraForm({
           type="button"
           className="q-btn q-btn-primary" 
           onClick={handleSave} 
-          disabled={isPending || (targetType !== 'custom' && !selectedId) || !title.trim()}
+          disabled={isPending || (targetType !== 'custom' && !selectedId) || (targetType === 'custom' && !title.trim())}
         >
           {isPending ? 'Adding...' : 'Save Extra'}
         </button>

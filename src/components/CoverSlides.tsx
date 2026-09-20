@@ -105,7 +105,13 @@ export function CoverSlides({
   const enter = useCallback(() => setHeld(true), []);
   const leave = useCallback(() => setHeld(false), []);
 
-  if (slides.length === 0) return <>{children}</>;
+  if (slides.length === 0) {
+    return (
+      <div className={className ? `q-slides ${className}` : 'q-slides'}>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div
