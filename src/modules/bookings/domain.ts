@@ -1337,7 +1337,7 @@ export async function createContractForBooking(
   let currency: string | null = null;
   for (const l of lines || []) {
     const p: any = priceOfLine(l);
-    total += amountOf(p) * Number((l as any).quantity ?? 1);
+    total += amountOf(p) * Number((l as any).quantity ?? 1) + extrasAmount((l as any).extras);
     if (!currency && p.currency) currency = p.currency;
   }
   if (!currency) currency = await getStudioCurrency();
@@ -1347,14 +1347,27 @@ export async function createContractForBooking(
   // agreement. This is a snapshot like line prices already are: if the
   // booking's lines change later, this contract's terms don't silently
   // drift with them.
-  const lineItems = (lines || []).map((l: any) => {
+  const lineItems = (lines || []).flatMap((l: any) => {
     const p: any = priceOfLine(l);
     const quantity = Number(l.quantity ?? 1);
     const unitPrice = amountOf(p);
-    // Extras taken beside the package are part of what this line is worth.
-    const extras = extrasAmount((l as any).extras);
-    return { title: nameOf(l), quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity + extras,
-      extras: ((l as any).extras || []).map((x: any) => ({ label: x.label as string, units: Number(x.units), unitPrice: amountOf(x.unit_rate), total: amountOf(x.unit_rate) * Number(x.units) })) };
+    const title = nameOf(l);
+    /*
+     * WHAT WAS SOLD, THEN WHAT WAS ADDED. The package at what it sold for;
+     * each extra as its own item after it, at the figure agreed for it.
+     * Folding the extras into the package's figure would state a price the
+     * package never had. The parts sum to the contract's total below.
+     */
+    return [
+      { title, quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity },
+      ...(((l as any).extras || []) as any[]).map((x: any) => ({
+        title: `${title} · ${x.label}`,
+        quantity: Number(x.units),
+        unit: null,
+        unitPrice: amountOf(x.unit_rate),
+        total: amountOf(x.unit_rate) * Number(x.units),
+      })),
+    ];
   });
 
   // What's due to book, asked of Contracts. It used to be resolved from the

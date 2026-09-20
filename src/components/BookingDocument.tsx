@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatMoney } from '@/kernel/currency';
-import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { specFromAnswers } from '@/modules/deliverables/shape';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 
@@ -132,7 +132,7 @@ export function BookingDocument({
    */
   const priceOfLine = (line: any) => {
     const p = firstPriced(line.package?.price, line.price);
-    return hasPrice(p) ? amountOf(p) * Number(line.quantity ?? 1) + extrasAmount(line.extras) : null;
+    return hasPrice(p) ? amountOf(p) * Number(line.quantity ?? 1) : null;
   };
 
   return (
@@ -247,6 +247,17 @@ export function BookingDocument({
                 </tr>
               );
             })}
+            {/* What was added beside a package, each at the figure agreed for
+                it - stated, never folded into the package's price. */}
+            {lines.flatMap((line) => ((line.extras || []) as any[]).map((x: any) => (
+              <tr key={x.id}>
+                <td>
+                  <div className="q-doc-meta">{line.package?.name || line.title || 'Booking line'} · <span className="q-doc-strong">{x.label}</span></div>
+                  <div className="q-doc-meta">{Number(x.units)} × {formatMoney(amountOf(x.unit_rate), currency)}</div>
+                </td>
+                <td className="q-doc-right">{formatMoney(amountOf(x.unit_rate) * Number(x.units), currency)}</td>
+              </tr>
+            )))}
           </tbody>
         </table>
       )}
