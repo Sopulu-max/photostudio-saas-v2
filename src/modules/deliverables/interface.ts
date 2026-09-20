@@ -21,6 +21,7 @@ import {
   listDeliverableIdsForService, setDeliverablesForService,
   copyDeliverablesBetweenServices,
   listVariablesForDeliverables, declareDeliverableVariable, removeDeliverableVariable,
+  raisePackagePromise,
   listServiceDeliverableOptions, listServiceDeliverableOptionsFor, setServiceDeliverableOptions, listServiceCapabilities,
 } from './domain';
 export { narrowOptions } from './shape';
@@ -41,6 +42,7 @@ export {
    * already existed.
    */
   listVariablesForDeliverables, declareDeliverableVariable, removeDeliverableVariable,
+  raisePackagePromise,
   /*
    * possibility → restriction → fact. The deliverable declares the answers, a
    * service narrows them to what it actually does, a package fixes one or

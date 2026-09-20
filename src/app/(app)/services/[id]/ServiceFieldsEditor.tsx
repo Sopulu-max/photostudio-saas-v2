@@ -554,7 +554,6 @@ export function ServiceFieldsEditor({
             suggestions={variableSuggestions}
             domainName={domainName}
             serviceName={name}
-            currencyCode={currencyCode}
           />
         </div>
       </div>

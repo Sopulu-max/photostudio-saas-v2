@@ -706,7 +706,7 @@ export async function duplicateService(serviceId: string) {
   // A fork is the same work — what varies about it varies the same way.
   const { data: vars } = await supabaseAdmin
     .from('variables')
-    .select('key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates')
+    .select('key, label, kind, unit, options, default_value, min_value, max_value, position')
     .eq('service_id', serviceId)
     .eq('organization_id', orgId)
     .order('position');
@@ -723,8 +723,6 @@ export async function duplicateService(serviceId: string) {
         default_value: v.default_value,
         min_value: v.min_value,
         max_value: v.max_value,
-        rate: v.rate ?? null,
-        option_rates: v.option_rates ?? null,
         position: v.position,
       }))
     );
@@ -813,7 +811,7 @@ export async function getService(serviceId: string) {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       ${SERVICE_OFFERS},
-      variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates),
+      variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
       ${SERVICE_DIMENSION_SELECT},
       workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
@@ -1347,8 +1345,6 @@ export async function setServiceVariables(input: { serviceId: string; variables:
       min_value: v.raw.min ?? null,
       max_value: v.raw.max ?? null,
       position: v.position,
-      rate: v.raw.rate ?? null,
-      option_rates: v.raw.optionRates ?? null,
     };
     const { error } = v.raw.id
       ? await supabaseAdmin.from('variables').update(row).eq('id', v.raw.id).eq('organization_id', orgId)

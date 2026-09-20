@@ -6,7 +6,7 @@ import { assertOurs } from '@/kernel/tenancy';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
-import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
 import { revalidatePath } from 'next/cache';
 import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn , invoiceTotals, discountOn } from './money';
 // A failure keeps the reason it failed — and says so plainly when the reason
@@ -151,7 +151,7 @@ export async function getBookingBilling(bookingId: string) {
   const [{ data: bookingLines }, { data: invoices }] = await Promise.all([
     supabaseAdmin
       .from('booking_lines')
-      .select('id, quantity, title, price, package:packages(name, price)')
+      .select('id, quantity, title, price, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price)')
       .eq('organization_id', orgId)
       .eq('booking_id', bookingId),
     supabaseAdmin
@@ -166,7 +166,7 @@ export async function getBookingBilling(bookingId: string) {
   let currency: string | null = null;
   for (const l of ((bookingLines || []) as any[])) {
     const price: any = firstPriced(l.package?.price, l.price);
-    booked += amountOf(price) * Number(l.quantity ?? 1);
+    booked += amountOf(price) * Number(l.quantity ?? 1) + extrasAmount(l.extras);
     if (!currency && price?.currency) currency = price.currency;
   }
 
@@ -318,7 +318,7 @@ export async function createInvoiceForBooking(input: {
 
   const { data: bookingLines } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, quantity, title, price, package:packages(name, price)')
+    .select('id, quantity, title, price, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price)')
     .eq('organization_id', orgId)
     .eq('booking_id', input.bookingId)
     .order('created_at');
@@ -459,6 +459,23 @@ export async function createInvoiceForBooking(input: {
       amount,
       position: position++,
     });
+    // What was taken beyond the package, each as its own row beside it, at
+    // the figure frozen when it was taken. The client reads the package as
+    // sold and the extras as added, which is what happened.
+    for (const x of ((l as any).extras || []) as any[]) {
+      const xq = Number(x.units ?? 1);
+      const xa = invoiceLineAmount({ unitAmount: amountOf(x.unit_rate), quantity: xq, share });
+      rows.push({
+        organization_id: orgId,
+        invoice_id: invoice.id,
+        booking_line_id: l.id,
+        description: describeInvoiceLine({ title: `${title} · ${x.label}`, details: [], label: input.label }),
+        quantity: xq,
+        unit_price: xa.unitPrice,
+        amount: xa.amount,
+        position: position++,
+      });
+    }
   }
 
   const { error: lineError } = await supabaseAdmin.from('invoice_lines').insert(rows);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatMoney } from '@/kernel/currency';
-import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
 import { specFromAnswers } from '@/modules/deliverables/shape';
 import { formatDeliverable } from '@/modules/packages/deliverableSpec';
 
@@ -132,7 +132,7 @@ export function BookingDocument({
    */
   const priceOfLine = (line: any) => {
     const p = firstPriced(line.package?.price, line.price);
-    return hasPrice(p) ? amountOf(p) * Number(line.quantity ?? 1) : null;
+    return hasPrice(p) ? amountOf(p) * Number(line.quantity ?? 1) + extrasAmount(line.extras) : null;
   };
 
   return (

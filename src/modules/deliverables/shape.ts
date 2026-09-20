@@ -103,7 +103,7 @@ export const PACKAGE_PROMISE_NAMED =
 export const PACKAGE_PROMISE_COUNT = 'package_deliverables(id)';
 
 /** What a service can produce. */
-export const SERVICE_OFFERS = `service_deliverables(${DELIVERABLE_REF})`;
+export const SERVICE_OFFERS = `service_deliverables(rate, ${DELIVERABLE_REF})`;
 
 /** Which promises a delivery closes out. */
 export const DELIVERY_FULFILS = `delivery_deliverables(${DELIVERABLE_REF})`;

@@ -125,6 +125,20 @@ export function hasPrice(raw: unknown): boolean {
  * Written as a function rather than a chain of `||` because the empty object is
  * exactly the case a `||` chain gets wrong.
  */
+/**
+ * What a line's extras come to: units × the rate frozen when each was taken.
+ *
+ * An extra is more of something the booking's package already promised,
+ * recorded beside the package in booking_line_extras. Every total that
+ * includes a line - the booking page, the invoice, the contract, the client's
+ * document - adds this, through this one reader, so none of them can disagree
+ * about what "the line" is worth.
+ */
+export function extrasAmount(extras: unknown): number {
+  if (!Array.isArray(extras)) return 0;
+  return extras.reduce((sum: number, x: any) => sum + amountOf(x?.unit_rate) * Number(x?.units ?? 1), 0);
+}
+
 export function firstPriced(...candidates: unknown[]): unknown {
   return candidates.find(hasPrice) ?? {};
 }

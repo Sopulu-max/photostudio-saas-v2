@@ -6,7 +6,7 @@ import { studioHoursFor, localInstant, studioTimezone } from '@/kernel/studioHou
 import { isWallClock } from '@/kernel/wallClock';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
-import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { gatherPictures, type Picture } from '@/kernel/pictures';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
@@ -1065,6 +1065,91 @@ export async function restoreWorkForBooking(bookingId: string) {
   return { tasksAdded: filled };
 }
 
+/*
+ * EXTRAS: MORE OF WHAT THE BOOKING'S PACKAGES ALREADY PROMISE.
+ *
+ * The word only has meaning against a promise already made, so the inventory
+ * of possible extras is the booking's promises, across every line. Taking one
+ * changes exactly one number - that promise's count on the booking's instance,
+ * raised through the Deliverables module - and records the departure beside
+ * the package: units, the figure agreed for each, frozen. The package stays
+ * what it was sold as; the ledger says what was added. Three earlier attempts
+ * (a service add-on table, a package add-on catalogue, a line pointing at a
+ * bare service or deliverable) each invented a thing; this invents nothing.
+ */
+export async function addBookingExtra(input: {
+  bookingLineId: string;
+  packageServiceId: string;
+  deliverableId: string;
+  units: number;
+  /** The figure agreed per unit. */
+  unitAmount: number;
+}) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const units = Number(input.units);
+  if (!Number.isFinite(units) || units <= 0) throw new Error('How many more?');
+  const unitAmount = Number(input.unitAmount);
+  if (!Number.isFinite(unitAmount) || unitAmount < 0) throw new Error('A figure is needed for each.');
+
+  const { data: line } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, booking_id, package_id, package:packages(id, package_services(id, service:services(name), package_deliverables(deliverable_id, quantity, deliverable:deliverables(id, name, default_unit))))')
+    .eq('id', input.bookingLineId).eq('organization_id', orgId).maybeSingle();
+  if (!line) throw new Error('Line not found');
+  const ps = ((line as any).package?.package_services || []).find((r: any) => r.id === input.packageServiceId);
+  const promise = ps?.package_deliverables?.find((pd: any) => pd.deliverable_id === input.deliverableId);
+  if (!ps || !promise) throw new Error('That is not something this package promises - an extra is more of what is promised.');
+
+  const currency = await getStudioCurrency();
+  const name = (promise.deliverable?.name as string) || 'Deliverable';
+  const label = `+${units} ${name}`;
+
+  const { raisePackagePromise } = await import('@/modules/deliverables/interface');
+  await raisePackagePromise({ packageServiceId: ps.id, deliverableId: input.deliverableId, by: units });
+
+  const { data: made, error } = await supabaseAdmin
+    .from('booking_line_extras')
+    .insert({
+      organization_id: orgId,
+      booking_line_id: line.id,
+      package_service_id: ps.id,
+      kind: 'promise',
+      ref_id: input.deliverableId,
+      units,
+      unit_rate: { base_price: unitAmount, currency },
+      label,
+    })
+    .select('id').single();
+  if (error || !made) {
+    await raisePackagePromise({ packageServiceId: ps.id, deliverableId: input.deliverableId, by: -units });
+    throw dbError('Could not add the extra', error);
+  }
+  await logEvent({ organizationId: orgId, entityType: 'booking', entityId: line.booking_id, action: 'extra_added', actorId: actorId ?? undefined, payload: { label, unitAmount, currency } });
+  revalidatePath(`/bookings/${line.booking_id}`);
+  revalidatePath('/bookings');
+  return { id: made.id as string, label };
+}
+
+export async function removeBookingExtra(input: { id: string }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const { data: x } = await supabaseAdmin
+    .from('booking_line_extras')
+    .select('id, units, label, package_service_id, ref_id, line:booking_lines(booking_id)')
+    .eq('id', input.id).eq('organization_id', orgId).maybeSingle();
+  if (!x) throw new Error('Extra not found');
+  const { raisePackagePromise } = await import('@/modules/deliverables/interface');
+  await raisePackagePromise({ packageServiceId: x.package_service_id, deliverableId: x.ref_id, by: -Number(x.units) });
+  const { error } = await supabaseAdmin.from('booking_line_extras').delete().eq('id', x.id).eq('organization_id', orgId);
+  if (error) throw dbError('Could not remove the extra', error);
+  const bookingId = (x as any).line?.booking_id as string | undefined;
+  if (bookingId) {
+    await logEvent({ organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'extra_removed', actorId: actorId ?? undefined, payload: { label: x.label } });
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  revalidatePath('/bookings');
+  return { ok: true };
+}
+
 export async function addBookingLine(input: {
   bookingId: string;
   /*
@@ -1209,7 +1294,7 @@ export async function createContractForBooking(
 
   const { data: lines } = await supabaseAdmin
     .from('booking_lines')
-    .select('title, price, quantity, package_id, package:packages(name, price, contract_terms, member_of)')
+    .select('title, price, quantity, package_id, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price, contract_terms, member_of)')
     .eq('booking_id', bookingId)
     .eq('organization_id', orgId);
 
@@ -1266,7 +1351,10 @@ export async function createContractForBooking(
     const p: any = priceOfLine(l);
     const quantity = Number(l.quantity ?? 1);
     const unitPrice = amountOf(p);
-    return { title: nameOf(l), quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity };
+    // Extras taken beside the package are part of what this line is worth.
+    const extras = extrasAmount((l as any).extras);
+    return { title: nameOf(l), quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity + extras,
+      extras: ((l as any).extras || []).map((x: any) => ({ label: x.label as string, units: Number(x.units), unitPrice: amountOf(x.unit_rate), total: amountOf(x.unit_rate) * Number(x.units) })) };
   });
 
   // What's due to book, asked of Contracts. It used to be resolved from the
@@ -1430,6 +1518,7 @@ export async function getBooking(bookingId: string) {
       contact:contacts(id, display_name, email),
       booking_lines(
         id, title, price, quantity, package_id, created_at,
+        extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id),
         package:packages(
           id, name, price,
           package_images(url, position, sort),
@@ -1791,7 +1880,7 @@ export async function listBookingsForContact(contactId: string) {
   const { orgId } = await getAuthOrgId();
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, created_at, stage:booking_stages(name, kind, color), booking_lines(quantity, price, package:packages(price))')
+    .select('id, title, scheduled_for, created_at, stage:booking_stages(name, kind, color), booking_lines(quantity, price, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(price))')
     .eq('organization_id', orgId)
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false });
@@ -3242,6 +3331,7 @@ export async function getBookingByShareToken(token: string) {
       organization:organizations(id, name, slug, currency, metadata),
       booking_lines(
         id, title, price, quantity, package_id,
+        extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id),
         package:packages(
           id, name, description, price,
           package_services(
@@ -3278,7 +3368,7 @@ export async function getBookingByShareToken(token: string) {
   let currency: string | null = null;
   for (const l of ((booking as any).booking_lines || [])) {
     const price: any = firstPriced(l.package?.price, l.price);
-    booked += amountOf(price) * Number(l.quantity ?? 1);
+    booked += amountOf(price) * Number(l.quantity ?? 1) + extrasAmount(l.extras);
     if (!currency && price?.currency) currency = price.currency;
   }
 

@@ -38,17 +38,7 @@ type Row = {
   options: string[];
   min: string;
   max: string;
-  /*
-   * THE RATE. What one more costs above what a package fixes (a number), or
-   * per option (a choice). Typed as a figure in the studio's currency, kept
-   * as text while editing like min and max. Empty: no extra of this can be
-   * taken. See 02-ONTOLOGY, Rates.
-   */
-  rate: string;
-  optionRates: Record<string, string>;
 };
-
-const moneyText = (m: any) => (m && m.base_price != null ? String(m.base_price) : '');
 
 function toRow(v: ServiceVariable): Row {
   return {
@@ -60,26 +50,10 @@ function toRow(v: ServiceVariable): Row {
     options: v.options || [],
     min: v.min == null ? '' : String(v.min),
     max: v.max == null ? '' : String(v.max),
-    rate: moneyText(v.rate),
-    optionRates: Object.fromEntries(Object.entries(v.optionRates || {}).map(([o, m]) => [o, moneyText(m)])),
   };
 }
 
-const blank = (): Row => ({ key: '', label: '', kind: 'number', unit: '', options: [], min: '', max: '', rate: '', optionRates: {} });
-
-/* A rate as money, in the shape every price here uses; null when blank. */
-function moneyOf(text: string, currency: string | undefined) {
-  const n = Number(String(text).trim());
-  return text.trim() !== '' && Number.isFinite(n) && n >= 0 ? { base_price: n, currency: currency || 'USD' } : null;
-}
-let currencyForRates: string | undefined;
-const rateOf = (r: Row) => (variableIsNumeric(r.kind) || r.kind === 'boolean') ? moneyOf(r.rate, currencyForRates) : null;
-const optionRatesOf = (r: Row) => {
-  if (!variableNeedsOptions(r.kind)) return null;
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const o of r.options) { const m = moneyOf(r.optionRates[o] ?? '', currencyForRates); if (m) out[o] = m; }
-  return Object.keys(out).length ? out : null;
-};
+const blank = (): Row => ({ key: '', label: '', kind: 'number', unit: '', options: [], min: '', max: '' });
 
 /** "Number of outfits" → "number_of_outfits". Shown so the studio can see the name it will be stored under. */
 function deriveKey(label: string) {
@@ -94,9 +68,7 @@ export function ServiceVariablesEditor({
   suggestions,
   domainName = '',
   serviceName = '',
-  currencyCode,
 }: {
-  currencyCode?: string;
   serviceId?: string;
   mode?: 'create' | 'edit';
   onChange?: (variables: any[]) => void;
@@ -108,7 +80,6 @@ export function ServiceVariablesEditor({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  currencyForRates = currencyCode;
   const [rows, setRows] = useState<Row[]>(initial.map(toRow));
   const [saved, setSaved] = useState(false);
 
@@ -126,8 +97,6 @@ export function ServiceVariablesEditor({
           options: variableNeedsOptions(r.kind) ? r.options : [],
           min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
           max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
-          rate: rateOf(r),
-          optionRates: optionRatesOf(r),
         })));
     }
   }, [rows]);
@@ -191,8 +160,6 @@ export function ServiceVariablesEditor({
               options: variableNeedsOptions(r.kind) ? r.options : [],
               min: variableIsNumeric(r.kind) && r.min !== '' ? Number(r.min) : null,
               max: variableIsNumeric(r.kind) && r.max !== '' ? Number(r.max) : null,
-              rate: rateOf(r),
-              optionRates: optionRatesOf(r),
             })),
         });
         setSaved(true);
@@ -285,22 +252,6 @@ export function ServiceVariablesEditor({
                 </div>
               )}
 
-              {/* The rate: what one more costs above what a package fixes.
-                  Empty means no extra of this can be taken. */}
-              {(variableIsNumeric(r.kind) || r.kind === 'boolean') && (
-                <div className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span className="q-meta-sm q-strong" style={{ minWidth: '3rem' }}>{currencyCode || ''}</span>
-                  <input
-                    className="q-input" type="number" min={0} step="0.01" value={r.rate} disabled={isPending}
-                    onChange={(e) => patch(i, { rate: e.target.value })}
-                    placeholder="rate" style={{ width: '8rem' }}
-                  />
-                  <span className="q-meta-sm">
-                    {r.kind === 'boolean' ? 'for yes, beyond what a package includes' : `per ${r.unit.trim() || 'unit'} above what a package fixes`}
-                    {r.rate.trim() === '' && ' · empty: no extra of this can be taken'}
-                  </span>
-                </div>
-              )}
 
               {variableNeedsOptions(r.kind) && (
                 <div>
@@ -319,25 +270,6 @@ export function ServiceVariablesEditor({
                         ? 'Typed as 16x20. Each is drawn at its true proportion beside the others.'
                         : 'The client selects exactly one.'}
                   </span>
-                  {/* A rate per option: what choosing it costs beyond the one a
-                      package fixes. Blank options cost nothing more. */}
-                  {r.options.length > 0 && (
-                    <div className="q-stack q-stack-sm" style={{ marginTop: '8px' }}>
-                      {r.options.map((o) => (
-                        <div key={o} className="q-row" style={{ gap: '8px', alignItems: 'center' }}>
-                          <span className="q-meta-plain" style={{ minWidth: '9rem' }}>{o}</span>
-                          <span className="q-meta-sm q-strong">{currencyCode || ''}</span>
-                          <input
-                            className="q-input q-input-sm" type="number" min={0} step="0.01" disabled={isPending}
-                            value={r.optionRates[o] ?? ''}
-                            onChange={(e) => patch(i, { optionRates: { ...r.optionRates, [o]: e.target.value } })}
-                            placeholder="rate" style={{ width: '8rem' }}
-                          />
-                        </div>
-                      ))}
-                      <span className="q-meta-sm">What choosing an option costs beyond the one a package fixes. Blank: nothing more.</span>
-                    </div>
-                  )}
                 </div>
               )}
 

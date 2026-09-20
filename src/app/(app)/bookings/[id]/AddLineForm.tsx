@@ -3,19 +3,15 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addBookingLine } from '@/modules/bookings/interface';
-import { formatMoney } from '@/kernel/currency';
 import { toast } from '@/components/Toast';
 // The same catalogue the new-booking form shows. This was a dropdown of names.
 import { PackagePicker } from '@/components/PackagePicker';
-
-type Variant = { axis_label: string; tiers: { label: string; price: number }[] };
 
 export function AddLineForm({
   bookingId,
   packages,
   dimensions = [],
   packagesOnBooking = [],
-  variantsByPackage = {},
   currencyCode = 'USD',
 }: {
   bookingId: string;
@@ -33,7 +29,6 @@ export function AddLineForm({
    * the list it would have closed over can.
    */
   packagesOnBooking?: string[];
-  variantsByPackage?: Record<string, Variant | null>;
   currencyCode?: string;
 }) {
   const [packageId, setPackageId] = useState('');
@@ -41,19 +36,10 @@ export function AddLineForm({
   /** The catalogue's own narrowing, which belongs to the catalogue. */
   const [values, setValues] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
-  const [addingTier, setAddingTier] = useState<number | null>(null);
   const router = useRouter();
 
-  const variant = packageId ? variantsByPackage[packageId] : null;
-
-  /*
-   * A package with priced tiers asks which one before it goes on. Everything
-   * else goes on at once — the click IS the decision, and a second confirming
-   * step for a choice already made is the "Add another package" button the new
-   * booking form deleted.
-   */
+  /* The click is the decision: a package goes on at once. */
   const addPackageById = (id: string) => {
-    if (variantsByPackage[id]) { setPackageId(id); return; }
     startTransition(async () => {
       try {
         await addBookingLine({ bookingId, packageId: id, title: '' });
@@ -81,29 +67,6 @@ export function AddLineForm({
       } catch (e) {
         console.error(e);
         toast.bad('Failed to add it.');
-      }
-    });
-  };
-
-  const addTier = (i: number) => {
-    if (!variant) return;
-    const tier = variant.tiers[i];
-    setAddingTier(i);
-    startTransition(async () => {
-      try {
-        await addBookingLine({
-          bookingId,
-          packageId,
-          title: '',
-          price: { base_price: tier.price, currency: currencyCode, unit: tier.label },
-        });
-        setPackageId('');
-        router.refresh();
-      } catch (e) {
-        console.error(e);
-        toast.bad('Failed to add it.');
-      } finally {
-        setAddingTier(null);
       }
     });
   };
@@ -156,21 +119,6 @@ export function AddLineForm({
         {!custom.trim() && <span className="q-meta-sm">Enter a description to add a charge.</span>}
       </div>
 
-      {variant && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-          <span className="q-meta-sm">{variant.axis_label}:</span>
-          {variant.tiers.map((t, i) => (
-            <button
-              key={i}
-              className="q-btn q-btn-secondary q-btn-xs"
-              disabled={isPending}
-              onClick={() => addTier(i)}
-            >
-              {addingTier === i ? 'Adding…' : `${t.label} — ${formatMoney(t.price, currencyCode)}`}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

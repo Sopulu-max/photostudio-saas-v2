@@ -18,6 +18,7 @@ import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/
 import { listDeliverables } from '@/modules/deliverables/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { StagePicker } from './BookingHeaderActions';
+import { LineExtras } from './LineExtras';
 import { formatVariableValue, listServices } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
 
@@ -25,7 +26,7 @@ import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, Del
 import { formatDuration } from '@/kernel/currency';
 import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
 import { formatMoney } from '@/kernel/currency';
-import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
+import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
 import { GenerateInvoiceButton } from './InvoiceForms';
 import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
 import { ShareBooking } from './ShareBooking';
@@ -59,7 +60,7 @@ function priceOfLine(l: any) {
 }
 
 function lineTotal(l: any) {
-  return amountOf(priceOfLine(l)) * Number(l.quantity ?? 1);
+  return amountOf(priceOfLine(l)) * Number(l.quantity ?? 1) + extrasAmount(l.extras);
 }
 
 
@@ -105,10 +106,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     .map((p) => ({ id: p.id as string, name: p.name as string }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const variantsByPackage: Record<string, any> = {};
-  for (const p of packageRows as any[]) {
-    if (p.status !== 'retired' && p.pricing_variant) variantsByPackage[p.id] = p.pricing_variant;
-  }
 
   // Clients come through the Clients module's interface — composition, not a
   // reach into its tables.
@@ -488,6 +485,26 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         {/* @ts-ignore */}
                         {pkg.deliverables.map((d: any) => formatDeliverable(d)).join(', ')}
                       </div>
+                    )}
+
+                    {/* More of what this package promises - the only thing
+                        an extra is. Each promise knows the service that
+                        makes it, whose rate suggests the figure. */}
+                    {pkg && (
+                      <LineExtras
+                        lineId={l.id}
+                        currencyCode={currencyCode}
+                        promises={((pkg.services || []) as any[]).flatMap((s: any) =>
+                          ((s.deliverables || []) as any[]).map((d: any) => ({
+                            packageServiceId: s.packageServiceId as string,
+                            deliverableId: d.id as string,
+                            name: d.name as string,
+                            quantity: (d.quantity ?? null) as number | null,
+                            serviceName: s.name as string,
+                            rate: amountOf(((s.offers || []) as any[]).find((o: any) => o.id === d.id)?.rate) || null,
+                          })))}
+                        taken={((l.extras || []) as any[]).map((x: any) => ({ id: x.id, label: x.label, units: Number(x.units), unit_rate: x.unit_rate }))}
+                      />
                     )}
 
                   </div>

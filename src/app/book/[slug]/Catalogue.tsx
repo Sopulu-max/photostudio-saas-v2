@@ -22,7 +22,6 @@ type CataloguePackage = {
   /** The whole set, in order. The cover above is the first of it. */
   images?: { url: string; position: string | null }[];
   price: Money | null;
-  price_unit: string | null;
   services: { id: string; name: string; domain?: { id: string; name: string } | null }[];
   /** The shop window it stands in — its lead service's domain. See modules/packages/windows. */
   window?: { id: string; name: string } | null;
@@ -212,7 +211,6 @@ export function Catalogue({
               {pkg.price && (
                 <span className="q-poster-price">
                   {formatMoney(pkg.price.amount, pkg.price.currency || currencyCode)}
-                  {pkg.price_unit && <span className="q-poster-price-unit">/{pkg.price_unit}</span>}
                 </span>
               )}
 

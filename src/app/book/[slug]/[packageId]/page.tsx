@@ -117,7 +117,6 @@ export default async function BookingPage(props: {
               {pkg.price && (
                 <span className="q-hero-price">
                   {formatMoney(pkg.price.amount, pkg.price.currency || currencyCode)}
-                  {pkg.priceUnit && <span className="q-poster-price-unit">/{pkg.priceUnit}</span>}
                 </span>
               )}
               <h1 className="q-hero-title">{pkg.name}</h1>
@@ -212,7 +211,6 @@ export default async function BookingPage(props: {
           {pkg.price && (
             <span className="q-hero-price">
               {formatMoney(pkg.price.amount, pkg.price.currency || currencyCode)}
-              {pkg.priceUnit && <span className="q-poster-price-unit">/{pkg.priceUnit}</span>}
             </span>
           )}
           <h1 className="q-hero-title">{pkg.name}</h1>

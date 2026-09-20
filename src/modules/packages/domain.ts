@@ -1358,7 +1358,7 @@ function shapePackage(p: any) {
       packageServiceId: ps.id,
       decidedBy: (ps.decided_by ?? 'studio') as 'studio' | 'member',
       // What the service offers, and what this package sells of it.
-      offers: (ps.service?.service_deliverables || []).map((sd: any) => sd.deliverable).filter(Boolean),
+      offers: (ps.service?.service_deliverables || []).filter((sd: any) => sd.deliverable).map((sd: any) => ({ ...sd.deliverable, rate: sd.rate ?? null })),
       /*
        * WHAT THIS PACKAGE PROMISES, AND WHAT IT SETTLED ABOUT IT.
        *
@@ -1492,7 +1492,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
     .select(`
       id, name, description, short_description, duration_minutes, member_of,
       package_images(id, url, position, sort),
-      price, price_unit,
+      price,
       package_services(id, position, decided_by, service:services(
         id, name, domain:service_domains(id, name)
       ), ${PACKAGE_PROMISE_NAMED}, ${PROMISE_ANSWERS}, package_service_dimension_values(dimension_value:dimension_values(
@@ -1505,7 +1505,7 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
   const resolved = await resolveMembers(orgId, ((data || []) as any[]).filter((p) => !families.has(p.id)), `
       id, name, description, short_description, duration_minutes, member_of,
       package_images(id, url, position, sort),
-      price, price_unit,
+      price,
       package_services(id, position, decided_by, service:services(
         id, name, domain:service_domains(id, name)
       ), ${PACKAGE_PROMISE_NAMED}, ${PROMISE_ANSWERS}, package_service_dimension_values(dimension_value:dimension_values(
@@ -1535,7 +1535,6 @@ export async function listPackagesPublicWithDimensions(orgId: string) {
       /* Parsed, not cast — null means unpriced, which is a normal state for a
          package a studio quotes case by case. See kernel/money. */
       price: priceOf(p.price),
-      price_unit: (p.price_unit ?? null) as string | null,
       services: services.map((s: any) => ({
         id: s.id as string,
         name: s.name as string,
@@ -1588,9 +1587,9 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
     .from('packages')
     .select(`
-      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, member_of,
+      id, name, description, short_description, duration_minutes, form_schema, member_of,
       package_images(id, url, position, sort),
-      price, price_unit,
+      price,
       package_services(
         id, decided_by,
         service:services(name),
@@ -1605,9 +1604,9 @@ export async function getPackagePublic(orgId: string, packageId: string) {
   // A family is not for sale directly, but its public link should show a catalogue of its members.
   // We no longer return null here; the booking page handles families by rendering their members.
   const [resolved] = data ? await resolveMembers(orgId, [data], `
-      id, name, description, short_description, pricing_variant, duration_minutes, form_schema, member_of,
+      id, name, description, short_description, duration_minutes, form_schema, member_of,
       package_images(id, url, position, sort),
-      price, price_unit,
+      price,
       package_services(
         id, decided_by,
         service:services(name),
@@ -1650,7 +1649,6 @@ export async function getPackagePublic(orgId: string, packageId: string) {
      * package the studio quotes case by case says nothing rather than "0".
      */
     price: priceOf(p.price),
-    priceUnit: (p.price_unit ?? null) as string | null,
     formSchema: (p.form_schema || []) as any[],
     serviceNames: ((p.package_services || []) as any[]).map((ps) => ps.service?.name).filter(Boolean) as string[],
     // Specified, so the storefront says "6 edited photographs" rather than
@@ -1921,7 +1919,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     .select(`
       service:services(
         id, name,
-        variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates),
+        variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
         service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
         service_deliverables(id, deliverable_id)
       ),
@@ -1995,7 +1993,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
 
   const declaredOnDimensions = dimensionIds.size === 0 ? [] : (await supabaseAdmin
     .from('variables')
-    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates, dimension_id, dimension:dimensions(id, name)')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
     .order('position')).data || [];
@@ -2039,7 +2037,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
 
   const deliverableVariables = deliverableIds.size === 0 ? [] : (await supabaseAdmin
     .from('variables')
-    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates, deliverable_id, deliverable:deliverables(id, name)')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, deliverable_id, deliverable:deliverables(id, name)')
     .eq('organization_id', orgId)
     .in('deliverable_id', [...deliverableIds])
     .order('position')).data || [];

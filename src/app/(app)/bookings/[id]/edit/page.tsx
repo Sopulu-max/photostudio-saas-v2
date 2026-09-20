@@ -142,10 +142,6 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
-  const variantsByPackage: Record<string, any> = {};
-  for (const p of packageRows as any[]) {
-    if (p.status !== 'retired' && p.pricing_variant) variantsByPackage[p.id] = p.pricing_variant;
-  }
 
   return (
     <div className="q-page-narrow">
@@ -317,7 +313,6 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             /* The ids themselves, not a function over them — this page is a
                server component and a closure cannot cross into a client one. */
             packagesOnBooking={booking.lines.map((l: any) => l.package_id).filter(Boolean)}
-            variantsByPackage={variantsByPackage}
             currencyCode={currencyCode}
           />
         </div>

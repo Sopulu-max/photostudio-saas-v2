@@ -590,6 +590,39 @@ export async function setPackageDeliverables(input: {
  * Every column travels. That is the entire point: the previous copier listed
  * its columns by hand and forgot spec_values.
  */
+/**
+ * More of a promise. An extra is more of something a booking's package already
+ * promised, and the promise row is this module's, so the count is raised here
+ * and only here. A promise with no count ("included") is read as one before
+ * more is added, which is the same reading the family widening uses.
+ */
+export async function raisePackagePromise(input: {
+  packageServiceId: string;
+  deliverableId: string;
+  by: number;
+}) {
+  const { orgId } = await getAuthOrgId();
+  const { data: row, error } = await supabaseAdmin
+    .from('package_deliverables')
+    .select('quantity')
+    .eq('organization_id', orgId)
+    .eq('package_service_id', input.packageServiceId)
+    .eq('deliverable_id', input.deliverableId)
+    .maybeSingle();
+  if (error) throw dbError('Could not read the promise', error);
+  if (!row) throw new Error('That is not something this package promises.');
+  const was = row.quantity == null ? 1 : Number(row.quantity);
+  const next = Math.max(0, was + input.by);
+  const { error: upErr } = await supabaseAdmin
+    .from('package_deliverables')
+    .update({ quantity: next })
+    .eq('organization_id', orgId)
+    .eq('package_service_id', input.packageServiceId)
+    .eq('deliverable_id', input.deliverableId);
+  if (upErr) throw dbError('Could not raise the promise', upErr);
+  return { was, now: next };
+}
+
 export async function copyPackageDeliverables(input: {
   fromPackageServiceIds: string[];
   rowMap: Record<string, string>;
