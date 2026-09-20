@@ -1067,11 +1067,21 @@ export async function restoreWorkForBooking(bookingId: string) {
 
 export async function addBookingLine(input: {
   bookingId: string;
+  /*
+   * A LINE IS A PACKAGE INSTANCE, OR A CHARGE. Nothing else.
+   *
+   * For a week a line could also point at a bare service or deliverable
+   * with a title and price of its own - an "extra". That reinstated the
+   * untyped line retired on 5 Aug: a service taken that way produced no
+   * work (only package lines are worked and staffed), and a deliverable
+   * taken that way was a promise through no service, giving delivery a
+   * second reader of what was promised. Retracted before any such line
+   * was written. An extra is an edit of the booking's instance - a service
+   * added to its bundle, a promise raised, a variable answered - with the
+   * price on the instance. A charge (travel, an extra hour) has no service,
+   * no deliverable and no work; it is a number with a name, and stays.
+   */
   packageId?: string | null;
-  targetType?: 'package' | 'service' | 'deliverable' | 'custom';
-  targetDeliverableId?: string | null;
-  targetDeliverableQuantity?: number | null;
-  targetServiceId?: string | null;
   title: string;
   price?: Record<string, unknown>;
   quantity?: number;
@@ -1081,8 +1091,6 @@ export async function addBookingLine(input: {
   await assertOurs(orgId, [
     { table: 'bookings', id: input.bookingId, label: 'booking' },
     { table: 'packages', id: input.packageId, label: 'package' },
-    { table: 'deliverables', id: input.targetDeliverableId, label: 'target_deliverable' },
-    { table: 'services', id: input.targetServiceId, label: 'target_service' },
   ]);
 
   /*
@@ -1127,10 +1135,6 @@ export async function addBookingLine(input: {
       organization_id: orgId,
       booking_id: input.bookingId,
       package_id: packageId,
-      target_type: input.targetType ?? 'package',
-      target_deliverable_id: input.targetDeliverableId ?? null,
-      target_deliverable_quantity: input.targetDeliverableQuantity ?? null,
-      target_service_id: input.targetServiceId ?? null,
       title,
       price,
       quantity: input.quantity ?? 1,

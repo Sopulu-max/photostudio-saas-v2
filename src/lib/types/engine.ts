@@ -70,10 +70,6 @@ export interface BookingLine {
   package_service_id: string | null;
   title: string;
   package_id: string | null;
-  target_type: 'package' | 'service' | 'deliverable' | 'custom';
-  target_deliverable_id: string | null;
-  target_deliverable_quantity: number | null;
-  target_service_id: string | null;
   status: 'draft' | 'confirmed' | 'completed' | 'cancelled';
   current_label_id: string | null;
   created_at: string;

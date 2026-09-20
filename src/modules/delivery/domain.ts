@@ -471,33 +471,13 @@ export async function getPromisedDeliverables(bookingId: string): Promise<{ id: 
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('booking_lines')
-    .select('package_id, target_deliverable_id, target_type')
+    .select('package_id')
     .eq('organization_id', orgId)
     .eq('booking_id', bookingId);
-    
-  const rows = (data || []) as any[];
-  const packageIds = [...new Set(rows.map((l) => l.package_id).filter(Boolean))];
-  const directDeliverableIds = rows
-    .filter(l => l.target_type === 'deliverable' && l.target_deliverable_id)
-    .map(l => l.target_deliverable_id);
-
-  const fromPackages = await getDeliverablesForPackages(packageIds);
-  
-  if (directDeliverableIds.length === 0) return fromPackages;
-  
-  const { data: directData } = await supabaseAdmin
-    .from('deliverables')
-    .select('id, name')
-    .eq('organization_id', orgId)
-    .in('id', directDeliverableIds);
-    
-  const allPromised = [...fromPackages, ...((directData || []) as any[])];
-  
-  // Deduplicate by ID
-  const unique = new Map<string, { id: string; name: string }>();
-  for (const p of allPromised) unique.set(p.id, { id: p.id, name: p.name });
-  
-  return Array.from(unique.values());
+  // One reader: a promise is made through a package's service, and a
+  // booking's packages are its instances. Nothing is promised any other way.
+  const packageIds = [...new Set(((data || []) as any[]).map((l) => l.package_id).filter(Boolean))];
+  return getDeliverablesForPackages(packageIds);
 }
 
 /**
