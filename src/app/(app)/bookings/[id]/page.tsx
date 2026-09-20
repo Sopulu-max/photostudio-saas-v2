@@ -1,3 +1,4 @@
+import React from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
