@@ -14,6 +14,13 @@
 export { listDimensionsByDomain } from '@/modules/services/interface';
 export type { StudioDimensionShape } from '@/modules/services/interface';
 
+// The work a package calls for, resolved at the moment of reading from its
+// services' workflows and its own departures. Production reads a booking's
+// work through this; nothing copies it.
+export { listResolvedTasksFor } from './workInternal';
+export type { PackageWork } from './workInternal';
+export type { ResolvedTask } from './workShape';
+
 export type { PackageStatus, OperatorPackageStatus, PackageImage } from './domain';
 export {
   addPackageImage, removePackageImage, setPackageImagePosition, reorderPackageImages,
@@ -22,8 +29,6 @@ export {
 export {
   // Package
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
-  // Packages owns package_tasks, so Services asks rather than writing them.
-  listResolvedTasks,
   // The package a booking keeps for itself, insulated from later catalog edits.
   // Both booking paths go through this — it is the rule, not a helper.
   // Which offers already cover what somebody described

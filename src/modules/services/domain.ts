@@ -440,7 +440,13 @@ async function buildStages(raw: StageInput[]): Promise<{ name: string; order: nu
 
 export type WorkflowInput = {
   name: string;
-  tasks: { name: string; roleName?: string | null; description?: string }[];
+  /*
+   * A step carries its id when it already exists, so a rename is a rename. It
+   * used to be matched by name: renaming "Editing" to "Edit" made a new step,
+   * left the old one in place, and nothing ever removed a step at all - which
+   * matters now that packages and bookings read the workflow live.
+   */
+  tasks: { id?: string | null; name: string; roleName?: string | null; description?: string }[];
 };
 
 async function resolveWorkflow(orgId: string, domainId: string, input: WorkflowInput | null): Promise<string | null> {
@@ -485,13 +491,24 @@ async function resolveWorkflow(orgId: string, domainId: string, input: WorkflowI
     }
   }
 
-  const { data: existingTasks } = await supabaseAdmin.from('workflow_tasks').select('id, name').eq('workflow_id', workflowId);
-  
+  const { data: existingTasks } = await supabaseAdmin
+    .from('workflow_tasks').select('id, name').eq('workflow_id', workflowId).eq('organization_id', orgId);
+  const steps = (existingTasks || []) as { id: string; name: string }[];
+  const kept = new Set<string>();
+
+  // By id first; by name only for a step the form did not know the id of.
+  const claimedByName = new Set<string>();
+  for (const t of input.tasks) if (t.id) kept.add(t.id);
+
   for (let i = 0; i < input.tasks.length; i++) {
     const t = input.tasks[i];
     const taskName = t.name.trim();
     if (!taskName) continue;
-    const existingTask = existingTasks?.find((et: any) => et.name.toLowerCase() === taskName.toLowerCase());
+    let target = t.id ? steps.find((et) => et.id === t.id) : undefined;
+    if (!target && !t.id) {
+      target = steps.find((et) => !kept.has(et.id) && !claimedByName.has(et.id) && et.name.toLowerCase() === taskName.toLowerCase());
+      if (target) claimedByName.add(target.id);
+    }
     const payload = {
       organization_id: orgId,
       workflow_id: workflowId,
@@ -500,11 +517,23 @@ async function resolveWorkflow(orgId: string, domainId: string, input: WorkflowI
       position: i,
       description: t.description || null,
     };
-    if (existingTask) {
-      await supabaseAdmin.from('workflow_tasks').update(payload).eq('id', existingTask.id);
+    if (target) {
+      kept.add(target.id);
+      await supabaseAdmin.from('workflow_tasks').update(payload).eq('id', target.id).eq('organization_id', orgId);
     } else {
       await supabaseAdmin.from('workflow_tasks').insert(payload);
     }
+  }
+
+  /*
+   * A step taken out of the workflow is taken out. Bookings read the workflow
+   * live, so leaving it would leave it on every job; the database's retire
+   * trigger keeps whatever happened on it (an assignee, a completion) standing
+   * as the booking's own step, and drops what said nothing.
+   */
+  const gone = steps.filter((et) => !kept.has(et.id)).map((et) => et.id);
+  if (gone.length > 0) {
+    await supabaseAdmin.from('workflow_tasks').delete().in('id', gone).eq('organization_id', orgId);
   }
 
   return workflowId;
@@ -851,6 +880,8 @@ export async function getService(serviceId: string) {
       tasks: (((data as any).workflow.workflow_tasks || []) as any[])
         .sort((a, b) => a.position - b.position)
         .map(t => ({
+          // The id rides along so saving a rename is a rename, not a new step.
+          id: t.id,
           name: t.name,
           roleName: t.default_role?.name || null,
           description: t.description || null

@@ -6,7 +6,8 @@ import { Combo } from '@/components/Pick';
 
 export type WorkflowInput = {
   name: string;
-  tasks: { name: string; roleName?: string | null; description?: string }[];
+  /** An existing step keeps its id, so a rename stays the same step. */
+  tasks: { id?: string | null; name: string; roleName?: string | null; description?: string }[];
 };
 
 export function WorkflowEditor({
@@ -52,7 +53,7 @@ export function WorkflowEditor({
         <h2 className="q-section-title">Process & Tasks</h2>
       </div>
       <p className="q-text-meta" style={{ marginBottom: '16px' }}>
-        Define the workflow and tasks required to deliver this service. These will be copied to any package that bundles it.
+        The steps this service goes through, in order, and who normally does each. Packages that bundle this service, and the bookings they are on, read this as it stands.
       </p>
 
       {workflow && (

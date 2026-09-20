@@ -3,14 +3,15 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { randomUUID } from 'crypto';
 
 /**
- * Tasks flow from the package onto the booking, carrying the role they need.
+ * Tasks flow from the workflow onto the booking, carrying the role they need.
  *
  * THE IDEA BEING PINNED. A studio says once how work in a domain gets done —
  * Shoot, Cull, Edit — and which role does each. A service points at that
- * workflow. Bundling the service into a package copies the tasks in. Putting
- * that package on a booking copies them again, onto the booking's own line. So
- * every task on a booking already knows the role it needs, and staffing is then
- * a matter of naming someone who holds it.
+ * workflow. A package bundling the service holds only its departures from it;
+ * a booking of that package holds only what HAPPENED on each step. Nothing is
+ * copied: the work is read from the workflow as it stands now, at every level,
+ * so every task on a booking already knows the role it needs, and staffing is
+ * then a matter of naming someone who holds it.
  *
  * WHY IT NEEDED A TEST. Not one link in that chain had ever run: the database
  * held zero workflows, zero workflow_tasks, zero package_tasks and zero
@@ -37,11 +38,10 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
 import { createService, saveWorkflow } from '@/modules/services/domain';
 import { createPackage } from '@/modules/packages/domain';
 import { submitBookingForm } from '@/app/book/[slug]/[packageId]/actions';
-import { restoreWorkForBooking } from '@/modules/bookings/domain';
 import { createBooking } from '@/modules/bookings/domain';
 import {
   addToBookingTeam, getBookingTeam, removeFromBookingTeam,
-  getBookingTasks, setTaskRole, addBookingTask, removeBookingTask, assignToTask,
+  getBookingTasks, setTaskRole, addBookingTask, removeBookingTask, assignToTask, toggleTaskDone,
 } from '@/modules/production/domain';
 import { PURGE_ORDER } from './purge';
 import { seedStudio, seedRow } from './seed';
@@ -116,8 +116,8 @@ describe('Tasks flow from a package onto a booking', () => {
     const { data: copies } = await supabaseAdmin
       .from('package_tasks').select('id').eq('organization_id', TEST_ORG_ID);
     expect(copies ?? [], 'a package must hold no copy of its workflow').toEqual([]);
-    const { listResolvedTasks } = await import('@/modules/packages/domain');
-    const resolved = (await listResolvedTasks(packageId)).flatMap((r) => r.tasks);
+    const { listResolvedTasksFor } = await import('@/modules/packages/interface');
+    const resolved = [...(await listResolvedTasksFor(TEST_ORG_ID, [packageId])).values()].flat().flatMap((r) => r.tasks);
     expect(resolved.map((t) => t.name).sort(), 'the workflow did not reach the package')
       .toEqual(['Cull', 'Edit', 'Shoot']);
     // Every step carries the role it needs — this is what makes staffing possible.
@@ -130,7 +130,7 @@ describe('Tasks flow from a package onto a booking', () => {
       .insert({ organization_id: TEST_ORG_ID, employee_id: employeeId, role_id: photographerRoleId });
   }, 90000);
 
-  it('copies them onto the booking when the package is booked', async () => {
+  it('reads them onto the booking when the package is booked, writing nothing', async () => {
     const booked = await createBooking({
       title: 'Ada — Portrait',
       contactId: TEST_PERSON_ID,
@@ -138,16 +138,16 @@ describe('Tasks flow from a package onto a booking', () => {
     });
     bookingId = booked.bookingId;
 
-    const { data: lines } = await supabaseAdmin
-      .from('booking_lines').select('id').eq('booking_id', bookingId);
-    const { data: tasks } = await supabaseAdmin
-      .from('booking_tasks').select('name, role_id, assignee_id')
-      .in('booking_line_id', (lines ?? []).map((l: any) => l.id));
+    // Not a row: nothing has happened on any step yet.
+    const { count } = await supabaseAdmin
+      .from('booking_tasks').select('id', { count: 'exact', head: true }).eq('booking_id', bookingId);
+    expect(count, 'booking a package copied its steps').toBe(0);
 
-    expect((tasks ?? []).map((t: any) => t.name).sort(), 'the booking got no tasks from its package')
+    const tasks = await getBookingTasks(bookingId);
+    expect(tasks.map((t) => t.name).sort(), 'the booking got no tasks from its package')
       .toEqual(['Cull', 'Edit', 'Shoot']);
-    expect((tasks ?? []).every((t: any) => t.role_id), 'a booking task lost its role').toBe(true);
-    expect((tasks ?? []).every((t: any) => !t.assignee_id), 'a task arrived already assigned').toBe(true);
+    expect(tasks.every((t) => t.roleId), 'a booking task lost its role').toBe(true);
+    expect(tasks.every((t) => !t.assignee && t.id === null), 'a task arrived already touched').toBe(true);
   }, 90000);
 
 
@@ -175,68 +175,62 @@ describe('Tasks flow from a package onto a booking', () => {
     const { data: line } = await supabaseAdmin
       .from('booking_lines').select('id, package_id').eq('booking_id', publicBookingId).single();
 
-    // Its own copy of the package, and that copy carries the work.
+    // Its own copy of the package, and the work is read through it.
     expect(line!.package_id, 'the public booking points at the catalogue').not.toBe(packageId);
-    const { data: bundle } = await supabaseAdmin
-      .from('package_services').select('package_tasks(id)').eq('package_id', line!.package_id!);
-    expect((bundle || []).flatMap((b: any) => b.package_tasks || []).length,
-      'the booking’s own copy of the package carries no work').toBeGreaterThan(0);
-
-    // And the work reached the booking, where anyone would look for it.
-    const { data: tasks } = await supabaseAdmin
-      .from('booking_tasks').select('name').eq('booking_id', publicBookingId);
-    expect((tasks ?? []).map((t: any) => t.name).sort(),
+    const tasks = await getBookingTasks(publicBookingId);
+    expect(tasks.map((t) => t.name).sort(),
       'a booking taken from the public page arrived with an empty work board')
       .toEqual(['Cull', 'Edit', 'Shoot']);
   }, 120000);
 
 
-  it('fills an empty board, and refuses to touch one already worked on', async () => {
+  it('follows the workflow as it changes, keeping what already happened', async () => {
     /*
-     * A BOOKING CAN STILL END UP WITH NO WORK, AND HAD NO WAY BACK.
-     *
-     * Tasks are copied from the package when a line is added, and until now
-     * that was the ONLY moment it ever happened. So a booking taken before the
-     * studio wrote its workflow has an empty board for good: syncing a workflow
-     * reaches the packages built from it and stops there. That is the ordinary
-     * order of things for a studio still setting itself up, not an edge case.
-     *
-     * The second half matters more than the first. A line already carrying work
-     * has been worked on — reassigned, ticked off, had steps dropped on purpose
-     * — and topping it up from the package would resurrect exactly the tasks
-     * somebody decided not to do.
+     * THE WORKFLOW IS LIVE. A booking used to freeze a copy of its steps, so a
+     * step renamed, added or dropped on the workflow reached no job in flight.
+     * Now the booking reads the workflow as it stands - and keeps the one thing
+     * that is its own: what happened on a step.
      */
-    const stripped = await createBooking({
-      title: 'Board wiped',
-      contactId: TEST_PERSON_ID,
-      lines: [{ packageId, title: 'Golden Hour Portrait' }],
-    });
-    await supabaseAdmin.from('booking_tasks').delete().eq('booking_id', stripped.bookingId);
+    const { data: workflow } = await supabaseAdmin
+      .from('workflows').select('id, service_domain_id, workflow_tasks(id, name)').eq('organization_id', TEST_ORG_ID).single();
+    const stepId = (n: string) => (workflow!.workflow_tasks as any[]).find((t) => t.name === n).id as string;
 
-    const { tasksAdded } = await restoreWorkForBooking(stripped.bookingId);
-    expect(tasksAdded, 'an empty board stayed empty').toBeGreaterThan(0);
+    // Finish Cull on this booking - a fact, and the row that holds it.
+    const cull = (await getBookingTasks(bookingId)).find((t) => t.name === 'Cull')!;
+    await toggleTaskDone({ bookingId, task: cull.ref });
 
-    const { data: back } = await supabaseAdmin
-      .from('booking_tasks').select('name').eq('booking_id', stripped.bookingId);
-    expect((back ?? []).map((t: any) => t.name).sort()).toEqual(['Cull', 'Edit', 'Shoot']);
+    // Rename Edit, add Retouch, drop Cull.
+    await saveWorkflow(workflow!.service_domain_id, {
+      name: 'Portrait production',
+      tasks: [
+        { id: stepId('Shoot'), name: 'Shoot', roleName: 'Photographer' },
+        { id: stepId('Edit'), name: 'Edit and grade', roleName: 'Photo Editor' },
+        { name: 'Retouch', roleName: 'Photo Editor' },
+      ],
+    } as any);
 
-    // Pressed again, it adds nothing — the board is no longer empty.
-    const again = await restoreWorkForBooking(stripped.bookingId);
-    expect(again.tasksAdded, 'work was duplicated onto a board that already had it').toBe(0);
-    const { count } = await supabaseAdmin
-      .from('booking_tasks').select('id', { count: 'exact', head: true })
-      .eq('booking_id', stripped.bookingId);
-    expect(count, 'the task list grew on a second run').toBe(3);
+    const after = await getBookingTasks(bookingId);
+    const names = after.map((t) => t.name);
+    expect(names, 'the renamed step kept its old name on the booking').toContain('Edit and grade');
+    expect(names, 'the added step did not reach the booking').toContain('Retouch');
+    expect(names, 'the dropped step, finished here, was lost with it').toContain('Cull');
+    const keptCull = after.find((t) => t.name === 'Cull')!;
+    expect(keptCull.done, 'the finished step forgot it was finished').toBe(true);
+    expect(keptCull.own, 'a step that left the workflow still claims to be its').toBe(true);
+    // A rename is a rename: the same step, not a second one beside the first.
+    expect(names.filter((n) => n === 'Edit' || n === 'Edit and grade')).toHaveLength(1);
 
-    // And a step the studio deliberately dropped is not resurrected.
-    const { data: one } = await supabaseAdmin
-      .from('booking_tasks').select('id').eq('booking_id', stripped.bookingId).limit(1).single();
-    await supabaseAdmin.from('booking_tasks').delete().eq('id', one!.id);
-    await restoreWorkForBooking(stripped.bookingId);
-    const { count: afterDrop } = await supabaseAdmin
-      .from('booking_tasks').select('id', { count: 'exact', head: true })
-      .eq('booking_id', stripped.bookingId);
-    expect(afterDrop, 'a deliberately dropped task came back').toBe(2);
+    // Put it back for the tests that follow, dropping the retired fact too.
+    await supabaseAdmin.from('booking_tasks').delete().eq('id', keptCull.id!);
+    await saveWorkflow(workflow!.service_domain_id, {
+      name: 'Portrait production',
+      tasks: [
+        { id: stepId('Shoot'), name: 'Shoot', roleName: 'Photographer' },
+        { name: 'Cull', roleName: 'Photo Editor' },
+        { id: stepId('Edit'), name: 'Edit', roleName: 'Photo Editor' },
+      ],
+    } as any);
+    expect((await getBookingTasks(bookingId)).map((t) => t.name).sort()).toEqual(['Cull', 'Edit', 'Shoot']);
   }, 120000);
 
   it('puts someone on every task waiting for their role, in one move', async () => {
@@ -326,9 +320,14 @@ describe('Tasks flow from a package onto a booking', () => {
     }, 90000);
 
     it('refuses to drop a task that came from a package', async () => {
-      const fromPackage = (await getBookingTasks(bookingId)).find((t: any) => t.lineId);
-      await expect(removeBookingTask({ bookingId, taskId: fromPackage!.id }))
+      // A row exists only once something happened on the step; finish it.
+      const edit = (await getBookingTasks(bookingId)).find((t) => t.name === 'Edit')!;
+      await toggleTaskDone({ bookingId, task: edit.ref });
+      const withRow = (await getBookingTasks(bookingId)).find((t) => t.name === 'Edit')!;
+      expect(withRow.id, 'finishing a step made no row for it').not.toBeNull();
+      await expect(removeBookingTask({ bookingId, taskId: withRow.id! }))
         .rejects.toThrow(/comes from a package/i);
+      await toggleTaskDone({ bookingId, task: withRow.ref });
     }, 90000);
 
     it('stands down an assignee who does not hold a newly set role', async () => {
@@ -339,19 +338,19 @@ describe('Tasks flow from a package onto a booking', () => {
       const { data: bode } = await supabaseAdmin
         .from('contacts').select('id').eq('organization_id', TEST_ORG_ID)
         .eq('display_name', 'Bode Second').single();
-      await assignToTask({ bookingId, taskId: shoot!.id, employeeId: bode!.id });
-      expect((await getBookingTasks(bookingId)).find((t: any) => t.id === shoot!.id)?.assignee?.name)
-        .toBe('Bode Second');
+      await assignToTask({ bookingId, task: shoot!.ref, employeeId: bode!.id });
+      const assigned = (await getBookingTasks(bookingId)).find((t) => t.name === 'Shoot')!;
+      expect(assigned.assignee?.name).toBe('Bode Second');
 
       const { data: editorRole } = await supabaseAdmin
         .from('roles').select('id').eq('organization_id', TEST_ORG_ID).eq('name', 'Photo Editor').single();
 
       // Bode is a Photographer, not a Photo Editor. Changing what the task needs
       // must not leave him on work he is not down for.
-      const result = await setTaskRole({ bookingId, taskId: shoot!.id, roleId: editorRole!.id });
+      const result = await setTaskRole({ bookingId, task: assigned.ref, roleId: editorRole!.id });
       expect(result.standDown, 'an unqualified assignee was left on the task').toBe(true);
 
-      const after = (await getBookingTasks(bookingId)).find((t: any) => t.id === shoot!.id);
+      const after = (await getBookingTasks(bookingId)).find((t) => t.name === 'Shoot');
       expect(after?.roleName).toBe('Photo Editor');
       expect(after?.assignee).toBeNull();
     }, 90000);

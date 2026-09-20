@@ -1,28 +1,26 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast, readableError } from '@/components/Toast';
 import { useArrivals } from '@/components/useArrivals';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import {
   setTaskRole, addBookingTask, removeBookingTask,
-  assignToTask, unassignTask, advanceBookingLineTask,
+  assignToTask, unassignTask, toggleTaskDone,
 } from '@/modules/production/interface';
+import type { ResolvedBookingTask } from '@/modules/production/interface';
 
-type Person = { id: string; name: string; avatarUrl: string | null };
-
-export type BookingTask = {
-  id: string;
-  name: string;
-  done: boolean;
-  roleId: string | null;
-  roleName: string | null;
-  assignee: Person | null;
-  /** Which package it came from, or null for work the studio added itself. */
-  fromPackage: string | null;
-  fromService?: string | null;
-  lineId: string | null;
-};
+/*
+ * A task here is a READING - the workflow's step as it is now, with what
+ * happened on this booking laid over it - so it may have no row yet. Every
+ * action sends the ref (line, bundle row, step) and Production makes the row
+ * on the first thing that happens. The key is the ref, since ids are absent
+ * until then.
+ */
+export type BookingTask = ResolvedBookingTask;
+const keyOf = (t: BookingTask) =>
+  t.id ?? `${t.lineId}:${t.packageServiceId}:${t.ref.workflowTaskId ?? t.ref.packageTaskId}`;
 
 type Employee = {
   id: string;
@@ -42,6 +40,10 @@ type Employee = {
  *
  * The package a task came from is still shown beside it, because knowing what a
  * step is for still matters. It just no longer organises the list.
+ *
+ * And the list is live: it is the packages' workflows as the studio has them
+ * NOW. Rename a step, add one, drop one, and this booking shows it - unless
+ * something already happened on the step here, which stays.
  */
 export function BookingTasks({
   bookingId,
@@ -55,17 +57,19 @@ export function BookingTasks({
   roles: { id: string; name: string }[];
 }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRoleId, setNewRoleId] = useState('');
   const [notice, setNotice] = useState('');
   // A task added here lands in a list that may already be twenty long. This is
   // what points at the one that just arrived.
-  const arrived = useArrivals(tasks.map((t) => t.id));
+  const arrived = useArrivals(tasks.map(keyOf));
 
   const run = (fn: () => Promise<unknown>, whenFailed: string) =>
     startTransition(async () => {
-      try { await fn(); } catch (e: any) { toast.bad(readableError(e, whenFailed)); }
+      // The list is a reading; after an action the page is read again.
+      try { await fn(); router.refresh(); } catch (e: any) { toast.bad(readableError(e, whenFailed)); }
     });
 
   /** Only people who hold what this task needs. No role set means anyone. */
@@ -80,8 +84,8 @@ export function BookingTasks({
     <div className="q-stack q-stack-md">
       {tasks.length === 0 ? (
         <p className="q-meta">
-          No tasks yet. Tasks are created from the packages on this booking once their services
-          define a workflow. Tasks specific to this booking can be added below.
+          No tasks. The work comes from the workflows of the services in this booking&rsquo;s
+          packages, as they stand now; work specific to this booking can be added below.
         </p>
       ) : (
         <>
@@ -94,11 +98,11 @@ export function BookingTasks({
           <div className="q-stack" style={{ gap: '6px' }}>
             {tasks.map((t) => (
               <div
-                key={t.id}
+                key={keyOf(t)}
                 // The row treatment is q-line's now — the same one the new
                 // booking form draws, defined once rather than written inline
                 // in both.
-                className={`q-line q-row q-row-between${arrived.has(t.id) ? ' q-flash' : ''}`}
+                className={`q-line q-row q-row-between${arrived.has(keyOf(t)) ? ' q-flash' : ''}`}
                 style={{ gap: '10px', flexWrap: 'wrap' }}
               >
                 <span className="q-row" style={{ gap: '10px', alignItems: 'center', minWidth: '200px', flex: 1 }}>
@@ -108,7 +112,7 @@ export function BookingTasks({
                     disabled={isPending}
                     title={t.done ? 'Mark as not complete' : 'Mark as complete'}
                     onClick={() => run(
-                      () => advanceBookingLineTask({ bookingId, lineId: t.lineId ?? '', taskId: t.id }),
+                      () => toggleTaskDone({ bookingId, task: t.ref }),
                       'Could not change that task.')}
                     style={{
                       width: '22px', height: '22px', padding: 0, borderRadius: '50%',
@@ -129,7 +133,8 @@ export function BookingTasks({
                 </span>
 
                 <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* What it needs. Changing it here changes this booking only. */}
+                  {/* What it needs. Changing it here changes this booking only;
+                      clearing it hands the step back to the workflow's role. */}
                   <select
                     className="q-select"
                     style={{ minWidth: '140px' }}
@@ -138,14 +143,14 @@ export function BookingTasks({
                     onChange={(e) => {
                       const roleId = e.target.value || null;
                       run(async () => {
-                        const r = await setTaskRole({ bookingId, taskId: t.id, roleId });
+                        const r = await setTaskRole({ bookingId, task: t.ref, roleId });
                         if (r?.standDown) {
                           setNotice(`${t.assignee?.name} was removed from “${t.name}”: they do not hold this role.`);
                         }
                       }, 'Could not change what this task needs.');
                     }}
                   >
-                    <option value="">No role</option>
+                    <option value="">{t.workflowRoleName ? `As the workflow says (${t.workflowRoleName})` : 'No role'}</option>
                     {roles.map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
@@ -161,8 +166,8 @@ export function BookingTasks({
                       const employeeId = e.target.value;
                       run(
                         () => employeeId
-                          ? assignToTask({ bookingId, taskId: t.id, employeeId })
-                          : unassignTask({ bookingId, taskId: t.id }),
+                          ? assignToTask({ bookingId, task: t.ref, employeeId })
+                          : unassignTask({ bookingId, task: t.ref }),
                         'Could not change who is on this task.');
                     }}
                   >
@@ -174,16 +179,16 @@ export function BookingTasks({
                     ))}
                   </select>
 
-                  {/* Only work the studio added can be removed here; a package's
-                      task is switched off on the package, where it is visible. */}
-                  {!t.lineId && (
+                  {/* Only work the booking holds on its own can be removed here; a
+                      package's step is switched off on the package, where it is visible. */}
+                  {t.own && t.id && (
                     <ConfirmButton
                       className="q-btn-ghost q-btn-xs"
                       disabled={isPending}
                       title={`Remove “${t.name}”`}
                       confirmLabel="Remove?"
                       onConfirm={() => run(
-                        () => removeBookingTask({ bookingId, taskId: t.id }),
+                        () => removeBookingTask({ bookingId, taskId: t.id! }),
                         'Could not remove that task.')}
                     >
                       ×

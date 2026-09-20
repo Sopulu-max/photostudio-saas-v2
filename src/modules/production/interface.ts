@@ -24,7 +24,7 @@
 export {
   assignToTask,
   unassignTask,
-  advanceBookingLineTask,
+  toggleTaskDone,
   getBookingTeam,
   addToBookingTeam,
   removeFromBookingTeam,
@@ -37,4 +37,6 @@ export {
 
 // Where the work is: the local reading of one booking, the global sheet of all.
 export { getBookingWork, listWorkSheet } from './work';
+// A task is addressed by what it is about, since its row may not exist yet.
+export type { TaskRef, ResolvedBookingTask } from './resolve';
 export type { BookingWork, LineWork, ServiceWork, WorkSheetRow } from './work';

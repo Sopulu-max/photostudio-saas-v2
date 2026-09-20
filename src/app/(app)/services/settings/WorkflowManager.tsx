@@ -29,7 +29,7 @@ export function WorkflowManager({
     setEditingDomainId(domainId);
     setEditingWorkflow({
       name: wf.name,
-      tasks: wf.tasks.map((t: any) => ({ name: t.name, description: t.description, roleName: t.roleName })),
+      tasks: wf.tasks.map((t: any) => ({ id: t.id, name: t.name, description: t.description, roleName: t.roleName })),
     });
   };
 

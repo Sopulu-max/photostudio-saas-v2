@@ -2,17 +2,19 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
+import { resolveBookingTasks, type ResolvedBookingTask } from './resolve';
 
 /**
  * WHERE THE WORK IS. Two scales of one thing: a job moving through a sequence.
  *
  * Globally a booking moves through the studio's stages. Locally, inside it,
  * each service of each package moves through its tasks - the video may be
- * done while the photo is still in edit. Both are READINGS of rows that
- * already exist: a local position is a service's first unfinished task, and
- * a service is done when it has none. Nothing here is stored; a stage stays
- * the studio's decision, and the reading only says when that decision has
- * become available.
+ * done while the photo is still in edit. Both are READINGS: a local position
+ * is a service's first unfinished task, and a service is done when it has
+ * none. The tasks themselves are a reading too (see resolve.ts) - the
+ * workflow as it is now, with what happened on this booking laid over it.
+ * Nothing here is stored; a stage stays the studio's decision, and the
+ * reading only says when that decision has become available.
  */
 
 export type ServiceWork = {
@@ -40,54 +42,42 @@ export type BookingWork = {
   allDone: boolean;
 };
 
-const TASK_SELECT = `
-  id, name, position, completed_at, booking_line_id, package_service_id,
-  assignee:contacts(display_name),
-  line:booking_lines(id, package:packages(name)),
-  bundle:package_services(id, service:services(name))
-`;
-
-/** Group a booking's task rows into lines and services, in task order. */
-function readWork(rows: any[]): BookingWork {
+/** Group a booking's tasks into lines and services, in task order. */
+function readWork(rows: ResolvedBookingTask[]): BookingWork {
   const byLine = new Map<string, LineWork>();
   const byService = new Map<string, ServiceWork>();
   for (const t of rows) {
-    const lineKey = t.booking_line_id ?? '';
-    const line: LineWork = byLine.get(lineKey) ?? { lineId: t.booking_line_id ?? null, packageName: t.line?.package?.name ?? 'This booking', services: [], isDone: true };
+    const lineKey = t.lineId ?? '';
+    const line: LineWork = byLine.get(lineKey) ?? { lineId: t.lineId, packageName: t.fromPackage ?? 'This booking', services: [], isDone: true };
     byLine.set(lineKey, line);
-    const svcKey = `${lineKey}:${t.package_service_id ?? ''}`;
+    const svcKey = `${lineKey}:${t.packageServiceId ?? ''}`;
     let svc = byService.get(svcKey);
     if (!svc) {
-      svc = { packageServiceId: t.package_service_id ?? null, serviceName: t.bundle?.service?.name ?? (t.booking_line_id ? 'Package' : 'Added here'), total: 0, done: 0, current: null, isDone: true };
+      svc = { packageServiceId: t.packageServiceId, serviceName: t.fromService ?? (t.lineId ? 'Package' : 'Added here'), total: 0, done: 0, current: null, isDone: true };
       byService.set(svcKey, svc);
       line.services.push(svc);
     }
     svc.total += 1;
-    if (t.completed_at) svc.done += 1;
+    if (t.done) svc.done += 1;
     else {
       svc.isDone = false;
       line.isDone = false;
-      if (!svc.current) svc.current = { id: t.id, name: t.name, assignee: t.assignee?.display_name ?? null };
+      if (!svc.current) svc.current = { id: t.id ?? `${svcKey}:${t.position}`, name: t.name, assignee: t.assignee?.name ?? null };
     }
   }
   // A stable order - by service name within a line - so the strip does not
   // reshuffle as tasks complete; task order alone ties on equal positions.
   const lines = [...byLine.values()].map((l) => ({ ...l, services: [...l.services].sort((a, b) => a.serviceName.localeCompare(b.serviceName)) }));
   const total = rows.length;
-  const done = rows.filter((t) => t.completed_at).length;
+  const done = rows.filter((t) => t.done).length;
   return { lines, total, done, allDone: total > 0 && done === total };
 }
 
 /** The local reading of one booking: each package, each service in it, where it is. */
 export async function getBookingWork(bookingId: string): Promise<BookingWork> {
   const { orgId } = await getAuthOrgId();
-  const { data } = await supabaseAdmin
-    .from('booking_tasks')
-    .select(TASK_SELECT)
-    .eq('organization_id', orgId)
-    .eq('booking_id', bookingId)
-    .order('position');
-  return readWork((data || []) as any[]);
+  const resolved = await resolveBookingTasks(orgId, [bookingId]);
+  return readWork(resolved.get(bookingId) || []);
 }
 
 export type WorkSheetRow = {
@@ -114,14 +104,7 @@ export async function listWorkSheet(): Promise<WorkSheetRow[]> {
     .order('scheduled_for', { ascending: true, nullsFirst: false });
   const live = ((bookings || []) as any[]).filter((b) => !b.stage || b.stage.kind === 'enquiry' || b.stage.kind === 'booked');
   if (live.length === 0) return [];
-  const { data: tasks } = await supabaseAdmin
-    .from('booking_tasks')
-    .select(`booking_id, ${TASK_SELECT}`)
-    .eq('organization_id', orgId)
-    .in('booking_id', live.map((b) => b.id))
-    .order('position');
-  const byBooking = new Map<string, any[]>();
-  for (const t of ((tasks || []) as any[])) (byBooking.get(t.booking_id) ?? byBooking.set(t.booking_id, []).get(t.booking_id)!).push(t);
+  const byBooking = await resolveBookingTasks(orgId, live.map((b) => b.id));
   return live.map((b) => ({
     bookingId: b.id as string,
     title: b.title as string,

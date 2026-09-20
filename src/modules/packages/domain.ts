@@ -2349,22 +2349,6 @@ async function writePackageTasks(
 }
 
 /**
- * The work a package calls for, resolved per bundled service - what a booking
- * freezes into its own tasks. Asked by Bookings at the moment of booking.
- */
-export async function listResolvedTasks(packageId: string, forOrgId?: string) {
-  const orgId = forOrgId ?? (await getAuthOrgId()).orgId;
-  const { data } = await supabaseAdmin
-    .from('package_services')
-    .select(`id, service:services(id, workflow:workflows(id, workflow_tasks(id, name, position, default_role:roles(id, name)))),
-      package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active)`)
-    .eq('organization_id', orgId)
-    .eq('package_id', packageId)
-    .order('position');
-  return ((data || []) as any[]).map((ps) => ({ packageServiceId: ps.id as string, tasks: resolveTasks(ps) }));
-}
-
-/**
  * WHICH OF THE STUDIO'S OFFERS ALREADY COVER WHAT SOMEBODY DESCRIBED.
  *
  * The same test Services runs over its own classification, run here over the
