@@ -105,7 +105,20 @@ export function CoverSlides({
   const enter = useCallback(() => setHeld(true), []);
   const leave = useCallback(() => setHeld(false), []);
 
-  if (slides.length === 0) return <>{children}</>;
+  /*
+   * NO PICTURES: THE FRAME STILL STANDS.
+   *
+   * This returned the bare children, so a host's frame - the booking page's
+   * cover banner, the storefront's blank hero - never existed when there was
+   * nothing to show. The banner's "Add a cover" link is absolutely positioned
+   * to fill its frame; with no frame it filled the nearest positioned
+   * ancestor instead, which was the page header, sitting invisibly over the
+   * stage picker: choosing a stage opened the edit page. A frame with a class
+   * is a promise about layout and is kept whether or not it has a picture.
+   */
+  if (slides.length === 0) {
+    return className ? <div className={className}>{children}</div> : <>{children}</>;
+  }
 
   return (
     <div

@@ -1221,6 +1221,7 @@ body::before {
 /* The same picture on a page rather than a card: wider, and standing on its
    own rather than meeting a border. */
 .q-cover-banner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;

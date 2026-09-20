@@ -96,7 +96,7 @@ export function BookingsClient({
         b.lineCount > 0 ? `${b.lineCount} ${b.lineCount === 1 ? 'package' : 'packages'}` : null,
       ],
       absent: b.clientName ? 'No date or package yet' : 'No date, client or package yet',
-      frame: { url: b.coverUrl, initials: initialsFor(b.clientName) },
+      frame: { initials: initialsFor(b.clientName) },
       figure: b.pendingTotal > 0
         ? { text: formatMoney(b.pendingTotal, b.pendingCurrency ?? currencyCode), due: true }
         : { text: 'Nothing owed', none: true },
