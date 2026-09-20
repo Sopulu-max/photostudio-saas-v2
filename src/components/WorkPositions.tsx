@@ -21,7 +21,9 @@ export function WorkPositions({ work, compact = false }: { work: BookingWork; co
                 <span className="q-work-pos">
                   {s.isDone
                     ? 'Done'
-                    : <>{s.current?.name}<span className="q-work-count"> · {s.done + 1} of {s.total}</span>{s.current?.assignee && !compact && <span className="q-work-who"> · {s.current.assignee}</span>}</>}
+                    : <>{s.current?.name}<span className="q-work-count"> · {s.done + 1} of {s.total}</span>
+                        {/* Who is on it - or that nobody is, which is the thing to see. */}
+                        <span className={s.current?.assignee ? 'q-work-who' : 'q-work-who q-work-gap'}> · {s.current?.assignee ?? 'nobody'}</span></>}
                 </span>
               </span>
             ))}

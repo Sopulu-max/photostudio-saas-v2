@@ -40,6 +40,6 @@ export { getBookingWork, listWorkSheet } from './work';
 // A task is addressed by what it is about, since its row may not exist yet.
 export type { TaskRef, ResolvedBookingTask } from './resolve';
 // The same reading by person: their live jobs and steps, and everyone's load.
-export { getEmployeeWork, listWorkLoad } from './people';
-export type { PersonWork, PersonJob, PersonLoad } from './people';
+export { getEmployeeWork, listWorkLoad, listWorkByPerson } from './people';
+export type { PersonWork, PersonJob, PersonLoad, WorkByPerson, PersonSheetRow, OpenStep } from './people';
 export type { BookingWork, LineWork, ServiceWork, WorkSheetRow } from './work';

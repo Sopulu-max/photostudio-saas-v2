@@ -2762,6 +2762,8 @@ body::before {
 .q-work-name { font-weight: 600; color: var(--q-color-ink-900); }
 .q-work-pos { color: var(--q-color-ink-700); }
 .q-work-count, .q-work-who { color: var(--q-color-ink-500); font-size: 0.78rem; }
+/* A step nobody is on: the gap the sheet exists to show. */
+.q-work-gap { color: var(--q-color-amber-700, var(--q-color-warning)); font-weight: 600; }
 .q-work-done { border-color: var(--q-color-ink-900); }
 .q-work-done .q-work-pos { color: var(--q-color-ink-900); font-weight: 600; }
 .q-work-compact { margin: 0; }
@@ -3714,6 +3716,9 @@ body::before {
    * reserving 320px of vertical nothing between the title and its buttons.
    */
   .q-page-header > :first-child { flex: 0 1 auto; }
+  /* Stretch is right for a row of buttons, wrong for a two-way switch, which
+     is its own width or it stops reading as a switch. */
+  .q-page-header > .q-seg { align-self: flex-start; }
   .q-page-title  { font-size: 1.6rem; }
   .q-card        { --q-card-pad: 20px; }
   .q-section     { padding: 20px; }
@@ -4041,6 +4046,8 @@ body::before {
   border: none;
   background: transparent;
   cursor: pointer;
+  /* A link or a button, the same face. */
+  text-decoration: none;
   padding: 5px 11px;
   border-radius: 6px;
   font-family: var(--q-font-sans);
