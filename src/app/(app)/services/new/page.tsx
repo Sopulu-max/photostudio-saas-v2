@@ -10,6 +10,7 @@ import {
 import { listDeliverablesByDomain } from '@/modules/deliverables/interface';
 import { listRoles } from '@/modules/team/interface';
 import { TemplatePicker } from './TemplatePicker';
+import { getStudioCurrency } from '@/kernel/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,7 @@ export default async function NewServicePage(props: {
 
   return (
     <TemplatePicker
+      currencyCode={await getStudioCurrency()}
       startFrom={sp.domain || sp.value ? {
         serviceDomain: sp.domain || '',
         dimensions: sp.dimension && sp.value ? [{ name: sp.dimension, values: [sp.value] }] : [],

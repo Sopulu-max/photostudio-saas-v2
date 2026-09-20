@@ -706,7 +706,7 @@ export async function duplicateService(serviceId: string) {
   // A fork is the same work — what varies about it varies the same way.
   const { data: vars } = await supabaseAdmin
     .from('variables')
-    .select('key, label, kind, unit, options, default_value, min_value, max_value, position')
+    .select('key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates')
     .eq('service_id', serviceId)
     .eq('organization_id', orgId)
     .order('position');
@@ -723,6 +723,8 @@ export async function duplicateService(serviceId: string) {
         default_value: v.default_value,
         min_value: v.min_value,
         max_value: v.max_value,
+        rate: v.rate ?? null,
+        option_rates: v.option_rates ?? null,
         position: v.position,
       }))
     );
@@ -811,7 +813,7 @@ export async function getService(serviceId: string) {
       domain:service_domains(id, name),
       primary_deliverable:deliverables!services_primary_deliverable_id_fkey(id, name),
       ${SERVICE_OFFERS},
-      variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
+      variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates),
       ${SERVICE_DIMENSION_SELECT},
       workflow:workflows(id, name, workflow_tasks(id, name, default_role:roles(name), position, description))
     `)
@@ -1149,19 +1151,8 @@ export async function declareServiceVariable(input: {
   revalidatePath(`/services/${input.serviceId}`);
   revalidatePath('/packages');
 
-  return {
-    id: data.id,
-    serviceId: data.service_id,
-    key: data.key,
-    label: data.label,
-    kind: data.kind,
-    unit: data.unit ?? null,
-    options: data.options || [],
-    defaultValue: data.default_value ?? null,
-    min: data.min_value ?? null,
-    max: data.max_value ?? null,
-    position: data.position ?? 0,
-  };
+  // The one mapper, so a rate declared here comes back the way the list gives it.
+  return rowToVariable(data);
 }
 
 /**
@@ -1290,6 +1281,33 @@ export async function declareServiceDeliverableVariable(input: {
   return declareDeliverableVariable({ deliverableId: input.deliverableId, variable: input.variable });
 }
 
+/*
+ * THE RATE ON WHAT A SERVICE PRODUCES.
+ *
+ * Money per unit of the deliverable when this service makes one beyond what a
+ * package promised. On the link, not the deliverable: the same album made by
+ * two services can cost differently, because the rate is the producing
+ * service's. Null clears it - no extra of this can then be taken.
+ */
+export async function setServiceDeliverableRate(input: {
+  serviceDeliverableId: string;
+  rate: Record<string, unknown> | null;
+}) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('service_deliverables')
+    .update({ rate: input.rate })
+    .eq('organization_id', orgId)
+    .eq('id', input.serviceDeliverableId)
+    .select('service_id')
+    .maybeSingle();
+  if (error) throw dbError('Could not save the rate', error);
+  if (!data) throw new Error('That capability was not found.');
+  revalidatePath(`/services/${data.service_id}`);
+  revalidatePath('/packages');
+  return { ok: true };
+}
+
 export async function setServiceVariables(input: { serviceId: string; variables: ServiceVariableInput[] }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
 
@@ -1329,6 +1347,8 @@ export async function setServiceVariables(input: { serviceId: string; variables:
       min_value: v.raw.min ?? null,
       max_value: v.raw.max ?? null,
       position: v.position,
+      rate: v.raw.rate ?? null,
+      option_rates: v.raw.optionRates ?? null,
     };
     const { error } = v.raw.id
       ? await supabaseAdmin.from('variables').update(row).eq('id', v.raw.id).eq('organization_id', orgId)

@@ -1921,7 +1921,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
     .select(`
       service:services(
         id, name,
-        variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position),
+        variables(id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates),
         service_dimension_values(dimension_value:dimension_values(id, name, dimension_id)),
         service_deliverables(id, deliverable_id)
       ),
@@ -1995,7 +1995,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
 
   const declaredOnDimensions = dimensionIds.size === 0 ? [] : (await supabaseAdmin
     .from('variables')
-    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, dimension_id, dimension:dimensions(id, name)')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates, dimension_id, dimension:dimensions(id, name)')
     .eq('organization_id', orgId)
     .in('dimension_id', [...dimensionIds])
     .order('position')).data || [];
@@ -2039,7 +2039,7 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
 
   const deliverableVariables = deliverableIds.size === 0 ? [] : (await supabaseAdmin
     .from('variables')
-    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, deliverable_id, deliverable:deliverables(id, name)')
+    .select('id, key, label, kind, unit, options, default_value, min_value, max_value, position, rate, option_rates, deliverable_id, deliverable:deliverables(id, name)')
     .eq('organization_id', orgId)
     .in('deliverable_id', [...deliverableIds])
     .order('position')).data || [];

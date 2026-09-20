@@ -83,6 +83,13 @@ export type ServiceVariable = {
   min: number | null;
   max: number | null;
   position: number;
+  /*
+   * THE RATE: what one unit above what a package fixes costs, in the money
+   * shape every price here uses. A choice carries a rate per option instead.
+   * Null means no extra of this can be taken. See 02-ONTOLOGY, Rates.
+   */
+  rate: Record<string, unknown> | null;
+  optionRates: Record<string, Record<string, unknown>> | null;
 };
 
 /**
@@ -109,6 +116,8 @@ export function rowToVariable(r: any): ServiceVariable {
     min: r.min_value ?? null,
     max: r.max_value ?? null,
     position: r.position ?? 0,
+    rate: r.rate ?? null,
+    optionRates: r.option_rates ?? null,
   };
 }
 
@@ -123,6 +132,8 @@ export type ServiceVariableInput = {
   defaultValue?: unknown;
   min?: number | null;
   max?: number | null;
+  rate?: Record<string, unknown> | null;
+  optionRates?: Record<string, Record<string, unknown>> | null;
 };
 
 /** What a package has fixed. */

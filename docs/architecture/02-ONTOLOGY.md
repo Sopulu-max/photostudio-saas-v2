@@ -321,6 +321,48 @@ members are. This is not classification (what the work is) and not a shelf
 
 ---
 
+### Rates: the Configuration Schema's commercial rule
+
+> **A service is never priced. A unit of the way it varies can be.**
+
+The ontology says why a service has no price - its price depends on its
+configuration - and stopped there. The consequence went unstated: if a
+service's price is a function of its variation, then the primitive of the
+commercial plane is **the price of one unit of variation**, a *rate*. One more
+hour of coverage. One more edited photograph. Hardcopy rather than softcopy.
+One album.
+
+A rate lives where the variation is declared - on a variable (per unit above
+what a package fixes, or per option of a choice) and on what a service
+produces (`service_deliverables`, per unit of the deliverable's unit) - so the
+same deliverable made by two services can carry two rates, because the rate is
+the producing service's. It is the last of the Configuration Schema's rules
+(default, min and max already exist) and the only commercial one: *what one
+more costs*. Declared once, the studio's tariff.
+
+**Packages still select; they never redefine.** A package fixes quantities and
+states one figure for the bundle. Rates inform that figure - the editor can
+show what the fixed quantities come to at the studio's rates - and never set
+it: a bundle may sell below the sum of its parts, and a service with no
+variation has no rates to sum. A rate decides on its own only beyond the
+package: what the client takes above what was fixed, what a package leaves the
+client to choose at a price, and what a family's member is suggested to charge
+for the units it settled.
+
+**An extra is a unit taken beyond what the package fixed, at its rate.** It is
+not a kind of thing and has no catalogue; every earlier attempt to give it one
+(20260730 service_extras, 20261101 package_extras, 20261102 target lines) had
+to invent the priced unit locally, and that invention was the patchwork. Taken
+at booking, an extra is recorded in a ledger beside the booking's instance -
+this row, these units, at this rate, frozen - while the instance's own rows
+carry the effective quantities for production. The instance keeps its id,
+name and list price, so "is it still Standard Wedding?" is answerable from the
+record: yes, plus these. A service cannot be an extra, because a service is
+never priced: a service added to a booking is a package of one, a second line.
+A named amount with no work behind it is a charge, and stays one.
+
+---
+
 ## 9. Status: built, partial, proposed, open
 
 | Concept | State |
@@ -331,7 +373,7 @@ members are. This is not classification (what the work is) and not a shelf
 | Output types, provenance (`assets.derived_from_asset_id`) | **Built** |
 | Delivery containers | **Built** |
 | Package selects dimensions / workflows | **Built** |
-| Configuration Schema | **Partial** — `service_schema_*` records *which* dimensions, not "under what rules". No required/default/constraint. |
+| Configuration Schema | **Partial** — dimensions, and variables with default/min/max and a **rate** (20261104). Required-ness is still not expressed. |
 | **Service Variables** | **Not built.** Outfits, people, edited images, delivery speed have nowhere to live. A package cannot express `{Outfits: 2, Images: 5}`. |
 | **Missing services in the seed library** | Photo Restoration, Retouching, Image Editing, Film Developing, Digitisation are real transformations a studio sells and none are offered. A studio that restores old photographs cannot express it. |
 | **Studio Capability** | **Not built.** `Studio operates_in Parent` is a bare edge with no status/public/since. |

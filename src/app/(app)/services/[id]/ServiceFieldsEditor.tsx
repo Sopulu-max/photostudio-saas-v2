@@ -40,8 +40,11 @@ export function ServiceFieldsEditor({
   workflowsByDomain,
   roleOptions,
   initial,
+  currencyCode,
 }: {
   mode: 'create' | 'edit'; serviceId?: string; status?: string;
+  /** The studio's currency, for rates. */
+  currencyCode?: string;
   domains?: { id: string; name: string }[];
   domainOptions: string[];
   /** Domain name → the KINDS it can produce. Deliverables belong to a domain too. */
@@ -60,6 +63,7 @@ export function ServiceFieldsEditor({
   inherits?: Record<string, {
     serviceDeliverableId: string | null;
     unit: string | null;
+    rate?: Record<string, unknown> | null;
     questions: { id: string; label: string; options: string[]; permitted: string[] }[];
   }>;
   /** Domain name → the dimensions it actively classifies by, with their values. */
@@ -498,6 +502,7 @@ export function ServiceFieldsEditor({
             * the thing it qualifies, it read as unrelated settings.
             */}
           <DeliverableStructure
+            currencyCode={currencyCode}
             chosen={[primaryDeliverable, ...deliverables].filter(Boolean)}
             inherits={inherits}
             disabled={isPending}
@@ -549,6 +554,7 @@ export function ServiceFieldsEditor({
             suggestions={variableSuggestions}
             domainName={domainName}
             serviceName={name}
+            currencyCode={currencyCode}
           />
         </div>
       </div>

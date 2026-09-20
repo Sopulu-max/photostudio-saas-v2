@@ -33,7 +33,9 @@ export function TemplatePicker({
   workflowsByDomain,
   domains,
   roleOptions,
+  currencyCode,
 }: {
+  currencyCode?: string;
   /**
    * Where the classification view dropped you — a domain, and what it was filed under.
    * Present means the gallery is skipped: whoever arrived this way has already
@@ -77,6 +79,7 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
+          currencyCode={currencyCode}
           domains={domains}
           domainOptions={domainOptions}
           serviceSuggestions={serviceSuggestions}
@@ -107,6 +110,7 @@ export function TemplatePicker({
         </header>
         <ServiceFieldsEditor
           mode="create"
+          currencyCode={currencyCode}
           domains={domains}
           domainOptions={domainOptions}
           serviceSuggestions={serviceSuggestions}

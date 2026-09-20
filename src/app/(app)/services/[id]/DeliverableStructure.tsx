@@ -3,12 +3,14 @@
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setServiceDeliverableOptions } from '@/modules/deliverables/interface';
+import { setServiceDeliverableRate } from '@/modules/services/interface';
 import { toast, readableError } from '@/components/Toast';
 
 type Question = { id: string; label: string; options: string[]; permitted: string[] };
 type Inherited = {
   serviceDeliverableId: string | null;
   unit: string | null;
+  rate?: Record<string, unknown> | null;
   questions: Question[];
 };
 
@@ -34,21 +36,42 @@ export function DeliverableStructure({
   chosen,
   inherits,
   disabled,
+  currencyCode,
 }: {
   chosen: string[];
   inherits?: Record<string, Inherited>;
   disabled?: boolean;
+  currencyCode?: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const [local, setLocal] = useState<Record<string, string[]>>({});
+  /* The rate on each capability, as text while editing; saved on blur. */
+  const [rates, setRates] = useState<Record<string, string>>({});
+  const rateText = (it: Inherited) => rates[it.serviceDeliverableId ?? ''] ?? (it.rate && (it.rate as any).base_price != null ? String((it.rate as any).base_price) : '');
+  const saveRate = (it: Inherited, typed: string) => {
+    if (!it.serviceDeliverableId) return;
+    const text = typed.trim();
+    const was = it.rate && (it.rate as any).base_price != null ? String((it.rate as any).base_price) : '';
+    if (text === was) return;
+    const n = Number(text);
+    const rate = text !== '' && Number.isFinite(n) && n >= 0 ? { base_price: n, currency: currencyCode || 'USD' } : null;
+    startTransition(async () => {
+      try {
+        await setServiceDeliverableRate({ serviceDeliverableId: it.serviceDeliverableId as string, rate });
+        router.refresh();
+      } catch (e) {
+        toast.bad(readableError(e, 'The rate could not be saved.'));
+      }
+    });
+  };
 
   if (!inherits) return null;
 
   // Only what is actually chosen, and only what has something to say.
   const carrying = [...new Set(chosen)]
     .map((name) => ({ name, it: inherits[name] }))
-    .filter((r) => r.it && (r.it.questions.length > 0 || r.it.unit));
+    .filter((r) => r.it && (r.it.questions.length > 0 || r.it.unit || r.it.serviceDeliverableId));
 
   if (carrying.length === 0) return null;
 
@@ -86,10 +109,26 @@ export function DeliverableStructure({
       <div className="q-stack q-stack-sm">
         {carrying.map(({ name, it }) => (
           <div key={name} className="q-tile q-stack q-stack-sm">
-            <div className="q-row q-row-between">
+            <div className="q-row q-row-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
               <strong className="q-strong">{name}</strong>
               {it!.unit && <span className="q-meta-sm">counted in {it!.unit}s</span>}
             </div>
+            {/* The rate: what one more of this costs when this service makes
+                it beyond what a package promised. The producing service's,
+                not the deliverable's. Empty: no extra of it can be taken. */}
+            {it!.serviceDeliverableId && (
+              <div className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="q-meta-sm q-strong" style={{ minWidth: '3rem' }}>{currencyCode || ''}</span>
+                <input
+                  className="q-input q-input-sm" type="number" min={0} step="0.01" disabled={disabled || isPending}
+                  value={rateText(it!)}
+                  onChange={(e) => setRates((prev) => ({ ...prev, [it!.serviceDeliverableId as string]: e.target.value }))}
+                  onBlur={(e) => saveRate(it!, e.currentTarget.value)}
+                  placeholder="rate" style={{ width: '8rem' }}
+                />
+                <span className="q-meta-sm">per {it!.unit || 'one'} beyond what a package promises{rateText(it!).trim() === '' && ' · empty: no extra can be taken'}</span>
+              </div>
+            )}
 
             {it!.questions.length === 0 && (
               <span className="q-meta-sm">Nothing to settle about it.</span>

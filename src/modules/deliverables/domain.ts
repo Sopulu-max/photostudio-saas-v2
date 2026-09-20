@@ -378,29 +378,46 @@ export async function setDeliverablesForService(input: {
 }) {
   const { orgId } = await getAuthOrgId();
 
-  await supabaseAdmin
+  /*
+   * RECONCILED, NOT REPLACED.
+   *
+   * This deleted every capability row and inserted the list afresh, so every
+   * save of a service gave its capabilities new ids - and everything hanging
+   * off the old ids went with them: the narrowings ("this service only does
+   * softcopy") keyed to the row, and now the rate on it. A studio that saved
+   * its service to fix a typo lost its tariff. Rows that stay are left
+   * untouched; only what was removed is deleted and only what is new is
+   * inserted.
+   */
+  const ids: string[] = [];
+  if (input.serviceDomainId) {
+    for (const name of input.names || []) {
+      const id = await findOrCreateDeliverableNamed(orgId, input.serviceDomainId, name);
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+  }
+
+  const { data: current } = await supabaseAdmin
     .from('service_deliverables')
-    .delete()
+    .select('id, deliverable_id')
     .eq('service_id', input.serviceId)
     .eq('organization_id', orgId);
+  const have = new Set(((current || []) as any[]).map((r) => r.deliverable_id as string));
+  const gone = ((current || []) as any[]).filter((r) => !ids.includes(r.deliverable_id)).map((r) => r.id as string);
+  const added = ids.filter((id) => !have.has(id));
 
-  if (!input.serviceDomainId) return { ok: true, attached: 0 };
-
-  const ids: string[] = [];
-  for (const name of input.names || []) {
-    const id = await findOrCreateDeliverableNamed(orgId, input.serviceDomainId, name);
-    if (id && !ids.includes(id)) ids.push(id);
+  if (gone.length > 0) {
+    const { error } = await supabaseAdmin.from('service_deliverables').delete().in('id', gone).eq('organization_id', orgId);
+    if (error) throw dbError('Could not record what this service produces', error);
   }
-  if (ids.length === 0) return { ok: true, attached: 0 };
-
-  const { error } = await supabaseAdmin
-    .from('service_deliverables')
-    .insert(ids.map((deliverable_id) => ({
-      organization_id: orgId, service_id: input.serviceId, deliverable_id,
-    })));
-  if (error) {
-    console.error('Failed to attach deliverables to the service:', error);
-    throw dbError('Could not record what this service produces', error);
+  if (added.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('service_deliverables')
+      .insert(added.map((deliverable_id) => ({ organization_id: orgId, service_id: input.serviceId, deliverable_id })));
+    if (error) {
+      console.error('Failed to attach deliverables to the service:', error);
+      throw dbError('Could not record what this service produces', error);
+    }
   }
   return { ok: true, attached: ids.length };
 }
@@ -838,13 +855,15 @@ export async function listServiceCapabilities(serviceId: string) {
   const { orgId } = await getAuthOrgId();
   const { data } = await supabaseAdmin
     .from('service_deliverables')
-    .select(`id, deliverable_id, ${DELIVERABLE_REF}`)
+    .select(`id, deliverable_id, rate, ${DELIVERABLE_REF}`)
     .eq('organization_id', orgId)
     .eq('service_id', serviceId);
   return ((data || []) as any[]).map((r) => ({
     serviceDeliverableId: r.id as string,
     deliverableId: r.deliverable_id as string,
     deliverableName: (r.deliverable?.name as string) || 'Output',
+    /* The producing service's rate for one more of it - see 02-ONTOLOGY, Rates. */
+    rate: (r.rate ?? null) as Record<string, unknown> | null,
   }));
 }
 

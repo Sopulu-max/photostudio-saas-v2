@@ -15,6 +15,7 @@ import {
 import { listRoles } from '@/modules/team/interface';
 import type { ServiceDimensionTag } from '@/modules/services/interface';
 import { ServiceFieldsEditor } from '../ServiceFieldsEditor';
+import { getStudioCurrency } from '@/kernel/organizations';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,12 +68,14 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
   const inherits: Record<string, {
     serviceDeliverableId: string | null;
     unit: string | null;
+    rate: Record<string, unknown> | null;
     questions: { id: string; label: string; options: string[]; permitted: string[] }[];
   }> = {};
   for (const c of capabilities) {
     inherits[c.deliverableName] = {
       serviceDeliverableId: c.serviceDeliverableId,
       unit: (deliverableUnits as any)[c.deliverableId] ?? null,
+      rate: (c as any).rate ?? null,
       questions: (deliverableQuestions as any[])
         .filter((v) => v.deliverable_id === c.deliverableId)
         .map((v) => ({
@@ -128,6 +131,7 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         variableSuggestions={variableSuggestions}
         outputTypesByDomain={outputTypesByDomain}
         inherits={inherits}
+        currencyCode={await getStudioCurrency()}
         dimensionsByDomain={dimensionsByDomain}
         workflowsByDomain={workflowsByDomain}
         roleOptions={roleOptions}
