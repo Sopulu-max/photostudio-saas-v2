@@ -20,6 +20,7 @@ export type BookingTask = {
   assignee: Person | null;
   /** Which package it came from, or null for work the studio added itself. */
   fromPackage: string | null;
+  fromService?: string | null;
   lineId: string | null;
 };
 
@@ -122,7 +123,7 @@ export function BookingTasks({
                   <span style={{ opacity: t.done ? 0.55 : 1 }}>
                     <span className="q-strong">{t.name}</span>
                     <span className="q-meta-sm" style={{ display: 'block' }}>
-                      {t.fromPackage ? t.fromPackage : 'Added to this booking'}
+                      {t.fromPackage ? [t.fromService, t.fromPackage].filter(Boolean).join(' · ') : 'Added to this booking'}
                     </span>
                   </span>
                 </span>

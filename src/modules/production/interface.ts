@@ -34,3 +34,7 @@ export {
   addBookingTask,
   removeBookingTask,
 } from './domain';
+
+// Where the work is: the local reading of one booking, the global sheet of all.
+export { getBookingWork, listWorkSheet } from './work';
+export type { BookingWork, LineWork, ServiceWork, WorkSheetRow } from './work';

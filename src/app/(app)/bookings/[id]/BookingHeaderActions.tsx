@@ -23,7 +23,7 @@ function useAction() {
 }
 
 /** Move the booking through the studio's own stages. */
-export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: string; stages: Stage[]; currentStageId: string }) {
+export function StagePicker({ bookingId, stages, currentStageId, workDone = false }: { bookingId: string; stages: Stage[]; currentStageId: string; workDone?: boolean }) {
   const { isPending, run } = useAction();
   const [pendingCancel, setPendingCancel] = useState<{ stage: Stage; effects: any } | null>(null);
   /*
@@ -96,6 +96,16 @@ export function StagePicker({ bookingId, stages, currentStageId }: { bookingId: 
         {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       {isPending && <span className="q-meta-sm">Moving…</span>}
+      {/* The local work has all finished, so the completed stage is available.
+          Offered, never applied: a stage is a decision. */}
+      {!isPending && workDone && (() => {
+        const completed = stages.find((s) => s.kind === 'completed');
+        return completed && completed.id !== currentStageId ? (
+          <button type="button" className="q-btn q-btn-secondary q-btn-xs" onClick={() => move(completed)}>
+            All work done · move to {completed.name}
+          </button>
+        ) : null;
+      })()}
     </span>
   );
 }

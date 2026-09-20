@@ -10,7 +10,8 @@ import { ResolveEnquiry } from './ResolveEnquiry';
 
 import { listClients } from '@/modules/clients/interface';
 import { listEmployees, listRoles } from '@/modules/team/interface';
-import { getBookingTeam, getBookingTasks } from '@/modules/production/interface';
+import { getBookingTeam, getBookingTasks, getBookingWork } from '@/modules/production/interface';
+import { WorkPositions } from '@/components/WorkPositions';
 import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
@@ -125,7 +126,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [deliveries, stages, intake, enquiry, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles] = await Promise.all([
+  const [deliveries, stages, intake, enquiry, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles, work] = await Promise.all([
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
@@ -137,6 +138,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     getBookingTasks(booking.id),
     listEmployees(),
     listRoles(),
+    getBookingWork(booking.id),
   ]);
 
   // The documents raised against this booking, distinct from the money that
@@ -320,7 +322,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 ? <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
                 : undefined}
               actions={<>
-                <StagePicker bookingId={booking.id} stages={stages} currentStageId={booking.stage_id} />
+                <StagePicker
+                  bookingId={booking.id}
+                  stages={stages}
+                  currentStageId={booking.stage_id}
+                  /* Every task done: the completed stage has become available.
+                     Said, not done - a stage is the studio's decision. */
+                  workDone={work.allDone && booking.stage?.kind === 'booked'}
+                />
                 <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
               </>}
             />
@@ -710,6 +719,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               <RestoreWorkButton bookingId={booking.id} />
             </div>
           )}
+          {/* The job's shape before its steps: each package, each service,
+              where it is - the local reading of the work. */}
+          <WorkPositions work={work} />
           <BookingTasks
             bookingId={booking.id}
             tasks={bookingTasks as any}

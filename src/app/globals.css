@@ -2741,6 +2741,33 @@ body::before {
 .q-price-input:focus { outline: none; border-bottom-color: var(--q-color-accent); }
 
 /*
+ * WHERE THE WORK IS. A booking's packages, each service in them, and each
+ * one's position - the local reading, drawn as a row of small stamps above
+ * the task list. A done service reads in ink; one in progress carries its
+ * current step and count.
+ */
+.q-work { display: grid; gap: 10px; margin-bottom: 14px; }
+.q-work-line { display: grid; gap: 4px; }
+.q-work-services { display: flex; flex-wrap: wrap; gap: 8px; }
+.q-work-service {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 8px;
+  background: var(--q-color-paper-elevated);
+  font-size: 0.85rem;
+}
+.q-work-name { font-weight: 600; color: var(--q-color-ink-900); }
+.q-work-pos { color: var(--q-color-ink-700); }
+.q-work-count, .q-work-who { color: var(--q-color-ink-500); font-size: 0.78rem; }
+.q-work-done { border-color: var(--q-color-ink-900); }
+.q-work-done .q-work-pos { color: var(--q-color-ink-900); font-weight: 600; }
+.q-work-compact { margin: 0; }
+.q-work-compact .q-work-service { padding: 3px 8px; font-size: 0.78rem; }
+
+/*
  * THE CATALOGUE, CLICK TO TAKE.
  *
  * A package's deliverables, per service: every kind the domain produces as a
