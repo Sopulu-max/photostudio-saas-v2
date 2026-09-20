@@ -22,6 +22,7 @@ import { narrowOptions, specFromAnswers, byPromiseOrder, PROMISE_ANSWERS } from 
 import { formatDeliverable } from './deliverableSpec';
 // A family's members resolve through the family; the rule is written once, there.
 import { overlayMember, isFamily, leftToMember } from './familyShape';
+import { resolveTasks } from './workShape';
 import { structureIdOf, memberAnswersOf } from './familyInternal';
 import { snapshotFamilyRows, keepMembersWhole } from './familyInternal';
 // A failure keeps the reason it failed — and says so plainly when the reason
@@ -142,7 +143,10 @@ export type PackageVariableWrite = {
 };
 
 export type PackageTaskWrite = {
+  /** A package_tasks row being edited (a departure, or an own step). */
   id?: string;
+  /** A workflow step being departed from (or returned to the default). */
+  workflowTaskId?: string;
   serviceId?: string;
   name?: string;
   isActive: boolean;
@@ -150,127 +154,6 @@ export type PackageTaskWrite = {
   roleName?: string | null;
 };
 
-async function copyWorkflowTasksToPackage(orgId: string, rows: { id: string; service_id: string }[]) {
-  if (rows.length === 0) return;
-  // Get workflows for these services
-  const { data: services } = await supabaseAdmin
-    .from('services')
-    .select('id, workflow_id')
-    .in('id', rows.map(r => r.service_id))
-    .eq('organization_id', orgId);
-    
-  if (!services || services.length === 0) return;
-  
-  const workflowIds = [...new Set(services.map((s: any) => s.workflow_id).filter(Boolean))] as string[];
-  if (workflowIds.length === 0) return;
-
-  const { data: workflowTasks } = await supabaseAdmin
-    .from('workflow_tasks')
-    .select('id, workflow_id, name, default_role_id, position')
-    .in('workflow_id', workflowIds)
-    .eq('organization_id', orgId);
-    
-  if (!workflowTasks || workflowTasks.length === 0) return;
-  
-  const packageTasksToInsert: any[] = [];
-  
-  for (const row of rows) {
-    const service = services.find((s: any) => s.id === row.service_id);
-    if (!service || !service.workflow_id) continue;
-    
-    const tasks = workflowTasks.filter((t: any) => t.workflow_id === service.workflow_id);
-    for (const t of tasks) {
-      packageTasksToInsert.push({
-        organization_id: orgId,
-        package_service_id: row.id,
-        workflow_task_id: t.id,
-        name: t.name,
-        role_id: t.default_role_id,
-        position: t.position,
-        is_active: true
-      });
-    }
-  }
-  
-  if (packageTasksToInsert.length > 0) {
-    await supabaseAdmin.from('package_tasks').insert(packageTasksToInsert);
-  }
-}
-/**
- * Bring packages up to date with a workflow that has changed.
- *
- * WHY THIS IS NEEDED. A workflow's tasks are copied into a package at the
- * moment a service is bundled into it — and only then. So a studio that defines
- * its workflows after building its catalog gets nothing: the packages were
- * bundled while the workflow was empty, and nothing ever revisits them. That is
- * not a hypothetical here. There are 17 bundled services and no workflows at
- * all, so the first workflow anyone writes would reach none of them, no tasks
- * would land on any booking, and there would be nothing to put a photographer
- * on.
- *
- * ADDITIVE, NEVER DESTRUCTIVE. Only tasks the package does not already have are
- * added. A package may rename a task, give it a different role, reorder it or
- * switch it off entirely — those are its own decisions about this offering, and
- * re-syncing must not undo them. Removing a task from the workflow likewise
- * leaves packages alone: they are already selling it.
- */
-export async function syncPackageTasksForWorkflow(workflowId: string) {
-  const { orgId } = await getAuthOrgId();
-
-  const { data: tasks } = await supabaseAdmin
-    .from('workflow_tasks')
-    .select('id, name, default_role_id, position')
-    .eq('workflow_id', workflowId)
-    .eq('organization_id', orgId);
-  if (!tasks || tasks.length === 0) return { added: 0 };
-
-  // Every bundle row whose service runs this workflow.
-  const { data: services } = await supabaseAdmin
-    .from('services').select('id').eq('workflow_id', workflowId).eq('organization_id', orgId);
-  const serviceIds = (services || []).map((x: { id: string }) => x.id);
-  if (serviceIds.length === 0) return { added: 0 };
-
-  const { data: bundleRows } = await supabaseAdmin
-    .from('package_services').select('id, service_id')
-    .in('service_id', serviceIds).eq('organization_id', orgId);
-  if (!bundleRows || bundleRows.length === 0) return { added: 0 };
-
-  // What each bundle row already holds, so nothing is duplicated and no
-  // package-level edit is overwritten.
-  const { data: existing } = await supabaseAdmin
-    .from('package_tasks').select('package_service_id, workflow_task_id')
-    .in('package_service_id', bundleRows.map((r: { id: string }) => r.id))
-    .eq('organization_id', orgId);
-
-  const held = new Set(((existing || []) as any[]).map((e) => `${e.package_service_id}:${e.workflow_task_id}`));
-
-  const toInsert: any[] = [];
-  for (const row of bundleRows as any[]) {
-    for (const t of tasks as any[]) {
-      if (held.has(`${row.id}:${t.id}`)) continue;
-      toInsert.push({
-        organization_id: orgId,
-        package_service_id: row.id,
-        workflow_task_id: t.id,
-        name: t.name,
-        role_id: t.default_role_id,
-        position: t.position,
-        is_active: true,
-      });
-    }
-  }
-
-  if (toInsert.length === 0) return { added: 0 };
-
-  const { error } = await supabaseAdmin.from('package_tasks').insert(toInsert);
-  if (error) {
-    console.error('Failed to sync package tasks:', error);
-    throw dbError('Failed to bring packages up to date with that workflow', error);
-  }
-
-  revalidatePath('/packages');
-  return { added: toInsert.length };
-}
 
 async function bundleRows(orgId: string, packageId: string) {
   const { data, error } = await supabaseAdmin
@@ -635,7 +518,6 @@ export async function createPackage(input: {
     await writePackageDeliverables(orgId, rows, input.deliverables);
     await writePackageVariableValues(orgId, rows, input.variableValues);
     await writePackageNarrowings(orgId, pkg.id, input.narrowings);
-    await copyWorkflowTasksToPackage(orgId, rows);
     /*
      * After the workflow's own, so a task added while the package was being
      * built lands at the end rather than being overwritten by the copy.
@@ -643,8 +525,7 @@ export async function createPackage(input: {
      * Only the added ones: an id here would name a package_task that cannot
      * exist yet, since the copy above is what creates the first ones.
      */
-    const ownTasks = (input.tasks || []).filter((t) => !t.id && (t.name || '').trim());
-    if (ownTasks.length > 0) await writePackageTasks(orgId, pkg.id, ownTasks);
+    if ((input.tasks || []).length > 0) await writePackageTasks(orgId, pkg.id, input.tasks || []);
   }
 
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: pkg.id, action: 'created', actorId: actorId ?? undefined, payload: { name, serviceIds } });
@@ -746,9 +627,6 @@ export async function updatePackage(input: {
         }))
       ).select('id, service_id');
       if (bundleError) { console.error('Failed to bundle services into package:', bundleError); throw new Error('Failed to add the services to the package'); }
-      if (newRows && newRows.length > 0) {
-        await copyWorkflowTasksToPackage(orgId, newRows);
-      }
     }
 
     // The set can stay the same while the order changes.
@@ -1192,7 +1070,7 @@ const PACKAGE_SELECT = `
   package_images(id, url, position, sort),
   package_services(id, position, decided_by, service:services(
     id, name, description, domain:service_domains(id, name),
-    workflow:workflows(id, name),
+    workflow:workflows(id, name, workflow_tasks(id, name, position, default_role:roles(id, name))),
     ${SERVICE_OFFERS},
     service_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name, position))),
     variables(id, service_id, key, label, unit, kind, options)
@@ -1392,13 +1270,9 @@ function shapePackage(p: any) {
           unit: pv.variable.unit ?? null, kind: pv.variable.kind, value: pv.value,
           answeredBy: (pv.answered_by ?? 'studio') as 'studio' | 'client' | 'member',
         })),
-      tasks: (ps.package_tasks || [])
-        .sort((a: any, b: any) => a.position - b.position)
-        .map((pt: any) => ({
-          id: pt.id, workflowTaskId: pt.workflow_task_id, name: pt.name, 
-          roleName: pt.role?.name || null, roleId: pt.role?.id || null, 
-          isActive: pt.is_active, position: pt.position
-        })),
+      // The service's workflow with this package's departures applied, and
+      // the package's own steps after. See workShape.
+      tasks: resolveTasks(ps),
     })).filter((s: any) => s.id),
     deliverables: promised,
     dimensions: packageDimensions(p.package_services),
@@ -2404,9 +2278,7 @@ async function writePackageTasks(
   tasks: PackageTaskWrite[],
 ) {
   if (tasks.length === 0) return;
-
-  // A role named rather than chosen, so the list of roles is open the same way
-  // every other list here is.
+  const rows = await bundleRows(orgId, packageId);
   const { findOrCreateRole } = await import('@/modules/team/interface');
   const roleFor = async (t: PackageTaskWrite): Promise<string | null> => {
     if (t.roleName !== undefined) {
@@ -2416,51 +2288,80 @@ async function writePackageTasks(
     return t.roleId ?? null;
   };
 
-  for (const t of tasks.filter((x) => x.id)) {
+  /*
+   * A DEPARTURE IS KEPT ONLY WHILE IT DEPARTS. A workflow step edited back to
+   * active with its default role has nothing to say, so its row is deleted
+   * rather than kept as a copy - the rule this table now lives by.
+   */
+  const stepIds = tasks.map((t) => t.workflowTaskId).filter(Boolean) as string[];
+  const { data: steps } = stepIds.length
+    ? await supabaseAdmin.from('workflow_tasks').select('id, default_role_id').eq('organization_id', orgId).in('id', stepIds)
+    : { data: [] };
+  const defaultRoleOf = new Map(((steps || []) as any[]).map((w) => [w.id as string, (w.default_role_id ?? null) as string | null]));
+
+  for (const t of tasks.filter((x) => x.workflowTaskId)) {
+    const link = rows.find((r) => r.service_id === t.serviceId);
+    if (!link) throw new Error('A task was edited for a service this package does not bundle.');
+    const roleId = await roleFor(t);
+    const isDefault = (t.isActive ?? true) && roleId === defaultRoleOf.get(t.workflowTaskId as string);
+    // One departure per step: the old one goes, and a new one is written only
+    // while something departs. (A partial unique index cannot serve ON
+    // CONFLICT without its predicate, so this is two statements, not an upsert.)
+    await supabaseAdmin.from('package_tasks').delete()
+      .eq('organization_id', orgId).eq('package_service_id', link.id).eq('workflow_task_id', t.workflowTaskId as string);
+    if (!isDefault) {
+      const { error } = await supabaseAdmin.from('package_tasks').insert({
+        organization_id: orgId, package_service_id: link.id, workflow_task_id: t.workflowTaskId,
+        name: null, role_id: roleId, is_active: t.isActive ?? true, position: 0,
+      });
+      if (error) { console.error('Failed to save a package task:', error); throw dbError('Failed to save the tasks', error); }
+    }
+  }
+
+  // The package's own steps: edited by row, or added after the workflow's.
+  for (const t of tasks.filter((x) => x.id && !x.workflowTaskId)) {
     const { error } = await supabaseAdmin.from('package_tasks')
       .update({ is_active: t.isActive, role_id: await roleFor(t) })
-      .eq('id', t.id as string)
-      .eq('organization_id', orgId);
+      .eq('id', t.id as string).eq('organization_id', orgId);
     if (error) { console.error('Failed to update a package task:', error); throw new Error('Failed to save the tasks'); }
   }
-
-  const added = tasks.filter((t) => !t.id && (t.name || '').trim());
+  const added = tasks.filter((t) => !t.id && !t.workflowTaskId && (t.name || '').trim());
   if (added.length === 0) return;
-
-  const rows = await bundleRows(orgId, packageId);
   const { data: standing } = await supabaseAdmin
     .from('package_tasks').select('package_service_id, position')
-    .eq('organization_id', orgId)
+    .eq('organization_id', orgId).is('workflow_task_id', null)
     .in('package_service_id', rows.map((r) => r.id));
-
-  // Onto the end of whatever that bundled service already involves, so an added
-  // task reads after the workflow's own rather than among them.
   const last = new Map<string, number>();
-  for (const r of (standing || []) as any[]) {
-    last.set(r.package_service_id, Math.max(last.get(r.package_service_id) ?? -1, r.position ?? 0));
-  }
-
+  for (const r of (standing || []) as any[]) last.set(r.package_service_id, Math.max(last.get(r.package_service_id) ?? -1, r.position ?? 0));
   const toInsert: Record<string, unknown>[] = [];
   for (const t of added) {
     const link = rows.find((r) => r.service_id === t.serviceId);
-    // A task aimed at a service this package does not bundle is rejected rather
-    // than dropped, for the same reason a stray variable value is.
     if (!link) throw new Error('A task was added for a service this package does not bundle.');
     const position = (last.get(link.id) ?? -1) + 1;
     last.set(link.id, position);
     toInsert.push({
-      organization_id: orgId,
-      package_service_id: link.id,
-      workflow_task_id: null,
-      name: (t.name as string).trim(),
-      role_id: await roleFor(t),
-      position,
-      is_active: t.isActive ?? true,
+      organization_id: orgId, package_service_id: link.id, workflow_task_id: null,
+      name: (t.name as string).trim(), role_id: await roleFor(t), position, is_active: t.isActive ?? true,
     });
   }
-
   const { error } = await supabaseAdmin.from('package_tasks').insert(toInsert);
   if (error) { console.error('Failed to add package tasks:', error); throw new Error('Failed to save the tasks'); }
+}
+
+/**
+ * The work a package calls for, resolved per bundled service - what a booking
+ * freezes into its own tasks. Asked by Bookings at the moment of booking.
+ */
+export async function listResolvedTasks(packageId: string, forOrgId?: string) {
+  const orgId = forOrgId ?? (await getAuthOrgId()).orgId;
+  const { data } = await supabaseAdmin
+    .from('package_services')
+    .select(`id, service:services(id, workflow:workflows(id, workflow_tasks(id, name, position, default_role:roles(id, name)))),
+      package_tasks(id, workflow_task_id, name, role:roles(id, name), position, is_active)`)
+    .eq('organization_id', orgId)
+    .eq('package_id', packageId)
+    .order('position');
+  return ((data || []) as any[]).map((ps) => ({ packageServiceId: ps.id as string, tasks: resolveTasks(ps) }));
 }
 
 /**

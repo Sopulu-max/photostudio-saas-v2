@@ -975,34 +975,33 @@ export async function setBookingClient(input: { bookingId: string; contactId: st
  */
 
 async function copyPackageTasksToBookingLine(orgId: string, packageId: string, bookingLineId: string, bookingId: string) {
-  const { data: packageTasks } = await supabaseAdmin
-    .from('package_services')
-    .select('id, package_tasks(id, name, role_id, position, is_active, workflow_task_id)')
-    .eq('organization_id', orgId)
-    .eq('package_id', packageId);
-
-  if (!packageTasks || packageTasks.length === 0) return;
-
+  /*
+   * THE FREEZE. A package holds only its departures from its services'
+   * workflows; the work it calls for is resolved at the moment of booking -
+   * asked of Packages - and written here as the booking's own tasks. From
+   * this point the booking's work does not move when a workflow does, which
+   * is what an instance is for.
+   */
+  const { listResolvedTasks } = await import('@/modules/packages/interface');
+  const resolved = await listResolvedTasks(packageId, orgId);
   const tasksToInsert: any[] = [];
-  for (const p of packageTasks) {
-    for (const t of (p.package_tasks || [])) {
-      if (t.is_active) {
-        tasksToInsert.push({
-          organization_id: orgId,
-          // The booking owns the work; the line records which package it came
-          // from. A booking with three packages has one task list, not three.
-          booking_id: bookingId,
-          booking_line_id: bookingLineId,
-          package_service_id: p.id,
-          workflow_task_id: t.workflow_task_id,
-          name: t.name,
-          role_id: t.role_id,
-          position: t.position
-        });
-      }
+  for (const ps of resolved) {
+    for (const t of ps.tasks) {
+      if (!t.isActive) continue;
+      tasksToInsert.push({
+        organization_id: orgId,
+        // The booking owns the work; the line records which package it came
+        // from. A booking with three packages has one task list, not three.
+        booking_id: bookingId,
+        booking_line_id: bookingLineId,
+        package_service_id: ps.packageServiceId,
+        workflow_task_id: t.workflowTaskId,
+        name: t.name,
+        role_id: t.roleId,
+        position: t.position,
+      });
     }
   }
-
   if (tasksToInsert.length > 0) {
     await supabaseAdmin.from('booking_tasks').insert(tasksToInsert);
   }

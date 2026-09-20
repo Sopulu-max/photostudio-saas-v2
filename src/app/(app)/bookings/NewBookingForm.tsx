@@ -1688,6 +1688,10 @@ export function NewBookingForm({
                                 .flatMap((d) => d.values.map((v) => ({ serviceId: s.id as string, valueId: v.id })))),
                             extraStages: (line.selectedPackageDeep.extra_stages || []).map((s: any) => ({ name: s.name, roleName: s.roleName || '', frontStage: s.front_stage ?? true })),
                             variableValues: (line.selectedPackageDeep.variableValues || []).map((v: any) => ({ serviceVariableId: v.serviceVariableId, value: v.value })),
+                            /* The bundled services as the catalogue package reads them - with
+                               each one's resolved tasks, so a step the package switched off
+                               is carried onto the instance this form builds. */
+                            services: line.selectedPackageDeep.services || [],
                           }
                         }
                       />

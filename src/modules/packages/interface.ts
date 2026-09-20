@@ -23,7 +23,7 @@ export {
   // Package
   createPackage, updatePackage, duplicatePackage, setPackageStatus,
   // Packages owns package_tasks, so Services asks rather than writing them.
-  syncPackageTasksForWorkflow,
+  listResolvedTasks,
   // The package a booking keeps for itself, insulated from later catalog edits.
   // Both booking paths go through this — it is the rule, not a helper.
   // Which offers already cover what somebody described

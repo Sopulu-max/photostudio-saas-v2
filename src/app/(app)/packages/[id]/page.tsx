@@ -238,9 +238,10 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
         const formFields = ((pkg as any).form_schema || []) as any[];
         const nAsked = openQuestions.length + asked.length + formFields.length;
 
-        /* The work, in the order it runs, with where each step came from. */
+        /* The work, in the order it runs, with where each step came from. A
+           step this package switched off is not work it calls for. */
         const work: any[] = services.flatMap((s: any) =>
-          ((s.tasks || []) as any[]).map((x) => ({ ...x, from: s.name })));
+          ((s.tasks || []) as any[]).filter((x) => x.isActive !== false).map((x) => ({ ...x, from: s.name })));
 
 
         return (

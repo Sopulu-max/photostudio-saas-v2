@@ -101,8 +101,8 @@ export function packageEditorInitial(pkg: any) {
     tasks: services.flatMap((s) =>
       ((s.tasks || []) as any[]).map((t) => ({
         serviceId: s.id as string,
-        taskId: t.id as string,
-        workflowTaskId: t.workflowTaskId as string,
+        taskId: (t.id ?? null) as string | null,
+        workflowTaskId: (t.workflowTaskId ?? null) as string | null,
         name: t.name as string,
         roleId: t.roleId as string | null,
         roleName: t.roleName as string | null,

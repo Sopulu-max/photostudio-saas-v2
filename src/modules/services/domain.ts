@@ -1438,16 +1438,7 @@ export async function saveWorkflow(domainId: string, input: WorkflowInput) {
    * decision about what is additive and what would trample a package's own edits
    * belongs with the module that owns the table.
    */
-  if (workflowId) {
-    const { syncPackageTasksForWorkflow } = await import('@/modules/packages/interface');
-    try {
-      await syncPackageTasksForWorkflow(workflowId);
-    } catch (e) {
-      // The workflow is saved either way; a failed sync is recoverable by
-      // saving it again, and losing the workflow would not be.
-      console.error('Workflow saved, but packages could not be brought up to date:', e);
-    }
-  }
+  // Packages read the workflow at the moment of reading; nothing to bring up to date.
 
   revalidatePath('/services/settings');
   revalidatePath('/packages');

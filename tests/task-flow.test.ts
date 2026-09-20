@@ -106,20 +106,22 @@ describe('Tasks flow from a package onto a booking', () => {
       ],
     } as any);
 
-    // The service has to point at the workflow for the sync to reach it.
+    // The service points at the workflow; the package READS it - no copy, no
+    // sync. A workflow defined after the package was built reaches it at once.
     const { data: workflow } = await supabaseAdmin
       .from('workflows').select('id').eq('organization_id', TEST_ORG_ID).single();
     await supabaseAdmin.from('services')
       .update({ workflow_id: workflow!.id }).eq('id', serviceId);
-    const { syncPackageTasksForWorkflow } = await import('@/modules/packages/domain');
-    await syncPackageTasksForWorkflow(workflow!.id);
 
-    const { data: after } = await supabaseAdmin
-      .from('package_tasks').select('id, name, role_id').eq('organization_id', TEST_ORG_ID);
-    expect((after ?? []).map((t: any) => t.name).sort(), 'the workflow did not reach the package')
+    const { data: copies } = await supabaseAdmin
+      .from('package_tasks').select('id').eq('organization_id', TEST_ORG_ID);
+    expect(copies ?? [], 'a package must hold no copy of its workflow').toEqual([]);
+    const { listResolvedTasks } = await import('@/modules/packages/domain');
+    const resolved = (await listResolvedTasks(packageId)).flatMap((r) => r.tasks);
+    expect(resolved.map((t) => t.name).sort(), 'the workflow did not reach the package')
       .toEqual(['Cull', 'Edit', 'Shoot']);
-    // Every task carries the role it needs — this is what makes staffing possible.
-    expect((after ?? []).every((t: any) => t.role_id), 'a task arrived with no role').toBe(true);
+    // Every step carries the role it needs — this is what makes staffing possible.
+    expect(resolved.every((t) => t.roleId), 'a step arrived with no role').toBe(true);
 
     const { data: role } = await supabaseAdmin
       .from('roles').select('id').eq('organization_id', TEST_ORG_ID).eq('name', 'Photographer').single();

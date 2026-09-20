@@ -156,7 +156,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
     narrowings?: { serviceId: string; valueId: string }[];
     extraStages?: Stage[];
     variableValues?: { serviceVariableId: string; value: unknown; answeredBy?: 'studio' | 'client' | 'member' }[];
-    tasks?: { taskId: string; isActive: boolean; roleId: string | null }[];
+    tasks?: { taskId: string | null; workflowTaskId: string | null; isActive: boolean; roleId: string | null }[];
     services?: any[];
   };
   /** What this package asks a client at booking, and which of those are answered already. */
@@ -491,7 +491,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    * `taskEdits` holds changes to the copied ones, keyed by their package_task
    * id. `addedTasks` holds the package's own, which carry no id until saved.
    */
-  const [taskEdits, setTaskEdits] = useState<Record<string, { isActive?: boolean; roleName?: string | null }>>({});
+  const [taskEdits, setTaskEdits] = useState<Record<string, { serviceId?: string; workflowTaskId?: string | null; rowId?: string | null; isActive?: boolean; roleName?: string | null }>>({});
   const [addedTasks, setAddedTasks] = useState<{ serviceId: string; name: string; roleName: string | null }[]>([]);
   const [newTask, setNewTask] = useState<Record<string, string>>({});
 
@@ -783,18 +783,25 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         decidedBy: p.decidedBy === 'member' ? 'member' as const : 'studio' as const,
       })),
       /*
-       * The tasks, which this form rendered and then threw away.
-       *
-       * updatePackage has accepted them all along; nothing ever sent any, so
-       * the checkboxes were disabled and the whole path was dead. Only touched
-       * ones are sent — an untouched task is not an opinion, and re-stating
-       * every copied task on every save would fight syncPackageTasksForWorkflow
-       * for ownership of rows this form never edited.
+       * EVERY STEP'S DECISION, NOT ONLY THE TOUCHED ONES. A package holds only
+       * its departures, and the writer keeps only what departs - so stating
+       * every step costs nothing on a catalogue package, and is what carries a
+       * departure onto a booking's instance, which this form builds from these
+       * fields rather than by copying the catalogue row.
        */
       tasks: [
-        ...Object.entries(taskEdits).map(([id, edit]) => ({
-          id, isActive: edit.isActive ?? true, roleName: edit.roleName ?? null,
-        })),
+        ...allServices.filter((s) => serviceIds.includes(s.id)).flatMap((s) => {
+          const saved = initial.services?.find((is: any) => is.id === s.id);
+          const steps: any[] = saved?.tasks
+            ?? ((s.workflow?.tasks || []) as any[]).map((t: any) => ({ id: null, workflowTaskId: t.id, roleName: t.default_role?.name ?? null, isActive: true }));
+          return steps.map((t: any) => {
+            const edit = taskEdits[t.workflowTaskId ?? t.id] || {};
+            return {
+              id: t.id ?? undefined, workflowTaskId: t.workflowTaskId ?? undefined, serviceId: s.id,
+              isActive: edit.isActive ?? t.isActive ?? true, roleName: edit.roleName !== undefined ? edit.roleName : (t.roleName ?? null),
+            };
+          });
+        }),
         ...addedTasks.filter((t) => serviceIds.includes(t.serviceId)).map((t) => ({
           serviceId: t.serviceId, name: t.name, roleName: t.roleName, isActive: true,
         })),
@@ -938,49 +945,33 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
    */
 
   const renderTasks = (s: ServiceOption) => {
-    // A saved package holds its own copies; a new one is still reading the
-    // workflow it will copy from.
+    /*
+     * The service's workflow with this package's departures applied - the
+     * same list whether the package is saved or being made, because a package
+     * holds no copy of its steps. A new package previews the workflow's own.
+     */
     const savedService = initial.services?.find((is: any) => is.id === s.id);
-    const sTasks = savedService?.tasks || s.workflow?.tasks || [];
-    /*
-     * WHOSE TASKS THESE ARE, WHICH DECIDES WHETHER THEY CAN BE EDITED.
-     *
-     * A saved package holds its OWN copies, and taskEdits is keyed by their
-     * package_task id — which is what the save sends to updatePackage. A
-     * package that does not exist yet has no copies, so what is shown is the
-     * workflow's own tasks: a preview of what will be copied when it is
-     * created.
-     *
-     * Those carry a workflow_task id, and sending one to updatePackage as a
-     * package_task id matches no row. So the preview says what the package
-     * will involve and does not pretend to be editable — a checkbox that
-     * appears to work and silently saves nothing is worse than one that is
-     * plainly not ready yet.
-     */
-    const isOwnCopy = !!savedService?.tasks?.length;
+    const sTasks: any[] = savedService?.tasks
+      ?? ((s.workflow?.tasks || []) as any[]).map((t: any, i: number) => ({
+        id: null, workflowTaskId: t.id, name: t.name, roleName: t.default_role?.name ?? null, isActive: true, position: i, own: false,
+      }));
     const mineAdded = addedTasks.filter((t) => t.serviceId === s.id);
-    /*
-     * A task copied from a workflow can be switched off or reassigned, but only
-     * where this form owns the save. Inside a booking the editor is showing what
-     * the package involves, and changing it there would be a decision about the
-     * package rather than about the booking — which is why the booking has a
-     * task section of its own.
-     */
-    const editable = !embedded && isOwnCopy;
+    const editable = !embedded;
     
     return (
       <div className="q-stack q-stack-sm" style={{ marginTop: '16px' }}>
         {s.workflow?.name && (
           <div className="q-meta-sm" style={{ marginTop: '-4px', marginBottom: '4px' }}>
             From workflow: {s.workflow.name}
-            {!embedded && !isOwnCopy && ' — copied to this package when you save it'}
           </div>
         )}
         <div className="q-stack" style={{ gap: '4px' }}>
           {sTasks.map((t: any) => {
-            const edit = taskEdits[t.id] || {};
+            // A workflow step is edited by its step; an own step by its row.
+            const key = t.workflowTaskId ?? t.id;
+            const edit = taskEdits[key] || {};
             const isActive = edit.isActive ?? t.isActive ?? true;
-            const roleName = edit.roleName ?? t.roleName ?? t.default_role?.name ?? '';
+            const roleName = edit.roleName ?? t.roleName ?? '';
             /*
              * Stores the whole state of the task, not just the half that
              * changed. A partial entry meant reassigning the role of a switched
@@ -990,10 +981,10 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
             const patch = (next: { isActive?: boolean; roleName?: string | null }) =>
               setTaskEdits((prev) => ({
                 ...prev,
-                [t.id]: { isActive, roleName: roleName || null, ...next },
+                [key]: { serviceId: s.id, workflowTaskId: t.workflowTaskId ?? null, rowId: t.id ?? null, isActive, roleName: roleName || null, ...next },
               }));
             return (
-              <div key={t.id} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
+              <div key={key} className="q-row q-row-between q-tile" style={{ padding: '6px 12px', alignItems: 'center' }}>
                 <label className="q-row" style={{ alignItems: 'center', gap: '8px', cursor: editable ? 'pointer' : 'default' }}>
                   <input
                     type="checkbox" checked={isActive} disabled={!editable}
@@ -1696,7 +1687,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                       const nFor = (narrowings[s.id] ?? offeredBy(s.id)).length;
                       const nVars = variablesFor(s).filter((x: any) => !x.deliverableId).length;
                       const savedS = initial.services?.find((is: any) => is.id === s.id);
-                      const nTasks = (savedS?.tasks || s.workflow?.tasks || []).length + addedTasks.filter((x) => x.serviceId === s.id).length;
+                      const nTasks = ((savedS?.tasks || s.workflow?.tasks || []) as any[]).filter((x) => x.isActive !== false).length + addedTasks.filter((x) => x.serviceId === s.id).length;
                       const say = (n: number, one: string, more: string) => n > 0 ? `${n} ${n === 1 ? one : more}` : null;
                       return (
                         <div key={s.id} className="q-sheet-row">
