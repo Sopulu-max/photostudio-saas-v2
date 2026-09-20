@@ -19,7 +19,7 @@ export function AddExtraForm({
 }) {
   const [isPending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
-  const [targetType, setTargetType] = useState<'deliverable' | 'service' | 'package' | 'custom'>('deliverable');
+  const [targetType, setTargetType] = useState<'deliverable' | 'service' | 'package'>('deliverable');
   
   const [selectedId, setSelectedId] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
@@ -49,16 +49,11 @@ export function AddExtraForm({
   };
 
   const handleSave = () => {
-    if (!title.trim()) {
-      toast.bad('Please enter a title');
-      return;
-    }
-    
     startTransition(async () => {
       try {
         await addBookingLine({
           bookingId,
-          title: title.trim(),
+          title: title.trim() || 'Extra',
           targetType,
           targetDeliverableId: targetType === 'deliverable' ? selectedId : null,
           targetDeliverableQuantity: targetType === 'deliverable' ? quantity : null,
@@ -106,33 +101,26 @@ export function AddExtraForm({
             <option value="deliverable">Deliverable (e.g. Photos)</option>
             <option value="service">Service (e.g. Hair styling)</option>
             <option value="package">Whole Package</option>
-            <option value="custom">Custom Fee / Other</option>
           </select>
         </div>
 
-        {targetType !== 'custom' && (
-          <div>
-            <label className="q-label">Select {targetType}</label>
-            <select className="q-select" value={selectedId} onChange={e => handleTargetChange(e.target.value)} disabled={isPending}>
-              <option value="">-- Select --</option>
-              {targetType === 'deliverable' && deliverables.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              {targetType === 'service' && services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              {targetType === 'package' && packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-        )}
+        <div>
+          <label className="q-label">Select {targetType}</label>
+          <select className="q-select" value={selectedId} onChange={e => handleTargetChange(e.target.value)} disabled={isPending}>
+            <option value="">-- Select --</option>
+            {targetType === 'deliverable' && deliverables.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {targetType === 'service' && services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {targetType === 'package' && packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: targetType === 'deliverable' ? '3fr 1fr 1fr' : '3fr 1fr', gap: '16px' }}>
-        <div>
-          <label className="q-label">Line Title</label>
-          <input className="q-input" type="text" placeholder="E.g. 5 Extra Photos" value={title} onChange={e => setTitle(e.target.value)} disabled={isPending} />
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: targetType === 'deliverable' ? '1fr 1fr' : '1fr', gap: '16px' }}>
         
         {targetType === 'deliverable' && (
           <div>
             <label className="q-label">Quantity</label>
-            <input className="q-input" type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} disabled={isPending} />
+            <input className="q-input" type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} disabled={isPending} />
           </div>
         )}
 
@@ -147,7 +135,7 @@ export function AddExtraForm({
           type="button"
           className="q-btn q-btn-primary" 
           onClick={handleSave} 
-          disabled={isPending || (targetType !== 'custom' && !selectedId) || !title.trim()}
+          disabled={isPending || !selectedId}
         >
           {isPending ? 'Adding...' : 'Save Extra'}
         </button>

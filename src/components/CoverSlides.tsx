@@ -113,11 +113,16 @@ export function CoverSlides({
    * nothing to show. The banner's "Add a cover" link is absolutely positioned
    * to fill its frame; with no frame it filled the nearest positioned
    * ancestor instead, which was the page header, sitting invisibly over the
-   * stage picker: choosing a stage opened the edit page. A frame with a class
-   * is a promise about layout and is kept whether or not it has a picture.
+   * stage picker: choosing a stage opened the edit page. The frame is kept,
+   * and as a .q-slides it is positioned, so a host's absolute child always
+   * has its containing block.
    */
   if (slides.length === 0) {
-    return className ? <div className={className}>{children}</div> : <>{children}</>;
+    return (
+      <div className={className ? `q-slides ${className}` : 'q-slides'}>
+        {children}
+      </div>
+    );
   }
 
   return (
