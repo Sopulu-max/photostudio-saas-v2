@@ -240,7 +240,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
 
   return (
-    <div className="q-page-narrow">
+    <div className="q-print-page">
       <Link href="/bookings" className="q-back">&larr; Back to Bookings</Link>
 
       {/*
@@ -404,7 +404,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         )}
 
         {/* What they're booking — one line per Package */}
-        <Section title="Packages">
+        
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px', alignItems: 'start', marginTop: '32px' }}>
+        <div className="q-stack q-stack-xl">
+          
+          <Section title="Packages">
           {lines.length === 0 ? (
             <div className="q-stack q-stack-sm">
               <p className="q-empty">
@@ -447,45 +451,61 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       </div>
                     </div>
 
-                    <div className="q-meta" style={{ marginTop: '12px' }}>
-                      <strong className="q-strong" style={{ marginRight: '6px' }}>Services:</strong>
-                      {svcNames.join(' + ') || 'None'}
-                    </div>
-
-                    {tags.length > 0 && (
-                      <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                        {tags.map((d) => (
-                          <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
-                            <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
-                            <span className="q-row" style={{ gap: '4px' }}>
-                              {d.values.map((v, i) => (
-                                <span key={v.id}>
-                                  <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
-                                    {v.name}
-                                  </Link>
-                                  {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
-                                </span>
+                    <div className="q-stack q-stack-md" style={{ marginTop: '16px' }}>
+                      {(svcNames.length > 0 || tags.length > 0) && (
+                        <div className="q-stack q-stack-sm">
+                          <strong className="q-meta">Services & Scope</strong>
+                          {svcNames.length > 0 && <div className="q-text-body">{svcNames.join(' + ')}</div>}
+                          {tags.length > 0 && (
+                            <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                              {tags.map((d) => (
+                                <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
+                                  <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
+                                  <span className="q-row" style={{ gap: '4px' }}>
+                                    {d.values.map((v, i) => (
+                                      <span key={v.id}>
+                                        <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
+                                          {v.name}
+                                        </Link>
+                                        {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
+                                      </span>
+                                    ))}
+                                  </span>
+                                </div>
                               ))}
-                            </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {heldVars.length > 0 && (
+                        <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
+                          <strong className="q-meta">Configuration</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
+                            {heldVars.map((f: any) => (
+                              <React.Fragment key={f.label}>
+                                <div className="q-meta-plain" style={{ opacity: 0.7 }}>{f.label}</div>
+                                <div className="q-text-body">{formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}</div>
+                              </React.Fragment>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
 
-                    {heldVars.length > 0 && (
-                      <div className="q-meta" style={{ marginTop: '16px' }}>
-                        <strong className="q-strong" style={{ marginRight: '4px' }}>Variables:</strong>
-                        {heldVars.map((f: any) => `${f.label}: ${formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}`).join(', ')}
-                      </div>
-                    )}
-
-                    {pkg?.deliverables && pkg.deliverables.length > 0 && (
-                      <div className="q-meta" style={{ marginTop: '8px' }}>
-                        <strong className="q-strong" style={{ marginRight: '4px' }}>Deliverables:</strong>
-                        {/* @ts-ignore */}
-                        {pkg.deliverables.map((d: any) => formatDeliverable(d)).join(', ')}
-                      </div>
-                    )}
+                      {pkg?.deliverables && pkg.deliverables.length > 0 && (
+                        <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
+                          <strong className="q-meta">Deliverables</strong>
+                          <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--q-color-ink-900)' }}>
+                            {pkg.deliverables.map((d: any, idx: number) => (
+                              <li key={idx} style={{ marginBottom: '4px' }}>
+                                {/* @ts-ignore */}
+                                {formatDeliverable(d)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
 
                     {/* More of what this package promises - the only thing
                         an extra is. Each promise knows the service that
@@ -558,118 +578,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
         </Section>
-
-        {/*
-          * Who is on this booking — read off the tasks, not recorded separately.
-          * Grouped by role because that is the question actually asked before a
-          * shoot ("have I got a second shooter for Saturday"), and because a
-          * role nobody is covering has to be visible, which a list of names
-          * cannot show.
-          */}
-        <Section title="Team">
-          {team.roles.length === 0 ? (
-            <p className="q-meta" style={{ marginBottom: '16px' }}>
-              No team members assigned.
-            </p>
-          ) : (
-            <>
-              {team.unfilled > 0 && (
-                <p className="q-meta" style={{ marginBottom: '16px' }}>
-                  {team.unfilled} {team.unfilled === 1 ? 'task is' : 'tasks are'} unassigned.
-                </p>
-              )}
-              <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-                {team.roles.map((r: any) => (
-                  <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
-                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="q-strong">{r.roleName}</span>
-                      {r.tasks.length > 0 && (
-                        <span className="q-meta-sm">
-                          {r.tasks.length} {r.tasks.length === 1 ? 'task' : 'tasks'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {r.covering.map((p: any) => {
-                        const member = r.members.find((m: any) => m.person.id === p.id);
-                        return (
-                          <span key={p.id} className="q-badge q-badge-neutral q-row" style={{ gap: '4px', alignItems: 'center' }}>
-                            {p.name}
-                            {/* Only someone put on directly can be taken off here;
-                                a person who is only on a task comes off by
-                                unassigning that task. */}
-                            {member && (
-                              <RemoveFromTeam
-                                bookingId={booking.id}
-                                assignmentId={member.assignmentId}
-                                name={p.name}
-                              />
-                            )}
-                          </span>
-                        );
-                      })}
-                      {r.covering.length === 0 && <span className="q-meta-sm">Unassigned</span>}
-                      {r.unassigned > 0 && r.covering.length > 0 && (
-                        <span className="q-meta-sm">{r.unassigned} task{r.unassigned === 1 ? '' : 's'} unassigned</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          <AddToTeam
-            bookingId={booking.id}
-            employees={employees as any}
-            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
-          />
-
-          {team.hasTasks && (
-            <p className="q-meta-sm" style={{ marginTop: '16px' }}>
-              Individual tasks can be assigned under Tasks below.
-            </p>
-          )}
-        </Section>
-
-        {/*
-          * The work, collated across every package on this booking.
-          *
-          * It used to live under each package, so a booking with three packages
-          * had three separate lists and no view of the job as one thing. The
-          * package a task came from is still shown against it; it just no
-          * longer decides how the list is organised.
-          */}
-        <Section title="Tasks">
-          {/*
-            * A booking whose packages call for work but whose board is empty.
-            *
-            * It happens two ways, neither of which shows as an error: a booking
-            * taken before the studio wrote its workflow (syncing a workflow
-            * reaches the packages built from it and stops there), and — until
-            * this was fixed — every booking taken through the public link. The
-            * work is copied from the package when a line is added, and that was
-            * the only moment it ever happened, so there was no way back.
-            */}
-          {bookingTasks.length === 0 && lines.some((l: any) => l.package_id) && (
-            <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-              <span className="q-meta-sm">
-                No tasks on this booking, though its packages define work. This affects
-                bookings created before the workflow was defined.
-              </span>
-              <RestoreWorkButton bookingId={booking.id} />
-            </div>
-          )}
-          <BookingTasks
-            bookingId={booking.id}
-            tasks={bookingTasks as any}
-            employees={employees as any}
-            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
-          />
-        </Section>
-
-        {/* Deliverables */}
-        <Section title="Deliverables">
+          <Section title="Deliverables">
           {/* What the packages promised, and whether it's been handed over. */}
           {fulfilment.length > 0 && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
@@ -780,9 +689,36 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
         </Section>
-
-        {/* Money */}
-        <Section title="Invoices & Payments">
+          <Section title="Tasks">
+          {/*
+            * A booking whose packages call for work but whose board is empty.
+            *
+            * It happens two ways, neither of which shows as an error: a booking
+            * taken before the studio wrote its workflow (syncing a workflow
+            * reaches the packages built from it and stops there), and — until
+            * this was fixed — every booking taken through the public link. The
+            * work is copied from the package when a line is added, and that was
+            * the only moment it ever happened, so there was no way back.
+            */}
+          {bookingTasks.length === 0 && lines.some((l: any) => l.package_id) && (
+            <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+              <span className="q-meta-sm">
+                No tasks on this booking, though its packages define work. This affects
+                bookings created before the workflow was defined.
+              </span>
+              <RestoreWorkButton bookingId={booking.id} />
+            </div>
+          )}
+          <BookingTasks
+            bookingId={booking.id}
+            tasks={bookingTasks as any}
+            employees={employees as any}
+            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+          />
+        </Section>
+        </div>
+        <div className="q-stack q-stack-xl">
+          <Section title="Invoices & Payments">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
               {invoices.length === 0
@@ -903,42 +839,72 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
 
         </Section>
+          <Section title="Team">
+          {team.roles.length === 0 ? (
+            <p className="q-meta" style={{ marginBottom: '16px' }}>
+              No team members assigned.
+            </p>
+          ) : (
+            <>
+              {team.unfilled > 0 && (
+                <p className="q-meta" style={{ marginBottom: '16px' }}>
+                  {team.unfilled} {team.unfilled === 1 ? 'task is' : 'tasks are'} unassigned.
+                </p>
+              )}
+              <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+                {team.roles.map((r: any) => (
+                  <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="q-strong">{r.roleName}</span>
+                      {r.tasks.length > 0 && (
+                        <span className="q-meta-sm">
+                          {r.tasks.length} {r.tasks.length === 1 ? 'task' : 'tasks'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {r.covering.map((p: any) => {
+                        const member = r.members.find((m: any) => m.person.id === p.id);
+                        return (
+                          <span key={p.id} className="q-badge q-badge-neutral q-row" style={{ gap: '4px', alignItems: 'center' }}>
+                            {p.name}
+                            {/* Only someone put on directly can be taken off here;
+                                a person who is only on a task comes off by
+                                unassigning that task. */}
+                            {member && (
+                              <RemoveFromTeam
+                                bookingId={booking.id}
+                                assignmentId={member.assignmentId}
+                                name={p.name}
+                              />
+                            )}
+                          </span>
+                        );
+                      })}
+                      {r.covering.length === 0 && <span className="q-meta-sm">Unassigned</span>}
+                      {r.unassigned > 0 && r.covering.length > 0 && (
+                        <span className="q-meta-sm">{r.unassigned} task{r.unassigned === 1 ? '' : 's'} unassigned</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
-        {/*
-          * THE CLIENT'S OWN COPY.
-          *
-          * Last, because it is about the whole booking rather than a part of
-          * it — everything above is what the link would show.
-          */}
-        {/*
-          * WHAT THE STUDIO HAS WRITTEN DOWN ABOUT THIS JOB.
-          *
-          * Distinct from the brief above, which is the client's own words and
-          * is never edited. This is the studio's side: the gate code, that they
-          * moved the date twice, what to remember for the next one.
-          *
-          * The same notes the notes app holds — one table, one module. A note
-          * taken off this booking goes there rather than being destroyed.
-          */}
-        <Section title="Notes">
-          <NotesFor
-            about={{ type: 'booking', id: booking.id }}
-            aboutLabel="this booking"
-            notes={notes}
-          />
-        </Section>
-
-        <Section title="Client confirmation">
-          <ShareBooking
+          <AddToTeam
             bookingId={booking.id}
-            bookingTitle={booking.title}
-            shareToken={(booking as any).share_token ?? null}
-            sharedAt={(booking as any).shared_at ?? null}
-            hasClient={Boolean(booking.contact?.id)}
+            employees={employees as any}
+            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
           />
-        </Section>
 
-        <Section title="Contract">
+          {team.hasTasks && (
+            <p className="q-meta-sm" style={{ marginTop: '16px' }}>
+              Individual tasks can be assigned under Tasks below.
+            </p>
+          )}
+        </Section>
+          <Section title="Contract">
           {contracts.length > 0 && (
             <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
               {contracts.map((c) => (
@@ -978,8 +944,58 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             );
           })()}
         </Section>
-
+          <Section title="Client confirmation">
+          <ShareBooking
+            bookingId={booking.id}
+            bookingTitle={booking.title}
+            shareToken={(booking as any).share_token ?? null}
+            sharedAt={(booking as any).shared_at ?? null}
+            hasClient={Boolean(booking.contact?.id)}
+          />
+        </Section>
+          <Section title="Notes">
+          <NotesFor
+            about={{ type: 'booking', id: booking.id }}
+            aboutLabel="this booking"
+            notes={notes}
+          />
+        </Section>
+        </div>
       </div>
+{/*
+          * Who is on this booking — read off the tasks, not recorded separately.
+          * Grouped by role because that is the question actually asked before a
+          * shoot ("have I got a second shooter for Saturday"), and because a
+          * role nobody is covering has to be visible, which a list of names
+          * cannot show.
+          */}
+        {/*
+          * The work, collated across every package on this booking.
+          *
+          * It used to live under each package, so a booking with three packages
+          * had three separate lists and no view of the job as one thing. The
+          * package a task came from is still shown against it; it just no
+          * longer decides how the list is organised.
+          */}
+        {/* Deliverables */}
+        {/* Money */}
+        {/*
+          * THE CLIENT'S OWN COPY.
+          *
+          * Last, because it is about the whole booking rather than a part of
+          * it — everything above is what the link would show.
+          */}
+        {/*
+          * WHAT THE STUDIO HAS WRITTEN DOWN ABOUT THIS JOB.
+          *
+          * Distinct from the brief above, which is the client's own words and
+          * is never edited. This is the studio's side: the gate code, that they
+          * moved the date twice, what to remember for the next one.
+          *
+          * The same notes the notes app holds — one table, one module. A note
+          * taken off this booking goes there rather than being destroyed.
+          */}
+        </div>
     </div>
   );
 }
