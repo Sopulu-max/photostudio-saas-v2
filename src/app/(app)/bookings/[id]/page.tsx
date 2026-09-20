@@ -533,15 +533,28 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * list to people who actually hold the role. Nothing was lost here.
             */}
           {/* Add-ons & Extras */}
-          {lines.length > 0 && (
-            <AddExtraForm 
-              bookingId={booking.id} 
-              packages={availablePackages}
-              services={availableServices}
-              deliverables={availableDeliverables}
-              currencyCode={currencyCode} 
-            />
-          )}
+          {lines.length > 0 && (() => {
+            const bookingServices = new Map<string, any>();
+            const bookingDeliverables = new Map<string, any>();
+            
+            lines.forEach(l => {
+              const pkg = linePackages.get(l.package_id) ?? (packageRows as any[]).find((p) => p.id === l.package_id);
+              if (pkg) {
+                (pkg.services || []).forEach((svc: any) => bookingServices.set(svc.id, svc));
+                (pkg.deliverables || []).forEach((d: any) => bookingDeliverables.set(d.id, d));
+              }
+            });
+
+            return (
+              <AddExtraForm 
+                bookingId={booking.id} 
+                packages={availablePackages}
+                services={availableServices.filter((s: any) => bookingServices.has(s.id))}
+                deliverables={availableDeliverables.filter((d: any) => bookingDeliverables.has(d.id))}
+                currencyCode={currencyCode} 
+              />
+            );
+          })()}
 
           {lines.length > 0 && (
             <div className="q-tile-sub q-row q-row-between" style={{ marginTop: '16px' }}>
