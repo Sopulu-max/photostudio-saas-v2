@@ -2,6 +2,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { studioTimezone } from '@/kernel/studioHours';
 import { calendarIn, dayIn, addDays, bandOf, whenItems, type Band } from '@/kernel/bands';
 import { axisOf, valuesSeen, type LensGroup, type Takes } from '@/kernel/lenses';
+import { listEventsSince } from '@/kernel/events';
 import { listBookings, listStages, type BookingListRow } from './domain';
 
 /**
@@ -52,26 +53,30 @@ export const PERIODS: { days: Period; label: string }[] = [
 ];
 
 /**
- * A FIGURE is one measure of bookings - made in the period, held in it,
- * live now, live and undated now - the first two against the same measure
- * over the period before, so the delta is a fact and not a feeling; the
- * last two balances, with a note. Money is not here: this page is every
- * booking, and money is Finances' page. These are the app's measures, not
- * a studio's vocabulary: every studio makes bookings and holds sessions.
- * What a studio calls its stages is read off the data below (lenses).
+ * A FIGURE is one measure of bookings over the period, against the same
+ * measure over the period before, so the delta is a fact and not a
+ * feeling: bookings made; bookings agreed (an enquiry moved to a booked
+ * stage - read from the stage_changed events, since a booking has no
+ * "agreed at" of its own); the conversion of the two; sessions held (a
+ * booked or completed booking on a date in the period - an enquiry with a
+ * proposed date that was never agreed is not a session). Money is not
+ * here: this page is every booking, and money is Finances' page. These
+ * are the app's measures, not a studio's vocabulary; what a studio calls
+ * its stages is read off the data below (lenses).
  */
 export type Figure = {
-  key: 'new' | 'sessions' | 'live' | 'undated';
+  key: 'new' | 'agreed' | 'conversion' | 'sessions';
   label: string;
   value: number;
-  /** The same measure over the period before; null when it has no period (a balance). */
-  before: number | null;
-  /** Said under the figure when there is no delta to say. */
+  unit: 'count' | 'percent';
+  /** The same measure over the period before. */
+  before: number;
+  /** Said under the figure alongside the delta. */
   note: string | null;
 };
 
 /** One measure, month by month, for the last twelve months. */
-export type SeriesLine = { key: 'new' | 'sessions'; label: string; points: number[] };
+export type SeriesLine = { key: 'new' | 'agreed' | 'sessions'; label: string; points: number[] };
 
 export type BookingsSheet = {
   bands: { key: SheetBand; label: string; note: string | null; rows: SheetBooking[] }[];
@@ -87,12 +92,27 @@ export type BookingsSheet = {
 
 const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated', 'earlier', 'closed'];
 
+/** The absences a live booking can have, in the order they are resolved. */
+export const MISSING = [
+  { key: 'decision-studio', label: 'Awaiting studio decision' },
+  { key: 'decision-client', label: 'Awaiting client decision' },
+  { key: 'client', label: 'No client' },
+  { key: 'date', label: 'No date' },
+  { key: 'package', label: 'No package' },
+  { key: 'crew', label: 'Unassigned steps, upcoming' },
+] as const;
+export type MissingKey = (typeof MISSING)[number]['key'];
+
 export async function readBookingsSheet(periodDays: Period = 30): Promise<BookingsSheet> {
   const { orgId } = await getAuthOrgId();
   const [rows, stages, timezone] = await Promise.all([listBookings(), listStages(), studioTimezone(orgId)]);
 
   const cal = calendarIn(timezone);
   const { today } = cal;
+  // Agreements are events: every move of a booking into a booked stage, back a year (the series) and more (the period before).
+  const yearAgo = new Date(`${today}T00:00:00Z`); yearAgo.setUTCMonth(yearAgo.getUTCMonth() - 12); yearAgo.setUTCDate(1);
+  const agreedEvents = (await listEventsSince('booking', 'stage_changed', addDays(yearAgo.toISOString().slice(0, 10), -periodDays * 2)))
+    .filter((e) => e.payload.kind === 'booked');
 
   const { resolveBookingTasks } = await import('@/modules/production/interface');
   const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
@@ -126,13 +146,28 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     const needsById = new Map<string, { id: string; name: string }>();
     for (const t of tasks) {
       // A step with nobody on it and no role saying who should be is a need too.
-      if (!t.done && !t.assignee) needsById.set(t.roleId ?? 'none', { id: t.roleId ?? 'none', name: t.roleName ?? 'no role set' });
+      if (!t.done && !t.assignee) needsById.set(t.roleId ?? 'none', { id: t.roleId ?? 'none', name: t.roleName ?? 'No role set' });
     }
     const needs = [...needsById.values()];
+    /*
+     * WHAT IS MISSING - the edges a live booking grows over time and has not
+     * yet: a client, a date, a package, a decision (an enquiry not yet agreed
+     * - awaiting the client when a proposal is out, else the studio), and a
+     * crew for a session coming up. Read off the row, never declared.
+     */
+    const upcoming = day !== null && day >= today;
+    const missing = closed ? [] : [
+      ...(!r.clientName ? ['client'] : []),
+      ...(day === null ? ['date'] : []),
+      ...(r.lineCount === 0 ? ['package'] : []),
+      ...(!r.stage || r.stage.kind === 'enquiry' ? [r.proposalOut ? 'decision-client' : 'decision-studio'] : []),
+      ...(r.stage?.kind === 'booked' && upcoming && (work?.unstaffed ?? 0) > 0 ? ['crew'] : []),
+    ];
     const takes: Takes = {
       stage: r.stage ? [r.stage.id] : [],
       when: [band],
       needs: closed ? [] : needs.map((n) => n.id),
+      missing,
     };
     for (const c of r.classification) (takes[`dim:${c.dimensionId}`] ??= []).push(c.valueId);
     return { ...r, band, day, work, needs, takes };
@@ -156,8 +191,10 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     // The studio's own stages, in the order it arranged them, each in its chosen colour.
     axisOf(sheetRows, 'stage', 'Stage', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
       .map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
-    // Each role with a step nobody is on, most needed first.
-    axisOf(sheetRows, 'needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Nobody needed', mostFirst: true }),
+    // Each role with an unassigned step, most needed first.
+    axisOf(sheetRows, 'needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Fully assigned', mostFirst: true }),
+    // What a live booking has not yet - each a door from the dashboard.
+    axisOf(sheetRows, 'missing', 'Missing', MISSING.map((m) => ({ key: m.key, label: m.label, due: true })), { none: 'Nothing missing' }),
     // Every dimension the studio classifies bookings by, its values by name.
     ...[...dimensions.entries()].map(([id, d]) =>
       axisOf(sheetRows, `dim:${id}`, d.name, valuesSeen(sheetRows, `dim:${id}`, (k) => d.values.get(k) ?? k), { none: `No ${d.name.toLowerCase()}` })),
@@ -182,20 +219,18 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   const beforeFrom = addDays(beforeTo, -(periodDays - 1));
   const within = (day: string | null, a: string, b: string) => day !== null && day >= a && day <= b;
   const dayOf = (iso: string | null) => (iso ? dayIn(iso, timezone) : null);
-  const liveRows = sheetRows.filter((r) => r.band !== 'closed');
-  const undated = liveRows.filter((r) => r.day === null).length;
+  const held = (r: SheetBooking) => r.stage?.kind === 'booked' || r.stage?.kind === 'completed';
+  const madeIn = (a: string, b: string) => rows.filter((r) => within(dayOf(r.createdAt), a, b)).length;
+  const agreedIn = (a: string, b: string) => new Set(agreedEvents.filter((e) => within(dayOf(e.at), a, b)).map((e) => e.entityId)).size;
+  const sessionsIn = (a: string, b: string) => sheetRows.filter((r) => held(r) && within(r.day, a, b)).length;
+  const rate = (agreed: number, made: number) => (made > 0 ? Math.round((agreed / made) * 100) : 0);
+  const made = madeIn(from, today), madeBefore = madeIn(beforeFrom, beforeTo);
+  const agreed = agreedIn(from, today), agreedBefore = agreedIn(beforeFrom, beforeTo);
   const figures: Figure[] = [
-    { key: 'new', label: 'New bookings', note: null,
-      value: rows.filter((r) => within(dayOf(r.createdAt), from, today)).length,
-      before: rows.filter((r) => within(dayOf(r.createdAt), beforeFrom, beforeTo)).length },
-    { key: 'sessions', label: 'Sessions', note: null,
-      // A session is a booking scheduled in the window that was not cancelled.
-      value: sheetRows.filter((r) => within(r.day, from, today) && r.stage?.kind !== 'cancelled').length,
-      before: sheetRows.filter((r) => within(r.day, beforeFrom, beforeTo) && r.stage?.kind !== 'cancelled').length },
-    { key: 'live', label: 'Live', before: null, value: liveRows.length,
-      note: liveRows.length > 0 ? `${liveRows.filter((r) => (r.work?.unstaffed ?? 0) > 0).length} with a step nobody is on` : 'nothing open' },
-    { key: 'undated', label: 'No date yet', before: null, value: undated,
-      note: undated > 0 ? 'live, and not yet scheduled' : 'every live booking has a date' },
+    { key: 'new', label: 'New bookings', unit: 'count', value: made, before: madeBefore, note: null },
+    { key: 'agreed', label: 'Agreed', unit: 'count', value: agreed, before: agreedBefore, note: null },
+    { key: 'conversion', label: 'Conversion', unit: 'percent', value: rate(agreed, made), before: rate(agreedBefore, madeBefore), note: `${agreed} agreed of ${made} new` },
+    { key: 'sessions', label: 'Sessions', unit: 'count', value: sessionsIn(from, today), before: sessionsIn(beforeFrom, beforeTo), note: null },
   ];
 
   // ---- Twelve months of each measure, oldest first.
@@ -211,7 +246,8 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     months,
     lines: [
       { key: 'new' as const, label: 'New bookings', points: byMonth(rows.map((r) => dayOf(r.createdAt))) },
-      { key: 'sessions' as const, label: 'Sessions', points: byMonth(sheetRows.filter((r) => r.stage?.kind !== 'cancelled').map((r) => r.day)) },
+      { key: 'agreed' as const, label: 'Agreed', points: byMonth(agreedEvents.map((e) => dayOf(e.at))) },
+      { key: 'sessions' as const, label: 'Sessions', points: byMonth(sheetRows.filter(held).map((r) => r.day)) },
     ],
   };
 

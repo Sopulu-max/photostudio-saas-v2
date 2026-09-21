@@ -59,7 +59,7 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
   /*
    * The row: what the booking says about itself. Under the caption, where
    * its work is - each service at its first unfinished step and who is on
-   * it, "nobody" in the warm colour, since that is the thing to see.
+   * it, "Unassigned" in the warm colour, since that is the thing to see.
    */
   const item = (b: SheetBooking): SheetItem => ({
     id: b.id,
@@ -70,13 +70,13 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
       !b.titleNamesClient ? b.clientName : null,
       b.packages.length > 0 ? b.packages.join(' · ') : null,
     ],
-    absent: b.clientName ? 'No date or package yet' : 'No date, client or package yet',
+    absent: b.clientName ? 'No date or package' : 'No client, date or package',
     // No pictures on the day book, for now: the client's initials name the row.
     frame: { initials: initialsFor(b.clientName) },
     // The figure is where the work is; a live booking with a step nobody is on takes the warm colour.
     figure: b.work && b.work.total > 0
-      ? { text: b.work.done === b.work.total ? 'Work done' : `${b.work.done} of ${b.work.total} steps`, due: b.band !== 'closed' && b.work.unstaffed > 0, none: b.work.done !== b.work.total && !(b.band !== 'closed' && b.work.unstaffed > 0) }
-      : { text: b.band === 'closed' ? 'Closed' : 'No steps yet', none: true },
+      ? { text: b.work.done === b.work.total ? 'Complete' : `${b.work.done} of ${b.work.total} steps`, due: b.band !== 'closed' && b.work.unstaffed > 0, none: b.work.done !== b.work.total && !(b.band !== 'closed' && b.work.unstaffed > 0) }
+      : { text: b.band === 'closed' ? 'Closed' : 'No steps defined', none: true },
     badge: b.stage?.name
       ? <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>
       : undefined,
@@ -87,7 +87,7 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
             <span key={p.service} className={p.done ? 'q-work-service q-work-done' : 'q-work-service'}>
               <span className="q-work-name">{p.service}</span>
               <span className="q-work-pos">
-                {p.done ? 'Done' : <>{p.step}<span className={p.who ? 'q-work-who' : 'q-work-who q-work-gap'}> · {p.who ?? 'nobody'}</span></>}
+                {p.done ? 'Complete' : <>{p.step}<span className={p.who ? 'q-work-who' : 'q-work-who q-work-gap'}> · {p.who ?? 'Unassigned'}</span></>}
               </span>
             </span>
           ))}

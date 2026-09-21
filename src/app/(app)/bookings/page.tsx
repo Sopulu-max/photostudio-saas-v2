@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { readBookingsDashboard, PERIODS, type Period, type Figure } from '@/modules/bookings/interface';
+import { readBookingsDashboard, PERIODS, type Period, type Figure, type NextRow, type Position } from '@/modules/bookings/interface';
 import { stageBadgeClass, stageColor } from '@/components/stageBadge';
 import { Series, Sparkline } from '@/components/Charts';
 import { initialsFor } from '@/components/Sheet';
@@ -14,21 +14,21 @@ export const dynamic = 'force-dynamic';
  * BOOKINGS - the dashboard. The day's questions about bookings, in the
  * order a studio asks them, each answered with the bookings themselves:
  *
- *   What needs me?       - four conditions of the ontology, counted and
- *                          sampled, each a door into the day book.
- *   What is next?        - the week's sessions: when, who, where the work
- *                          is, who is on it.
- *   Where is everything? - the studio's stages, each with who is next and
- *                          who has waited longest.
- *   What just changed?   - the last events on bookings.
- *   How are we doing?    - two figures over the period against the period
- *                          before, and twelve months of one of them.
+ *   Requires attention   - the edges a live booking has not yet grown: a
+ *                          decision, a client, a date, a package, a crew.
+ *   Today / Upcoming     - the sessions ahead: when, who, what each needs.
+ *   Post-production      - sessions held with steps open, oldest first;
+ *                          and those complete but not yet closed.
+ *   Pipeline             - the studio's stages, with the fact that
+ *                          matters for each kind.
+ *   Recent activity      - the last events on bookings.
+ *   This period          - four figures against the period before, and
+ *                          twelve months of one of them. The period
+ *                          control lives here, since only this obeys it.
  *
- * Then ALL BOOKINGS - the day book: every booking, narrowed, grouped and
- * read - on the same page, which every door above opens on exactly its
- * question. Everything arrives decided (readBookingsDashboard); the page
- * draws. The period and the measure are links that keep the rest of the
- * query.
+ * Then ALL BOOKINGS - the day book, on the same page, which every door
+ * above opens on exactly its question. Everything arrives decided
+ * (readBookingsDashboard); the page draws.
  */
 
 type Query = Record<string, string | string[] | undefined>;
@@ -53,6 +53,36 @@ const ago = (iso: string, now: number) => {
   return `${Math.round(h / 24)}d`;
 };
 
+const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—');
+const dayWord = (b: { band: string; scheduledFor: string | null }) =>
+  b.band === 'today' ? 'Today' : b.band === 'tomorrow' ? 'Tomorrow'
+    : b.scheduledFor ? new Date(b.scheduledFor).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
+
+/** A position, said: the service, its step, and who - "Unassigned" in the warm colour. */
+function Where({ p }: { p: Position }) {
+  return <>{p.service} · {p.step} · <span className={p.who ? '' : 'q-work-gap'}>{p.who ?? 'Unassigned'}</span></>;
+}
+
+/** A session row: time and day, the client's initials, the booking, what it needs or where it is, the stage. */
+function SessionRow({ row: { booking: b, position } }: { row: NextRow }) {
+  return (
+    <Link href={`/bookings/${b.id}`} className={b.band === 'today' ? 'q-next-row q-next-today' : 'q-next-row'}>
+      <span className="q-next-when">
+        <b>{timeOf(b.scheduledFor)}</b>
+        <small>{dayWord(b)}</small>
+      </span>
+      <span className="q-next-frame" aria-hidden="true">{initialsFor(b.clientName)}</span>
+      <span className="q-next-body">
+        <span className="q-next-title">{b.title}</span>
+        <span className="q-next-pos">
+          {position ? <Where p={position} /> : b.work && b.work.total > 0 ? 'All steps complete' : 'No steps defined'}
+        </span>
+      </span>
+      {b.stage && <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>}
+    </Link>
+  );
+}
+
 export default async function BookingsPage(props: { searchParams: Promise<Query> }) {
   try {
     await getAuthOrgId();
@@ -62,42 +92,35 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   const q = await props.searchParams;
   const periodDays = (PERIODS.find((p) => String(p.days) === q.period)?.days ?? 30) as Period;
   const dash = await readBookingsDashboard(periodDays);
-  const { sheet, attention, upNext, pipeline, recent } = dash;
+  const { sheet, attention, today, week, later, works, toClose, pipeline, recent } = dash;
   const measure = sheet.series.lines.find((l) => l.key === q.measure) ?? sheet.series.lines[0];
   const now = Date.now();
   const total = pipeline.reduce((n, s) => n + s.count, 0);
   const needsAnything = attention.some((a) => a.count > 0);
+  const todayDate = new Date(`${sheet.today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
+  const say = (f: Figure, n: number) => (f.unit === 'percent' ? `${n}%` : String(n));
   const delta = (f: Figure) => {
-    if (f.before === null) return null;
     const diff = f.value - f.before;
     const dir: 'up' | 'down' | 'flat' = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
     const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
-    const text = diff === 0 ? 'level' : f.before >= 5 ? `${sign}${Math.abs(Math.round((diff / f.before) * 100))}%` : `${sign}${Math.abs(diff)}`;
-    return { dir, text, title: `${f.before} the ${sheet.period.days} days before` };
+    // A percentage of a base of five or more; else the difference itself. A rate's delta is in points.
+    const text = diff === 0 ? 'unchanged'
+      : f.unit === 'percent' ? `${sign}${Math.abs(diff)} pts`
+      : f.before >= 5 ? `${sign}${Math.abs(Math.round((diff / f.before) * 100))}%` : `${sign}${Math.abs(diff)}`;
+    return { dir, text, title: `${say(f, f.before)} in the previous ${sheet.period.days} days` };
   };
   const trend = (f: Figure) => sheet.series.lines.find((l) => l.key === f.key)?.points ?? null;
   const month = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
-  const dayWord = (b: { band: string; scheduledFor: string | null }) =>
-    b.band === 'today' ? 'Today' : b.band === 'tomorrow' ? 'Tomorrow'
-      : b.scheduledFor ? new Date(b.scheduledFor).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
-  const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—');
 
   return (
     <div>
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Bookings</h1>
-          <p className="q-page-subtitle">What needs you, what is next, where everything is.</p>
+          <p className="q-page-subtitle">Attention items, upcoming sessions, post-production and the pipeline.</p>
         </div>
         <div className="q-row q-row-sm">
-          <nav className="q-seg" aria-label="Period">
-            {PERIODS.map((p) => (
-              <Link key={p.days} href={withParams(q, { period: p.days === 30 ? null : String(p.days) })} className={p.days === periodDays ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={p.days === periodDays ? 'page' : undefined}>
-                {p.days === 365 ? '1y' : `${p.days}d`}
-              </Link>
-            ))}
-          </nav>
           <Link href="/bookings/settings" className="q-btn q-btn-secondary">Stages</Link>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
@@ -105,66 +128,100 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
 
       <div className="q-stack q-stack-lg">
         <div className="q-dash">
-          {/* WHAT NEEDS ME. Four conditions, counted; each a door. */}
-          <section className="q-card q-widget" aria-label="What needs you">
+          {/* REQUIRES ATTENTION. Each absence, counted; each a door. */}
+          <section className="q-card q-widget" aria-label="Requires attention">
             <header className="q-dash-head">
-              <span className="q-dash-title">Needs you</span>
-              {!needsAnything && <span className="q-dash-note">Nothing waiting</span>}
+              <span className="q-dash-title">Requires attention</span>
+              <span className="q-dash-note">{needsAnything ? `${attention.reduce((n, a) => n + a.count, 0)} items` : 'Nothing outstanding'}</span>
             </header>
             <ul className="q-att">
-              {attention.map((a) => {
-                const body = (
-                  <>
-                    <b className={a.count > 0 ? 'q-att-n q-att-n-live' : 'q-att-n'}>{a.count}</b>
-                    <span className="q-att-what">
-                      {a.label}
-                      {a.note && <span className="q-att-note"> · {a.note}</span>}
+              {attention.map((a) => (
+                <li key={a.key} className={a.count > 0 ? 'q-att-row' : 'q-att-row q-att-row-quiet'}>
+                  {a.count > 0 ? (
+                    <Link href={into(a.narrow)} className="q-att-link">
+                      <b className="q-att-n q-att-n-live">{a.count}</b>
+                      <span className="q-att-what">{a.label}{a.note && <span className="q-att-note"> · {a.note}</span>}</span>
+                      <span className="q-att-go" aria-hidden="true">→</span>
+                    </Link>
+                  ) : (
+                    <span className="q-att-link">
+                      <b className="q-att-n">0</b>
+                      <span className="q-att-what">{a.label}</span>
                     </span>
-                    {a.count > 0 && a.narrow && <span className="q-att-go" aria-hidden="true">→</span>}
-                  </>
-                );
-                return (
-                  <li key={a.key} className={a.count > 0 ? 'q-att-row' : 'q-att-row q-att-row-quiet'}>
-                    {a.count > 0 && a.narrow ? <Link href={into(a.narrow)} className="q-att-link">{body}</Link> : <span className="q-att-link">{body}</span>}
-                    {a.count > 0 && (
-                      <span className="q-att-sample">
-                        {a.sample.map((b) => (
-                          <Link key={b.id} href={`/bookings/${b.id}`} className="q-att-chip">{b.clientName ?? b.title}</Link>
-                        ))}
-                        {a.count > a.sample.length && <span className="q-att-more">+{a.count - a.sample.length}</span>}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
+                  )}
+                  {a.count > 0 && (
+                    <span className="q-att-sample">
+                      {a.sample.map((b) => (
+                        <Link key={b.id} href={`/bookings/${b.id}`} className="q-att-chip">{b.clientName ?? b.title}</Link>
+                      ))}
+                      {a.count > a.sample.length && <span className="q-att-more">+{a.count - a.sample.length}</span>}
+                    </span>
+                  )}
+                </li>
+              ))}
             </ul>
           </section>
 
-          {/* WHAT IS NEXT. The week's sessions, soonest first; when the week is empty, what follows it. */}
-          <section className="q-card q-widget" aria-label="Up next">
+          {/* TODAY, then UPCOMING. */}
+          <section className="q-card q-widget" aria-label="Sessions">
             <header className="q-dash-head">
-              <span className="q-dash-title">Up next</span>
-              <Link href={into({ when: 'week' })} className="q-dash-note q-plain-link">This week →</Link>
+              <span className="q-dash-title">Today</span>
+              <span className="q-dash-note">{todayDate}</span>
             </header>
-            {upNext.length === 0 ? (
-              <p className="q-empty">Nothing scheduled ahead.</p>
+            {today.length === 0
+              ? <p className="q-empty">No sessions today.</p>
+              : <ul className="q-next">{today.map((r) => <li key={r.booking.id}><SessionRow row={r} /></li>)}</ul>}
+            <header className="q-dash-head q-dash-head-again">
+              <span className="q-dash-title">{later.length > 0 ? 'Upcoming' : 'Rest of this week'}</span>
+              <Link href={into({ when: later.length > 0 ? 'later' : 'week' })} className="q-dash-note q-plain-link">View all →</Link>
+            </header>
+            {week.length === 0 && later.length === 0
+              ? <p className="q-empty">No further sessions scheduled this week.</p>
+              : <ul className="q-next">{(week.length > 0 ? week : later).map((r) => <li key={r.booking.id}><SessionRow row={r} /></li>)}</ul>}
+          </section>
+        </div>
+
+        <div className="q-dash q-dash-wide">
+          {/* POST-PRODUCTION. Sessions held, steps open - oldest first; then those complete but not closed. */}
+          <section className="q-card q-widget" aria-label="Post-production">
+            <header className="q-dash-head">
+              <span className="q-dash-title">Post-production</span>
+              <span className="q-dash-note">{works.length} in progress{toClose.length > 0 ? ` · ${toClose.length} ready to close` : ''}</span>
+            </header>
+            {works.length === 0 && toClose.length === 0 ? (
+              <p className="q-empty">No sessions awaiting post-production.</p>
             ) : (
               <ul className="q-next">
-                {upNext.map(({ booking: b, position }) => (
+                {works.map(({ booking: b, since, open, done, total: t }) => (
                   <li key={b.id}>
-                    <Link href={`/bookings/${b.id}`} className={b.band === 'today' ? 'q-next-row q-next-today' : 'q-next-row'}>
+                    <Link href={`/bookings/${b.id}#work`} className="q-next-row">
                       <span className="q-next-when">
-                        <b>{timeOf(b.scheduledFor)}</b>
-                        <small>{dayWord(b)}</small>
+                        <b>{since}d</b>
+                        <small>since session</small>
                       </span>
                       <span className="q-next-frame" aria-hidden="true">{initialsFor(b.clientName)}</span>
                       <span className="q-next-body">
                         <span className="q-next-title">{b.title}</span>
                         <span className="q-next-pos">
-                          {position
-                            ? <>{position.service} · {position.step} · <span className={position.who ? '' : 'q-work-gap'}>{position.who ?? 'nobody'}</span></>
-                            : b.work && b.work.total > 0 ? 'Work done' : 'No steps yet'}
+                          {open.slice(0, 2).map((p, i) => <span key={i}>{i > 0 ? ' · ' : ''}<Where p={p} /></span>)}
+                          {open.length > 2 && <span className="q-att-more"> +{open.length - 2}</span>}
                         </span>
+                      </span>
+                      <span className="q-cell-progress" title={`${done} of ${t} steps complete`}>
+                        <span className="q-sheet-band-bar"><i className="q-dist-c-blue" style={{ '--q-share': Math.round((done / t) * 100) } as React.CSSProperties} /></span>
+                        <span className="q-cell-mono">{done}/{t}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+                {toClose.map((b) => (
+                  <li key={b.id}>
+                    <Link href={`/bookings/${b.id}`} className="q-next-row q-next-row-dim">
+                      <span className="q-next-when"><b>Done</b><small>ready to close</small></span>
+                      <span className="q-next-frame" aria-hidden="true">{initialsFor(b.clientName)}</span>
+                      <span className="q-next-body">
+                        <span className="q-next-title">{b.title}</span>
+                        <span className="q-next-pos">All steps complete · move to a closed stage</span>
                       </span>
                       {b.stage && <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>}
                     </Link>
@@ -173,10 +230,8 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               </ul>
             )}
           </section>
-        </div>
 
-        <div className="q-dash q-dash-wide">
-          {/* WHERE EVERYTHING IS. The studio's stages; each a door. */}
+          {/* PIPELINE. The studio's stages; each a door; the fact for its kind. */}
           <section className="q-card q-widget" aria-label="Pipeline">
             <header className="q-dash-head">
               <span className="q-dash-title">Pipeline</span>
@@ -197,24 +252,75 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
                   <b className="q-pipe-n">{s.count}</b>
                   <span className="q-pipe-share">{total > 0 ? Math.round((s.count / total) * 100) : 0}%</span>
                   <span className="q-pipe-note">
-                    {s.next
-                      ? <>next <Link href={`/bookings/${s.next.id}`} className="q-plain-link q-pipe-who">{s.next.clientName ?? s.next.title}</Link>, {dayWord(s.next)}</>
-                      : s.oldest
-                        ? <>longest here <Link href={`/bookings/${s.oldest.booking.id}`} className="q-plain-link q-pipe-who">{s.oldest.booking.clientName ?? s.oldest.booking.title}</Link>, {s.oldest.days}d</>
-                        : null}
+                    {s.kind === 'booked' && s.count > 0 && <span className="q-pipe-split">{s.ahead} ahead · {s.inPost} in post-production</span>}
+                    {s.fact && (
+                      <span className="q-pipe-fact">
+                        {s.kind === 'booked' && s.count > 0 ? ' · ' : ''}
+                        {s.fact.text}: <Link href={`/bookings/${s.fact.booking.id}`} className="q-plain-link q-pipe-who">{s.fact.booking.clientName ?? s.fact.booking.title}</Link>
+                      </span>
+                    )}
                   </span>
                 </li>
               ))}
             </ul>
           </section>
+        </div>
 
-          {/* WHAT JUST CHANGED. */}
-          <section className="q-card q-widget" aria-label="Recently">
+        <div className="q-dash q-dash-wide">
+          {/* THIS PERIOD. Four figures against the period before; a year of one. The period control lives here. */}
+          <section className="q-card q-widget q-doing" aria-label={`The last ${sheet.period.days} days`}>
+            <header className="q-dash-head q-doing-head">
+              <span className="q-dash-title">This period</span>
+              <nav className="q-seg" aria-label="Period">
+                {PERIODS.map((p) => (
+                  <Link key={p.days} href={withParams(q, { period: p.days === 30 ? null : String(p.days) })} className={p.days === periodDays ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={p.days === periodDays ? 'page' : undefined}>
+                    {p.days === 365 ? '1y' : `${p.days}d`}
+                  </Link>
+                ))}
+              </nav>
+            </header>
+            <div className="q-figures-row q-figures-four">
+              {sheet.figures.map((f) => {
+                const d = delta(f);
+                const t = trend(f);
+                return (
+                  <div key={f.key} className="q-fig">
+                    <span className="q-fig-label">{f.label}</span>
+                    <span className="q-fig-main">
+                      <span className="q-fig-value">{say(f, f.value)}</span>
+                      {t && <Sparkline points={t} tone={d.dir} />}
+                    </span>
+                    <span className={`q-fig-delta q-fig-${d.dir}`} title={d.title}>
+                      <span className="q-fig-arrow" aria-hidden="true">{d.dir === 'up' ? '↑' : d.dir === 'down' ? '↓' : '→'}</span>
+                      {d.text} <span className="q-fig-vs">vs previous {sheet.period.days} days</span>
+                    </span>
+                    {f.note && <span className="q-fig-note">{f.note}</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="q-doing-series">
+              <header className="q-dash-head">
+                <span className="q-dash-title">Twelve months</span>
+                <nav className="q-seg" aria-label="Measure">
+                  {sheet.series.lines.map((l) => (
+                    <Link key={l.key} href={withParams(q, { measure: l.key === sheet.series.lines[0].key ? null : l.key })} className={l.key === measure.key ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={l.key === measure.key ? 'page' : undefined}>
+                      {l.label}
+                    </Link>
+                  ))}
+                </nav>
+              </header>
+              <Series points={measure.points} labels={sheet.series.months.map(month)} />
+            </div>
+          </section>
+
+          {/* RECENT ACTIVITY. */}
+          <section className="q-card q-widget" aria-label="Recent activity">
             <header className="q-dash-head">
-              <span className="q-dash-title">Recently</span>
+              <span className="q-dash-title">Recent activity</span>
             </header>
             {recent.length === 0 ? (
-              <p className="q-empty">Nothing yet.</p>
+              <p className="q-empty">No activity recorded.</p>
             ) : (
               <ul className="q-recent">
                 {recent.map((e) => (
@@ -230,43 +336,6 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             )}
           </section>
         </div>
-
-        {/* HOW WE ARE DOING. Two figures over the period, and a year of one of them. */}
-        <section className="q-card q-widget q-doing" aria-label={`Over the last ${sheet.period.days} days`}>
-          <div className="q-figures-row q-figures-two">
-            {sheet.figures.filter((f) => f.before !== null).map((f) => {
-              const d = delta(f);
-              return (
-                <div key={f.key} className="q-fig">
-                  <span className="q-fig-label">{f.label} · {sheet.period.days}d</span>
-                  <span className="q-fig-main">
-                    <span className="q-fig-value">{f.value}</span>
-                    {trend(f) && <Sparkline points={trend(f)!} tone={d?.dir ?? 'flat'} />}
-                  </span>
-                  {d && (
-                    <span className={`q-fig-delta q-fig-${d.dir}`} title={d.title}>
-                      <span className="q-fig-arrow" aria-hidden="true">{d.dir === 'up' ? '↑' : d.dir === 'down' ? '↓' : '→'}</span>
-                      {d.text} <span className="q-fig-vs">vs the {sheet.period.days} before</span>
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="q-doing-series">
-            <header className="q-dash-head">
-              <span className="q-dash-title">Twelve months</span>
-              <nav className="q-seg" aria-label="Measure">
-                {sheet.series.lines.map((l) => (
-                  <Link key={l.key} href={withParams(q, { measure: l.key === sheet.series.lines[0].key ? null : l.key })} className={l.key === measure.key ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={l.key === measure.key ? 'page' : undefined}>
-                    {l.label}
-                  </Link>
-                ))}
-              </nav>
-            </header>
-            <Series points={measure.points} labels={sheet.series.months.map(month)} />
-          </div>
-        </section>
 
         {/* ALL BOOKINGS - the day book, for every other question. */}
         <section id="all" aria-label="All bookings" className="q-stack q-stack-sm">

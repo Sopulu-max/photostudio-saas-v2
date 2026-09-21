@@ -161,6 +161,30 @@ const ACTIVITY_PHRASING: Record<string, string> = {
  * than the events table, so the vocabulary lives in one place instead of being
  * re-guessed by whichever surface shows a feed.
  */
+/**
+ * Every event of one kind since a moment - what a period figure is read
+ * from when the fact has no column of its own. A booking has no
+ * "agreed at"; the stage_changed event that moved it does.
+ */
+export async function listEventsSince(entityType: string, action: string, sinceIso: string) {
+  const { orgId } = await getAuthOrgId();
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('id, entity_id, created_at, payload')
+    .eq('organization_id', orgId)
+    .eq('entity_type', entityType)
+    .eq('action', action)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.error('Failed to load events:', error);
+    return [];
+  }
+  return ((data || []) as any[]).map((e) => ({
+    id: e.id as string, entityId: e.entity_id as string, at: e.created_at as string, payload: (e.payload ?? {}) as Record<string, unknown>,
+  }));
+}
+
 /** What happened lately - across the studio, or on one kind of thing (a dashboard's "recently"). */
 export async function listRecentActivity(limit = 8, entityType?: string) {
   const { orgId } = await getAuthOrgId();

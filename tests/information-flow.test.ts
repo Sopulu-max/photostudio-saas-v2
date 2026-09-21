@@ -254,7 +254,7 @@ describe('Information flows from one source to every reading', () => {
     expect(mine.filter((r) => !r.assignee).map((r) => r.name).sort()).toEqual(['Shoot', 'Shoot']);
     const person = sheet.lenses.find((g) => g.key === 'person')!;
     expect(person.items.find((it) => it.label === 'Ebuka Edits')!.count).toBe(3);
-    expect(person.none).toBe('Nobody on it');
+    expect(person.none).toBe('Unassigned');
     const role = sheet.lenses.find((g) => g.key === 'role')!;
     expect(role.items.map((it) => it.label).sort()).toEqual(['Editor', 'Photographer', 'Videographer']);
     // Every row says what it takes on every axis the sheet offers.

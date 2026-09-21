@@ -96,11 +96,11 @@ export async function readTasksSheet(): Promise<TasksSheet> {
 
   const lenses: LensGroup[] = [
     axisOf(rows, 'status', 'Status', [{ key: 'open', label: 'Open' }, { key: 'done', label: 'Done' }]),
-    axisOf(rows, 'person', 'Person', valuesSeen(rows, 'person', (k) => personName.get(k) ?? k), { none: 'Nobody on it', mostFirst: true }),
+    axisOf(rows, 'person', 'Person', valuesSeen(rows, 'person', (k) => personName.get(k) ?? k), { none: 'Unassigned', mostFirst: true }),
     axisOf(rows, 'role', 'Role', valuesSeen(rows, 'role', (k) => roleName.get(k) ?? k), { none: 'No role set', mostFirst: true }),
     axisOf(rows, 'task', 'Task', valuesSeen(rows, 'task', (k) => k), { mostFirst: true }),
     axisOf(rows, 'service', 'Service', valuesSeen(rows, 'service', (k) => k), { none: 'No service' }),
-    axisOf(rows, 'package', 'Package', valuesSeen(rows, 'package', (k) => k), { none: 'Added on the booking' }),
+    axisOf(rows, 'package', 'Package', valuesSeen(rows, 'package', (k) => k), { none: 'Added to the booking' }),
     axisOf(rows, 'stage', 'Stage', [...stages.values()].map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
     axisOf(rows, 'when', 'When', whenItems(cal)),
     // Bookings soonest first, as liveBookings orders them.

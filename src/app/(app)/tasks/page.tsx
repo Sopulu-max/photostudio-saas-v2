@@ -33,7 +33,7 @@ export default async function TasksPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Tasks</h1>
-          <p className="q-page-subtitle">Every task on every live booking: who is on it, and whether it is done.</p>
+          <p className="q-page-subtitle">Every task on every live booking: assignment and completion.</p>
         </div>
       </header>
 

@@ -1659,6 +1659,8 @@ export type BookingListRow = {
   packages: string[];
   lineCount: number;
   hasContract: boolean;
+  /** A contract proposed and not yet agreed: the decision is waiting on the client, not the studio. */
+  proposalOut: boolean;
   /** What still needs the studio: money pending, in the currency it was raised in. */
   owed: { amount: number; currency: string | null } | null;
   /** What the studio understands it to be for - the facet a sheet narrows by. */
@@ -1735,6 +1737,7 @@ export async function listBookings(): Promise<BookingListRow[]> {
       packages: ((b.booking_lines || []) as any[]).map((l) => lineNameOf(l, '')).filter(Boolean),
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
+      proposalOut: ((b.contracts || []) as any[]).some((c) => c.status === 'proposed'),
       owed: pendingTotal > 0 ? { amount: pendingTotal, currency: (pending[0]?.currency as string | undefined) ?? null } : null,
       classification: ((b.booking_dimension_values || []) as any[])
         .filter((r) => r.dimension_value?.dimension)

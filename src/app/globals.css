@@ -2920,11 +2920,17 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 .q-recent-what:hover { color: var(--q-color-accent); }
 .q-recent-at { flex: none; font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }
 
-/* HOW WE ARE DOING: the two figures beside a year of one of them. */
-.q-doing { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; align-items: start; }
-.q-figures-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* THIS PERIOD: the period control in the head, four figures, a year of one of them beneath. */
+.q-doing { display: flex; flex-direction: column; gap: 18px; }
+.q-doing-head { margin-bottom: 0; }
+.q-figures-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 52em) { .q-figures-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .q-doing-series { min-width: 0; }
-@media (max-width: 60em) { .q-doing { grid-template-columns: minmax(0, 1fr); } }
+.q-fig-note { font-size: 0.75rem; color: var(--q-color-ink-400); }
+/* A second heading inside one widget - Today, then Upcoming. */
+.q-dash-head-again { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--q-color-ink-100); }
+.q-next-row-dim { opacity: 0.7; }
+.q-pipe-split { color: var(--q-color-ink-600); }
 .q-dash-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .q-dash-title {
   font-family: var(--q-font-mono);

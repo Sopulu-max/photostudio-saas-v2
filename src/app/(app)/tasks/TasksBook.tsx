@@ -14,8 +14,8 @@ import type { TasksSheet, TaskRow } from '@/modules/production/interface';
  * This file says only what a task row looks like and how rows order.
  *
  * The person is the row's figure - the one scalar a task sheet compares
- * down the column - and "Nobody" takes the warm colour, since that is the
- * thing to see.
+ * down the column - and "Unassigned" takes the warm colour, since that is
+ * the thing to see.
  */
 
 function byBooking(a: TaskRow, b: TaskRow, dir: 1 | -1) {
@@ -49,9 +49,9 @@ export function TasksBook({ sheet }: { sheet: TasksSheet }) {
       t.booking.title,
       when(t.booking.scheduledFor),
       t.fromService,
-      t.role && !t.assignee ? `needs a ${t.role.name}` : null,
+      t.role && !t.assignee ? `${t.role.name} required` : null,
     ],
-    absent: 'On a booking with no date',
+    absent: 'Booking not yet scheduled',
     frame: t.assignee
       ? { url: t.assignee.avatarUrl, initials: initialsFor(t.assignee.name) }
       : { initials: '—' },
@@ -59,7 +59,7 @@ export function TasksBook({ sheet }: { sheet: TasksSheet }) {
       ? { text: 'Done', none: true }
       : t.assignee
         ? { text: t.assignee.name }
-        : { text: 'Nobody', due: true },
+        : { text: 'Unassigned', due: true },
     badge: t.booking.stage
       ? <span className={`q-badge ${stageBadgeClass(t.booking.stage)}`}>{t.booking.stage.name}</span>
       : undefined,
@@ -72,7 +72,7 @@ export function TasksBook({ sheet }: { sheet: TasksSheet }) {
     { key: 'soon', label: 'When', cell: (t) => <span className="q-cell-mono">{when(t.booking.scheduledFor) ?? '—'}</span>, sort: (a, b) => byBooking(a, b, 1) },
     { key: 'service', label: 'Service', cell: (t) => <span className="q-cell-quiet">{t.fromService ?? '—'}</span>, sort: (a, b) => (a.fromService || '￿').localeCompare(b.fromService || '￿') },
     { key: 'role', label: 'Role', cell: (t) => <span className="q-cell-quiet">{t.role?.name ?? '—'}</span>, sort: (a, b) => (a.role?.name || '￿').localeCompare(b.role?.name || '￿') },
-    { key: 'person', label: 'Person', cell: (t) => t.assignee ? t.assignee.name : <span className="q-cell-warm">Nobody</span>, sort: (a, b) => (a.assignee?.name || '￿').localeCompare(b.assignee?.name || '￿') },
+    { key: 'person', label: 'Person', cell: (t) => t.assignee ? t.assignee.name : <span className="q-cell-warm">Unassigned</span>, sort: (a, b) => (a.assignee?.name || '￿').localeCompare(b.assignee?.name || '￿') },
     { key: 'status', label: 'Status', align: 'end', cell: (t) => <span className={t.done ? 'q-badge q-badge-c-green' : 'q-badge q-badge-neutral'}>{t.done ? 'Done' : 'Open'}</span>, sort: (a, b) => Number(a.done) - Number(b.done) },
   ];
 
@@ -86,7 +86,7 @@ export function TasksBook({ sheet }: { sheet: TasksSheet }) {
       searchPlaceholder="Search by task, person, service, package or booking"
       noun="task"
       defaultGroup="person"
-      empty="No tasks yet — live bookings whose packages define steps will appear here."
+      empty="No tasks. Live bookings whose packages define steps will appear here."
       render={(t) => <SheetRow item={item(t)} />}
     />
   );
