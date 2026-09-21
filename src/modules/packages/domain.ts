@@ -2011,7 +2011,18 @@ export async function getPackageVariablesPublic(orgId: string, packageId: string
       max: v.max_value ?? null,
       position: 1000 + (v.position ?? 0),
       fixed: decidedAnywhere.get(v.id) === 'studio',
-      asked: decidedAnywhere.get(v.id) === 'client',
+      /*
+       * ASKED UNLESS THE STUDIO FIXED IT. A service's variable is a question
+       * only once somebody said so (see above), or a new variable would land
+       * on every live form the moment it was declared. A CLASSIFICATION's
+       * variable is the opposite case: declaring the date on Occasion IS the
+       * decision to ask it wherever Occasion applies - that is why it lives
+       * on the dimension and not on a service. Requiring a second "client"
+       * decision per package meant a family that left it to its members
+       * asked the date on the members that happened to answer and not on
+       * the ones that stayed silent: the same occasion, no date.
+       */
+      asked: decidedAnywhere.get(v.id) !== 'studio',
     });
   }
 
