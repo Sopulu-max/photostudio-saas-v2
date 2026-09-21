@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { readBookingsDashboard, PERIODS, type Period, type Figure } from '@/modules/bookings/interface';
 import { stageBadgeClass, stageColor } from '@/components/stageBadge';
 import { Series, Sparkline } from '@/components/Charts';
 import { initialsFor } from '@/components/Sheet';
+import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +24,11 @@ export const dynamic = 'force-dynamic';
  *   How are we doing?    - two figures over the period against the period
  *                          before, and twelve months of one of them.
  *
- * The day book - every booking, narrowed, grouped, read - is its own page
- * (/bookings/all), which every door here opens on exactly its question.
- * Everything arrives decided (readBookingsDashboard); the page draws. The
- * period and the measure are links that keep the rest of the query.
+ * Then ALL BOOKINGS - the day book: every booking, narrowed, grouped and
+ * read - on the same page, which every door above opens on exactly its
+ * question. Everything arrives decided (readBookingsDashboard); the page
+ * draws. The period and the measure are links that keep the rest of the
+ * query.
  */
 
 type Query = Record<string, string | string[] | undefined>;
@@ -38,8 +41,8 @@ function withParams(q: Query, patch: Record<string, string | null>, hash = '') {
   return `/bookings${s ? `?${s}` : ''}${hash}`;
 }
 
-/** The day book, opened on one question: only that question's selects, nothing else carried over. */
-const into = (narrow: Record<string, string>) => `/bookings/all?${new URLSearchParams(narrow)}`;
+/** The day book below, opened on one question: only that question's selects, nothing else carried over. */
+const into = (narrow: Record<string, string>) => `/bookings?${new URLSearchParams(narrow)}#all`;
 
 const ago = (iso: string, now: number) => {
   const m = Math.round((now - new Date(iso).getTime()) / 60_000);
@@ -95,7 +98,6 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               </Link>
             ))}
           </nav>
-          <Link href="/bookings/all" className="q-btn q-btn-secondary">All bookings</Link>
           <Link href="/bookings/settings" className="q-btn q-btn-secondary">Stages</Link>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
@@ -264,6 +266,14 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             </header>
             <Series points={measure.points} labels={sheet.series.months.map(month)} />
           </div>
+        </section>
+
+        {/* ALL BOOKINGS - the day book, for every other question. */}
+        <section id="all" aria-label="All bookings" className="q-stack q-stack-sm">
+          <h2 className="q-section-title">All bookings</h2>
+          <Suspense fallback={null}>
+            <BookingsDayBook sheet={sheet} />
+          </Suspense>
         </section>
       </div>
     </div>
