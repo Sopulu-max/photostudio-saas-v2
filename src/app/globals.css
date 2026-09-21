@@ -4007,7 +4007,7 @@ body::before {
  * of four controls came out as four stacked fields that read as a form asking
  * to be filled in rather than a bar offering to narrow.
  */
-.q-toolbar > .q-select { flex: 0 1 auto; width: auto; min-inline-size: 8.5rem; }
+.q-toolbar > .q-select { flex: 0 1 auto; width: auto; min-inline-size: 8.5rem; max-inline-size: 18rem; text-overflow: ellipsis; }
 .q-toolbar > .q-input  { flex: 1 1 12rem; width: auto; min-inline-size: 0; }
 
 /*

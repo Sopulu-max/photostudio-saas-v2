@@ -35,14 +35,17 @@ export {
   removeBookingTask,
 } from './domain';
 
-// Where the work is: the local reading of one booking, the global sheet of all.
-export { getBookingWork, listWorkSheet } from './work';
+// Where the work is: the local reading of one booking.
+export { getBookingWork } from './work';
+// Every task on every live booking, with the axes it can be pulled out by.
+export { readTasksSheet } from './sheet';
+export type { TasksSheet, TaskRow } from './sheet';
 // A task is addressed by what it is about, since its row may not exist yet.
 export type { TaskRef, ResolvedBookingTask } from './resolve';
 // The resolved work of many bookings at once, for a sheet that reads them all
 // (plain: takes the organization as a parameter, not a server action).
 export { resolveBookingTasks } from './resolve';
 // The same reading by person: their live jobs and steps, and everyone's load.
-export { getEmployeeWork, listWorkLoad, listWorkByPerson } from './people';
-export type { PersonWork, PersonJob, PersonLoad, WorkByPerson, PersonSheetRow, OpenStep } from './people';
-export type { BookingWork, LineWork, ServiceWork, WorkSheetRow } from './work';
+export { getEmployeeWork, listWorkLoad } from './people';
+export type { PersonWork, PersonJob, PersonLoad } from './people';
+export type { BookingWork, LineWork, ServiceWork } from './work';

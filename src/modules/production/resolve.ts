@@ -255,7 +255,7 @@ export type LiveBooking = {
   title: string;
   clientName: string | null;
   scheduledFor: string | null;
-  stage: { name: string; kind: string; color: string | null } | null;
+  stage: { id: string; name: string; kind: string; color: string | null } | null;
 };
 
 /**
@@ -267,7 +267,7 @@ export type LiveBooking = {
 export async function liveBookings(orgId: string): Promise<LiveBooking[]> {
   const { data } = await supabaseAdmin
     .from('bookings')
-    .select('id, title, scheduled_for, stage:booking_stages(name, kind, color), contact:contacts(display_name)')
+    .select('id, title, scheduled_for, stage:booking_stages(id, name, kind, color), contact:contacts(display_name)')
     .eq('organization_id', orgId)
     .order('scheduled_for', { ascending: true, nullsFirst: false });
   return ((data || []) as any[])
@@ -277,6 +277,6 @@ export async function liveBookings(orgId: string): Promise<LiveBooking[]> {
       title: b.title as string,
       clientName: (b.contact?.display_name ?? null) as string | null,
       scheduledFor: (b.scheduled_for ?? null) as string | null,
-      stage: b.stage ? { name: b.stage.name, kind: b.stage.kind, color: b.stage.color ?? null } : null,
+      stage: b.stage ? { id: b.stage.id, name: b.stage.name, kind: b.stage.kind, color: b.stage.color ?? null } : null,
     }));
 }

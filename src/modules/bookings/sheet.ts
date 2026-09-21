@@ -1,6 +1,8 @@
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { studioTimezone } from '@/kernel/studioHours';
+import { calendarIn, dayIn, bandOf, whenItems, type Band } from '@/kernel/bands';
+import { axisOf, valuesSeen, type LensGroup, type Takes } from '@/kernel/lenses';
 import { listBookings, listStages, type BookingListRow } from './domain';
 
 /**
@@ -22,7 +24,8 @@ import { listBookings, listStages, type BookingListRow } from './domain';
  * (Production's), so the two cannot disagree.
  */
 
-export type SheetBand = 'today' | 'tomorrow' | 'week' | 'later' | 'undated' | 'earlier' | 'closed';
+/** The kernel's bands, plus closed: completed or cancelled, carrying nothing to do. */
+export type SheetBand = Band | 'closed';
 
 export type SheetBooking = BookingListRow & {
   band: SheetBand;
@@ -36,41 +39,11 @@ export type SheetBooking = BookingListRow & {
   needs: { id: string; name: string }[];
   /** What the money says: owed (something pending), not yet invoiced, or nothing to say. */
   money: 'owed' | 'uninvoiced' | null;
-  /** The values this row takes on each axis - axis key to item keys (see LensGroup). */
-  takes: Record<string, string[]>;
+  /** The values this row takes on each axis - axis key to item keys (kernel/lenses). */
+  takes: Takes;
 };
 
-/**
- * AN AXIS IS A QUESTION THE SHEET CAN BE BROKEN DOWN BY - narrowed with a
- * select, grouped under headings, read as a distribution. Its items are the
- * values the rows take on it, in the order the axis is read. The axes are
- * read off the data, never a list named in code: the studio's stages, the
- * bands present, each role a step needs, money, and every classification
- * dimension the studio defined (Occasion, Context, ...). A studio that adds
- * a stage, a role or a dimension sees a new value or a new axis; a value
- * nobody takes is not there.
- *
- * Each row says which values it takes on each axis (SheetBooking.takes),
- * so whoever draws the sheet narrows, groups and counts without knowing
- * what an axis is. `none` is what to call the rows that take nothing on
- * the axis (absent when every row takes something). An item may carry a
- * `look` (a stage's chosen colour), a `note` (a band's dates) and `now`
- * (the band that is today).
- */
-export type LensGroup = {
-  key: string;
-  label: string;
-  none?: string;
-  items: {
-    key: string;
-    label: string;
-    count: number;
-    due?: boolean;
-    look?: { kind: string | null; color: string | null };
-    note?: string | null;
-    now?: boolean;
-  }[];
-};
+export type { LensGroup };
 
 export type BookingsSheet = {
   bands: { key: SheetBand; label: string; note: string | null; rows: SheetBooking[] }[];
@@ -80,34 +53,14 @@ export type BookingsSheet = {
   today: string;
 };
 
-const BAND_LABEL: Record<SheetBand, string> = {
-  today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later',
-  undated: 'No date yet', earlier: 'Earlier, still open', closed: 'Closed',
-};
 const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated', 'earlier', 'closed'];
-
-/** A calendar day, yyyy-mm-dd, as the studio's clock reads the instant. */
-function dayIn(iso: string, timezone: string): string {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
-function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 export async function readBookingsSheet(): Promise<BookingsSheet> {
   const { orgId } = await getAuthOrgId();
   const [rows, stages, currency, timezone] = await Promise.all([listBookings(), listStages(), getStudioCurrency(), studioTimezone(orgId)]);
 
-  const today = dayIn(new Date().toISOString(), timezone);
-  const tomorrow = addDays(today, 1);
-  // The week runs to Sunday, as a working week is spoken of.
-  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday
-  const weekEnd = addDays(today, weekday === 0 ? 0 : 7 - weekday);
+  const cal = calendarIn(timezone);
+  const { today } = cal;
 
   const { resolveBookingTasks } = await import('@/modules/production/interface');
   const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
@@ -124,13 +77,7 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
   const sheetRows: SheetBooking[] = rows.map((r) => {
     const closed = Boolean(r.stage && (r.stage.kind === 'completed' || r.stage.kind === 'cancelled'));
     const day = r.scheduledFor ? dayIn(r.scheduledFor, timezone) : null;
-    const band: SheetBand = closed ? 'closed'
-      : !day ? 'undated'
-      : day < today ? 'earlier'
-      : day === today ? 'today'
-      : day === tomorrow ? 'tomorrow'
-      : day <= weekEnd ? 'week'
-      : 'later';
+    const band: SheetBand = closed ? 'closed' : bandOf(day, cal);
 
     const tasks = tasksByBooking.get(r.id) || [];
     let work: SheetBooking['work'] = null;
@@ -160,7 +107,7 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     const billing = billingOf.get(r.id) ?? 'none';
     const money: SheetBooking['money'] = r.owed ? 'owed' : (!closed && billing === 'none' && r.lineCount > 0) ? 'uninvoiced' : null;
     const needs = [...needsById.values()];
-    const takes: Record<string, string[]> = {
+    const takes: Takes = {
       stage: r.stage ? [r.stage.id] : [],
       when: [band],
       needs: closed ? [] : needs.map((n) => n.id),
@@ -170,41 +117,7 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     return { ...r, band, day, work, billing, needs, money, takes };
   });
 
-  // Within a band, soonest first; undated and closed by when they were made, newest first.
-  const byDate = (a: SheetBooking, b: SheetBooking) =>
-    a.scheduledFor && b.scheduledFor ? a.scheduledFor.localeCompare(b.scheduledFor) : b.createdAt.localeCompare(a.createdAt);
-  const bands = BAND_ORDER
-    .map((key) => ({
-      key,
-      label: BAND_LABEL[key],
-      note: key === 'today' ? new Date(`${today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
-        : key === 'week' ? `to ${new Date(`${weekEnd}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })}`
-        : null,
-      rows: sheetRows.filter((r) => r.band === key).sort(byDate),
-    }))
-    .filter((b) => b.rows.length > 0);
-
   // ---- The axes: for each, the values present, with counts, in the order the axis is read.
-  const counts = new Map<string, Map<string, number>>();
-  for (const r of sheetRows) for (const [axis, keys] of Object.entries(r.takes)) {
-    const m = counts.get(axis) ?? new Map<string, number>();
-    for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
-    counts.set(axis, m);
-  }
-  type Item = Omit<LensGroup['items'][number], 'count'>;
-  const axis = (key: string, label: string, order: Item[], opts: { none?: string; mostFirst?: boolean } = {}): LensGroup => {
-    const m = counts.get(key) ?? new Map<string, number>();
-    const items = order.filter((o) => m.has(o.key)).map((o) => ({ ...o, count: m.get(o.key)! }));
-    const taken = [...m.values()].reduce((a, b) => a + b, 0);
-    return {
-      key, label,
-      items: opts.mostFirst ? items.sort((a, b) => b.count - a.count) : items,
-      // Only worth a name when some row takes nothing on this axis.
-      none: opts.none && sheetRows.some((r) => (r.takes[key] ?? []).length === 0) ? opts.none : undefined,
-    };
-  };
-  const dateOf = (day: string, style: Intl.DateTimeFormatOptions) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { ...style, timeZone: 'UTC' });
-
   const roleName = new Map(sheetRows.flatMap((r) => r.needs.map((n) => [n.id, n.name] as const)));
   const owedBy = new Map<string, number>();
   for (const r of sheetRows) if (r.owed) { const c = r.owed.currency ?? currency; owedBy.set(c, (owedBy.get(c) ?? 0) + r.owed.amount); }
@@ -215,26 +128,38 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     dimensions.set(c.dimensionId, d);
   }
 
+  const whenOrder = [
+    ...whenItems(cal).map((it) => (it.key === 'earlier' ? { ...it, label: 'Earlier, still open' } : it)),
+    { key: 'closed', label: 'Closed' },
+  ];
   const lenses: LensGroup[] = [
-    axis('when', 'When', BAND_ORDER.map((b) => ({
-      key: b, label: BAND_LABEL[b], now: b === 'today',
-      note: b === 'today' ? dateOf(today, { weekday: 'long', day: 'numeric', month: 'long' })
-        : b === 'week' ? `to ${dateOf(weekEnd, { weekday: 'long', day: 'numeric', month: 'short' })}`
-        : null,
-    }))),
+    axisOf(sheetRows, 'when', 'When', whenOrder),
     // The studio's own stages, in the order it arranged them, each in its chosen colour.
-    axis('stage', 'Stage', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
+    axisOf(sheetRows, 'stage', 'Stage', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
       .map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
     // Each role with a step nobody is on, most needed first.
-    axis('needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Nobody needed', mostFirst: true }),
-    axis('money', 'Money', [
+    axisOf(sheetRows, 'needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Nobody needed', mostFirst: true }),
+    axisOf(sheetRows, 'money', 'Money', [
       ...[...owedBy.entries()].map(([c, amount]) => ({ key: `owed:${c}`, label: `Owed ${new Intl.NumberFormat('en', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(amount)}`, due: true })),
       { key: 'uninvoiced', label: 'Not invoiced yet' },
     ], { none: 'Nothing owed or pending' }),
     // Every dimension the studio classifies bookings by, its values by name.
     ...[...dimensions.entries()].map(([id, d]) =>
-      axis(`dim:${id}`, d.name, [...d.values.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, label]) => ({ key: k, label })), { none: `No ${d.name.toLowerCase()}` })),
+      axisOf(sheetRows, `dim:${id}`, d.name, valuesSeen(sheetRows, `dim:${id}`, (k) => d.values.get(k) ?? k), { none: `No ${d.name.toLowerCase()}` })),
   ].filter((g) => g.items.length > 0);
+
+  // Within a band, soonest first; undated and closed by when they were made, newest first.
+  const byDate = (a: SheetBooking, b: SheetBooking) =>
+    a.scheduledFor && b.scheduledFor ? a.scheduledFor.localeCompare(b.scheduledFor) : b.createdAt.localeCompare(a.createdAt);
+  const whenLabel = new Map(whenOrder.map((w) => [w.key, w]));
+  const bands = BAND_ORDER
+    .map((key) => ({
+      key,
+      label: whenLabel.get(key)!.label,
+      note: (whenLabel.get(key) as { note?: string | null }).note ?? null,
+      rows: sheetRows.filter((r) => r.band === key).sort(byDate),
+    }))
+    .filter((b) => b.rows.length > 0);
 
   return { bands, lenses, currency, today };
 }

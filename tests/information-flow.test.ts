@@ -52,8 +52,8 @@ import {
 } from '@/modules/bookings/domain';
 import { lineNameOf } from '@/modules/bookings/lineName';
 import { getBookingTasks, getBookingTeam, addToBookingTeam } from '@/modules/production/domain';
-import { getBookingWork, listWorkSheet } from '@/modules/production/work';
-import { listWorkByPerson } from '@/modules/production/people';
+import { getBookingWork } from '@/modules/production/work';
+import { readTasksSheet } from '@/modules/production/sheet';
 import { createInvoiceForBooking, getInvoice, getBookingBilling } from '@/modules/finances/invoices';
 import { createTransaction, settleTransaction } from '@/modules/finances/domain';
 import { PURGE_ORDER } from './purge';
@@ -245,12 +245,20 @@ describe('Information flows from one source to every reading', () => {
     expect(added.tasksFilled).toBe(3);
     const after = await getBookingTasks(bookingId);
     expect(after.filter((t) => t.assignee?.name === 'Ebuka Edits').map((t) => t.name)).toEqual(['Edit', 'Deliver the album', 'Edit']);
-    // The same fact by person, on the sheet, from the same rows.
-    const byPerson = await listWorkByPerson();
-    const ebuka = byPerson.people.find((p) => p.employeeId === editorEmployeeId)!;
-    expect(ebuka.open.length).toBe(3);
-    expect(byPerson.unstaffed.map((s) => s.name).sort()).toEqual(['Shoot', 'Shoot']);
-    expect((await listWorkSheet()).find((r) => r.bookingId === bookingId)!.work.total).toBe(5);
+    // The same facts on the tasks sheet, from the same rows: the booking's five
+    // tasks, three on Ebuka, two on nobody - and the axes say so too.
+    const sheet = await readTasksSheet();
+    const mine = sheet.rows.filter((r) => r.booking.id === bookingId);
+    expect(mine.length).toBe(5);
+    expect(mine.filter((r) => r.assignee?.name === 'Ebuka Edits').length).toBe(3);
+    expect(mine.filter((r) => !r.assignee).map((r) => r.name).sort()).toEqual(['Shoot', 'Shoot']);
+    const person = sheet.lenses.find((g) => g.key === 'person')!;
+    expect(person.items.find((it) => it.label === 'Ebuka Edits')!.count).toBe(3);
+    expect(person.none).toBe('Nobody on it');
+    const role = sheet.lenses.find((g) => g.key === 'role')!;
+    expect(role.items.map((it) => it.label).sort()).toEqual(['Editor', 'Photographer', 'Videographer']);
+    // Every row says what it takes on every axis the sheet offers.
+    for (const r of mine) for (const g of sheet.lenses) expect(Array.isArray(r.takes[g.key]), `${g.key} missing on a row`).toBe(true);
   }, 120000);
 
   it('follows a workflow change on the booking, and keeps what happened', async () => {

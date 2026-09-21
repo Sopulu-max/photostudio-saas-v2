@@ -78,33 +78,3 @@ export async function getBookingWork(bookingId: string): Promise<BookingWork> {
   const resolved = await resolveBookingTasks(orgId, [bookingId]);
   return readWork(resolved.get(bookingId) || []);
 }
-
-export type WorkSheetRow = {
-  bookingId: string;
-  title: string;
-  clientName: string | null;
-  scheduledFor: string | null;
-  stage: { name: string; kind: string; color: string | null } | null;
-  work: BookingWork;
-};
-
-/**
- * The global reading: every live booking with its stage and its local
- * positions. Cancelled and completed bookings carry no work to do, so they are
- * left out; an enquiry with no tasks yet is shown as such rather than hidden,
- * since it is still a job the studio holds.
- */
-export async function listWorkSheet(): Promise<WorkSheetRow[]> {
-  const { orgId } = await getAuthOrgId();
-  const live = await liveBookings(orgId);
-  if (live.length === 0) return [];
-  const byBooking = await resolveBookingTasks(orgId, live.map((b) => b.id));
-  return live.map((b) => ({
-    bookingId: b.id,
-    title: b.title,
-    clientName: b.clientName,
-    scheduledFor: b.scheduledFor,
-    stage: b.stage,
-    work: readWork(byBooking.get(b.id) || []),
-  }));
-}
