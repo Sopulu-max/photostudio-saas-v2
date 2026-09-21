@@ -127,3 +127,35 @@ export async function dropExtraFromDrafts(orgId: string, extraId: string) {
   }
   for (const invoiceId of touched) await refreshDraftFigures(orgId, invoiceId);
 }
+
+/** The extra changed - its row on every draft says what it now is. */
+export async function reviseExtraOnDrafts(orgId: string, extra: ExtraTaken, packageUnitAmount: number) {
+  const { data } = await supabaseAdmin
+    .from('invoice_lines')
+    .select('id, invoice_id, description, invoice:invoices!inner(status, voided_at)')
+    .eq('organization_id', orgId)
+    .eq('booking_line_extra_id', extra.id)
+    .eq('invoice.status', 'draft')
+    .is('invoice.voided_at', null);
+  const touched = new Set<string>();
+  for (const row of (data || []) as any[]) {
+    // The share this draft bills, read off the package's own row on it.
+    const { data: pkgRow } = await supabaseAdmin
+      .from('invoice_lines').select('unit_price')
+      .eq('invoice_id', row.invoice_id).eq('booking_line_id', extra.bookingLineId).is('booking_line_extra_id', null)
+      .limit(1).maybeSingle();
+    const share = pkgRow && packageUnitAmount > 0 ? Math.min(1, Number(pkgRow.unit_price) / packageUnitAmount) : 1;
+    const title = String(row.description || '').split(' — ')[0].split(' · ')[0] || 'Booking line';
+    const { amount, unitPrice } = invoiceLineAmount({ unitAmount: amountOf(extra.unitRate), quantity: extra.units, share });
+    await supabaseAdmin.from('invoice_lines').update({
+      description: describeInvoiceLine({ title: `${title} · ${extra.label}`, details: [] }),
+      quantity: extra.units, unit_price: unitPrice, amount,
+    }).eq('id', row.id).eq('organization_id', orgId);
+    touched.add(row.invoice_id);
+  }
+  for (const invoiceId of touched) await refreshDraftFigures(orgId, invoiceId);
+  // A draft that carries the line but not yet the extra (raised while the
+  // extra was absent, or the extra was edited before anything was raised)
+  // takes it now, as an add would.
+  await reflectExtraOnDrafts(orgId, extra, packageUnitAmount);
+}

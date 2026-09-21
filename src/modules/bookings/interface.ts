@@ -87,7 +87,8 @@ export {
   setBookingIntakeAnswers,
   setBookingClient,
   addBookingLine,
-  addBookingExtra, removeBookingExtra,
+  addBookingExtra,
+  updateBookingExtra, removeBookingExtra,
   updateBookingLine,
   removeBookingLine,
   // Composition — create other modules' objects against a booking

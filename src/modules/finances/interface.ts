@@ -37,6 +37,6 @@ export { describeInvoiceLine, invoiceLineAmount, billingShare, taxOn } from './m
 export { discountOn, invoiceTotals } from './money';
 // A draft invoice follows the line it carries; an issued one is frozen.
 // Bookings tells Finances when an extra is taken or removed on a line.
-export { reflectExtraOnDrafts, dropExtraFromDrafts } from './drafts';
+export { reflectExtraOnDrafts, dropExtraFromDrafts, reviseExtraOnDrafts } from './drafts';
 export type { DiscountKind } from './money';
 export type { TransactionKind, KindSpec, MoneyTotals } from './money';

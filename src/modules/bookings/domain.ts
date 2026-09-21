@@ -1042,6 +1042,54 @@ export async function addBookingExtra(input: {
   return { id: made.id as string, label };
 }
 
+/**
+ * The extra, changed: how many more, or the figure agreed for each. Three
+ * at 5,000 that should have been four is a change, not a removal and a
+ * second add - the promise moves by the difference, the ledger row says
+ * what it now is, and the draft invoice and proposed contract follow.
+ */
+export async function updateBookingExtra(input: { id: string; units: number; unitAmount: number }) {
+  const { orgId, personId: actorId } = await getAuthOrgId();
+  const units = Number(input.units);
+  if (!Number.isFinite(units) || units <= 0) throw new Error('How many more?');
+  const unitAmount = Number(input.unitAmount);
+  if (!Number.isFinite(unitAmount) || unitAmount < 0) throw new Error('A figure is needed for each.');
+
+  const { data: x } = await supabaseAdmin
+    .from('booking_line_extras')
+    .select('id, units, unit_rate, label, package_service_id, ref_id, booking_line_id, line:booking_lines(booking_id, price, package:packages(price))')
+    .eq('id', input.id).eq('organization_id', orgId).maybeSingle();
+  if (!x) throw new Error('Extra not found');
+  const before = Number(x.units);
+  const currency = ((x.unit_rate as any)?.currency as string) || await getStudioCurrency();
+  const name = String(x.label || '').replace(/^\+\d+\s*/, '') || 'Deliverable';
+  const label = `+${units} ${name}`;
+
+  if (units !== before) {
+    const { raisePackagePromise } = await import('@/modules/deliverables/interface');
+    await raisePackagePromise({ packageServiceId: x.package_service_id, deliverableId: x.ref_id, by: units - before });
+  }
+  const { error } = await supabaseAdmin
+    .from('booking_line_extras')
+    .update({ units, unit_rate: { base_price: unitAmount, currency }, label })
+    .eq('id', x.id).eq('organization_id', orgId);
+  if (error) throw dbError('Could not change the extra', error);
+
+  const { reviseExtraOnDrafts } = await import('@/modules/finances/interface');
+  const line: any = (x as any).line;
+  await reviseExtraOnDrafts(orgId,
+    { id: x.id, bookingLineId: x.booking_line_id, label, units, unitRate: { base_price: unitAmount, currency } },
+    amountOf(firstPriced(line?.package?.price, line?.price)));
+  const bookingId = line?.booking_id as string | undefined;
+  if (bookingId) {
+    await refreshProposedContracts(orgId, bookingId);
+    await logEvent({ organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'extra_changed', actorId: actorId ?? undefined, payload: { label, units, unitAmount, currency } });
+    revalidatePath(`/bookings/${bookingId}`);
+  }
+  revalidatePath('/bookings');
+  return { ok: true, label };
+}
+
 export async function removeBookingExtra(input: { id: string }) {
   const { orgId, personId: actorId } = await getAuthOrgId();
   const { data: x } = await supabaseAdmin
@@ -1483,7 +1531,8 @@ export async function getBooking(bookingId: string) {
       contact:contacts(id, display_name, email),
       booking_lines(
         id, title, price, quantity, package_id, created_at,
-        extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id),
+        extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id,
+          billed:invoice_lines(invoice:invoices(id, number, status, voided_at))),
         package:packages(
           id, name, price,
           package_images(url, position, sort),

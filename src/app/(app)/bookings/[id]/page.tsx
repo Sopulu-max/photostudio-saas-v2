@@ -555,7 +555,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                             serviceName: s.name as string,
                             rate: amountOf(((s.offers || []) as any[]).find((o: any) => o.id === d.id)?.rate) || null,
                           })))}
-                        taken={((l.extras || []) as any[]).map((x: any) => ({ id: x.id, label: x.label, units: Number(x.units), unit_rate: x.unit_rate }))}
+                        taken={((l.extras || []) as any[]).map((x: any) => ({
+                          id: x.id, label: x.label, units: Number(x.units), unit_rate: x.unit_rate,
+                          /* Where it went: the live invoices carrying it, by number or as a draft. */
+                          billedOn: ((x.billed || []) as any[])
+                            .map((b: any) => b.invoice).filter((i: any) => i && !i.voided_at)
+                            .map((i: any) => ({ id: i.id as string, number: (i.number ?? null) as string | null, status: i.status as string })),
+                        }))}
                       />
                     )}
 

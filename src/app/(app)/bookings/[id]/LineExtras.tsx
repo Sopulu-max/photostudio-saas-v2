@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { addBookingExtra, removeBookingExtra } from '@/modules/bookings/interface';
+import { addBookingExtra, updateBookingExtra, removeBookingExtra } from '@/modules/bookings/interface';
 import { formatMoney } from '@/kernel/currency';
 import { amountOf } from '@/kernel/money';
 import { toast, readableError } from '@/components/Toast';
@@ -16,6 +16,12 @@ import { toast, readableError } from '@/components/Toast';
  * the studio set one, and is the operator's either way. Taking one raises the
  * promise on the booking's instance and writes the ledger; the package stays
  * what it was sold as, and the extras read beside it.
+ *
+ * READ AS PARTS, AND SAID WHERE IT WENT. An extra showed as a label and a
+ * total with an x - no way to tell whether it had reached the invoice, and
+ * no way to change three at 5,000 into four short of removing it and adding
+ * it again. Each now reads as units x figure = total, says which invoice
+ * carries it (or that none does yet), and can be changed in place.
  */
 export function LineExtras({
   lineId,
@@ -25,7 +31,11 @@ export function LineExtras({
 }: {
   lineId: string;
   promises: { packageServiceId: string; deliverableId: string; name: string; quantity: number | null; serviceName: string; rate: number | null }[];
-  taken: { id: string; label: string; units: number; unit_rate: unknown }[];
+  taken: {
+    id: string; label: string; units: number; unit_rate: unknown;
+    /** The live invoices carrying it - a draft, or a numbered document. */
+    billedOn?: { id: string; number: string | null; status: string }[];
+  }[];
   currencyCode: string;
 }) {
   const router = useRouter();
@@ -34,6 +44,10 @@ export function LineExtras({
   const [which, setWhich] = useState(0);
   const [units, setUnits] = useState('1');
   const [each, setEach] = useState('');
+  // The one being changed, and what it is being changed to.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [eUnits, setEUnits] = useState('');
+  const [eEach, setEEach] = useState('');
 
   const chosen = promises[which];
   const suggested = chosen?.rate ?? null;
@@ -57,6 +71,16 @@ export function LineExtras({
     }
   });
 
+  const change = (id: string) => startTransition(async () => {
+    try {
+      await updateBookingExtra({ id, units: Number(eUnits), unitAmount: Number(eEach) });
+      setEditing(null);
+      router.refresh();
+    } catch (e: any) {
+      toast.bad(readableError(e, 'Could not change the extra.'));
+    }
+  });
+
   const remove = (id: string) => startTransition(async () => {
     try {
       await removeBookingExtra({ id });
@@ -69,16 +93,50 @@ export function LineExtras({
   return (
     <div className="q-stack q-stack-sm" style={{ marginTop: '10px' }}>
       {taken.length > 0 && (
-        <div className="q-meta">
-          <strong className="q-strong" style={{ marginRight: '4px' }}>Extras:</strong>
-          {taken.map((x, i) => (
-            <span key={x.id}>
-              {i > 0 && ', '}
-              {x.label} · {formatMoney(amountOf(x.unit_rate) * x.units, currencyCode)}
-              <button type="button" className="q-btn-ghost q-btn-xs" title={`Remove ${x.label}`} disabled={isPending}
-                onClick={() => remove(x.id)} style={{ marginLeft: '2px' }}>×</button>
-            </span>
-          ))}
+        <div className="q-stack q-stack-xs">
+          <span className="q-meta"><strong className="q-strong">Extras</strong></span>
+          {taken.map((x) => {
+            const rate = amountOf(x.unit_rate);
+            const where = (x.billedOn || []);
+            const said = where.length === 0
+              ? 'not invoiced yet'
+              : where.map((i) => i.status === 'draft' ? 'on the draft invoice' : `on ${i.number ?? 'an invoice'}`).join(', ');
+            return editing === x.id ? (
+              <div key={x.id} className="q-tile q-row" style={{ gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span className="q-meta-sm">{x.label.replace(/^\+\d+\s*/, '')}</span>
+                <input className="q-input q-input-sm" type="number" min={1} step="1" value={eUnits} disabled={isPending}
+                  onChange={(e) => setEUnits(e.target.value)} style={{ width: '5rem' }} aria-label="How many more" />
+                <span className="q-meta-sm">at</span>
+                <span className="q-meta-sm q-strong">{currencyCode}</span>
+                <input className="q-input q-input-sm" type="number" min={0} step="0.01" value={eEach} disabled={isPending}
+                  onChange={(e) => setEEach(e.target.value)} style={{ width: '8rem' }} aria-label="Agreed figure each" />
+                <span className="q-meta-sm">each</span>
+                <button type="button" className="q-btn q-btn-primary q-btn-xs" aria-busy={isPending}
+                  disabled={isPending || !(Number(eUnits) > 0) || !Number.isFinite(Number(eEach)) || eEach.trim() === ''}
+                  onClick={() => change(x.id)}>
+                  {isPending ? 'Saving…' : `Save · ${formatMoney(Number(eUnits || 0) * Number(eEach || 0), currencyCode)}`}
+                </button>
+                <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={isPending} onClick={() => setEditing(null)}>Cancel</button>
+              </div>
+            ) : (
+              <div key={x.id} className="q-row q-row-between" style={{ gap: '8px', flexWrap: 'wrap', alignItems: 'baseline' }}>
+                <span className="q-meta">
+                  <span className="q-strong">{x.label}</span>
+                  <span className="q-meta-sm"> · {x.units} × {formatMoney(rate, currencyCode)} · </span>
+                  <span className="q-strong">{formatMoney(rate * x.units, currencyCode)}</span>
+                  <span className="q-meta-sm"> · {said}</span>
+                </span>
+                <span className="q-row q-row-sm">
+                  <button type="button" className="q-btn-ghost q-btn-xs" disabled={isPending}
+                    onClick={() => { setEditing(x.id); setEUnits(String(x.units)); setEEach(String(rate)); }}>
+                    Change
+                  </button>
+                  <button type="button" className="q-btn-ghost q-btn-xs" title={`Remove ${x.label}`} disabled={isPending}
+                    onClick={() => remove(x.id)}>×</button>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
