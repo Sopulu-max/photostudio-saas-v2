@@ -792,6 +792,17 @@ export async function getLineConfigurationForm(lineId: string) {
   const held = await getLineConfiguration(lineId);
   const byId = new Map(held.map((h) => [h.serviceVariableId, h]));
 
+  /*
+   * NAMED BY THE BOOKING'S ANSWER. A package that leaves the occasion open
+   * declares "Occasion Date"; once this booking says Anniversary it is the
+   * anniversary's date, and the field is called that everywhere the booking
+   * is read - the same kernel rule the forms apply as the answer is typed.
+   */
+  const { data: lineRow } = await supabaseAdmin
+    .from('booking_lines').select('booking_id').eq('id', lineId).eq('organization_id', orgId).maybeSingle();
+  const said = new Map((await getBookingClassification((lineRow as any)?.booking_id ?? '')).map((c) => [c.dimensionId, c.valueName]));
+  const { labelledByAnswer } = await import('@/kernel/classification');
+
   // A line without a package can still hold values (the package was removed
   // after the fact), so what's held is the floor, not the package's list.
   const declared = line.package_id ? await getPackageVariables(line.package_id) : [];
@@ -803,7 +814,9 @@ export async function getLineConfigurationForm(lineId: string) {
       serviceVariableId: v.id,
       serviceId: v.serviceId as string,
       key: v.key,
-      label: v.label,
+      label: v.dimensionId && said.get(v.dimensionId)
+        ? labelledByAnswer(v.label, v.dimensionName, said.get(v.dimensionId))
+        : v.label,
       kind: v.kind as string,
       unit: v.unit as string | null,
       options: v.options as string[],

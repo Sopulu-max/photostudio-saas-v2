@@ -15,7 +15,7 @@ import { WorkPositions } from '@/components/WorkPositions';
 import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
-import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking, lineNameOf } from '@/modules/bookings/interface';
+import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking, lineNameOf, readRequestCoverage } from '@/modules/bookings/interface';
 import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
 import { listDeliverables } from '@/modules/deliverables/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -126,11 +126,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
   const configByLine: Record<string, any[]> = {};
   for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [deliveries, stages, intake, enquiry, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles, work] = await Promise.all([
+  const [deliveries, stages, intake, enquiry, coverage, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles, work] = await Promise.all([
     listDeliveriesForBooking(booking.id),
     listStages(),
     getIntakeAnswersForBooking(booking.id),
     getEnquiryForBooking(booking.id),
+    readRequestCoverage(booking.id),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
     getFulfilmentForBooking(booking.id),
@@ -467,6 +468,14 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 // What is answered, and what the package asks that nobody has
                 // answered yet - shown as unanswered, not left out.
                 const heldVars = (configByLine[l.id] || []).filter((f: any) => f.value != null || f.asked);
+                /* The booking's answer to a classification this package left
+                   open: a dimension the package tags with more than one value,
+                   answered on the booking. A dimension the package settled to
+                   one value is not a question and is not repeated here. */
+                const openAnswers = coverage.answers.filter((a) => {
+                  const dim = byDimension.get(a.dimensionId);
+                  return dim && dim.values.length > 1 && dim.values.some((v) => v.id === a.valueId);
+                });
 
                 return (
                   <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
@@ -506,10 +515,21 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                         </div>
                       )}
 
-                      {heldVars.length > 0 && (
+                      {(heldVars.length > 0 || openAnswers.length > 0) && (
                         <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
                           <strong className="q-meta">Configuration</strong>
                           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
+                            {/* What this booking answered where the package
+                                left the classification open - "Occasion:
+                                Anniversary" - before the date that follows
+                                from it. The tags above are what the package
+                                allows; this is what was chosen. */}
+                            {openAnswers.map((a: any) => (
+                              <React.Fragment key={a.dimensionId}>
+                                <div className="q-meta-plain" style={{ opacity: 0.7 }}>{a.dimensionName}</div>
+                                <div className="q-text-body">{a.valueName}</div>
+                              </React.Fragment>
+                            ))}
                             {heldVars.map((f: any) => (
                               <React.Fragment key={f.label}>
                                 <div className="q-meta-plain" style={{ opacity: 0.7 }}>{f.label}</div>
@@ -575,7 +595,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * has been put on the booking yet. It used to vanish the moment a
             * line existed, taking the rest of their request with it.
             */}
-          {enquiry && (
+          {/* Only while something they asked for is not answered by a
+              package on the booking - the set test, not lines.length. */}
+          {enquiry && !coverage.covered && (
             <div style={{ marginTop: lines.length > 0 ? '16px' : 0 }}>
               <ResolveEnquiry
                 bookingId={booking.id}
