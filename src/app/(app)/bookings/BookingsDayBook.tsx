@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { formatMoney } from '@/kernel/currency';
 import Link from 'next/link';
 import { Analysis, type Order, type Column } from '@/components/Analysis';
 import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
@@ -74,11 +73,10 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     absent: b.clientName ? 'No date or package yet' : 'No date, client or package yet',
     // No pictures on the day book, for now: the client's initials name the row.
     frame: { initials: initialsFor(b.clientName) },
-    figure: b.owed
-      ? { text: formatMoney(b.owed.amount, b.owed.currency ?? sheet.currency), due: true }
-      : b.work && b.work.total > 0
-        ? { text: b.work.done === b.work.total ? 'Work done' : `${b.work.done} of ${b.work.total} steps`, none: b.work.done !== b.work.total }
-        : { text: b.billing === 'none' && b.band !== 'closed' ? 'Not invoiced' : 'Nothing owed', none: true },
+    // The figure is where the work is; a live booking with a step nobody is on takes the warm colour.
+    figure: b.work && b.work.total > 0
+      ? { text: b.work.done === b.work.total ? 'Work done' : `${b.work.done} of ${b.work.total} steps`, due: b.band !== 'closed' && b.work.unstaffed > 0, none: b.work.done !== b.work.total && !(b.band !== 'closed' && b.work.unstaffed > 0) }
+      : { text: b.band === 'closed' ? 'Closed' : 'No steps yet', none: true },
     badge: b.stage?.name
       ? <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>
       : undefined,
@@ -106,14 +104,13 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     { key: 'soon', label: 'When', cell: (b) => <span className="q-cell-mono">{when(b.scheduledFor) ?? '—'}</span>, sort: (a, b) => byDate(a, b, 1) },
     { key: 'packages', label: 'Packages', cell: (b) => <span className="q-cell-quiet">{b.packages.join(' · ') || '—'}</span> },
     { key: 'stage', label: 'Stage', cell: (b) => b.stage ? <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span> : <span className="q-cell-quiet">—</span>, sort: (a, b) => (a.stage?.name || '￿').localeCompare(b.stage?.name || '￿') },
-    { key: 'steps', label: 'Steps', cell: (b) => b.work && b.work.total > 0 ? (
+    { key: 'steps', label: 'Steps', align: 'end', cell: (b) => b.work && b.work.total > 0 ? (
         <span className="q-cell-progress" title={`${b.work.done} of ${b.work.total} steps done`}>
           <span className="q-sheet-band-bar"><i className={b.work.done === b.work.total ? 'q-dist-c-green' : 'q-dist-c-blue'} style={{ '--q-share': Math.round((b.work.done / b.work.total) * 100) } as React.CSSProperties} /></span>
           <span className="q-cell-mono">{b.work.done}/{b.work.total}</span>
         </span>
       ) : <span className="q-cell-quiet">—</span>,
       sort: (a, b) => (a.work ? a.work.done / a.work.total : -1) - (b.work ? b.work.done / b.work.total : -1) },
-    { key: 'owed', label: 'Owed', align: 'end', cell: (b) => b.owed ? <span className="q-cell-warm q-cell-mono">{formatMoney(b.owed.amount, b.owed.currency ?? sheet.currency)}</span> : <span className="q-cell-quiet">—</span>, sort: (a, b) => (a.owed?.amount ?? 0) - (b.owed?.amount ?? 0) },
   ];
 
   return (

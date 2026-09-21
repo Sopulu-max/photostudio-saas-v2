@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudio } from '@/kernel/organizations';
 import { readBookingsSheet, PERIODS, type Period, type Figure } from '@/modules/bookings/interface';
-import { formatMoney } from '@/kernel/currency';
 import { stageColor } from '@/components/stageBadge';
 import { Donut, Series, Sparkline } from '@/components/Charts';
 import { StorefrontLink } from '../packages/StorefrontLink';
@@ -46,8 +45,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   // One read, decided: the figures, the series, the breakdown, the bands, the axes.
   const [sheet, org] = await Promise.all([readBookingsSheet(periodDays), getStudio()]);
   const measure = sheet.series.lines.find((l) => l.key === q.measure) ?? sheet.series.lines[0];
-  const money = (n: number) => formatMoney(n, sheet.currency);
-  const say = (f: Figure, n: number) => (f.unit === 'count' ? String(n) : money(n));
+  const say = (_f: Figure, n: number) => String(n);
 
   /*
    * A delta is the same measure over the period before, said as a change:
@@ -65,9 +63,10 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   };
   const trend = (f: Figure) => sheet.series.lines.find((l) => l.key === f.key)?.points ?? null;
 
-  const collected = sheet.figures.find((f) => f.key === 'collected')!.value;
-  const owed = sheet.figures.find((f) => f.key === 'owed')!.value;
-  const asked = collected + owed;
+  // Of the live bookings, how many have a date - the one share worth a line here.
+  const live = sheet.figures.find((f) => f.key === 'live')!.value;
+  const undated = sheet.figures.find((f) => f.key === 'undated')!.value;
+  const scheduled = live - undated;
   const month = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
 
   return (
@@ -100,7 +99,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               <div key={f.key} className="q-fig">
                 <span className="q-fig-label">{f.label}</span>
                 <span className="q-fig-main">
-                  <span className={f.key === 'owed' && f.value > 0 ? 'q-fig-value q-fig-warm' : 'q-fig-value'}>{say(f, f.value)}</span>
+                  <span className={f.key === 'undated' && f.value > 0 ? 'q-fig-value q-fig-warm' : 'q-fig-value'}>{say(f, f.value)}</span>
                   {trend(f) && <Sparkline points={trend(f)!} tone={d?.dir ?? 'flat'} />}
                 </span>
                 {d ? (
@@ -115,11 +114,10 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             );
           })}
         </div>
-        {/* Money asked for: how much of it has come in. */}
-        <div className="q-fig-line" aria-hidden="true"><i style={{ '--q-share': asked > 0 ? Math.round((collected / asked) * 100) : 0 } as React.CSSProperties} /></div>
+        <div className="q-fig-line" aria-hidden="true"><i style={{ '--q-share': live > 0 ? Math.round((scheduled / live) * 100) : 0 } as React.CSSProperties} /></div>
         <div className="q-fig-foot">
-          <span className="q-fig-foot-label">Of what has been asked for, settled</span>
-          <b>{asked > 0 ? `${Math.round((collected / asked) * 100)}%` : '—'}</b>
+          <span className="q-fig-foot-label">Of the live bookings, scheduled</span>
+          <b>{live > 0 ? `${scheduled} of ${live} · ${Math.round((scheduled / live) * 100)}%` : '—'}</b>
         </div>
       </section>
 
@@ -136,7 +134,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               ))}
             </nav>
           </header>
-          <Series points={measure.points} labels={sheet.series.months.map(month)} format={(n) => (measure.unit === 'count' ? String(n) : money(n))} />
+          <Series points={measure.points} labels={sheet.series.months.map(month)} />
         </section>
 
         {/* EVERY BOOKING BY STAGE - the studio's stages, its colours; a slice is a link into the sheet. */}

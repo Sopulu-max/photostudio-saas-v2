@@ -1661,8 +1661,6 @@ export type BookingListRow = {
   hasContract: boolean;
   /** What still needs the studio: money pending, in the currency it was raised in. */
   owed: { amount: number; currency: string | null } | null;
-  /** Every movement of money on it, with when - so a period can be read off them. */
-  transactions: { amount: number; currency: string | null; direction: 'inbound' | 'outbound'; status: string; settledAt: string | null; createdAt: string }[];
   /** What the studio understands it to be for - the facet a sheet narrows by. */
   classification: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
 };
@@ -1678,7 +1676,7 @@ export async function listBookings(): Promise<BookingListRow[]> {
       contact:contacts(display_name),
       booking_lines(id, title, package:packages(name)),
       contracts(id, status),
-      financial_transactions(id, amount, status, currency, direction, settled_at, created_at),
+      financial_transactions(id, amount, status, currency),
       booking_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name)))
     `)
     .eq('organization_id', orgId)
@@ -1738,10 +1736,6 @@ export async function listBookings(): Promise<BookingListRow[]> {
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
       owed: pendingTotal > 0 ? { amount: pendingTotal, currency: (pending[0]?.currency as string | undefined) ?? null } : null,
-      transactions: ((b.financial_transactions || []) as any[]).map((t) => ({
-        amount: Number(t.amount || 0), currency: (t.currency ?? null) as string | null, direction: t.direction, status: t.status,
-        settledAt: (t.settled_at ?? null) as string | null, createdAt: t.created_at as string,
-      })),
       classification: ((b.booking_dimension_values || []) as any[])
         .filter((r) => r.dimension_value?.dimension)
         .map((r) => ({
