@@ -666,7 +666,10 @@ export function NewBookingForm({
          */
         .filter((t) => t.isActive !== false)
         .map((t) => ({
-          key: `${line.id}:${svc.id}:${t.id}`,
+          /* A step is the workflow's or the package's own; a resolved workflow
+             step has no package_tasks row (t.id is null), so it is keyed by
+             the workflow step instead. */
+          key: `${line.id}:${svc.id}:${t.workflowTaskId ?? t.id}`,
           name: t.name as string,
           role: (t.roleName ?? null) as string | null,
           roleId: (t.roleId ?? null) as string | null,

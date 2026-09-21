@@ -1802,8 +1802,17 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
        * controls sit in a group per service inside the kind; classification
        * is narrowed per bundle row, so it is grouped by question and then by
        * service where two services answer the same one.
+       *
+       * NOT ON A BOOKING, UNLESS ADJUSTING. A booking instantiates a package
+       * by answering what it left open - the occasion, its date - and those
+       * questions are the booking form's, asked under this. Off the shelf the
+       * package IS its bundle; unrolling its deliverables, classification,
+       * variables and tasks here put a whole package editor between the
+       * package and the questions, and an operator taking a booking read it
+       * as "edit a package" with nothing asked. Once the operator says they
+       * are adjusting, these are what there is to adjust.
        */}
-      {(() => {
+      {!bundleLocked && (() => {
         const bundled = allServices.filter((x) => serviceIds.includes(x.id));
         const many = bundled.length > 1;
         const From = ({ name }: { name: string }) => many ? <span className="q-print-from">{name}</span> : null;
