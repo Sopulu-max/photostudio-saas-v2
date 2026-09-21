@@ -5,7 +5,7 @@ import { stageBadgeClass } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { Sheet, SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
-import type { BookingsSheet, SheetBooking, SheetBand } from '@/modules/bookings/interface';
+import type { BookingsSheet, SheetBooking, SheetBand, LensGroup } from '@/modules/bookings/interface';
 
 /**
  * THE DAY BOOK. Every job the studio has taken, read the way a studio reads
@@ -28,8 +28,6 @@ import type { BookingsSheet, SheetBooking, SheetBand } from '@/modules/bookings/
  * which rows the operator has asked to see.
  */
 
-type Lens = 'today' | 'week' | 'enquiries' | 'unstaffed' | 'undated' | 'owed' | null;
-
 /*
  * A booking with no date is not the soonest one. It sorts last whichever way
  * the list is pointed: a job nobody has scheduled is not an answer to "what is
@@ -46,7 +44,14 @@ function byDate(a: SheetBooking, b: SheetBooking, dir: 1 | -1) {
 const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated', 'earlier', 'closed'];
 
 export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
-  const [lens, setLens] = useState<Lens>(null);
+  /*
+   * THE LENSES ARE THE STUDIO'S, NOT OURS. Each group is an axis of the
+   * sheet - when, stage, needs, money - and its chips are the values the
+   * rows actually take, with counts, read off the data by readBookingsSheet.
+   * One chip per group may be pressed; groups combine. Nothing here names a
+   * stage, a role or a question.
+   */
+  const [chosen, setChosen] = useState<Partial<Record<LensGroup['key'], string>>>({});
   const all = sheet.bands.flatMap((b) => b.rows);
   const bandOf = new Map(sheet.bands.map((b) => [b.key, b]));
 
@@ -58,19 +63,16 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     { key: 'title', label: 'By title', compare: (a: SheetBooking, b: SheetBooking) => (a.title || '').localeCompare(b.title || '') },
   ];
 
-  /* The attention strip narrows the sheet; the same fact read as a count and as a lens. */
-  const through = (rows: SheetBooking[]) => {
-    switch (lens) {
-      case 'today': return rows.filter((r) => r.band === 'today');
-      case 'week': return rows.filter((r) => r.band === 'today' || r.band === 'tomorrow' || r.band === 'week');
-      case 'enquiries': return rows.filter((r) => r.band !== 'closed' && (!r.stage || r.stage.kind === 'enquiry'));
-      case 'unstaffed': return rows.filter((r) => r.band !== 'closed' && (r.work?.unstaffed ?? 0) > 0);
-      case 'undated': return rows.filter((r) => r.band === 'undated');
-      case 'owed': return rows.filter((r) => r.owed);
-      default: return rows;
+  /* Whether a row takes the chosen value on each axis - the same facts the counts were made from. */
+  const takes = (r: SheetBooking, group: LensGroup['key'], key: string) => {
+    switch (group) {
+      case 'when': return r.band === key;
+      case 'stage': return r.stage?.id === key;
+      case 'needs': return r.needs.some((n) => n.id === key);
+      case 'money': return key === 'uninvoiced' ? r.money === 'uninvoiced' : Boolean(r.owed && `owed:${r.owed.currency ?? sheet.currency}` === key);
     }
   };
-  const items = through(all);
+  const items = all.filter((r) => (Object.entries(chosen) as [LensGroup['key'], string][]).every(([g, k]) => !k || takes(r, g, k)));
 
   const when = (iso: string | null) => {
     if (!iso) return null;
@@ -121,29 +123,29 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     dim: b.band === 'closed',
   });
 
-  const owedSaid = sheet.attention.owed.map((o) => formatMoney(o.amount, o.currency)).join(' + ');
-  const Lens = ({ id, fig, label, due, quiet }: { id: Lens; fig: string | number; label: string; due?: boolean; quiet?: boolean }) => (
-    <button
-      type="button"
-      className={['q-attention-item', lens === id ? 'q-attention-on' : '', due ? 'q-attention-due' : '', quiet ? 'q-attention-quiet' : ''].filter(Boolean).join(' ')}
-      aria-pressed={lens === id}
-      onClick={() => !quiet && setLens((l) => (l === id ? null : id))}
-      disabled={quiet}
-    >
-      <span className="q-attention-fig">{fig}</span>
-      <span className="q-attention-lab">{label}</span>
-    </button>
-  );
-
   return (
     <div className="q-stack q-stack-md">
-      <div className="q-attention" role="group" aria-label="What needs attention">
-        <Lens id="today" fig={sheet.attention.today} label="today" quiet={sheet.attention.today === 0} />
-        <Lens id="week" fig={sheet.attention.week} label="this week" quiet={sheet.attention.week === 0} />
-        <Lens id="enquiries" fig={sheet.attention.enquiries} label="enquiries" quiet={sheet.attention.enquiries === 0} />
-        <Lens id="unstaffed" fig={sheet.attention.unstaffed} label="nobody on a step" due={sheet.attention.unstaffed > 0} quiet={sheet.attention.unstaffed === 0} />
-        <Lens id="undated" fig={sheet.attention.undated} label="no date yet" quiet={sheet.attention.undated === 0} />
-        <Lens id="owed" fig={owedSaid || '0'} label="owed" due={sheet.attention.owed.length > 0} quiet={sheet.attention.owed.length === 0} />
+      <div className="q-attention" role="group" aria-label="Read the sheet by">
+        {sheet.lenses.map((g) => (
+          <div key={g.key} className="q-attention-group">
+            <span className="q-attention-axis">{g.label}</span>
+            {g.items.map((it) => {
+              const on = chosen[g.key] === it.key;
+              return (
+                <button
+                  key={it.key}
+                  type="button"
+                  className={['q-attention-item', on ? 'q-attention-on' : '', it.due ? 'q-attention-due' : ''].filter(Boolean).join(' ')}
+                  aria-pressed={on}
+                  onClick={() => setChosen((c) => ({ ...c, [g.key]: on ? undefined : it.key }))}
+                >
+                  <span className="q-attention-fig">{it.count}</span>
+                  <span className="q-attention-lab">{it.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       <CatalogFilter
@@ -151,13 +153,13 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
         noun="booking"
         kind="catalogue"
         sorts={HOW_TO_ORDER}
-        facetLabel="stage"
         views={false}
         denseFirst
         read={(b: SheetBooking) => ({
           name: b.title,
           description: b.clientName,
-          facet: b.stage?.name ?? null,
+          // The stage is a lens above, not a second control here.
+          facet: null,
           tags: b.classification,
         })}
       >

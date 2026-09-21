@@ -2685,7 +2685,17 @@ body::before {
 .q-attention {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 22px;
+}
+/* One axis of the sheet: its name, then the values the rows take on it. */
+.q-attention-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.q-attention-axis {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-500);
+  margin-right: 2px;
 }
 .q-attention-item {
   display: inline-flex;
@@ -2707,8 +2717,6 @@ body::before {
 .q-attention-lab { font-size: 0.8rem; }
 .q-attention-due .q-attention-fig { color: var(--q-color-warning); }
 .q-attention-on.q-attention-due .q-attention-fig { color: var(--q-color-paper); }
-.q-attention-quiet { opacity: 0.6; cursor: default; }
-.q-attention-quiet:hover { transform: none; border-color: var(--q-color-ink-100); }
 
 /* Blocks, not spans: they carry ellipsis rules, and an inline element cannot
    truncate — the two lines simply ran on as one. */

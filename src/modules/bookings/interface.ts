@@ -107,4 +107,4 @@ export type { BookingListRow } from './domain';
 
 // The bookings sheet as the studio's day book: bands by when the work is, the work on each row, what needs someone.
 export { readBookingsSheet } from './sheet';
-export type { BookingsSheet, SheetBooking, SheetBand } from './sheet';
+export type { BookingsSheet, SheetBooking, SheetBand, LensGroup } from './sheet';
