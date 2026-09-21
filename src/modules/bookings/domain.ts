@@ -812,6 +812,9 @@ export async function getLineConfigurationForm(lineId: string) {
       value: current ? current.value : null,
       source: current ? current.source : null,
       position: v.position as number,
+      // A question the package left open. Unanswered, it is still a question,
+      // and the line has to show it as one rather than hide it behind Change.
+      asked: Boolean(v.asked),
     };
   });
 
@@ -833,6 +836,7 @@ export async function getLineConfigurationForm(lineId: string) {
       value: h.value,
       source: h.source,
       position: h.position,
+      asked: false,
     });
   }
 

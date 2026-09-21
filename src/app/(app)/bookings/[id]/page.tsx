@@ -462,7 +462,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                 }
                 const tags = [...byDimension.values()];
                 
-                const heldVars = (configByLine[l.id] || []).filter((f: any) => f.value != null);
+                // What is answered, and what the package asks that nobody has
+                // answered yet - shown as unanswered, not left out.
+                const heldVars = (configByLine[l.id] || []).filter((f: any) => f.value != null || f.asked);
 
                 return (
                   <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
@@ -509,7 +511,11 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                             {heldVars.map((f: any) => (
                               <React.Fragment key={f.label}>
                                 <div className="q-meta-plain" style={{ opacity: 0.7 }}>{f.label}</div>
-                                <div className="q-text-body">{formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}</div>
+                                <div className="q-text-body">
+                                  {f.value == null
+                                    ? <Link href={`/bookings/${booking.id}/edit`} className="q-absent q-plain-link">Not answered yet</Link>
+                                    : formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}
+                                </div>
                               </React.Fragment>
                             ))}
                           </div>

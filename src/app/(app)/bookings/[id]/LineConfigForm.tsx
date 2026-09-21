@@ -21,6 +21,8 @@ export type LineConfigField = {
   serviceName: string;
   value: unknown;
   source: 'package' | 'client' | 'studio' | null;
+  /** Left open by the package for the client to answer. */
+  asked?: boolean;
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -107,7 +109,13 @@ export function LineConfigForm({
   }
 
   if (!editing) {
-    const held = fields.filter((f) => f.value != null);
+    /*
+     * What is answered, and what is still being asked. A question the package
+     * left open and nobody has answered used to vanish here - the summary
+     * showed only held values, so the occasion's date was invisible until
+     * somebody pressed Change and found it. Unanswered is a state to show.
+     */
+    const held = fields.filter((f) => f.value != null || f.asked);
     return (
       <div className="q-stack q-stack-sm" style={{ marginTop: '12px' }}>
         {held.length === 0 ? (
@@ -118,7 +126,7 @@ export function LineConfigForm({
         ) : (
           <div className="q-stack q-stack-sm">
             {Array.from(byService.values()).map(({ serviceId, serviceName, fields: sFields }) => {
-              const sHeld = sFields.filter((f) => f.value != null);
+              const sHeld = sFields.filter((f) => f.value != null || f.asked);
               if (sHeld.length === 0) return null;
               return (
                 <div key={serviceId} className="q-note q-stack q-stack-sm">
@@ -128,10 +136,14 @@ export function LineConfigForm({
                       <div key={f.serviceVariableId} className="q-row q-row-between q-meta-sm">
                         <span>{f.label}</span>
                         <div className="q-row q-row-sm">
-                          <strong className="q-strong" style={{ color: 'var(--q-color-ink-700)' }}>
-                            {formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}
-                          </strong>
-                          {f.source && f.source !== 'package' && (
+                          {f.value == null ? (
+                            <span className="q-absent">Not answered yet</span>
+                          ) : (
+                            <strong className="q-strong" style={{ color: 'var(--q-color-ink-700)' }}>
+                              {formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}
+                            </strong>
+                          )}
+                          {f.value != null && f.source && f.source !== 'package' && (
                             <span style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'var(--q-color-ink-100)', borderRadius: '12px', color: 'var(--q-color-ink-500)' }}>
                               {SOURCE_LABEL[f.source]}
                             </span>
