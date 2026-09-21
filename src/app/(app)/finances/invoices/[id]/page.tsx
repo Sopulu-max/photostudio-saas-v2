@@ -107,15 +107,14 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
                 </thead>
                 <tbody>
                   {invoice.lines.map((l: any) => {
-                    // What each row is, said: the package, more of what it
-                    // promises, or a charge - so two rows with the same
-                    // package name do not read as a mistake.
-                    const kind = l.booking_line_extra_id ? 'Extra' : l.line?.package_id ? 'Package' : l.booking_line_id ? 'Charge' : null;
+                    // What each row is - said by Finances on the row (kind),
+                    // stamped here where it is not the package itself.
                     return (
                     <tr key={l.id} className="q-table-tr">
-                      <td className={kind === 'Extra' ? 'q-table-td q-doc-sub' : 'q-table-td q-strong'}>
+                      <td className={l.kind === 'extra' ? 'q-table-td q-doc-sub' : 'q-table-td q-strong'}>
                         {l.description}
-                        {kind && kind !== 'Package' && <span className="q-meta-sm" style={{ marginLeft: '8px', fontWeight: 400 }}>{kind}</span>}
+                        {l.kind === 'extra' && <span className="q-meta-sm" style={{ marginLeft: '8px', fontWeight: 400 }}>Extra</span>}
+                        {l.kind === 'charge' && <span className="q-meta-sm" style={{ marginLeft: '8px', fontWeight: 400 }}>Charge</span>}
                       </td>
                       <td className="q-table-td q-num">{Number(l.quantity)}</td>
                       <td className="q-table-td q-num">{formatMoney(Number(l.unit_price), currency)}</td>

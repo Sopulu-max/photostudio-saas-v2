@@ -38,8 +38,26 @@ const INVOICE_SELECT = `
   payments:financial_transactions(id, kind, type, amount, currency, status, settled_at, created_at, receipt_number, receipt_token)
 `;
 
+/**
+ * What a row is for, said once. A row bills the booking's package (the line
+ * it points at has one), more of what that package promises (it points at
+ * an extra), or a charge (a line with no package); a row with no line was
+ * typed onto an old draft. Read here, so the page and the client's copy
+ * cannot answer the question two different ways.
+ */
+export type InvoiceLineKind = 'package' | 'extra' | 'charge' | 'other';
+function kindOfLine(l: any): InvoiceLineKind {
+  if (l.booking_line_extra_id) return 'extra';
+  if (l.line?.package_id) return 'package';
+  if (l.booking_line_id) return 'charge';
+  return 'other';
+}
+
 function shape(row: any) {
-  const lines = (row.lines || []).slice().sort((a: any, b: any) => a.position - b.position);
+  const lines = (row.lines || [])
+    .slice()
+    .sort((a: any, b: any) => a.position - b.position)
+    .map((l: any) => ({ ...l, kind: kindOfLine(l) }));
   const subtotal = lines.reduce((s: number, l: any) => s + Number(l.amount || 0), 0);
   const payments = row.payments || [];
   // Tax and discount as they were frozen on this document, not as the studio

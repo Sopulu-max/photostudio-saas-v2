@@ -94,7 +94,7 @@ export function InvoiceDocument({
           {invoice.lines.map((l: any) => (
             <tr key={l.id}>
               {/* An extra is more of the line above it, and reads under it. */}
-              <td className={l.booking_line_extra_id ? 'q-doc-sub' : undefined}>{l.description}</td>
+              <td className={l.kind === 'extra' ? 'q-doc-sub' : undefined}>{l.description}</td>
               <td className="q-doc-right">{Number(l.quantity)}</td>
               <td className="q-doc-right">{formatMoney(Number(l.unit_price), currency)}</td>
               <td className="q-doc-right">{formatMoney(Number(l.amount), currency)}</td>

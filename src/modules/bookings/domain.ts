@@ -1071,12 +1071,17 @@ export async function updateBookingExtra(input: { id: string; units: number; uni
 
   const { data: x } = await supabaseAdmin
     .from('booking_line_extras')
-    .select('id, units, unit_rate, label, package_service_id, ref_id, booking_line_id, line:booking_lines(booking_id, price, package:packages(price))')
+    .select('id, kind, units, unit_rate, label, package_service_id, ref_id, booking_line_id, line:booking_lines(booking_id, price, package:packages(price))')
     .eq('id', input.id).eq('organization_id', orgId).maybeSingle();
   if (!x) throw new Error('Extra not found');
   const before = Number(x.units);
   const currency = ((x.unit_rate as any)?.currency as string) || await getStudioCurrency();
-  const name = String(x.label || '').replace(/^\+\d+\s*/, '') || 'Deliverable';
+  // Named from the deliverable the extra is more of - the thing it references
+  // (ref_id, by kind) - not parsed back out of the label it was given.
+  const { data: promised } = x.kind === 'promise'
+    ? await supabaseAdmin.from('deliverables').select('name').eq('id', x.ref_id).eq('organization_id', orgId).maybeSingle()
+    : { data: null };
+  const name = (promised?.name as string) || 'Deliverable';
   const label = `+${units} ${name}`;
 
   if (units !== before) {
