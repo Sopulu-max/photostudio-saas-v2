@@ -4,7 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast, readableError } from '@/components/Toast';
 import {
-  issueInvoice, voidInvoice, updateDraftInvoice, createTransaction, settleTransaction,
+  issueInvoice, voidInvoice, createTransaction, settleTransaction,
 } from '@/modules/finances/interface';
 
 function useRun() {
@@ -16,90 +16,6 @@ function useRun() {
       catch (e: any) { toast.bad(readableError(e, 'The action could not be completed.')); }
     });
   return { isPending, run, router };
-}
-
-type Line = { description: string; quantity: number; unitPrice: number };
-
-/**
- * The lines, while the invoice is still a draft.
- *
- * Generated from the booking, then editable — a studio adds a travel charge or
- * strikes a line it decided to absorb. Once issued this is gone: the client is
- * holding the document by then.
- */
-export function InvoiceLineEditor({
-  invoiceId,
-  lines: initial,
-  currencyCode,
-}: {
-  invoiceId: string;
-  lines: Line[];
-  currencyCode: string;
-}) {
-  const { isPending, run } = useRun();
-  const [lines, setLines] = useState<Line[]>(initial);
-  const dirty = JSON.stringify(lines) !== JSON.stringify(initial);
-
-  const set = (i: number, patch: Partial<Line>) =>
-    setLines((ls) => ls.map((l, x) => (x === i ? { ...l, ...patch } : l)));
-
-  const total = lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
-
-  return (
-    <div className="q-stack q-stack-sm">
-      {lines.map((l, i) => (
-        <div key={i} className="q-row">
-          <input
-            className="q-input"
-            value={l.description}
-            onChange={(e) => set(i, { description: e.target.value })}
-            placeholder="What this line is for"
-            style={{ flex: 1, minWidth: '12rem' }}
-          />
-          <input
-            className="q-input" type="number" min="0" step="0.5"
-            value={l.quantity}
-            onChange={(e) => set(i, { quantity: Number(e.target.value) })}
-            style={{ width: '5.5rem' }}
-          />
-          <input
-            className="q-input" type="number" min="0" step="0.01"
-            value={l.unitPrice}
-            onChange={(e) => set(i, { unitPrice: Number(e.target.value) })}
-            style={{ width: '9rem' }}
-          />
-          <button
-            className="q-btn q-btn-secondary q-btn-sm"
-            onClick={() => setLines((ls) => ls.filter((_, x) => x !== i))}
-          >
-            Remove
-          </button>
-        </div>
-      ))}
-
-      <div className="q-row q-row-between">
-        <button
-          className="q-btn q-btn-secondary q-btn-sm"
-          onClick={() => setLines((ls) => [...ls, { description: '', quantity: 1, unitPrice: 0 }])}
-        >
-          + Add a line
-        </button>
-        <span className="q-meta q-num">
-          {total.toLocaleString(undefined, { style: 'currency', currency: currencyCode })}
-        </span>
-      </div>
-
-      {dirty && (
-        <div className="q-row">
-          <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
-            onClick={() => run(() => updateDraftInvoice({ invoiceId, lines }))}>
-            Save lines
-          </button>
-          <button className="q-btn q-btn-secondary q-btn-sm" onClick={() => setLines(initial)}>Undo</button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 /** Send it, or withdraw it. Issuing is what spends the studio's next number. */
@@ -140,7 +56,7 @@ export function InvoiceActions({
     <div className="q-row">
       {status === 'draft' && (
         <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending || !hasLines}
-          title={hasLines ? undefined : 'Add a line first'}
+          title={hasLines ? undefined : 'Nothing on the booking to invoice yet'}
           onClick={() => run(() => issueInvoice({ invoiceId }))}>
           {isPending ? 'Sending…' : 'Issue invoice'}
         </button>

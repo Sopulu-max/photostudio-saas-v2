@@ -34,7 +34,7 @@ const INVOICE_SELECT = `
   booking:bookings(id, title, scheduled_for),
   contact:contacts(id, display_name, email),
   contract:contracts(id, version),
-  lines:invoice_lines(id, description, quantity, unit_price, amount, position, booking_line_id),
+  lines:invoice_lines(id, description, quantity, unit_price, amount, position, booking_line_id, booking_line_extra_id, line:booking_lines(package_id)),
   payments:financial_transactions(id, kind, type, amount, currency, status, settled_at, created_at, receipt_number, receipt_token)
 `;
 
@@ -368,6 +368,7 @@ export async function createInvoiceForBooking(input: {
 
   // What each line is configured as, so the description says what was sold.
   const { getLineConfiguration } = await import('@/modules/bookings/interface');
+  const { getPackageVariables } = await import('@/modules/packages/interface');
   const { formatVariableValue } = await import('@/modules/services/interface');
 
   // What a line is for, and what was agreed for it. The booking's own instance
@@ -441,9 +442,19 @@ export async function createInvoiceForBooking(input: {
     const title = nameOf(l);
     const price = priceOfLine(l);
 
+    /*
+     * AFTER THE NAME, ONLY WHAT THE BOOKING ANSWERED. A value the package
+     * fixed is already in what the package is called - a member named
+     * "2 outfits · Softcopy" printed "· 2 outfits" again after itself, and
+     * the row read as typed in. The date and the rest the client gave are
+     * this booking's, and follow the name.
+     */
     const config = await getLineConfiguration(l.id);
+    const fixedByPackage = new Set(
+      (l.package_id ? await getPackageVariables(l.package_id) : []).filter((v: any) => v.fixed).map((v: any) => v.id as string),
+    );
     const detail = config
-      .filter((c: any) => c.value != null)
+      .filter((c: any) => c.value != null && !fixedByPackage.has(c.serviceVariableId))
       .map((c: any) => formatVariableValue({ value: c.value, unit: c.unit, kind: c.kind }))
       .join(' · ');
     const quantity = Number(l.quantity ?? 1);
@@ -472,7 +483,9 @@ export async function createInvoiceForBooking(input: {
         booking_line_id: l.id,
         // Which extra, so a draft can keep in step with it (see drafts.ts).
         booking_line_extra_id: x.id,
-        description: describeInvoiceLine({ title: `${title} · ${x.label}`, details: [], label: input.label }),
+        // Its own label, under the package's row: more of the line above,
+        // not a second package with the same name.
+        description: describeInvoiceLine({ title: x.label, details: [], label: input.label }),
         quantity: xq,
         unit_price: xa.unitPrice,
         amount: xa.amount,
@@ -826,11 +839,21 @@ export async function voidInvoice(input: { invoiceId: string; reason?: string })
 }
 
 /** Edit a draft: its lines, its due date, its notes. Issued invoices are frozen. */
+/**
+ * What is the draft's own: when it is due, and a note. Not its lines.
+ *
+ * The lines used to be editable here as free text, replaced wholesale on
+ * save - which dropped every row's link to the booking's line and extra, so
+ * a draft edited by hand silently stopped following the booking. A draft's
+ * lines ARE the booking's: the package at its price for this booking, each
+ * extra, each charge. A figure is changed on the booking, once, and the
+ * draft follows; a named amount with no work behind it is a charge, and is
+ * added on the booking too.
+ */
 export async function updateDraftInvoice(input: {
   invoiceId: string;
   dueAt?: string | null;
   notes?: string | null;
-  lines?: { description: string; quantity: number; unitPrice: number }[];
 }) {
   const { orgId } = await getAuthOrgId();
 
@@ -850,31 +873,6 @@ export async function updateDraftInvoice(input: {
   if (input.notes !== undefined) patch.notes = input.notes;
   if (Object.keys(patch).length > 0) {
     await supabaseAdmin.from('invoices').update(patch).eq('id', input.invoiceId).eq('organization_id', orgId);
-  }
-
-  if (input.lines) {
-    // Replace wholesale: the editor sends the list it wants, so a removed line
-    // is expressed by absence, the same as service variables.
-    await supabaseAdmin.from('invoice_lines').delete().eq('invoice_id', input.invoiceId).eq('organization_id', orgId);
-    const rows = input.lines
-      .filter((l) => (l.description || '').trim())
-      .map((l, i) => {
-        const quantity = Number(l.quantity) || 1;
-        const unitPrice = Number(l.unitPrice) || 0;
-        return {
-          organization_id: orgId,
-          invoice_id: input.invoiceId,
-          description: l.description.trim(),
-          quantity,
-          unit_price: unitPrice,
-          amount: quantity * unitPrice,
-          position: i,
-        };
-      });
-    if (rows.length > 0) {
-      const { error } = await supabaseAdmin.from('invoice_lines').insert(rows);
-      if (error) throw new Error('Failed to save those lines');
-    }
   }
 
   if (invoice.booking_id) revalidatePath(`/bookings/${invoice.booking_id}`);

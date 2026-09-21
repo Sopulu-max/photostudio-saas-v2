@@ -2287,6 +2287,21 @@ export async function deleteBooking(bookingId: string) {
     await supabaseAdmin.from('tasks').delete().eq('organization_id', orgId).in('booking_line_id', lineIds);
   }
   await supabaseAdmin.from('financial_transactions').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
+  /*
+   * Its drafts go with it: a draft is a reading of the booking, and there is
+   * nothing left to read. An issued invoice stays - a client holds it - and
+   * merely loses its booking, as the schema already arranges. Six orphaned
+   * drafts were found reading bookings deleted days before.
+   */
+  {
+    const { data: drafts } = await supabaseAdmin
+      .from('invoices').select('id').eq('organization_id', orgId).eq('booking_id', bookingId).eq('status', 'draft');
+    const ids = ((drafts || []) as any[]).map((d) => d.id as string);
+    if (ids.length > 0) {
+      await supabaseAdmin.from('invoice_lines').delete().eq('organization_id', orgId).in('invoice_id', ids);
+      await supabaseAdmin.from('invoices').delete().eq('organization_id', orgId).in('id', ids);
+    }
+  }
   await supabaseAdmin.from('contracts').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
   await supabaseAdmin.from('deliveries').delete().eq('organization_id', orgId).eq('booking_id', bookingId);
   await supabaseAdmin.from('assignments').delete().eq('organization_id', orgId).eq('booking_id', bookingId);

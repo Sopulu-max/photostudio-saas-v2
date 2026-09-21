@@ -50,6 +50,23 @@ export async function createTransaction(params: {
   if (!amount || amount <= 0) throw new Error('Enter an amount.');
   if (!KINDS[params.kind]) throw new Error('Say what kind of money this is.');
 
+  /*
+   * MONEY AGAINST A DRAFT ISSUES IT. A draft is not yet a document - no
+   * number, lines still following the booking. A payment recorded against
+   * it says the bill was presented and met, which is the strongest evidence
+   * there is that it existed in the world; so it is issued first, and the
+   * page can never read "Draft invoice" and "Paid in full" in one breath,
+   * which it did for every booking taken with money down.
+   */
+  if (params.invoiceId) {
+    const { data: inv } = await supabaseAdmin
+      .from('invoices').select('status').eq('id', params.invoiceId).eq('organization_id', orgId).maybeSingle();
+    if (inv?.status === 'draft') {
+      const { issueInvoice } = await import('./invoices');
+      await issueInvoice({ invoiceId: params.invoiceId });
+    }
+  }
+
   const { data: transaction, error } = await supabaseAdmin
     .from('financial_transactions')
     .insert({

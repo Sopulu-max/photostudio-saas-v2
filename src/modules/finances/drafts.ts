@@ -86,7 +86,6 @@ export async function reflectExtraOnDrafts(orgId: string, extra: ExtraTaken, pac
      * stored: the row was the package's figure times the share.
      */
     const share = packageUnitAmount > 0 ? Math.min(1, Number(row.unit_price) / packageUnitAmount) : 1;
-    const title = String(row.description || '').split(' — ')[0].split(' · ')[0] || 'Booking line';
     const { amount, unitPrice } = invoiceLineAmount({ unitAmount: amountOf(extra.unitRate), quantity: extra.units, share });
 
     // Straight after the package's row: everything below it moves down one.
@@ -101,7 +100,7 @@ export async function reflectExtraOnDrafts(orgId: string, extra: ExtraTaken, pac
       invoice_id: row.invoice_id,
       booking_line_id: extra.bookingLineId,
       booking_line_extra_id: extra.id,
-      description: describeInvoiceLine({ title: `${title} · ${extra.label}`, details: [] }),
+      description: describeInvoiceLine({ title: extra.label, details: [] }),
       quantity: extra.units,
       unit_price: unitPrice,
       amount,
@@ -145,10 +144,9 @@ export async function reviseExtraOnDrafts(orgId: string, extra: ExtraTaken, pack
       .eq('invoice_id', row.invoice_id).eq('booking_line_id', extra.bookingLineId).is('booking_line_extra_id', null)
       .limit(1).maybeSingle();
     const share = pkgRow && packageUnitAmount > 0 ? Math.min(1, Number(pkgRow.unit_price) / packageUnitAmount) : 1;
-    const title = String(row.description || '').split(' — ')[0].split(' · ')[0] || 'Booking line';
     const { amount, unitPrice } = invoiceLineAmount({ unitAmount: amountOf(extra.unitRate), quantity: extra.units, share });
     await supabaseAdmin.from('invoice_lines').update({
-      description: describeInvoiceLine({ title: `${title} · ${extra.label}`, details: [] }),
+      description: describeInvoiceLine({ title: extra.label, details: [] }),
       quantity: extra.units, unit_price: unitPrice, amount,
     }).eq('id', row.id).eq('organization_id', orgId);
     touched.add(row.invoice_id);

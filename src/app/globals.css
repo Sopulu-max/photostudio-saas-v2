@@ -1922,6 +1922,8 @@ body::before {
   text-transform: uppercase; color: var(--q-color-ink-400);
 }
 .q-doc-table td { padding: 11px 10px; border-bottom: 1px solid var(--q-color-ink-100); }
+/* A row that belongs to the row above it - an extra under its package. */
+.q-doc-sub, .q-table-td.q-doc-sub { padding-left: 1.5em; color: var(--q-color-ink-700); }
 .q-doc-right   { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .q-doc-totals  { margin-top: 18px; margin-left: auto; max-width: 22rem; }
 .q-doc-total-row {

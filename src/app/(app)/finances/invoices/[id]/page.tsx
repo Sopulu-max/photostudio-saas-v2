@@ -4,7 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getInvoice, KINDS, kindOf } from '@/modules/finances/interface';
 import { getStudio, getStudioCurrency } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
-import { InvoiceActions, InvoiceLineEditor, RecordPaymentForm } from './client';
+import { InvoiceActions, RecordPaymentForm } from './client';
 import { SendInvoice } from './SendInvoice';
 import { InvoiceDocument } from '@/components/InvoiceDocument';
 import { PrintDocumentButton } from '@/components/PrintDocumentButton';
@@ -75,22 +75,24 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
       <div className="q-stack q-stack-lg q-noprint">
 
         <div className="q-card q-section">
-          <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
+          <div className="q-row q-row-between" style={{ marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 className="q-section-title" style={{ margin: 0 }}>What this is for</h2>
-            {isDraft && <span className="q-meta-sm">Generated from the booking — change it before you send it</span>}
+            {/*
+              * A DRAFT'S LINES ARE THE BOOKING'S. The package at its price for
+              * this booking, each extra, each charge - read from the booking
+              * and following it until the invoice is issued. They were free
+              * text boxes here, and editing them cut the draft loose from the
+              * booking. A figure is changed where it lives, once.
+              */}
+            {isDraft && invoice.booking?.id && (
+              <span className="q-meta-sm">
+                Read from the booking, and follows it until issued.{' '}
+                <Link href={`/bookings/${invoice.booking.id}/edit`} className="q-plain-link">Change the price, extras or charges there</Link>.
+              </span>
+            )}
           </div>
 
-          {isDraft ? (
-            <InvoiceLineEditor
-              invoiceId={invoice.id}
-              currencyCode={currency}
-              lines={invoice.lines.map((l: any) => ({
-                description: l.description,
-                quantity: Number(l.quantity),
-                unitPrice: Number(l.unit_price),
-              }))}
-            />
-          ) : invoice.lines.length === 0 ? (
+          {invoice.lines.length === 0 ? (
             <p className="q-empty">Nothing on this invoice.</p>
           ) : (
             <div className="q-table-container">
@@ -104,14 +106,23 @@ export default async function InvoicePage(props: { params: Promise<{ id: string 
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.lines.map((l: any) => (
+                  {invoice.lines.map((l: any) => {
+                    // What each row is, said: the package, more of what it
+                    // promises, or a charge - so two rows with the same
+                    // package name do not read as a mistake.
+                    const kind = l.booking_line_extra_id ? 'Extra' : l.line?.package_id ? 'Package' : l.booking_line_id ? 'Charge' : null;
+                    return (
                     <tr key={l.id} className="q-table-tr">
-                      <td className="q-table-td q-strong">{l.description}</td>
+                      <td className={kind === 'Extra' ? 'q-table-td q-doc-sub' : 'q-table-td q-strong'}>
+                        {l.description}
+                        {kind && kind !== 'Package' && <span className="q-meta-sm" style={{ marginLeft: '8px', fontWeight: 400 }}>{kind}</span>}
+                      </td>
                       <td className="q-table-td q-num">{Number(l.quantity)}</td>
                       <td className="q-table-td q-num">{formatMoney(Number(l.unit_price), currency)}</td>
                       <td className="q-table-td q-num q-strong">{formatMoney(Number(l.amount), currency)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
