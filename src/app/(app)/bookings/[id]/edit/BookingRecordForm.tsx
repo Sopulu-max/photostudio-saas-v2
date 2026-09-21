@@ -187,70 +187,14 @@ export function BookingRecordForm({
      */
     <div className="q-stack q-stack-lg">
     <div className="q-card q-section q-stack q-stack-lg">
-      <div className="q-stack q-stack-sm">
-        <label className="q-label" htmlFor="booking-title">Name</label>
-        <input
-          id="booking-title"
-          className="q-input"
-          value={t}
-          onChange={(e) => setT(e.target.value)}
-          placeholder="Booking title"
-        />
-        <span className="q-meta-sm">
-          Naming it yourself stops the system renaming it when the packages change.
-        </span>
-      </div>
-
-      <div className="q-stack q-stack-sm">
-        <ClientPicker
-          clients={clients}
-          value={client}
-          onChange={setClient}
-          label="Client"
-          allowNone
-        />
-        <span className="q-meta-sm">
-          A booking runs fine without one — attach whoever this turns out to be for.
-        </span>
-      </div>
-
       {/*
-        * The one field here that is not a fact about the booking but a record of
-        * the conversation that started it. It stays editable because an ask
-        * changes as it is talked through, and because the packages that
-        * eventually answer it rarely say everything it did.
+        * IN THE ORDER IT WAS TAKEN. The booking form asks the date, the client
+        * and their request, in that order; this page had the name first and
+        * the date fifth, so an operator who had just filled the form in could
+        * not find their way round its record. The name and the cover come
+        * after: neither was entered at creation, both follow from it.
         */}
-      <div className="q-stack q-stack-sm">
-        <label className="q-label" htmlFor="booking-brief">Client request</label>
-        <textarea
-          id="booking-brief"
-          className="q-textarea"
-          rows={3}
-          value={briefText}
-          onChange={(e) => setBriefText(e.target.value)}
-          placeholder="Something for my mum's 70th, maybe thirty people, thinking a Saturday in June."
-        />
-        <span className="q-meta-sm">
-          Their own words, kept as written. Emptying the box removes it.
-        </span>
-      </div>
-
-      <div className="q-field">
-        <label className="q-label">Cover</label>
-        <ImageUpload
-          url={coverUrl}
-          folder="bookings"
-          label="cover"
-          maxEdge={2400}
-          onUploaded={(u) => applyCover(u)}
-          onCleared={() => applyCover(null)}
-          position={coverPosition}
-          onPositionChange={applyCoverPosition}
-          disabled={isPending}
-        />
-        <span className="q-meta-sm">Saved as soon as it is chosen.</span>
-      </div>
-
+      <h2 className="q-section-title">1. Date, client and request</h2>
       <div className="q-stack q-stack-sm">
         <label className="q-label" htmlFor="booking-when">When</label>
         <div className="q-row">
@@ -287,6 +231,70 @@ export function BookingRecordForm({
           * otherwise report itself as the thing it clashes with.
           */}
         <DayContext when={when} timeZone={timeZone} exceptBookingId={bookingId} atPremises={atPremises} />
+      </div>
+
+      <div className="q-stack q-stack-sm">
+        <ClientPicker
+          clients={clients}
+          value={client}
+          onChange={setClient}
+          label="Client"
+          allowNone
+        />
+        <span className="q-meta-sm">
+          A booking runs fine without one — attach whoever this turns out to be for.
+        </span>
+      </div>
+
+      {/*
+        * The one field here that is not a fact about the booking but a record of
+        * the conversation that started it. It stays editable because an ask
+        * changes as it is talked through, and because the packages that
+        * eventually answer it rarely say everything it did.
+        */}
+      <div className="q-stack q-stack-sm">
+        <label className="q-label" htmlFor="booking-brief">Client request</label>
+        <textarea
+          id="booking-brief"
+          className="q-textarea"
+          rows={3}
+          value={briefText}
+          onChange={(e) => setBriefText(e.target.value)}
+          placeholder="Something for my mum's 70th, maybe thirty people, thinking a Saturday in June."
+        />
+        <span className="q-meta-sm">
+          Their own words, kept as written. Emptying the box removes it.
+        </span>
+      </div>
+
+      <div className="q-stack q-stack-sm">
+        <label className="q-label" htmlFor="booking-title">Name</label>
+        <input
+          id="booking-title"
+          className="q-input"
+          value={t}
+          onChange={(e) => setT(e.target.value)}
+          placeholder="Booking title"
+        />
+        <span className="q-meta-sm">
+          Naming it yourself stops the system renaming it when the packages change.
+        </span>
+      </div>
+
+      <div className="q-field">
+        <label className="q-label">Cover</label>
+        <ImageUpload
+          url={coverUrl}
+          folder="bookings"
+          label="cover"
+          maxEdge={2400}
+          onUploaded={(u) => applyCover(u)}
+          onCleared={() => applyCover(null)}
+          position={coverPosition}
+          onPositionChange={applyCoverPosition}
+          disabled={isPending}
+        />
+        <span className="q-meta-sm">Saved as soon as it is chosen.</span>
       </div>
 
       </div>

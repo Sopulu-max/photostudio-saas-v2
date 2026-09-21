@@ -36,10 +36,9 @@ import {
 // The one widget for one variable, and the one parser that turns what was typed
 // into what is meant. The storefront draws the same questions with the same two,
 // so a shape that works for a client works here.
-import { VariableField } from '@/components/VariableField';
 // A question named by its answer, once it has one — the same rule the client's
 // booking form uses, so the two never call one field two different things.
-import { labelledByAnswer } from '@/kernel/classification';
+import { LineQuestions } from './LineQuestions';
 import { useArrivals } from '@/components/useArrivals';
 import { parseVariableValue, formatVariableValue } from '@/modules/services/variableTypes';
 import { PackageFieldsEditor } from '../packages/[id]/PackageFieldsEditor';
@@ -1747,213 +1746,30 @@ export function NewBookingForm({
                         * nothing until the occasion is settled. Same order as
                         * the storefront, for the same reason.
                         */}
-                      {(() => {
-                        const q = line.openQuestions;
-                        /* Every route a package can ask along. The formSchema
-                           arm was missing, so a package that asked ONLY the
-                           studio's own questions rendered nothing here. */
-                        const schema = (q?.formSchema || []) as any[];
-                        if (!q || (q.variables.length === 0 && q.classifications.length === 0 && schema.length === 0)) return null;
-                        const setIntake = (id: string, value: any) => setLines((prev) => {
-                          const next = [...prev];
-                          next[index] = { ...next[index], intakeAnswers: { ...next[index].intakeAnswers, [id]: value } };
-                          return next;
-                        });
-                        const setAnswer = (id: string, raw: string) => setLines((prev) => {
-                          const next = [...prev];
-                          next[index] = { ...next[index], variableAnswers: { ...next[index].variableAnswers, [id]: raw } };
-                          return next;
-                        });
-                        const setClassification = (dimensionId: string, valueId: string) => setLines((prev) => {
-                          const next = [...prev];
-                          next[index] = { ...next[index], chosenClassifications: { ...next[index].chosenClassifications, [dimensionId]: valueId } };
-                          return next;
-                        });
-                        return (
-                          <>
-                            {q.classifications.map((c: any) => (
-                              <div className="q-field" key={c.dimensionId}>
-                                <label className="q-label">{c.question || c.name}</label>
-                                <select
-                                  className="q-select"
-                                  value={line.chosenClassifications[c.dimensionId] || ''}
-                                  onChange={(e) => setClassification(c.dimensionId, e.target.value)}
-                                >
-                                  <option value="">Not said yet</option>
-                                  {c.values.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                                </select>
-                              </div>
-                            ))}
-
-                            {/*
-                              * THE STUDIO'S OWN QUESTIONS.
-                              *
-                              * Written on the package by whoever built it, and
-                              * until now asked only of clients booking online.
-                              * An operator taking the same booking by phone had
-                              * no way to answer the questions their own studio
-                              * composed, and the booking arrived missing them
-                              * with nothing to say why.
-                              */}
-                            {schema.map((f: any) => (
-                              <div className="q-field" key={f.id}>
-                                <label className="q-label">
-                                  {f.label}
-                                  {f.required && <span className="q-danger" style={{ marginLeft: '4px' }}>*</span>}
-                                </label>
-                                {f.type === 'textarea' ? (
-                                  <textarea
-                                    className="q-textarea"
-                                    rows={3}
-                                    value={line.intakeAnswers[f.id] ?? ''}
-                                    onChange={(e) => setIntake(f.id, e.target.value)}
-                                  />
-                                ) : f.type === 'select' ? (
-                                  <select
-                                    className="q-select"
-                                    value={line.intakeAnswers[f.id] ?? ''}
-                                    onChange={(e) => setIntake(f.id, e.target.value)}
-                                  >
-                                    <option value="">Not said</option>
-                                    {(f.options || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
-                                  </select>
-                                ) : (
-                                  <input
-                                    className="q-input"
-                                    type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-                                    value={line.intakeAnswers[f.id] ?? ''}
-                                    onChange={(e) => setIntake(f.id, e.target.value)}
-                                  />
-                                )}
-                              </div>
-                            ))}
-
-                            {q.variables.map((v: any) => (
-                              <div className="q-field" key={v.id}>
-                                <label className="q-label">
-                                  {/*
-                                    * NAMED BY THE ANSWER, ONCE THERE IS ONE.
-                                    *
-                                    * "Occasion Date" is what the studio wrote,
-                                    * because when the question was declared the
-                                    * occasion was not yet any particular one.
-                                    * Once this booking says Birthday it is the
-                                    * birthday's date, and a field still headed
-                                    * Occasion beside a Birthday answer reads as
-                                    * a second, different occasion.
-                                    *
-                                    * The same kernel rule the client's form
-                                    * uses, so the operator and the client never
-                                    * see the same field called two things.
-                                    */}
-                                  {labelledByAnswer(
-                                    v.label,
-                                    v.dimensionName,
-                                    (q.classifications as any[])
-                                      .find((c: any) => c.dimensionId === v.dimensionId)
-                                      ?.values?.find((x: any) => x.id === line.chosenClassifications[v.dimensionId])
-                                      ?.name,
-                                  )}
-                                  {v.unit && <span className="q-meta-sm" style={{ marginLeft: '6px' }}>({v.unit}s)</span>}
-                                  {/*
-                                    * WHERE THE QUESTION COMES FROM, TRUTHFULLY.
-                                    *
-                                    * A variable can belong to a service or to a
-                                    * CLASSIFICATION. This printed serviceName
-                                    * either way, and the domain was stamping a
-                                    * classification's variable with whichever
-                                    * service came first in the bundle — so
-                                    * "Location Address" claimed to come from
-                                    * Event Photography when it comes from
-                                    * Context. It is asked because of how the
-                                    * work is classified, not because of who
-                                    * performs it.
-                                    *
-                                    * Separated in the text as well as the
-                                    * spacing: read aloud, the two ran together
-                                    * into one word.
-                                    */}
-                                  {(v.dimensionName || v.serviceName) && (
-                                    <span className="q-meta-sm" style={{ marginLeft: '8px' }}>
-                                      &middot; {v.dimensionName || v.serviceName}
-                                    </span>
-                                  )}
-                                </label>
-                                <VariableField
-                                  kind={v.kind}
-                                  value={line.variableAnswers[v.id] ?? ''}
-                                  onChange={(next) => setAnswer(v.id, Array.isArray(next) ? next.join(', ') : next)}
-                                  options={v.options || []}
-                                  unit={v.unit}
-                                  min={v.min}
-                                  max={v.max}
-                                  emptyLabel="Not said yet"
-                                  width="100%"
-                                />
-                                {/*
-                                  * A DATE THE STUDIO KNOWS AND THE CALENDAR
-                                  * DOES NOT.
-                                  *
-                                  * The calendar reads bookings.scheduled_for
-                                  * and nothing else; an answer like the date of
-                                  * the occasion lands in
-                                  * booking_line_variable_values, which
-                                  * listBookingsInRange never touches. So a
-                                  * studio could take the date of the wedding
-                                  * from the client and have the booking appear
-                                  * on no calendar at all, with nothing saying
-                                  * so.
-                                  *
-                                  * NOT FILLED IN AUTOMATICALLY, because these
-                                  * are two different facts: scheduled_for is
-                                  * when the STUDIO works, and this is when the
-                                  * EVENT is. Usually the same for event
-                                  * coverage and not always — a pre-wedding
-                                  * shoot is before, an album after — and a
-                                  * calendar that invents commitments nobody
-                                  * made is worse than one with gaps.
-                                  *
-                                  * So it is offered, and it is offered here,
-                                  * beside the answer that was just given rather
-                                  * than in the section above that the operator
-                                  * has already scrolled past.
-                                  */}
-                                {v.kind === 'date' && (line.variableAnswers[v.id] ?? '') !== '' && (() => {
-                                  const said = String(line.variableAnswers[v.id]).slice(0, 10);
-                                  const scheduled = when ? when.slice(0, 10) : '';
-                                  const reads = (d: string) => new Date(`${d}T00:00`).toLocaleDateString(undefined,
-                                    { day: 'numeric', month: 'long', year: 'numeric' });
-                                  if (!scheduled) {
-                                    return (
-                                      <span className="q-row q-row-sm q-appear" style={{ alignItems: 'center' }}>
-                                        <span className="q-meta-sm">This booking is not scheduled.</span>
-                                        <button type="button" className="q-btn q-btn-secondary q-btn-xs"
-                                          onClick={() => setWhen(`${said}T09:00`)}>
-                                          Schedule it for {reads(said)}
-                                        </button>
-                                      </span>
-                                    );
-                                  }
-                                  if (scheduled !== said) {
-                                    return (
-                                      <span className="q-row q-row-sm q-appear" style={{ alignItems: 'center' }}>
-                                        <span className="q-meta-sm q-text-danger">
-                                          This booking is scheduled for {reads(scheduled)}.
-                                        </span>
-                                        <button type="button" className="q-btn q-btn-secondary q-btn-xs"
-                                          onClick={() => setWhen(`${said}T${when.slice(11) || '09:00'}`)}>
-                                          Move it to {reads(said)}
-                                        </button>
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
-                            ))}
-                          </>
-                        );
-                      })()}
+                      {line.openQuestions && (
+                        <LineQuestions
+                          questions={line.openQuestions}
+                          classification={line.chosenClassifications}
+                          intake={line.intakeAnswers}
+                          answers={line.variableAnswers}
+                          onClassification={(dimensionId, valueId) => setLines((prev) => {
+                            const next = [...prev];
+                            next[index] = { ...next[index], chosenClassifications: { ...next[index].chosenClassifications, [dimensionId]: valueId } };
+                            return next;
+                          })}
+                          onIntake={(id, value) => setLines((prev) => {
+                            const next = [...prev];
+                            next[index] = { ...next[index], intakeAnswers: { ...next[index].intakeAnswers, [id]: value } };
+                            return next;
+                          })}
+                          onAnswer={(id, raw) => setLines((prev) => {
+                            const next = [...prev];
+                            next[index] = { ...next[index], variableAnswers: { ...next[index].variableAnswers, [id]: raw } };
+                            return next;
+                          })}
+                          scheduling={{ when, setWhen }}
+                        />
+                      )}
 
                         <div className="q-field">
                         {/*

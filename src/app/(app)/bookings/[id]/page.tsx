@@ -233,8 +233,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
     : billing.leftToInvoice;
   const leftToPay = billing.leftToPay;
 
-  const Section = ({ title, children }: {
+  const Section = ({ title, id, children }: {
     title: string;
+    /** An anchor, so the edit page's "what follows" can point at it. */
+    id?: string;
     children: React.ReactNode;
   }) => (
     /*
@@ -243,7 +245,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
      * invoices, contract. One class on the shared Section so every one of them
      * obeys it and no future section can forget to.
      */
-    <div className="q-card q-section q-rise">
+    <div className="q-card q-section q-rise" id={id}>
       <h2 className="q-section-title">{title}</h2>
       {children}
     </div>
@@ -728,7 +730,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * unassigned" and one pointing at the other "below". Who is doing
             * the work and what the work is are one question, asked here once.
             */}
-          <Section title="Work">
+          <Section title="Work" id="work">
           <WorkPositions work={work} />
 
           <div className="q-subsection">
@@ -798,7 +800,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           />
           </div>
         </Section>
-          <Section title="Invoices & Payments">
+          <Section title="Invoices & Payments" id="money">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
               {invoices.length === 0
@@ -919,7 +921,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
 
         </Section>
-          <Section title="Contract">
+          <Section title="Contract" id="contract">
           {contracts.length > 0 && (
             <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
               {contracts.map((c) => (
@@ -959,7 +961,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             );
           })()}
         </Section>
-          <Section title="Client confirmation">
+          <Section title="Client confirmation" id="confirmation">
           <ShareBooking
             bookingId={booking.id}
             bookingTitle={booking.title}
