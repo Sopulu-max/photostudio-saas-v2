@@ -138,7 +138,7 @@ export function BookingTasks({
                   <select
                     className="q-select"
                     style={{ minWidth: '140px' }}
-                    value={t.roleId ?? ''}
+                    value={t.roleOverridden || !t.workflowRoleName ? (t.roleId ?? '') : ''}
                     disabled={isPending}
                     onChange={(e) => {
                       const roleId = e.target.value || null;

@@ -48,6 +48,8 @@ export type ResolvedBookingTask = {
   roleName: string | null;
   /** The workflow's role for this step - what a null role_id on the row falls back to. */
   workflowRoleName: string | null;
+  /** This booking set the role itself, rather than taking the workflow's. */
+  roleOverridden: boolean;
   assignee: Person | null;
   /** Which package this came from, or null for work the studio added itself. */
   fromPackage: string | null;
@@ -133,6 +135,7 @@ export async function resolveBookingTasks(orgId: string, bookingIds: string[]): 
             roleId: (row?.role?.id ?? step.roleId) as string | null,
             roleName: (row?.role?.name ?? step.roleName) as string | null,
             workflowRoleName: step.roleName,
+            roleOverridden: Boolean(row?.role?.id),
             assignee: person(row?.assignee),
             fromPackage,
             fromService: ps.serviceName || null,
@@ -182,6 +185,7 @@ function shapeLoose(r: any, bookingId: string, position: number, line: any, own:
     roleId: (r.role?.id ?? r.step?.default_role?.id ?? r.ownStep?.role?.id ?? null) as string | null,
     roleName: (r.role?.name ?? r.step?.default_role?.name ?? r.ownStep?.role?.name ?? null) as string | null,
     workflowRoleName: (r.step?.default_role?.name ?? null) as string | null,
+    roleOverridden: Boolean(r.role?.id),
     assignee: person(r.assignee),
     fromPackage: line ? ((line.package?.name ?? line.title ?? null) as string | null) : null,
     fromService: null,

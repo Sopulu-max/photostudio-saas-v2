@@ -421,11 +421,17 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           </Section>
         )}
 
-        {/* What they're booking — one line per Package */}
-        
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px', alignItems: 'start', marginTop: '32px' }}>
-        <div className="q-stack q-stack-xl">
-          
+        {/*
+          * ONE COLUMN, IN THE ORDER A JOB IS READ.
+          *
+          * This is a print: the photograph, the facts, then the document down
+          * the page at its measure. A two-column grid was tried here - packages
+          * and work on the left, money, people and papers on the right - and it
+          * cut a 1080px print into two 500px columns, wrapped every task row
+          * into three lines, and split the work from the crew doing it. The
+          * order below is the reading: what was sold, what it owes, the work,
+          * the money, the papers, the notes.
+          */}
           <Section title="Packages">
           {lines.length === 0 ? (
             <div className="q-stack q-stack-sm">
@@ -707,19 +713,85 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
         </Section>
-          <Section title="Tasks">
-          {/* The job's shape before its steps: each package, each service,
-              where it is - the local reading of the work. */}
+          {/*
+            * THE WORK, AS ONE SECTION.
+            *
+            * The job's shape first - each package, each service, where it is -
+            * then who is on it, then the steps. Team and Tasks were two
+            * sections in two columns, each opening with "2 tasks are
+            * unassigned" and one pointing at the other "below". Who is doing
+            * the work and what the work is are one question, asked here once.
+            */}
+          <Section title="Work">
           <WorkPositions work={work} />
+
+          <div className="q-subsection">
+            <h3 className="q-subsection-title">Crew</h3>
+          {team.roles.length === 0 ? (
+            <p className="q-meta" style={{ marginBottom: '16px' }}>
+              Nobody on this booking yet.
+            </p>
+          ) : (
+            <>
+              <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+                {team.roles.map((r: any) => (
+                  <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="q-strong">{r.roleName}</span>
+                      {r.tasks.length > 0 && (
+                        <span className="q-meta-sm">
+                          {r.tasks.length} {r.tasks.length === 1 ? 'task' : 'tasks'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {r.covering.map((p: any) => {
+                        const member = r.members.find((m: any) => m.person.id === p.id);
+                        return (
+                          <span key={p.id} className="q-badge q-badge-neutral q-row" style={{ gap: '4px', alignItems: 'center' }}>
+                            {p.name}
+                            {/* Only someone put on directly can be taken off here;
+                                a person who is only on a task comes off by
+                                unassigning that task. */}
+                            {member && (
+                              <RemoveFromTeam
+                                bookingId={booking.id}
+                                assignmentId={member.assignmentId}
+                                name={p.name}
+                              />
+                            )}
+                          </span>
+                        );
+                      })}
+                      {r.covering.length === 0 && <span className="q-meta-sm">Unassigned</span>}
+                      {r.unassigned > 0 && r.covering.length > 0 && (
+                        <span className="q-meta-sm">{r.unassigned} task{r.unassigned === 1 ? '' : 's'} unassigned</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <AddToTeam
+            bookingId={booking.id}
+            employees={employees as any}
+            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+          />
+
+          </div>
+
+          <div className="q-subsection">
+            <h3 className="q-subsection-title">Steps</h3>
           <BookingTasks
             bookingId={booking.id}
             tasks={bookingTasks as any}
             employees={employees as any}
             roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
           />
+          </div>
         </Section>
-        </div>
-        <div className="q-stack q-stack-xl">
           <Section title="Invoices & Payments">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
@@ -841,71 +913,6 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
 
         </Section>
-          <Section title="Team">
-          {team.roles.length === 0 ? (
-            <p className="q-meta" style={{ marginBottom: '16px' }}>
-              No team members assigned.
-            </p>
-          ) : (
-            <>
-              {team.unfilled > 0 && (
-                <p className="q-meta" style={{ marginBottom: '16px' }}>
-                  {team.unfilled} {team.unfilled === 1 ? 'task is' : 'tasks are'} unassigned.
-                </p>
-              )}
-              <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-                {team.roles.map((r: any) => (
-                  <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
-                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="q-strong">{r.roleName}</span>
-                      {r.tasks.length > 0 && (
-                        <span className="q-meta-sm">
-                          {r.tasks.length} {r.tasks.length === 1 ? 'task' : 'tasks'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {r.covering.map((p: any) => {
-                        const member = r.members.find((m: any) => m.person.id === p.id);
-                        return (
-                          <span key={p.id} className="q-badge q-badge-neutral q-row" style={{ gap: '4px', alignItems: 'center' }}>
-                            {p.name}
-                            {/* Only someone put on directly can be taken off here;
-                                a person who is only on a task comes off by
-                                unassigning that task. */}
-                            {member && (
-                              <RemoveFromTeam
-                                bookingId={booking.id}
-                                assignmentId={member.assignmentId}
-                                name={p.name}
-                              />
-                            )}
-                          </span>
-                        );
-                      })}
-                      {r.covering.length === 0 && <span className="q-meta-sm">Unassigned</span>}
-                      {r.unassigned > 0 && r.covering.length > 0 && (
-                        <span className="q-meta-sm">{r.unassigned} task{r.unassigned === 1 ? '' : 's'} unassigned</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          <AddToTeam
-            bookingId={booking.id}
-            employees={employees as any}
-            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
-          />
-
-          {team.hasTasks && (
-            <p className="q-meta-sm" style={{ marginTop: '16px' }}>
-              Individual tasks can be assigned under Tasks below.
-            </p>
-          )}
-        </Section>
           <Section title="Contract">
           {contracts.length > 0 && (
             <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
@@ -962,42 +969,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             notes={notes}
           />
         </Section>
-        </div>
       </div>
-{/*
-          * Who is on this booking — read off the tasks, not recorded separately.
-          * Grouped by role because that is the question actually asked before a
-          * shoot ("have I got a second shooter for Saturday"), and because a
-          * role nobody is covering has to be visible, which a list of names
-          * cannot show.
-          */}
-        {/*
-          * The work, collated across every package on this booking.
-          *
-          * It used to live under each package, so a booking with three packages
-          * had three separate lists and no view of the job as one thing. The
-          * package a task came from is still shown against it; it just no
-          * longer decides how the list is organised.
-          */}
-        {/* Deliverables */}
-        {/* Money */}
-        {/*
-          * THE CLIENT'S OWN COPY.
-          *
-          * Last, because it is about the whole booking rather than a part of
-          * it — everything above is what the link would show.
-          */}
-        {/*
-          * WHAT THE STUDIO HAS WRITTEN DOWN ABOUT THIS JOB.
-          *
-          * Distinct from the brief above, which is the client's own words and
-          * is never edited. This is the studio's side: the gate code, that they
-          * moved the date twice, what to remember for the next one.
-          *
-          * The same notes the notes app holds — one table, one module. A note
-          * taken off this booking goes there rather than being destroyed.
-          */}
-        </div>
     </div>
   );
 }
