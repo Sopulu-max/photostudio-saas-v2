@@ -3,7 +3,8 @@
 import React from 'react';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
-import { Analysis, type Order } from '@/components/Analysis';
+import Link from 'next/link';
+import { Analysis, type Order, type Column } from '@/components/Analysis';
 import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
 import type { BookingsSheet, SheetBooking } from '@/modules/bookings/interface';
 
@@ -98,11 +99,29 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     dim: b.band === 'closed',
   });
 
+  /* THE TABLE: one scalar per column, so the eye compares down it. */
+  const columns: Column<SheetBooking>[] = [
+    { key: 'client', label: 'Client', cell: (b) => <span className="q-cell-strong">{b.clientName ?? '—'}</span>, sort: (a, b) => (a.clientName || '￿').localeCompare(b.clientName || '￿') },
+    { key: 'title', label: 'Booking', cell: (b) => <Link href={`/bookings/${b.id}`} className="q-plain-link q-cell-link">{b.title}</Link>, sort: (a, b) => (a.title || '').localeCompare(b.title || '') },
+    { key: 'soon', label: 'When', cell: (b) => <span className="q-cell-mono">{when(b.scheduledFor) ?? '—'}</span>, sort: (a, b) => byDate(a, b, 1) },
+    { key: 'packages', label: 'Packages', cell: (b) => <span className="q-cell-quiet">{b.packages.join(' · ') || '—'}</span> },
+    { key: 'stage', label: 'Stage', cell: (b) => b.stage ? <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span> : <span className="q-cell-quiet">—</span>, sort: (a, b) => (a.stage?.name || '￿').localeCompare(b.stage?.name || '￿') },
+    { key: 'steps', label: 'Steps', cell: (b) => b.work && b.work.total > 0 ? (
+        <span className="q-cell-progress" title={`${b.work.done} of ${b.work.total} steps done`}>
+          <span className="q-sheet-band-bar"><i className={b.work.done === b.work.total ? 'q-dist-c-green' : 'q-dist-c-blue'} style={{ '--q-share': Math.round((b.work.done / b.work.total) * 100) } as React.CSSProperties} /></span>
+          <span className="q-cell-mono">{b.work.done}/{b.work.total}</span>
+        </span>
+      ) : <span className="q-cell-quiet">—</span>,
+      sort: (a, b) => (a.work ? a.work.done / a.work.total : -1) - (b.work ? b.work.done / b.work.total : -1) },
+    { key: 'owed', label: 'Owed', align: 'end', cell: (b) => b.owed ? <span className="q-cell-warm q-cell-mono">{formatMoney(b.owed.amount, b.owed.currency ?? sheet.currency)}</span> : <span className="q-cell-quiet">—</span>, sort: (a, b) => (a.owed?.amount ?? 0) - (b.owed?.amount ?? 0) },
+  ];
+
   return (
     <Analysis
       rows={all}
       lenses={sheet.lenses}
       orders={ORDERS}
+      columns={columns}
       searchIn={(b) => [b.title, b.clientName, ...b.packages]}
       searchPlaceholder="Search by title, client or package"
       noun="booking"

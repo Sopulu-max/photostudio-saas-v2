@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { stageBadgeClass } from '@/components/stageBadge';
-import { Analysis, type Order } from '@/components/Analysis';
+import Link from 'next/link';
+import { Analysis, type Order, type Column } from '@/components/Analysis';
 import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
 import type { TasksSheet, TaskRow } from '@/modules/production/interface';
 
@@ -65,11 +66,22 @@ export function TasksBook({ sheet }: { sheet: TasksSheet }) {
     dim: t.done,
   });
 
+  const columns: Column<TaskRow>[] = [
+    { key: 'task', label: 'Task', cell: (t) => <span className="q-cell-strong">{t.name}</span>, sort: (a, b) => a.name.localeCompare(b.name) || byBooking(a, b, 1) },
+    { key: 'booking', label: 'Booking', cell: (t) => <Link href={`/bookings/${t.booking.id}#work`} className="q-plain-link q-cell-link">{t.booking.title}</Link>, sort: (a, b) => a.booking.title.localeCompare(b.booking.title) || a.position - b.position },
+    { key: 'soon', label: 'When', cell: (t) => <span className="q-cell-mono">{when(t.booking.scheduledFor) ?? '—'}</span>, sort: (a, b) => byBooking(a, b, 1) },
+    { key: 'service', label: 'Service', cell: (t) => <span className="q-cell-quiet">{t.fromService ?? '—'}</span>, sort: (a, b) => (a.fromService || '￿').localeCompare(b.fromService || '￿') },
+    { key: 'role', label: 'Role', cell: (t) => <span className="q-cell-quiet">{t.role?.name ?? '—'}</span>, sort: (a, b) => (a.role?.name || '￿').localeCompare(b.role?.name || '￿') },
+    { key: 'person', label: 'Person', cell: (t) => t.assignee ? t.assignee.name : <span className="q-cell-warm">Nobody</span>, sort: (a, b) => (a.assignee?.name || '￿').localeCompare(b.assignee?.name || '￿') },
+    { key: 'status', label: 'Status', align: 'end', cell: (t) => <span className={t.done ? 'q-badge q-badge-c-green' : 'q-badge q-badge-neutral'}>{t.done ? 'Done' : 'Open'}</span>, sort: (a, b) => Number(a.done) - Number(b.done) },
+  ];
+
   return (
     <Analysis
       rows={sheet.rows}
       lenses={sheet.lenses}
       orders={ORDERS}
+      columns={columns}
       searchIn={(t) => [t.name, t.assignee?.name, t.role?.name, t.fromService, t.fromPackage, t.booking.title, t.booking.clientName]}
       searchPlaceholder="Search by task, person, service, package or booking"
       noun="task"

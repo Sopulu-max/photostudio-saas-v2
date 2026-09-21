@@ -3,6 +3,7 @@
 import React from 'react';
 import { useSearchParams } from 'next/navigation';
 import { stageColor, STAGE_COLORS } from '@/components/stageBadge';
+import { Donut, HBars } from '@/components/Charts';
 import type { LensGroup, Takes } from '@/kernel/lenses';
 
 /**
@@ -15,7 +16,9 @@ import type { LensGroup, Takes } from '@/kernel/lenses';
  *              and shares - of what is shown;
  *   graph    - the same breakdown as a donut and horizontal bars, in place
  *              of the rows (?view=graph);
- *   read     - the rows, drawn by whoever owns them.
+ *   read     - the rows, drawn by whoever owns them: as sheet rows, or as
+ *              a table with sortable columns (?view=table) when the owner
+ *              says what its columns are.
  *
  * The axes arrive decided (kernel/lenses): whoever owns the rows says what
  * each row takes on each axis and what the axes are. This file narrows,
@@ -33,15 +36,18 @@ import type { LensGroup, Takes } from '@/kernel/lenses';
 
 export type AnalysisRow = { id: string; day: string | null; takes: Takes };
 export type Order<R> = { key: string; label: string; compare: (a: R, b: R) => number };
+/** A table column: what to call it, what to draw, and how to sort by it - the sort joins the orders. */
+export type Column<R> = { key: string; label: string; cell: (r: R) => React.ReactNode; sort?: (a: R, b: R) => number; align?: 'end'; width?: string };
 
 const NONE = '__none__';
 
 export function Analysis<R extends AnalysisRow>({
-  rows: all, lenses, orders, searchIn, searchPlaceholder, noun, render, defaultGroup, empty,
+  rows: all, lenses, orders: given, columns, searchIn, searchPlaceholder, noun, render, defaultGroup, empty,
 }: {
   rows: R[];
   lenses: LensGroup[];
   orders: Order<R>[];
+  columns?: Column<R>[];
   /** The text a row can be found by. */
   searchIn: (r: R) => (string | null | undefined)[];
   searchPlaceholder: string;
@@ -52,6 +58,11 @@ export function Analysis<R extends AnalysisRow>({
   empty?: string;
 }) {
   const params = useSearchParams();
+  // A sortable column is an order too, so the header and the Order select agree.
+  const orders: Order<R>[] = [
+    ...given,
+    ...(columns ?? []).filter((c) => c.sort && !given.some((o) => o.key === c.key)).map((c) => ({ key: c.key, label: `By ${c.label.toLowerCase()}`, compare: c.sort! })),
+  ];
   const set = (name: string, value: string, fallback = '') => {
     const next = new URLSearchParams(params.toString());
     if (value && value !== fallback) next.set(name, value); else next.delete(name);
@@ -65,13 +76,15 @@ export function Analysis<R extends AnalysisRow>({
   const firstGroup = defaultGroup ?? lenses[0]?.key ?? '';
   const groupBy = params.has('group') ? params.get('group')! : firstGroup; // 'none' = no grouping
   const order = params.get('order') ?? orders[0].key;
-  const view = params.get('view') === 'graph' ? 'graph' : 'list';
+  const view = params.get('view') === 'graph' ? 'graph' : params.get('view') === 'table' && columns ? 'table' : 'list';
+  const desc = params.get('dir') === 'desc';
   const chosen: Record<string, string> = {};
   for (const g of lenses) { const v = params.get(g.key); if (v) chosen[g.key] = v; }
 
   // ---- Narrow: what is shown is what passes every control.
   const needle = q.trim().toLowerCase();
-  const compare = orders.find((o) => o.key === order)?.compare ?? orders[0].compare;
+  const chosenOrder = orders.find((o) => o.key === order)?.compare ?? orders[0].compare;
+  const compare = desc ? (a: R, b: R) => -chosenOrder(a, b) : chosenOrder;
   const takes = (r: R, axis: string, key: string) =>
     key === NONE ? (r.takes[axis] ?? []).length === 0 : (r.takes[axis] ?? []).includes(key);
   /* What passes every control - or every control but one axis's select, for that axis's distribution. */
@@ -157,55 +170,24 @@ export function Analysis<R extends AnalysisRow>({
           <span className="q-toolbar-count">{shown.length} of {all.length} {noun}{all.length === 1 ? '' : 's'}</span>
           <div className="q-seg" role="group" aria-label="View">
             <button type="button" className={view === 'list' ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-pressed={view === 'list'} onClick={() => set('view', '')}>List</button>
+            {columns && <button type="button" className={view === 'table' ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-pressed={view === 'table'} onClick={() => set('view', 'table')}>Table</button>}
             <button type="button" className={view === 'graph' ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-pressed={view === 'graph'} onClick={() => set('view', 'graph')} disabled={!axis} title={axis ? undefined : 'Group by an axis to graph it'}>Graph</button>
           </div>
         </div>
       </div>
 
-      {axis && view === 'graph' && basis.length > 0 && (() => {
-        /*
-         * THE GRAPH: the grouped axis's breakdown, drawn twice. A donut for
-         * the shape of the whole, with the total in the middle; horizontal
-         * bars for the values by name - horizontal because the names are a
-         * studio's people, packages and bookings, which a vertical bar's
-         * label cannot hold. Bars scale to the largest; the figure beside
-         * each is its share of the whole. Pressing either narrows, as the
-         * legend does.
-         */
-        const total = breakdown.reduce((n, g) => n + g.all.length, 0);
-        const max = Math.max(...breakdown.map((g) => g.all.length), 1);
-        const r = 38, circ = 2 * Math.PI * r;
-        let offset = 0;
-        const arcs = breakdown.map((g) => { const dash = (g.all.length / total) * circ; const a = { ...g, dash, offset }; offset += dash; return a; });
-        return (
-          <div className="q-charts" role="group" aria-label={`By ${axis.label.toLowerCase()}, as a graph`}>
-            <svg className="q-donut" viewBox="0 0 100 100" aria-hidden="true">
-              <circle className="q-donut-track" cx="50" cy="50" r={r} fill="none" strokeWidth="14" />
-              {arcs.map((a) => (
-                <circle key={a.key} className={`q-donut-arc q-donut-c-${a.color}`} cx="50" cy="50" r={r} fill="none" strokeWidth="14"
-                  strokeDasharray={`${a.dash} ${circ}`} strokeDashoffset={-a.offset} transform="rotate(-90 50 50)" />
-              ))}
-              <text className="q-donut-total" x="50" y="48" textAnchor="middle">{total}</text>
-              <text className="q-donut-word" x="50" y="60" textAnchor="middle">{noun}{total === 1 ? '' : 's'}</text>
-            </svg>
-            <div className="q-hbars">
-              {breakdown.map((g) => {
-                const on = chosen[axis.key] === g.key;
-                return (
-                  <button key={g.key} type="button" className={on ? 'q-hbar q-hbar-on' : 'q-hbar'} aria-pressed={on} onClick={() => set(axis.key, on ? '' : g.key)}>
-                    <span className="q-hbar-label"><i className={`q-dist-dot q-dist-c-${g.color}`} />{g.label}</span>
-                    <span className="q-hbar-track"><i className={`q-dist-c-${g.color}`} style={shareVar(Math.round((g.all.length / max) * 100))} /></span>
-                    <b>{g.all.length}</b>
-                    <span className="q-hbar-share">{share(g.all.length)}%</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
+      {axis && view === 'graph' && basis.length > 0 && (
+        /* The grouped axis's breakdown drawn twice: the shape of the whole, and the values by name. Pressing a bar narrows, as the legend does. */
+        <div className="q-charts" role="group" aria-label={`By ${axis.label.toLowerCase()}, as a graph`}>
+          <Donut slices={breakdown.map((g) => ({ key: g.key, label: g.label, value: g.all.length, color: g.color }))} noun={noun} />
+          <HBars
+            slices={breakdown.map((g) => ({ key: g.key, label: g.label, value: g.all.length, color: g.color, on: chosen[axis.key] === g.key }))}
+            press={(key, on) => set(axis.key, on ? '' : key)}
+          />
+        </div>
+      )}
 
-      {axis && view === 'list' && basis.length > 0 && (
+      {axis && view !== 'graph' && basis.length > 0 && (
         <div className="q-dist" role="group" aria-label={`By ${axis.label.toLowerCase()}`}>
           <div className="q-dist-bar" aria-hidden="true">
             {breakdown.map((g) => (
@@ -233,7 +215,60 @@ export function Analysis<R extends AnalysisRow>({
         </div>
       )}
 
-      {view === 'graph' && axis ? null : shown.length === 0 ? (
+      {view === 'table' && columns && shown.length > 0 && (
+        /*
+         * THE TABLE: one scalar per column so the eye compares down it.
+         * A header with a sort is a control: press it to order by that
+         * column, again to reverse; the Order select says the same thing.
+         * Grouping still applies - each group is a run of rows under a
+         * heading row.
+         */
+        <div className="q-table-container q-card">
+          <table className="q-table q-table-analysis">
+            <thead>
+              <tr>
+                {columns.map((c) => {
+                  const on = order === c.key;
+                  return (
+                    <th key={c.key} className={c.align === 'end' ? 'q-table-th q-table-th-end' : 'q-table-th'} style={c.width ? ({ width: c.width } as React.CSSProperties) : undefined} aria-sort={on ? (desc ? 'descending' : 'ascending') : undefined}>
+                      {c.sort ? (
+                        <button type="button" className={on ? 'q-table-sort q-table-sort-on' : 'q-table-sort'} onClick={() => { if (on) set('dir', desc ? '' : 'desc'); else { set('order', c.key, orders[0].key); } }}>
+                          {c.label}<span className="q-table-sort-mark" aria-hidden="true">{on ? (desc ? '↓' : '↑') : '↕'}</span>
+                        </button>
+                      ) : c.label}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {(axis ? groups : [{ key: 'all', label: '', note: null, now: false, color: 'none', all: shown, rows: shown }]).map((g) => (
+                <React.Fragment key={g.key}>
+                  {axis && (
+                    <tr className={g.now ? 'q-table-band q-sheet-band-today' : 'q-table-band'}>
+                      <td className="q-table-td" colSpan={columns.length}>
+                        <span className="q-sheet-band-inline">
+                          <i className={`q-sheet-band-dot q-dist-c-${g.color}`} />
+                          <span className="q-sheet-band-name">{g.label}</span>
+                          {g.note && <span className="q-sheet-band-note">{g.note}</span>}
+                          <span className="q-sheet-band-count">{g.rows.length} · {share(g.rows.length)}%</span>
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {g.rows.map((r) => (
+                    <tr key={r.id} className="q-table-tr">
+                      {columns.map((c) => <td key={c.key} className={c.align === 'end' ? 'q-table-td q-table-td-end' : 'q-table-td'}>{c.cell(r)}</td>)}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {(view === 'graph' && axis) || (view === 'table' && columns && shown.length > 0) ? null : shown.length === 0 ? (
         <p className="q-empty q-empty-lg">
           {narrowed ? `No ${noun}s match — widen the search, the dates or a select above.` : (empty ?? `No ${noun}s yet.`)}
         </p>
