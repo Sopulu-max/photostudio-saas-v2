@@ -99,3 +99,7 @@ export {
 
 // A line is called what its package is called, else what the operator named it - one rule, read everywhere.
 export { lineNameOf } from './lineName';
+
+// The booking page, as one typed read with every derivation done - the page draws it.
+export { readBookingPage } from './page';
+export type { BookingPageData, BookingPageLine } from './page';

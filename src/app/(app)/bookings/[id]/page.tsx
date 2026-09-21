@@ -1,238 +1,56 @@
 import React from 'react';
 import { notFound, redirect } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import Link from 'next/link';
 import { CoverSlides } from '@/components/CoverSlides';
 import { PrintHead, PrintFacts } from '@/components/Print';
 import { CreateContractButton } from './BookingActions';
 import { ResolveEnquiry } from './ResolveEnquiry';
-
-import { listClients } from '@/modules/clients/interface';
-import { listEmployees, listRoles } from '@/modules/team/interface';
-import { getBookingTeam, getBookingTasks, getBookingWork } from '@/modules/production/interface';
 import { WorkPositions } from '@/components/WorkPositions';
 import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
-
-import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking, lineNameOf, readRequestCoverage } from '@/modules/bookings/interface';
-import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
-import { listDeliverables } from '@/modules/deliverables/interface';
-import { getStudioCurrency } from '@/kernel/organizations';
+import { readBookingPage } from '@/modules/bookings/interface';
 import { StagePicker } from './BookingHeaderActions';
 import { LineExtras } from './LineExtras';
-import { formatVariableValue, listServices } from '@/modules/services/interface';
+import { formatVariableValue } from '@/modules/services/interface';
 import { stageBadgeClass } from '@/components/stageBadge';
-
 import { NewDeliveryForm, UploadFilesButton, RemoveFileButton, ShareControl, DeliveryActions, FulfilsControl, CoverButton } from './DeliveryForms';
-import { formatDuration } from '@/kernel/currency';
-import { listDeliveriesForBooking, getFulfilmentForBooking } from '@/modules/delivery/interface';
-import { formatMoney } from '@/kernel/currency';
-import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
+import { formatDuration, formatMoney } from '@/kernel/currency';
 import { GenerateInvoiceButton } from './InvoiceForms';
-import { listInvoicesForBooking, getBookingBilling } from '@/modules/finances/interface';
 import { ShareBooking } from './ShareBooking';
 import { NotesFor } from '@/components/NotesFor';
-import { listNotesAbout } from '@/modules/notes/interface';
 
 export const dynamic = 'force-dynamic';
 
 /** "₦200 × 3 hours = ₦600" when there's a unit; just the price when there isn't. */
-function linePrice(price: any, quantity: number) {
-  const base = price?.base_price;
-  if (base == null) return '—';
-  const currency = price?.currency || 'USD';
-  const unit = price?.unit;
-  const qty = Number(quantity ?? 1);
-  if (qty === 1 && !unit) return formatMoney(base, currency);
-  const unitLabel = unit ? `${qty} ${unit}${qty === 1 ? '' : 's'}` : `× ${qty}`;
-  return `${formatMoney(base, currency)}${unit ? ' × ' : ' '}${unitLabel} = ${formatMoney(base * qty, currency)}`;
+function linePrice(price: { base: number | null; currency: string; unit: string | null; quantity: number }) {
+  if (price.base == null) return '—';
+  const qty = price.quantity;
+  if (qty === 1 && !price.unit) return formatMoney(price.base, price.currency);
+  const unitLabel = price.unit ? `${qty} ${price.unit}${qty === 1 ? '' : 's'}` : `× ${qty}`;
+  return `${formatMoney(price.base, price.currency)}${price.unit ? ' × ' : ' '}${unitLabel} = ${formatMoney(price.base * qty, price.currency)}`;
 }
 
-/*
- * What a line is worth, asked of the booking's own instance of the package.
- *
- * The line still carries a denormalised copy of the price, and this used to read
- * only that — so a price corrected on the booking showed here as whatever it had
- * been when the line was made. The instance is what the invoice and the contract
- * both bill from, so it is what this has to agree with.
+/**
+ * THE PAGE DRAWS WHAT IT IS GIVEN. Every fact about the booking - what a
+ * line is called and worth, its classification and answers, which figure
+ * is agreed and which booked, whether it can be invoiced or a contract
+ * drafted - arrives in one typed read from Bookings (readBookingPage) with
+ * the derivations done. Nothing here works a fact out for itself; a page
+ * that did was a second reading, and second readings drift.
  */
-function priceOfLine(l: any) {
-  return firstPriced(l.package?.price, l.price);
-}
-
-function lineTotal(l: any) {
-  return amountOf(priceOfLine(l)) * Number(l.quantity ?? 1) + extrasAmount(l.extras);
-}
-
-
 export default async function BookingDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  let orgId: string;
-  let actorId: string | null = null;
   try {
-    const auth = await getAuthOrgId();
-    orgId = auth.orgId;
-    actorId = auth.contactId;
+    await getAuthOrgId();
   } catch {
     redirect('/login');
   }
 
-  const booking = await getBooking(params.id);
-  if (!booking) notFound();
-
-  // Get the org slug for public links
-  const { data: orgData } = await supabaseAdmin.from('organizations').select('slug').eq('id', orgId).single();
-  const orgSlug = orgData?.slug || '';
-
-  // The catalogue of what can be added to this booking — asked of Packages,
-  // never read from its table. Retired packages aren't offered for new lines.
-  const packageRows = await listPackages();
-  /*
-   * THE LINE'S OWN PACKAGE, READ AS ITSELF.
-   *
-   * A line points at the booking's own instance of a package, and the
-   * catalogue listing above filters instances out - so looking the line's
-   * package up in it found nothing, and the Packages section said a booked
-   * package had no services. The instance is a real package with real rows
-   * (a member's is materialised from its family at booking), so it is read
-   * by id, in the same shape the catalogue rows have.
-   */
-  const linePackages = new Map<string, any>();
-  await Promise.all(((booking.lines || []) as any[])
-    .map((l) => l.package_id as string | null)
-    .filter((id, i, all): id is string => Boolean(id) && all.indexOf(id) === i)
-    .map(async (id) => { const p = await getPackage(id).catch(() => null); if (p) linePackages.set(id, p); }));
-  const packageOptions = (packageRows as any[])
-    .filter((p) => p.status !== 'retired')
-    .map((p) => ({ id: p.id as string, name: p.name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-
-  // Clients come through the Clients module's interface — composition, not a
-  // reach into its tables.
-  const clientRows = await listClients();
-  // Archived clients aren't offered for a new assignment — same rule as retired services.
-  const clientOptions = clientRows
-    .filter((c: any) => c.status !== 'archived')
-    .map((c: any) => ({ contactId: c.contact?.id as string, name: c.contact?.display_name as string }))
-    .filter((c: { contactId: string; name: string }) => !!c.contactId);
-
-  // Crew, roster and work through Production's interface.
-  const lineIds = booking.lines.map((l: any) => l.id);
-
-  // What each line is actually configured as — the package's scope plus
-  // whatever the client answered. Keyed by line so it renders inline.
-  const { getLineConfigurationForm, listStages } = await import('@/modules/bookings/interface');
-  const configByLine: Record<string, any[]> = {};
-  for (const id of lineIds) configByLine[id] = await getLineConfigurationForm(id);
-  const [deliveries, stages, intake, enquiry, coverage, suggestedMinutes, currencyCode, fulfilment, team, bookingTasks, employees, roles, work] = await Promise.all([
-    listDeliveriesForBooking(booking.id),
-    listStages(),
-    getIntakeAnswersForBooking(booking.id),
-    getEnquiryForBooking(booking.id),
-    readRequestCoverage(booking.id),
-    suggestedDurationForBooking(booking.id),
-    getStudioCurrency(),
-    getFulfilmentForBooking(booking.id),
-    getBookingTeam(booking.id),
-    getBookingTasks(booking.id),
-    listEmployees(),
-    listRoles(),
-    getBookingWork(booking.id),
-  ]);
-
-  // The documents raised against this booking, distinct from the money that
-  // moved: an invoice is what was asked for, a transaction is what arrived.
-  const invoices = await listInvoicesForBooking(booking.id);
-  // Booked, invoiced and paid — three different questions, asked of Finances
-  // rather than worked out again here from its tables.
-  const billing = await getBookingBilling(booking.id);
-  const notes = await listNotesAbout({ type: 'booking', id: booking.id });
-
-  // What the packages promised, and what's still owed. Shared is the bar, not
-  // uploaded: a bundle the client can't open isn't delivered.
-  const promised = fulfilment.map((f) => ({ id: f.id, name: f.name }));
-  const undelivered = fulfilment.filter((f) => !f.shared);
-
-  const lines: any[] = booking.lines;
-  const [availablePackages, availableServices, availableDeliverables] = await Promise.all([
-    listPackages(),
-    listServices(),
-    listDeliverables()
-  ]);
-  const contracts: any[] = booking.contracts;
-  const txns: any[] = booking.transactions;
-
-  // What's due to book, per the contract's own terms — suggested, never
-  // forced. An operator can always raise something else instead. A booking
-  // can have more than one contract once an earlier one is closed out, so
-  // "latest" means most recently created, not just last in the array — and
-  // an open one (still worth something) always wins over a closed one even
-  // if it's older, since a cancelled contract's terms aren't live anymore.
-  const byNewest = [...contracts].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
-  const hasOpenContract = contracts.some((c: any) => !['completed', 'cancelled'].includes(c.status));
-  const latestContract = byNewest.find((c: any) => !['completed', 'cancelled'].includes(c.status)) || byNewest[0];
-  const contractTerms: any = latestContract?.terms || {};
-  const contractDepositPct = Number(contractTerms.deposit_percentage || 0);
-  /*
-   * AGREED MEANS SIGNED. A proposed contract is the booking read as an
-   * agreement and follows it; only a signed one fixes a figure the booking
-   * can no longer move. Reading "Agreed" off a proposal made an extra taken
-   * after drafting vanish from the money - the proposal said 20,000 and the
-   * page believed it over the booking's own 25,000.
-   */
-  const contractSigned = ['active', 'completed'].includes(latestContract?.status);
-  const contractBasePrice = contractSigned ? Number(contractTerms.base_price || 0) : 0;
-
-  // What's actually landed vs what's still owed. A refund (outbound) reduces
-  // what counts as paid rather than being its own separate figure — it's
-  // money that came back out, not a different kind of debt.
-  const paidTotal = txns
-    .filter((t) => t.status === 'settled')
-    .reduce((sum, t) => sum + (t.direction === 'outbound' ? -Number(t.amount || 0) : Number(t.amount || 0)), 0);
-  const pendingTotal = txns.filter((t) => t.status === 'pending').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  /*
-   * What this booking is worth, contract or no contract.
-   *
-   * The figures used to come only from the contract's snapshotted terms, so a
-   * studio that had not sent one — or does not send them at all — saw no totals
-   * beside its invoices, however much had been billed and paid. A booking is
-   * worth what its packages come to; a signed contract fixes that number, it
-   * does not create it.
-   */
-  const bookedTotal = lines.reduce((sum: number, l: any) => sum + lineTotal(l), 0);
-  const bookingValue = contractBasePrice > 0 ? contractBasePrice : bookedTotal;
-  // Same reasoning for the currency: the contract's if there is one, otherwise
-  // whatever the packages are priced in, and the studio's own as a last resort.
-  const moneyCurrency = contractTerms.currency
-    || (lines.map((l: any) => priceOfLine(l) as any).find((p: any) => p?.currency)?.currency)
-    || currencyCode;
-  /*
-   * Two different remainders, which used to be one.
-   *
-   * "Outstanding" was booked minus paid, which answers neither question well: it
-   * counts work nobody has been billed for as though the client owed it, and it
-   * ignores an invoice sitting unpaid on their desk. A contract, where one
-   * exists, fixes what is owed overall; what has been billed and paid comes from
-   * the invoices themselves.
-   */
-  /*
-   * A CONCESSION IS NOT A REMAINDER, ON EITHER BRANCH.
-   *
-   * This subtracted only what had been billed, so a discount reappeared as work
-   * still to do: 250,000 agreed, 225,000 invoiced after ten per cent off, and
-   * the page announcing "₦25,000 left to invoice" — in the section summary, in
-   * a panel of its own, and forcing the section open as though somebody had
-   * forgotten to bill it. Nobody had. The studio gave it away.
-   *
-   * getBookingBilling counts it now, and the contract branch has to as well, or
-   * the bug survives on exactly the bookings formal enough to have a contract.
-   */
-  const leftToInvoice = contractBasePrice > 0
-    ? Math.max(contractBasePrice - billing.invoiced - billing.discounted, 0)
-    : billing.leftToInvoice;
-  const leftToPay = billing.leftToPay;
+  const page = await readBookingPage(params.id);
+  if (!page) notFound();
+  const { head, lines, money, work, deliverables, contract } = page;
+  const bookingId = page.id;
 
   const Section = ({ title, id, children }: {
     title: string;
@@ -272,15 +90,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         * link still opens the editor, where the studio's own picture is set.
         */}
       <CoverSlides
-        slides={(booking as any).images || []}
-        className={((booking as any).images || []).length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
+        slides={head.images}
+        className={head.images.length ? 'q-cover-banner' : 'q-cover-banner q-cover-empty'}
       >
         <Link
-          href={`/bookings/${booking.id}/edit`}
+          href={`/bookings/${bookingId}/edit`}
           className="q-cover-banner-link q-plain-link"
-          title={(booking as any).cover_url ? 'Change the cover' : 'Add a cover'}
+          title={head.images.length ? 'Change the cover' : 'Add a cover'}
         >
-          {!((booking as any).images || []).length && <span className="q-meta-sm">Add a cover</span>}
+          {!head.images.length && <span className="q-meta-sm">Add a cover</span>}
         </Link>
       </CoverSlides>
 
@@ -304,75 +122,64 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
         * things here that is genuinely a status.
         */}
       {(() => {
-        const client = booking.contact?.display_name || null;
-        /*
-         * Named from the line itself. A line points at the booking's own
-         * instance of a package, which the catalogue listing filters out -
-         * so looking the name up in packageRows found nothing and said the
-         * booking was empty. getBooking already carries the package on the
-         * line, and the line carries its own title; that is where the
-         * Packages section below reads it from too.
-         */
-        const lineNames = lines
-          .map((l: any) => lineNameOf(l, '') || null)
-          .filter(Boolean) as string[];
-        const when = booking.scheduled_for ? new Date(booking.scheduled_for) : null;
+        const when = head.when.at ? new Date(head.when.at) : null;
         const whenSaid = when
           ? when.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
           : null;
-        const endsSaid = when && booking.duration_minutes
-          ? new Date(when.getTime() + booking.duration_minutes * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        const endsSaid = when && head.when.durationMinutes
+          ? new Date(when.getTime() + head.when.durationMinutes * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
           : null;
+        const packageNames = lines.map((l) => l.name);
 
         return (
           <>
             <PrintHead
-              stamp={lineNames.length > 0 ? lineNames.join(' + ') : 'No package yet'}
-              name={booking.title}
-              badge={booking.stage?.name
-                ? <span className={`q-badge ${stageBadgeClass(booking.stage)}`}>{booking.stage.name}</span>
+              stamp={head.stamp ?? 'No package yet'}
+              name={head.title}
+              badge={head.stage
+                ? <span className={`q-badge ${stageBadgeClass(head.stage as any)}`}>{head.stage.name}</span>
                 : undefined}
               actions={<>
                 <StagePicker
-                  bookingId={booking.id}
-                  stages={stages}
-                  currentStageId={booking.stage_id}
+                  bookingId={bookingId}
+                  stages={head.stages}
+                  currentStageId={head.stage?.id ?? ''}
                   /* Every task done: the completed stage has become available.
                      Said, not done - a stage is the studio's decision. */
-                  workDone={work.allDone && booking.stage?.kind === 'booked'}
+                  workDone={head.workDone}
                 />
-                <Link href={`/bookings/${booking.id}/edit`} className="q-btn q-btn-secondary">Edit</Link>
+                <Link href={`/bookings/${bookingId}/edit`} className="q-btn q-btn-secondary">Edit</Link>
               </>}
             />
 
             <PrintFacts facts={[
               {
                 key: 'Client',
-                value: client,
-                more: client && booking.contact?.email ? `· ${booking.contact.email}` : undefined,
-                absent: <>No client yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">attach whoever this is for</Link></>,
+                value: head.client?.name ?? null,
+                more: head.client?.email ? `· ${head.client.email}` : undefined,
+                absent: <>No client yet — <Link href={`/bookings/${bookingId}/edit`} className="q-plain-link">attach whoever this is for</Link></>,
               },
               {
                 key: 'When',
                 value: whenSaid,
-                more: whenSaid && booking.duration_minutes
-                  ? `${formatDuration(booking.duration_minutes)}${endsSaid ? ` · ends ${endsSaid}` : ''}`
+                more: whenSaid && head.when.durationMinutes
+                  ? `${formatDuration(head.when.durationMinutes)}${endsSaid ? ` · ends ${endsSaid}` : ''}`
                   : undefined,
                 absent: <>
-                  No date yet — <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
-                  {suggestedMinutes ? ` What is booked suggests about ${formatDuration(suggestedMinutes)}.` : ''}
+                  No date yet — <Link href={`/bookings/${bookingId}/edit`} className="q-plain-link">set one</Link> and it appears on the calendar.
+                  {head.when.suggestedMinutes ? ` What is booked suggests about ${formatDuration(head.when.suggestedMinutes)}.` : ''}
                 </>,
               },
               {
                 key: 'Packages',
-                value: lineNames.length > 0 ? lineNames.join(' · ') : null,
+                value: packageNames.length > 0 ? packageNames.join(' · ') : null,
                 absent: 'Nothing on this booking yet',
               },
               /* The one amber figure on the page (D3): what still needs the
                  studio. Nothing owed is said in ink, quietly. */
               {
                 key: 'Owed',
-                figure: pendingTotal > 0 ? { text: formatMoney(pendingTotal, moneyCurrency), due: true } : undefined,
+                figure: head.owed ? { text: formatMoney(head.owed.amount, head.owed.currency), due: true } : undefined,
                 absent: 'Nothing owed',
               },
             ]} />
@@ -383,8 +190,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               * typed: it is a person's sentence, and on an enquiry it is often
               * the only thing that says what the job is for.
               */}
-            {booking.brief && (
-              <p className="q-text-body q-prewrap q-print-brief">{booking.brief}</p>
+            {head.brief && (
+              <p className="q-text-body q-prewrap q-print-brief">{head.brief}</p>
             )}
           </>
         );
@@ -394,10 +201,10 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* What the client filled in. Named after the form it came from, so the
             thing a studio builds and the thing it reads back carry one name. */}
-        {intake.length > 0 && (
+        {page.formAnswers.length > 0 && (
           <Section title="Booking form answers">
             <div className="q-stack q-stack-sm">
-              {intake.map((row: any, i: number) => (
+              {page.formAnswers.map((row: any, i: number) => (
                 <div key={i} className="q-tile q-row q-row-between">
                   <div>
                     <strong className="q-strong">{row.label}</strong>
@@ -440,154 +247,93 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             <div className="q-stack q-stack-sm">
               <p className="q-empty">
                 Nothing on this booking yet —{' '}
-                <Link href={`/bookings/${booking.id}/edit`} className="q-plain-link">add a package</Link>{' '}
+                <Link href={`/bookings/${bookingId}/edit`} className="q-plain-link">add a package</Link>{' '}
                 whenever you know what they want.
               </p>
             </div>
           ) : (
             <div className="q-stack">
-              {lines.map((l) => {
-                const pkg = linePackages.get(l.package_id) ?? (packageRows as any[]).find((p) => p.id === l.package_id);
-                const svcNames = (pkg?.services || []).map((s: any) => s.name).filter(Boolean);
-                
-                // Classifications logic matching Packages
-                const byDimension = new Map<string, { id: string; name: string; values: { id: string; name: string }[] }>();
-                const absorb = (dims: any[]) => {
-                  for (const d of (dims || [])) {
-                    if (!byDimension.has(d.id)) byDimension.set(d.id, { id: d.id, name: d.name, values: [] });
-                    const target = byDimension.get(d.id)!;
-                    for (const v of d.values) if (!target.values.some((x: any) => x.id === v.id)) target.values.push(v);
-                  }
-                };
-                if (pkg) {
-                  absorb(pkg.dimensions);
-                  (pkg.services || []).forEach((s: any) => absorb(s.dimensions));
-                }
-                const tags = [...byDimension.values()];
-                
-                // What is answered, and what the package asks that nobody has
-                // answered yet - shown as unanswered, not left out.
-                const heldVars = (configByLine[l.id] || []).filter((f: any) => f.value != null || f.asked);
-                /* The booking's answer to a classification this package left
-                   open: a dimension the package tags with more than one value,
-                   answered on the booking. A dimension the package settled to
-                   one value is not a question and is not repeated here. */
-                const openAnswers = coverage.answers.filter((a) => {
-                  const dim = byDimension.get(a.dimensionId);
-                  return dim && dim.values.length > 1 && dim.values.some((v) => v.id === a.valueId);
-                });
-
-                return (
-                  <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
-                    <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
-                      <div>
-                        <strong className="q-strong" style={{ fontSize: '1.1rem' }}>{lineNameOf(l)}</strong>
-                        <div className="q-meta q-num" style={{ marginTop: '4px' }}>
-                          {linePrice(l.price, l.quantity)}
-                        </div>
-                      </div>
+              {lines.map((l) => (
+                <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
+                  <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                    <div>
+                      <strong className="q-strong" style={{ fontSize: '1.1rem' }}>{l.name}</strong>
+                      <div className="q-meta q-num" style={{ marginTop: '4px' }}>{linePrice(l.price)}</div>
                     </div>
+                  </div>
 
-                    <div className="q-stack q-stack-md" style={{ marginTop: '16px' }}>
-                      {(svcNames.length > 0 || tags.length > 0) && (
-                        <div className="q-stack q-stack-sm">
-                          <strong className="q-meta">Services & Scope</strong>
-                          {svcNames.length > 0 && <div className="q-text-body">{svcNames.join(' + ')}</div>}
-                          {tags.length > 0 && (
-                            <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
-                              {tags.map((d) => (
-                                <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
-                                  <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
-                                  <span className="q-row" style={{ gap: '4px' }}>
-                                    {d.values.map((v, i) => (
-                                      <span key={v.id}>
-                                        <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
-                                          {v.name}
-                                        </Link>
-                                        {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
-                                      </span>
-                                    ))}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {(heldVars.length > 0 || openAnswers.length > 0) && (
-                        <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
-                          <strong className="q-meta">Configuration</strong>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
-                            {/* What this booking answered where the package
-                                left the classification open - "Occasion:
-                                Anniversary" - before the date that follows
-                                from it. The tags above are what the package
-                                allows; this is what was chosen. */}
-                            {openAnswers.map((a: any) => (
-                              <React.Fragment key={a.dimensionId}>
-                                <div className="q-meta-plain" style={{ opacity: 0.7 }}>{a.dimensionName}</div>
-                                <div className="q-text-body">{a.valueName}</div>
-                              </React.Fragment>
-                            ))}
-                            {heldVars.map((f: any) => (
-                              <React.Fragment key={f.label}>
-                                <div className="q-meta-plain" style={{ opacity: 0.7 }}>{f.label}</div>
-                                <div className="q-text-body">
-                                  {f.value == null
-                                    ? <Link href={`/bookings/${booking.id}/edit`} className="q-absent q-plain-link">Not answered yet</Link>
-                                    : formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })}
-                                </div>
-                              </React.Fragment>
+                  <div className="q-stack q-stack-md" style={{ marginTop: '16px' }}>
+                    {(l.services.length > 0 || l.classification.length > 0) && (
+                      <div className="q-stack q-stack-sm">
+                        <strong className="q-meta">Services & Scope</strong>
+                        {l.services.length > 0 && <div className="q-text-body">{l.services.join(' + ')}</div>}
+                        {l.classification.length > 0 && (
+                          <div className="q-row" style={{ flexWrap: 'wrap', gap: '6px' }}>
+                            {l.classification.map((d) => (
+                              <div key={d.id} className="q-badge q-badge-neutral" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px', paddingRight: '6px' }}>
+                                <span className="q-meta-plain" style={{ opacity: 0.7 }}>{d.name}:</span>
+                                <span className="q-row" style={{ gap: '4px' }}>
+                                  {d.values.map((v, i) => (
+                                    <span key={v.id}>
+                                      <Link href={`/services/classifications/${encodeURIComponent(v.id)}`} className="q-plain-link" style={{ color: 'inherit', textDecoration: 'none' }}>
+                                        {v.name}
+                                      </Link>
+                                      {i < d.values.length - 1 ? <span style={{ opacity: 0.5 }}>, </span> : null}
+                                    </span>
+                                  ))}
+                                </span>
+                              </div>
                             ))}
                           </div>
-                        </div>
-                      )}
-
-                      {pkg?.deliverables && pkg.deliverables.length > 0 && (
-                        <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
-                          <strong className="q-meta">Deliverables</strong>
-                          <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--q-color-ink-900)' }}>
-                            {pkg.deliverables.map((d: any, idx: number) => (
-                              <li key={idx} style={{ marginBottom: '4px' }}>
-                                {/* @ts-ignore */}
-                                {formatDeliverable(d)}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* More of what this package promises - the only thing
-                        an extra is. Each promise knows the service that
-                        makes it, whose rate suggests the figure. */}
-                    {pkg && (
-                      <LineExtras
-                        lineId={l.id}
-                        currencyCode={currencyCode}
-                        promises={((pkg.services || []) as any[]).flatMap((s: any) =>
-                          ((s.deliverables || []) as any[]).map((d: any) => ({
-                            packageServiceId: s.packageServiceId as string,
-                            deliverableId: d.id as string,
-                            name: d.name as string,
-                            quantity: (d.quantity ?? null) as number | null,
-                            serviceName: s.name as string,
-                            rate: amountOf(((s.offers || []) as any[]).find((o: any) => o.id === d.id)?.rate) || null,
-                          })))}
-                        taken={((l.extras || []) as any[]).map((x: any) => ({
-                          id: x.id, label: x.label, units: Number(x.units), unit_rate: x.unit_rate,
-                          /* Where it went: the live invoices carrying it, by number or as a draft. */
-                          billedOn: ((x.billed || []) as any[])
-                            .map((b: any) => b.invoice).filter((i: any) => i && !i.voided_at)
-                            .map((i: any) => ({ id: i.id as string, number: (i.number ?? null) as string | null, status: i.status as string })),
-                        }))}
-                      />
+                        )}
+                      </div>
                     )}
 
+                    {l.configuration.length > 0 && (
+                      <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
+                        <strong className="q-meta">Configuration</strong>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', alignItems: 'baseline' }}>
+                          {l.configuration.map((f) => (
+                            <React.Fragment key={f.key}>
+                              <div className="q-meta-plain" style={{ opacity: 0.7 }}>{f.label}</div>
+                              <div className="q-text-body">
+                                {f.value == null
+                                  ? <Link href={`/bookings/${bookingId}/edit`} className="q-absent q-plain-link">Not answered yet</Link>
+                                  : f.kind
+                                    ? formatVariableValue({ value: f.value, unit: f.unit, kind: f.kind })
+                                    : String(f.value)}
+                              </div>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {l.promises.length > 0 && (
+                      <div className="q-stack q-stack-sm" style={{ borderTop: '1px solid var(--q-color-ink-100)', paddingTop: '16px' }}>
+                        <strong className="q-meta">Deliverables</strong>
+                        <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--q-color-ink-900)' }}>
+                          {l.promises.map((d, idx) => (
+                            <li key={idx} style={{ marginBottom: '4px' }}>{d}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+
+                  {/* More of what this package promises - the only thing an
+                      extra is. Each promise knows the service that makes it,
+                      whose rate suggests the figure. */}
+                  {l.extras && (
+                    <LineExtras
+                      lineId={l.id}
+                      currencyCode={money.currency}
+                      promises={l.extras.promises}
+                      taken={l.extras.taken}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           )}
           {/*
@@ -597,15 +343,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             */}
           {/* Only while something they asked for is not answered by a
               package on the booking - the set test, not lines.length. */}
-          {enquiry && !coverage.covered && (
+          {page.request.enquiry && !page.request.covered && (
             <div style={{ marginTop: lines.length > 0 ? '16px' : 0 }}>
               <ResolveEnquiry
-                bookingId={booking.id}
-                chosen={enquiry.chosen}
-                message={enquiry.message}
-                offers={enquiry.offers}
-                capabilities={enquiry.capabilities}
-                currencyCode={currencyCode}
+                bookingId={bookingId}
+                chosen={page.request.enquiry.chosen}
+                message={page.request.enquiry.message}
+                offers={page.request.enquiry.offers}
+                capabilities={page.request.enquiry.capabilities}
+                currencyCode={money.currency}
                 alreadyOn={lines.length > 0}
               />
             </div>
@@ -629,26 +375,24 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * list to people who actually hold the role. Nothing was lost here.
             */}
 
-          {lines.length > 0 && (
+          {page.total && (
             <div className="q-tile-sub q-row q-row-between" style={{ marginTop: '16px' }}>
               <span className="q-meta">Total</span>
-              <strong className="q-stat-value">
-                {formatMoney(lines.reduce((sum: number, l: any) => sum + lineTotal(l), 0), (lines[0]?.price as any)?.currency)}
-              </strong>
+              <strong className="q-stat-value">{formatMoney(page.total.amount, page.total.currency)}</strong>
             </div>
           )}
         </Section>
           <Section title="Deliverables">
           {/* What the packages promised, and whether it's been handed over. */}
-          {fulfilment.length > 0 && (
+          {deliverables.fulfilment.length > 0 && (
             <div className="q-note q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
               <span className="q-meta-sm">
-                {undelivered.length === 0
+                {deliverables.undelivered === 0
                   ? 'Everything promised has been shared.'
-                  : `Still owed: ${undelivered.length} of ${fulfilment.length}`}
+                  : `Still owed: ${deliverables.undelivered} of ${deliverables.fulfilment.length}`}
               </span>
               <div className="q-row" style={{ flexWrap: 'wrap' }}>
-                {fulfilment.map((f) => (
+                {deliverables.fulfilment.map((f: any) => (
                   <span key={f.id} className={`q-badge ${f.shared ? 'q-badge-success' : 'q-badge-neutral'}`}>
                     {f.name}
                     {f.shared
@@ -662,13 +406,13 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
 
-          {deliveries.length === 0 ? (
+          {deliverables.deliveries.length === 0 ? (
             <div className="q-muted">
               Nothing delivered yet. Bundle the finished work and share it when you're ready.
             </div>
           ) : (
             <div className="q-stack">
-              {deliveries.filter((d: any) => !d.archivedAt).map((d: any) => (
+              {deliverables.deliveries.filter((d: any) => !d.archivedAt).map((d: any) => (
                 <div key={d.id} className="q-tile">
                   <div className="q-row q-row-between">
                     <div>
@@ -680,7 +424,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     </div>
                     <div className="q-row">
                       <span className={`q-badge ${d.status === 'shared' ? 'q-badge-success' : 'q-badge-neutral'}`}>{d.status}</span>
-                      <UploadFilesButton deliveryId={d.id} bookingId={booking.id} />
+                      <UploadFilesButton deliveryId={d.id} bookingId={bookingId} />
                     </div>
                   </div>
 
@@ -693,12 +437,12 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                             {(f.mime_type || '').startsWith('image/') && (
                               <CoverButton
                                 deliveryId={d.id}
-                                bookingId={booking.id}
+                                bookingId={bookingId}
                                 deliveryAssetId={f.id}
                                 isCover={d.coverAssetId === f.id}
                               />
                             )}
-                            <RemoveFileButton fileId={f.id} bookingId={booking.id} />
+                            <RemoveFileButton fileId={f.id} bookingId={bookingId} />
                           </div>
                         </div>
                       ))}
@@ -707,29 +451,29 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
                   <FulfilsControl
                     deliveryId={d.id}
-                    bookingId={booking.id}
-                    promised={promised}
+                    bookingId={bookingId}
+                    promised={deliverables.promised}
                     fulfils={d.fulfils}
                   />
 
                   <div className="q-row q-row-between" style={{ marginTop: '12px' }}>
-                    <ShareControl deliveryId={d.id} bookingId={booking.id} status={d.status} shareToken={d.shareToken} />
-                    <DeliveryActions deliveryId={d.id} bookingId={booking.id} title={d.title} status={d.status} archived={false} />
+                    <ShareControl deliveryId={d.id} bookingId={bookingId} status={d.status} shareToken={d.shareToken} />
+                    <DeliveryActions deliveryId={d.id} bookingId={bookingId} title={d.title} status={d.status} archived={false} />
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <NewDeliveryForm bookingId={booking.id} />
+          <NewDeliveryForm bookingId={bookingId} />
 
-          {deliveries.some((d: any) => d.archivedAt) && (
+          {deliverables.deliveries.some((d: any) => d.archivedAt) && (
             <div style={{ marginTop: '28px' }}>
               <h3 className="q-section-title" style={{ fontSize: '0.95rem' }}>Archived</h3>
               <p className="q-meta" style={{ marginBottom: '12px' }}>
                 Superseded, but not touched — a shared link here still works exactly as before.
               </p>
               <div className="q-stack">
-                {deliveries.filter((d: any) => d.archivedAt).map((d: any) => (
+                {deliverables.deliveries.filter((d: any) => d.archivedAt).map((d: any) => (
                   <div key={d.id} className="q-tile" style={{ opacity: 0.7 }}>
                     <div className="q-row q-row-between">
                       <div>
@@ -740,7 +484,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                       </div>
                       <div className="q-row">
                         <span className={`q-badge ${d.status === 'shared' ? 'q-badge-success' : 'q-badge-neutral'}`}>{d.status}</span>
-                        <DeliveryActions deliveryId={d.id} bookingId={booking.id} title={d.title} status={d.status} archived={true} />
+                        <DeliveryActions deliveryId={d.id} bookingId={bookingId} title={d.title} status={d.status} archived={true} />
                       </div>
                     </div>
                   </div>
@@ -759,18 +503,18 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             * the work and what the work is are one question, asked here once.
             */}
           <Section title="Work" id="work">
-          <WorkPositions work={work} />
+          <WorkPositions work={work.positions} />
 
           <div className="q-subsection">
             <h3 className="q-subsection-title">Crew</h3>
-          {team.roles.length === 0 ? (
+          {work.team.roles.length === 0 ? (
             <p className="q-meta" style={{ marginBottom: '16px' }}>
               Nobody on this booking yet.
             </p>
           ) : (
             <>
               <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
-                {team.roles.map((r: any) => (
+                {work.team.roles.map((r: any) => (
                   <div key={r.roleId ?? 'none'} className="q-row q-row-between" style={{ alignItems: 'center' }}>
                     <span className="q-row" style={{ gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="q-strong">{r.roleName}</span>
@@ -791,7 +535,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                                 unassigning that task. */}
                             {member && (
                               <RemoveFromTeam
-                                bookingId={booking.id}
+                                bookingId={bookingId}
                                 assignmentId={member.assignmentId}
                                 name={p.name}
                               />
@@ -811,9 +555,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           )}
 
           <AddToTeam
-            bookingId={booking.id}
-            employees={employees as any}
-            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+            bookingId={bookingId}
+            employees={page.options.employees as any}
+            roles={page.options.roles}
           />
 
           </div>
@@ -821,33 +565,31 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
           <div className="q-subsection">
             <h3 className="q-subsection-title">Steps</h3>
           <BookingTasks
-            bookingId={booking.id}
-            tasks={bookingTasks as any}
-            employees={employees as any}
-            roles={(roles as any[]).map((r) => ({ id: r.id, name: r.name }))}
+            bookingId={bookingId}
+            tasks={work.tasks as any}
+            employees={page.options.employees as any}
+            roles={page.options.roles}
           />
           </div>
         </Section>
           <Section title="Invoices & Payments" id="money">
           <div className="q-row q-row-between" style={{ marginBottom: '16px' }}>
             <span className="q-meta">
-              {invoices.length === 0
-                ? billing.booked > 0
-                  ? `Nothing billed yet. ${formatMoney(billing.booked, moneyCurrency)} to invoice.`
+              {money.invoices.length === 0
+                ? money.booked > 0
+                  ? `Nothing billed yet. ${formatMoney(money.booked, money.currency)} to invoice.`
                   : 'Nothing billed yet — put a price on the packages and this can be invoiced.'
-                : leftToInvoice > 0
-                  ? `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · ${formatMoney(leftToInvoice, moneyCurrency)} still to invoice.`
-                  : `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'} raised · fully invoiced.`}
+                : money.leftToInvoice > 0
+                  ? `${money.invoices.length} ${money.invoices.length === 1 ? 'invoice' : 'invoices'} raised · ${formatMoney(money.leftToInvoice, money.currency)} still to invoice.`
+                  : `${money.invoices.length} ${money.invoices.length === 1 ? 'invoice' : 'invoices'} raised · fully invoiced.`}
             </span>
-            {/* Having lines was the old test, and it offered the button for a
-                booking nobody had quoted — which then raised an invoice for
-                nothing. What makes a booking billable is a price on it. */}
-            <GenerateInvoiceButton bookingId={booking.id} canBill={lines.some((l) => hasPrice(priceOfLine(l)))} />
+            {/* What makes a booking billable is a price on it - decided in the read. */}
+            <GenerateInvoiceButton bookingId={bookingId} canBill={money.canBill} />
           </div>
 
-          {invoices.length > 0 && (
+          {money.invoices.length > 0 && (
             <div className="q-stack q-stack-sm" style={{ marginBottom: '18px' }}>
-              {invoices.map((inv: any) => (
+              {money.invoices.map((inv: any) => (
                 <Link key={inv.id} href={`/finances/invoices/${inv.id}`} className="q-tile q-row q-row-between q-plain-link">
                   <div>
                     <strong className="q-strong">{inv.number || 'Draft invoice'}</strong>
@@ -857,7 +599,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     </div>
                   </div>
                   <div className="q-row">
-                    <span className="q-num q-strong">{formatMoney(inv.total, inv.currency || currencyCode)}</span>
+                    <span className="q-num q-strong">{formatMoney(inv.total, inv.currency || money.currency)}</span>
                     <span className={`q-badge ${
                       inv.status === 'void' ? 'q-badge-danger'
                       : inv.settled ? 'q-badge-success'
@@ -865,7 +607,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                     }`}>
                       {inv.status === 'void' ? 'withdrawn'
                         : inv.settled ? 'paid'
-                        : inv.partly ? `${formatMoney(inv.outstanding, inv.currency || currencyCode)} left`
+                        : inv.partly ? `${formatMoney(inv.outstanding, inv.currency || money.currency)} left`
                         : inv.status === 'draft' ? 'draft' : 'unpaid'}
                     </span>
                   </div>
@@ -874,61 +616,57 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             </div>
           )}
 
-          {bookingValue > 0 && (
+          {money.figures && (() => {
+            const f = money.figures;
+            const say = (n: number) => formatMoney(n, money.currency);
+            return (
             <div className="q-grid-3" style={{ marginBottom: '16px', flexWrap: 'wrap' }}>
               <div className="q-panel">
-                <div className="q-stat-label">{contractBasePrice > 0 ? 'Agreed' : 'Booked'}</div>
-                <div className="q-stat-value">{formatMoney(bookingValue, moneyCurrency)}</div>
+                <div className="q-stat-label">{f.valueLabel}</div>
+                <div className="q-stat-value">{say(f.value)}</div>
               </div>
               <div className="q-panel">
                 <div className="q-stat-label">Invoiced</div>
-                <div className="q-stat-value">{formatMoney(billing.invoiced, moneyCurrency)}</div>
+                <div className="q-stat-value">{say(f.invoiced)}</div>
               </div>
-              {/*
-                * THE GAP BETWEEN AGREED AND INVOICED, NAMED.
-                *
-                * Two figures that do not add up, side by side, with nothing
-                * saying why. The discount was recorded on the invoice, worked
-                * out correctly and frozen there — and then never mentioned
-                * again on the page where the operator actually looks. What was
-                * given away is a decision somebody made, and it belongs on the
-                * record beside the numbers it explains.
-                */}
-              {billing.discounted > 0 && (
+              {/* The gap between agreed and invoiced, named: what was given
+                  away is a decision, and belongs beside the numbers it explains. */}
+              {f.discounted > 0 && (
                 <div className="q-panel">
                   <div className="q-stat-label">Discounted</div>
-                  <div className="q-stat-value">{formatMoney(billing.discounted, moneyCurrency)}</div>
+                  <div className="q-stat-value">{say(f.discounted)}</div>
                 </div>
               )}
               <div className="q-panel">
                 <div className="q-stat-label">Paid</div>
-                <div className="q-stat-value">{formatMoney(billing.paid, moneyCurrency)}</div>
+                <div className="q-stat-value">{say(f.paid)}</div>
               </div>
-              {leftToInvoice > 0 && (
+              {f.leftToInvoice > 0 && (
                 <div className="q-panel">
                   <div className="q-stat-label">Left to invoice</div>
-                  <div className="q-stat-value">{formatMoney(leftToInvoice, moneyCurrency)}</div>
+                  <div className="q-stat-value">{say(f.leftToInvoice)}</div>
                 </div>
               )}
-              {leftToPay > 0 && (
+              {f.leftToPay > 0 && (
                 <div className="q-panel">
                   <div className="q-stat-label">Left to pay</div>
-                  <div className="q-stat-value">{formatMoney(leftToPay, moneyCurrency)}</div>
+                  <div className="q-stat-value">{say(f.leftToPay)}</div>
                 </div>
               )}
-              {pendingTotal > 0 && (
+              {f.pending > 0 && (
                 <div className="q-panel">
                   <div className="q-stat-label">Pending</div>
-                  <div className="q-stat-value q-warm">{formatMoney(pendingTotal, moneyCurrency)}</div>
+                  <div className="q-stat-value q-warm">{say(f.pending)}</div>
                 </div>
               )}
             </div>
-          )}
-          {txns.length === 0 ? (
+            );
+          })()}
+          {money.transactions.length === 0 ? (
             <div className="q-muted">No money on this booking yet.</div>
           ) : (
             <div className="q-stack">
-              {txns.map((t) => (
+              {money.transactions.map((t: any) => (
                 <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', border: '1px solid var(--q-color-ink-100)', borderRadius: '8px' }}>
                   <div>
                     <strong className="q-cap">{String(t.type).replace(/_/g, ' ')}</strong>
@@ -950,9 +688,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         </Section>
           <Section title="Contract" id="contract">
-          {contracts.length > 0 && (
-            <div className="q-stack" style={{ marginBottom: hasOpenContract ? 0 : '12px' }}>
-              {contracts.map((c) => (
+          {contract.contracts.length > 0 && (
+            <div className="q-stack" style={{ marginBottom: contract.hasOpen ? 0 : '12px' }}>
+              {contract.contracts.map((c: any) => (
                 <div key={c.id} className="q-tile q-row q-row-between">
                   <div className="q-row">
                     <strong className="q-strong">Contract v{c.version}</strong>
@@ -963,46 +701,35 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
               ))}
             </div>
           )}
-          {!hasOpenContract && (() => {
-            // A contract states a scope and a price, so it is only offered once
-            // the booking can supply both. Offering it earlier meant clicking it
-            // and being told no — or worse, before the domain refused, getting an
-            // agreement to do nothing for nothing.
-            const blocker = !booking.contact?.id
-              ? 'Add a client to this booking and a contract can be drafted from it.'
-              : lines.length === 0
-                ? 'Add a package and a contract can be drafted from what was agreed.'
-                : !lines.every((l: any) => hasPrice(priceOfLine(l)))
-                  ? 'Price every package on this booking and a contract can be drafted from it.'
-                  : null;
-            return (
-              <div>
-                <div className="q-muted">
-                  {contracts.length === 0
-                    ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
-                    : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
-                </div>
-                {blocker
-                  ? <div className="q-meta-sm">{blocker}</div>
-                  : <CreateContractButton bookingId={booking.id} label={contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />}
+          {!contract.hasOpen && (
+            <div>
+              <div className="q-muted">
+                {contract.contracts.length === 0
+                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
+                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
               </div>
-            );
-          })()}
+              {/* Offered only once the booking can supply a scope and a price;
+                  why it cannot yet is the read's to say. */}
+              {contract.blocker
+                ? <div className="q-meta-sm">{contract.blocker}</div>
+                : <CreateContractButton bookingId={bookingId} label={contract.contracts.length === 0 ? 'Create a contract' : 'Draft a new contract'} />}
+            </div>
+          )}
         </Section>
           <Section title="Client confirmation" id="confirmation">
           <ShareBooking
-            bookingId={booking.id}
-            bookingTitle={booking.title}
-            shareToken={(booking as any).share_token ?? null}
-            sharedAt={(booking as any).shared_at ?? null}
-            hasClient={Boolean(booking.contact?.id)}
+            bookingId={bookingId}
+            bookingTitle={head.title}
+            shareToken={page.confirmation.shareToken}
+            sharedAt={page.confirmation.sharedAt}
+            hasClient={page.confirmation.hasClient}
           />
         </Section>
           <Section title="Notes">
           <NotesFor
-            about={{ type: 'booking', id: booking.id }}
+            about={{ type: 'booking', id: bookingId }}
             aboutLabel="this booking"
-            notes={notes}
+            notes={page.notes}
           />
         </Section>
       </div>
