@@ -2776,12 +2776,6 @@ body::before {
  * the talking, the labels step back. Up takes the green, down the warm
  * colour; a balance owed is warm.
  */
-.q-figures {
-  padding: 20px 22px 16px;
-  position: relative;
-  overflow: hidden;
-  background-image: radial-gradient(60% 120% at 100% 0%, var(--q-color-accent-soft), transparent 70%);
-}
 .q-figures-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2838,23 +2832,99 @@ body::before {
 .q-fig-flat { color: var(--q-color-ink-500); font-weight: 500; }
 .q-fig-arrow { font-weight: 700; }
 .q-fig-vs { font-weight: 500; color: var(--q-color-ink-400); }
-.q-fig-line { height: 3px; border-radius: 2px; background: var(--q-color-ink-100); overflow: hidden; margin-top: 18px; }
-.q-fig-line > i { display: block; height: 100%; width: calc(var(--q-share, 0) * 1%); border-radius: 2px; background: var(--q-hue-green); transition: width var(--q-dur-3) var(--q-ease); }
-.q-fig-foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-  font-size: 0.8rem;
-  color: var(--q-color-ink-500);
-}
-.q-fig-foot b { color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
 @media (max-width: 52em) { .q-figures-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Two panels: the series wide, the breakdown beside it. */
-.q-dash { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
-@media (max-width: 60em) { .q-dash { grid-template-columns: minmax(0, 1fr); } }
+/*
+ * THE DASHBOARD: widgets in the order the questions are asked. Two per
+ * row - needs you beside up next, pipeline beside recently - then the
+ * figures with the year. Each widget is a card with a mono title; its rows
+ * are doors: the row opens the booking, the heading opens the day book on
+ * that question.
+ */
+.q-dash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.q-dash-wide { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+@media (max-width: 60em) { .q-dash, .q-dash-wide { grid-template-columns: minmax(0, 1fr); } }
+.q-widget { min-width: 0; }
+.q-widget > .q-empty { margin: 0; }
+
+/* NEEDS YOU: a count, what it counts, one more thing; then the first few, as chips. */
+.q-att { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.q-att-row { padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); display: flex; flex-direction: column; gap: 6px; }
+.q-att-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.q-att-row:first-child { padding-top: 0; }
+.q-att-row-quiet { opacity: 0.55; }
+.q-att-link { display: grid; grid-template-columns: 2.6ch minmax(0, 1fr) auto; gap: 10px; align-items: baseline; color: inherit; text-decoration: none; }
+a.q-att-link:hover .q-att-what { color: var(--q-color-ink-900); }
+.q-att-n { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--q-color-ink-400); line-height: 1; }
+.q-att-n-live { color: var(--q-color-warning); }
+.q-att-what { font-size: 0.9rem; color: var(--q-color-ink-700); }
+.q-att-note { color: var(--q-color-ink-400); font-size: 0.8rem; }
+.q-att-go { color: var(--q-color-ink-400); transition: transform var(--q-dur-2) var(--q-spring), color var(--q-dur-2) var(--q-ease); }
+a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-accent); }
+.q-att-sample { display: flex; flex-wrap: wrap; gap: 6px; padding-left: calc(2.6ch + 10px); }
+.q-att-chip {
+  font-size: 0.75rem; padding: 3px 9px; border-radius: 999px;
+  background: var(--q-color-ink-100); color: var(--q-color-ink-700); text-decoration: none;
+  max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background var(--q-dur-2) var(--q-ease), color var(--q-dur-2) var(--q-ease);
+}
+.q-att-chip:hover { background: var(--q-color-accent-soft); color: var(--q-color-accent); }
+.q-att-more { font-size: 0.75rem; color: var(--q-color-ink-400); align-self: center; }
+
+/* UP NEXT: time-led rows, the stage pill at the end; today's are lifted. */
+.q-next { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.q-next-row {
+  display: grid; grid-template-columns: 4.2rem 30px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); color: inherit; text-decoration: none;
+  transition: background var(--q-dur-2) var(--q-ease);
+}
+.q-next > li:last-child > .q-next-row { border-bottom: 0; }
+.q-next > li:first-child > .q-next-row { padding-top: 0; }
+.q-next-row:hover .q-next-title { color: var(--q-color-accent); }
+.q-next-when { display: flex; flex-direction: column; line-height: 1.1; }
+.q-next-when > b { font-family: var(--q-font-mono); font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
+.q-next-when > small { font-family: var(--q-font-mono); font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); margin-top: 3px; white-space: nowrap; }
+.q-next-today .q-next-when > small { color: var(--q-color-accent); }
+.q-next-frame {
+  width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--q-color-ink-100); color: var(--q-color-ink-600); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.q-next-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.q-next-title { font-weight: 600; font-size: 0.9rem; color: var(--q-color-ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--q-dur-2) var(--q-ease); }
+.q-next-pos { font-size: 0.78rem; color: var(--q-color-ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* PIPELINE: the studio's stages as rows under the bar: name, count, share, who is next. */
+.q-pipe { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }
+.q-pipe-row {
+  display: grid; grid-template-columns: minmax(6rem, auto) auto 3.2ch minmax(0, 1fr); gap: 12px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--q-color-ink-100); font-size: 0.875rem;
+}
+.q-pipe-row:last-child { border-bottom: 0; }
+.q-pipe-name { display: inline-flex; align-items: center; gap: 8px; color: var(--q-color-ink-900); font-weight: 600; text-decoration: none; }
+.q-pipe-name:hover { color: var(--q-color-accent); }
+.q-pipe-n { font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
+.q-pipe-share { color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.q-pipe-note { color: var(--q-color-ink-500); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-pipe-who { color: var(--q-color-ink-700); font-weight: 550; }
+.q-pipe-who:hover { color: var(--q-color-accent); }
+@media (max-width: 40em) { .q-pipe-row { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-pipe-note { grid-column: 1 / -1; } }
+
+/* RECENTLY: who did what to which, and how long ago. */
+.q-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.q-recent-row { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--q-color-ink-100); font-size: 0.85rem; color: var(--q-color-ink-600); }
+.q-recent-row:last-child { border-bottom: 0; }
+.q-recent-row:first-child { padding-top: 0; }
+.q-recent-text { min-width: 0; flex: 1; }
+.q-recent-text > b { color: var(--q-color-ink-900); font-weight: 600; }
+.q-recent-what { color: var(--q-color-ink-900); font-weight: 550; }
+.q-recent-what:hover { color: var(--q-color-accent); }
+.q-recent-at { flex: none; font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }
+
+/* HOW WE ARE DOING: the two figures beside a year of one of them. */
+.q-doing { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; align-items: start; }
+.q-figures-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.q-doing-series { min-width: 0; }
+@media (max-width: 60em) { .q-doing { grid-template-columns: minmax(0, 1fr); } }
 .q-dash-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .q-dash-title {
   font-family: var(--q-font-mono);
@@ -2865,29 +2935,16 @@ body::before {
   color: var(--q-color-ink-500);
 }
 .q-dash-note { font-size: 0.8rem; color: var(--q-color-ink-500); font-variant-numeric: tabular-nums; }
-.q-dash-donut { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 16px; align-items: center; }
-.q-dash-donut > .q-donut { width: 128px; height: 128px; }
-@media (max-width: 30em) { .q-dash-donut { grid-template-columns: minmax(0, 1fr); } }
-.q-dash-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.q-dash-key {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto 3.2ch; gap: 8px; align-items: center;
-  padding: 5px 0; font-size: 0.85rem; color: var(--q-color-ink-700); text-decoration: none;
-  transition: color var(--q-dur-2) var(--q-ease);
-}
-.q-dash-key:hover { color: var(--q-color-ink-900); }
-.q-dash-key-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.q-dash-key b { font-weight: 700; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
-.q-dash-key-share { color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; text-align: right; }
 
 /* THE SERIES: one line with the area under it; dots that keep their size
    when the drawing stretches; the months beneath in the mono label. */
 .q-series { position: relative; }
-.q-series-svg { display: block; width: 100%; height: 160px; }
+.q-series-svg { display: block; width: 100%; height: 140px; }
 .q-series-grid { stroke: var(--q-color-ink-100); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
 .q-series-stop-a { stop-color: var(--q-color-accent); stop-opacity: 0.32; }
 .q-series-stop-b { stop-color: var(--q-color-accent); stop-opacity: 0; }
 .q-series-line { fill: none; stroke: var(--q-color-accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.q-series-points { position: absolute; inset: 0 0 auto 0; height: 160px; pointer-events: none; }
+.q-series-points { position: absolute; inset: 0 0 auto 0; height: 140px; pointer-events: none; }
 .q-series-point {
   position: absolute;
   left: calc(var(--q-x) * 100%); top: calc(var(--q-y) * 100%);

@@ -161,13 +161,16 @@ const ACTIVITY_PHRASING: Record<string, string> = {
  * than the events table, so the vocabulary lives in one place instead of being
  * re-guessed by whichever surface shows a feed.
  */
-export async function listRecentActivity(limit = 8) {
+/** What happened lately - across the studio, or on one kind of thing (a dashboard's "recently"). */
+export async function listRecentActivity(limit = 8, entityType?: string) {
   const { orgId } = await getAuthOrgId();
 
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('events')
-    .select('id, entity_type, action, created_at, actor:contacts(display_name)')
-    .eq('organization_id', orgId)
+    .select('id, entity_type, entity_id, action, created_at, actor:contacts(display_name)')
+    .eq('organization_id', orgId);
+  if (entityType) query = query.eq('entity_type', entityType);
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -181,6 +184,11 @@ export async function listRecentActivity(limit = 8) {
     const phrase =
       ACTIVITY_PHRASING[`${e.entity_type}.${e.action}`] ??
       `${String(e.action).replace(/_/g, ' ')} a ${String(e.entity_type).replace(/_/g, ' ')}`;
-    return { id: e.id as string, at: e.created_at as string, description: `${who} ${phrase}` };
+    return {
+      id: e.id as string, at: e.created_at as string, description: `${who} ${phrase}`,
+      entityType: e.entity_type as string, entityId: e.entity_id as string,
+      // The pieces, for a surface that can name the thing: "moved <title> to a new stage".
+      who, phrase,
+    };
   });
 }

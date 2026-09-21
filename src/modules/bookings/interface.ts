@@ -109,3 +109,6 @@ export type { BookingListRow } from './domain';
 export { readBookingsSheet } from './sheet';
 export type { BookingsSheet, SheetBooking, SheetBand, Period, Figure, SeriesLine } from './sheet';
 export { PERIODS } from './sheet';
+// The day's questions about bookings, answered with the bookings themselves.
+export { readBookingsDashboard } from './dashboard';
+export type { BookingsDashboard, Attention, NextRow, PipelineStage, RecentRow } from './dashboard';
