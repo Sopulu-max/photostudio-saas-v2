@@ -2654,6 +2654,62 @@ body::before {
 .q-sheet-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .q-sheet-body { min-width: 0; }
+/* The row's one more line: a reading under the caption, flowing like text. */
+.q-sheet-detail { display: block; margin-top: 6px; min-width: 0; }
+
+/*
+ * THE DAY BOOK. Bookings banded by when the work is - Today, Tomorrow, This
+ * week, Later, No date yet, Earlier, Closed - each band a heading on the
+ * sheet, and above the sheet the attention strip: what is happening and what
+ * needs someone, as counts that narrow the sheet when pressed.
+ */
+.q-sheet-band {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 18px 16px 8px;
+  border-bottom: 1px solid var(--q-color-ink-100);
+}
+.q-sheet-band:first-child { padding-top: 14px; }
+.q-sheet-band-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-900);
+}
+.q-sheet-band-note { font-size: 0.78rem; color: var(--q-color-ink-500); }
+.q-sheet-band-count { margin-left: auto; font-size: 0.78rem; color: var(--q-color-ink-500); font-variant-numeric: tabular-nums; }
+.q-sheet-band-today .q-sheet-band-name { color: var(--q-color-accent); }
+
+.q-attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.q-attention-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--q-color-ink-100);
+  background: var(--q-color-paper-elevated);
+  font-family: var(--q-font-sans);
+  color: var(--q-color-ink-700);
+  cursor: pointer;
+  transition: background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease), transform var(--q-dur-2) var(--q-spring);
+}
+.q-attention-item:hover { border-color: var(--q-color-ink-300); transform: translateY(-1px); }
+.q-attention-item:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
+.q-attention-on { background: var(--q-color-ink-900); color: var(--q-color-paper); border-color: var(--q-color-ink-900); }
+.q-attention-fig { font-size: 1.15rem; font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: inherit; }
+.q-attention-lab { font-size: 0.8rem; }
+.q-attention-due .q-attention-fig { color: var(--q-color-warning); }
+.q-attention-on.q-attention-due .q-attention-fig { color: var(--q-color-paper); }
+.q-attention-quiet { opacity: 0.6; cursor: default; }
+.q-attention-quiet:hover { transform: none; border-color: var(--q-color-ink-100); }
+
 /* Blocks, not spans: they carry ellipsis rules, and an inline element cannot
    truncate — the two lines simply ran on as one. */
 .q-sheet-name,

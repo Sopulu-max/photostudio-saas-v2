@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { listBookings } from '@/modules/bookings/interface';
-import { getStudio, getStudioCurrency } from '@/kernel/organizations';
+import { readBookingsSheet } from '@/modules/bookings/interface';
+import { getStudio } from '@/kernel/organizations';
 import { StorefrontLink } from '../packages/StorefrontLink';
-import { BookingsClient } from './BookingsClient';
+import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,16 +26,15 @@ export default async function BookingsPage() {
    * nested read behind the whole packages catalogue, so every visit to
    * Bookings was paying for the entire package graph in order to discard it.
    */
-  const [bookings, currencyCode, org] = await Promise.all([
-    listBookings(), getStudioCurrency(), getStudio(),
-  ]);
+  // One read, decided: the bands, the work on each row, what needs someone.
+  const [sheet, org] = await Promise.all([readBookingsSheet(), getStudio()]);
 
   return (
     <div>
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Bookings</h1>
-          <p className="q-page-subtitle">Every job, wherever it is. Start one with whatever you know — the rest fills in as you go.</p>
+          <p className="q-page-subtitle">Every job by the day it happens, where each has got to, and what needs someone.</p>
         </div>
         <div className="q-row">
           {/* Named for what it holds, like every other header link. */}
@@ -56,14 +55,14 @@ export default async function BookingsPage() {
         </div>
       )}
 
-      {(!bookings || bookings.length === 0) ? (
+      {sheet.bands.length === 0 ? (
         <div className="q-card q-empty-lg q-stack">
           <h3 className="q-section-title">No bookings yet</h3>
           <p className="q-meta">Start one from just a title — the details fill in as they come.</p>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       ) : (
-        <BookingsClient bookings={bookings} currencyCode={currencyCode} />
+        <BookingsDayBook sheet={sheet} />
       )}
       </div>
     </div>

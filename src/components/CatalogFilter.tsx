@@ -87,6 +87,7 @@ export function CatalogFilter<T>({
   facetLabel = 'domain',
   kind = 'picker',
   views,
+  denseFirst,
   count,
   threshold = 8,
   sorts,
@@ -118,6 +119,8 @@ export function CatalogFilter<T>({
    * differs.
    */
   views?: boolean;
+  /** Open in the List view. A day book is read down the sheet; cards are its secondary reading. */
+  denseFirst?: boolean;
   /*
    * Whether to announce the total when nothing is narrowing it.
    *
@@ -157,7 +160,8 @@ export function CatalogFilter<T>({
    * So the caller keeps the logic and this keeps the surface.
    */
   extra?: React.ReactNode;
-  children: (shown: T[], state: { query: string; narrowed: boolean; dense: boolean }) => React.ReactNode;
+  /** `sort` is the key of the order chosen, so a caller can draw one order differently (the day book's bands). */
+  children: (shown: T[], state: { query: string; narrowed: boolean; dense: boolean; sort: string }) => React.ReactNode;
 }) {
   const [search, setSearch] = useState('');
   const [facet, setFacet] = useState('');
@@ -169,13 +173,13 @@ export function CatalogFilter<T>({
   /* Cards by default; rows when a studio wants to see more of the list than of
      each thing in it. Which of the two is right depends on whether you are
      recognising something or comparing several, and only the operator knows. */
-  const [dense, setDense] = useState(false);
+  const [dense, setDense] = useState(Boolean(denseFirst));
 
   const catalogue = kind === 'catalogue';
   const offerViews = views ?? catalogue;
   const announceTotal = count ?? catalogue;
   if (!catalogue && items.length < threshold) {
-    return <>{children(items, { query: '', narrowed: false, dense: false })}</>;
+    return <>{children(items, { query: '', narrowed: false, dense: false, sort: sorts?.[0]?.key ?? '' })}</>;
   }
 
   const facets = new Map<T, CatalogFacets>(items.map((i) => [i, read(i)]));
@@ -384,7 +388,7 @@ export function CatalogFilter<T>({
         </p>
       ) : (
         <>
-          {children(drawn, { query: search.trim(), narrowed, dense })}
+          {children(drawn, { query: search.trim(), narrowed, dense, sort: chosenSort?.key ?? '' })}
           {held > 0 && (
             <div className="q-row q-row-sm">
               <span className="q-meta-sm">{drawn.length} of {ordered.length} shown.</span>

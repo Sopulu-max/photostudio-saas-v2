@@ -48,6 +48,12 @@ export type SheetItem = {
   badge?: React.ReactNode;
   /** A control that acts on the item, drawn above the face. */
   action?: React.ReactNode;
+  /**
+   * One more line under the caption - a reading of the item that the caption
+   * cannot carry, such as where its work is. Flows like text; the figure and
+   * badge keep their column.
+   */
+  detail?: React.ReactNode;
   /** Withdrawn, archived, retired: present and quiet. */
   dim?: boolean;
 };
@@ -111,6 +117,7 @@ export function SheetRow({ item }: { item: SheetItem }) {
       <span className="q-sheet-body">
         <span className="q-sheet-name">{item.name}</span>
         <Caption item={item} />
+        {item.detail && <span className="q-sheet-detail">{item.detail}</span>}
       </span>
       <span className="q-sheet-side">
         {item.figure && <Figure figure={item.figure} />}
@@ -139,6 +146,7 @@ export function SheetTile({ item }: { item: SheetItem }) {
       <span className="q-sheet-tile-body">
         <span className="q-sheet-name">{item.name}</span>
         <Caption item={item} />
+        {item.detail && <span className="q-sheet-detail">{item.detail}</span>}
         {(item.figure || item.badge || item.action) && (
           <span className="q-sheet-tile-foot">
             {item.figure ? <Figure figure={item.figure} /> : <span />}
