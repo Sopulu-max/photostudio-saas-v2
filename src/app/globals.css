@@ -2689,7 +2689,6 @@ body::before {
  * Nothing here knows what an axis is; the segments take the colour the
  * studio chose for a stage, else a palette hue by position.
  */
-.q-narrow-select-on { border-color: var(--q-color-accent); color: var(--q-color-ink-900); }
 .q-range { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; }
 .q-range > .q-input { width: auto; flex: 0 1 auto; min-inline-size: 0; padding-block: 9px; font-size: 0.85rem; }
 .q-range-dash { color: var(--q-color-ink-400); }
@@ -4056,6 +4055,44 @@ body::before {
  */
 .q-toolbar > .q-select { flex: 0 1 auto; width: auto; min-inline-size: 8.5rem; max-inline-size: 18rem; text-overflow: ellipsis; }
 .q-toolbar > .q-input  { flex: 1 1 12rem; width: auto; min-inline-size: 0; }
+/*
+ * A SELECT IN A BAR IS A CONTROL, NOT A LABEL. The form select (a field in a
+ * form, quiet on purpose) read here as text with a chevron beside it - on a
+ * panel one shade off the field's own ground, nothing said "press me". In a
+ * bar a select takes the secondary button's construction: raised ground, a
+ * firm border, a shadow, weight in the type, a heavier chevron; it lifts on
+ * hover and presses on click, as every control in Lumen does. One with a
+ * value chosen wears the accent ring.
+ */
+.q-toolbar > .q-select,
+.q-range > .q-input {
+  background-color: var(--q-color-paper-elevated);
+  border-color: var(--q-color-ink-300);
+  box-shadow: var(--q-shadow-sm);
+  font-weight: 550;
+  color: var(--q-color-ink-900);
+  transition: transform var(--q-dur-1) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease);
+  will-change: transform;
+}
+.q-toolbar > .q-select {
+  padding: 10px 38px 10px 14px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'><path d='M1.5 1.75 6 6.25l4.5-4.5' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-size: 12px 8px;
+  background-position: right 14px center;
+}
+.q-toolbar > .q-select:hover,
+.q-range > .q-input:hover {
+  border-color: var(--q-color-ink-400);
+  box-shadow: var(--q-shadow-md);
+  transform: translateY(-2px);
+}
+.q-toolbar > .q-select:active { transform: scale(0.97); }
+.q-toolbar > .q-select:focus,
+.q-range > .q-input:focus { transform: none; }
+.q-toolbar > .q-select.q-narrow-select-on {
+  border-color: var(--q-color-accent);
+  box-shadow: 0 0 0 3px var(--q-color-accent-soft), var(--q-shadow-sm);
+}
 
 /*
  * THE NARROWING PANEL — everything that changes what the list shows.
