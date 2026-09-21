@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
 import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
@@ -55,17 +56,33 @@ const ORDERS = [
 const NONE = '__none__';
 
 export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
-  const [q, setQ] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [chosen, setChosen] = useState<Record<string, string>>({});
+  /*
+   * THE VIEW IS THE URL. Every control reads from the query string and
+   * writes back to it, so a narrowed, grouped view can be bookmarked,
+   * sent to a colleague or reached with the back button. The writes go
+   * through the history API, which the router integrates with, so typing
+   * in the search costs no round trip. Defaults are absent, not written.
+   */
+  const params = useSearchParams();
+  const set = (name: string, value: string, fallback = '') => {
+    const next = new URLSearchParams(params.toString());
+    if (value && value !== fallback) next.set(name, value); else next.delete(name);
+    const qs = next.toString();
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+  };
+
+  const q = params.get('q') ?? '';
+  const from = params.get('from') ?? '';
+  const to = params.get('to') ?? '';
   // Grouped by the first axis the read offers (the bands) until the operator says otherwise.
-  const [groupBy, setGroupBy] = useState<string>(sheet.lenses[0]?.key ?? '');
-  const [order, setOrder] = useState('soon');
+  const defaultGroup = sheet.lenses[0]?.key ?? '';
+  const groupBy = params.has('group') ? params.get('group')! : defaultGroup; // 'none' = no grouping
+  const order = params.get('order') ?? ORDERS[0].key;
+  const chosen: Record<string, string> = {};
+  for (const g of sheet.lenses) { const v = params.get(g.key); if (v) chosen[g.key] = v; }
 
   const all = sheet.bands.flatMap((b) => b.rows);
-  const pick = (axis: string, key: string) =>
-    setChosen((c) => (key ? { ...c, [axis]: key } : (({ [axis]: _, ...rest }) => rest)(c)));
+  const pick = (axis: string, key: string) => set(axis, key);
 
   // ---- Narrow: what is shown is what passes every control.
   const needle = q.trim().toLowerCase();
@@ -164,14 +181,14 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
             className="q-input"
             type="search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => set('q', e.target.value)}
             placeholder="Search by title, client or package"
             aria-label="Search bookings"
           />
           <span className="q-range">
-            <input className="q-input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+            <input className="q-input" type="date" value={from} onChange={(e) => set('from', e.target.value)} aria-label="From date" />
             <span className="q-range-dash">–</span>
-            <input className="q-input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+            <input className="q-input" type="date" value={to} onChange={(e) => set('to', e.target.value)} aria-label="To date" />
           </span>
           {sheet.lenses.map((g) => (
             <select
@@ -189,12 +206,12 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
         </div>
         <div className="q-toolbar">
           <span className="q-narrow-key">Group by</span>
-          <select className="q-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} aria-label="Group by">
+          <select className="q-select" value={sheet.lenses.some((g) => g.key === groupBy) ? groupBy : 'none'} onChange={(e) => set('group', e.target.value === defaultGroup ? '' : e.target.value || 'none')} aria-label="Group by">
             {sheet.lenses.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-            <option value="">No grouping</option>
+            <option value="none">No grouping</option>
           </select>
           <span className="q-narrow-key">Order</span>
-          <select className="q-select" value={order} onChange={(e) => setOrder(e.target.value)} aria-label="Order">
+          <select className="q-select" value={order} onChange={(e) => set('order', e.target.value, ORDERS[0].key)} aria-label="Order">
             {ORDERS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
           <span className="q-toolbar-count">{shown.length} of {all.length} booking{all.length === 1 ? '' : 's'}</span>

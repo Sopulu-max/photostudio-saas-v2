@@ -4,6 +4,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { readBookingsSheet } from '@/modules/bookings/interface';
 import { getStudio } from '@/kernel/organizations';
 import { StorefrontLink } from '../packages/StorefrontLink';
+import { Suspense } from 'react';
 import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
@@ -62,7 +63,10 @@ export default async function BookingsPage() {
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       ) : (
-        <BookingsDayBook sheet={sheet} />
+        // The day book reads its view from the URL; the boundary is what useSearchParams asks for.
+        <Suspense fallback={null}>
+          <BookingsDayBook sheet={sheet} />
+        </Suspense>
       )}
       </div>
     </div>
