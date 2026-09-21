@@ -2682,41 +2682,49 @@ body::before {
 .q-sheet-band-count { margin-left: auto; font-size: 0.78rem; color: var(--q-color-ink-500); font-variant-numeric: tabular-nums; }
 .q-sheet-band-today .q-sheet-band-name { color: var(--q-color-accent); }
 
-.q-attention {
+/* PULL OUT - the sheet read by its own axes. A line of the axes one can
+   open; under it, for each open axis, its breakdown as figures in running
+   text. Figures are the thing; pressing one is incidental, and shows as an
+   underline, not a button. Exceptions (a role nobody is on, money owed)
+   take the warm colour. */
+.q-pull { display: flex; flex-direction: column; gap: 6px; }
+.q-pull-axes, .q-pull-line {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  align-items: baseline;
+  gap: 2px 18px;
+  font-size: 0.9rem;
+  color: var(--q-color-ink-600);
 }
-/* One axis of the sheet: its name, then the values the rows take on it. */
-.q-attention-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.q-attention-axis {
+.q-pull-word, .q-pull-axis-name {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--q-color-ink-500);
-  margin-right: 2px;
+  min-width: 5.5em;
 }
-.q-attention-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--q-color-ink-100);
-  background: var(--q-color-paper-elevated);
-  font-family: var(--q-font-sans);
+.q-pull-axis, .q-lens {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  margin: 0;
+  font: inherit;
   color: var(--q-color-ink-700);
   cursor: pointer;
-  transition: background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease), transform var(--q-dur-2) var(--q-spring);
+  border-bottom: 2px solid transparent;
+  transition: color var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease);
 }
-.q-attention-item:hover { border-color: var(--q-color-ink-300); transform: translateY(-1px); }
-.q-attention-item:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; }
-.q-attention-on { background: var(--q-color-ink-900); color: var(--q-color-paper); border-color: var(--q-color-ink-900); }
-.q-attention-fig { font-size: 1.15rem; font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: inherit; }
-.q-attention-lab { font-size: 0.8rem; }
-.q-attention-due .q-attention-fig { color: var(--q-color-warning); }
-.q-attention-on.q-attention-due .q-attention-fig { color: var(--q-color-paper); }
+.q-pull-axis:hover, .q-lens:hover { color: var(--q-color-ink-900); }
+.q-pull-axis:focus-visible, .q-lens:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 2px; border-radius: 4px; }
+.q-pull-axis-on { color: var(--q-color-ink-900); border-bottom-color: var(--q-color-ink-300); }
+.q-pull-picked { color: var(--q-color-accent); }
+.q-lens b { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
+.q-lens-on { color: var(--q-color-ink-900); border-bottom-color: var(--q-color-accent); }
+.q-lens-due b { color: var(--q-color-warning); }
+/* Nothing takes this value under the current picks: still there, so the reading is complete, but quiet. */
+.q-lens-none, .q-lens-none b { color: var(--q-color-ink-400); }
 
 /* Blocks, not spans: they carry ellipsis rules, and an inline element cannot
    truncate — the two lines simply ran on as one. */

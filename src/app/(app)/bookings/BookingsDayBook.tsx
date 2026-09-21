@@ -5,7 +5,7 @@ import { stageBadgeClass } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
 import { CatalogFilter } from '@/components/CatalogFilter';
 import { Sheet, SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
-import type { BookingsSheet, SheetBooking, SheetBand, LensGroup } from '@/modules/bookings/interface';
+import type { BookingsSheet, SheetBooking, SheetBand } from '@/modules/bookings/interface';
 
 /**
  * THE DAY BOOK. Every job the studio has taken, read the way a studio reads
@@ -45,15 +45,27 @@ const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated'
 
 export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
   /*
-   * THE LENSES ARE THE STUDIO'S, NOT OURS. Each group is an axis of the
-   * sheet - when, stage, needs, money - and its chips are the values the
-   * rows actually take, with counts, read off the data by readBookingsSheet.
-   * One chip per group may be pressed; groups combine. Nothing here names a
-   * stage, a role or a question.
+   * PULL OUT WHAT YOU NEED. The axes are the sheet's own (readBookingsSheet
+   * decides them - the studio's stages, the bands, the roles steps need,
+   * money, every dimension the studio classifies by). The operator opens an
+   * axis to read its breakdown as figures, presses a figure to narrow the
+   * sheet to the rows that take it, and stacks another axis if they want.
+   * Each row says what it takes on each axis; this file intersects, and
+   * names nothing.
    */
-  const [chosen, setChosen] = useState<Partial<Record<LensGroup['key'], string>>>({});
+  const [open, setOpen] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<Record<string, string>>({});
   const all = sheet.bands.flatMap((b) => b.rows);
   const bandOf = new Map(sheet.bands.map((b) => [b.key, b]));
+
+  const toggleAxis = (key: string) => {
+    if (open.includes(key)) {
+      setOpen((o) => o.filter((k) => k !== key));
+      setChosen(({ [key]: _, ...rest }) => rest);
+    } else setOpen((o) => [...o, key]);
+  };
+  const toggleLens = (axis: string, key: string) =>
+    setChosen((c) => (c[axis] === key ? (({ [axis]: _, ...rest }) => rest)(c) : { ...c, [axis]: key }));
 
   const HOW_TO_ORDER = [
     { key: 'soon', label: 'By day', compare: (a: SheetBooking, b: SheetBooking) => byDate(a, b, 1) },
@@ -63,16 +75,16 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     { key: 'title', label: 'By title', compare: (a: SheetBooking, b: SheetBooking) => (a.title || '').localeCompare(b.title || '') },
   ];
 
-  /* Whether a row takes the chosen value on each axis - the same facts the counts were made from. */
-  const takes = (r: SheetBooking, group: LensGroup['key'], key: string) => {
-    switch (group) {
-      case 'when': return r.band === key;
-      case 'stage': return r.stage?.id === key;
-      case 'needs': return r.needs.some((n) => n.id === key);
-      case 'money': return key === 'uninvoiced' ? r.money === 'uninvoiced' : Boolean(r.owed && `owed:${r.owed.currency ?? sheet.currency}` === key);
-    }
+  const picked = Object.entries(chosen);
+  const under = (rows: SheetBooking[], except?: string) =>
+    rows.filter((r) => picked.every(([axis, key]) => axis === except || (r.takes[axis] ?? []).includes(key)));
+  const items = under(all);
+  /* Cross-tabulation: an axis's figures are counted under every other axis's pick, so the sheet reads as a pivot. */
+  const countOn = (axis: string) => {
+    const m = new Map<string, number>();
+    for (const r of under(all, axis)) for (const k of r.takes[axis] ?? []) m.set(k, (m.get(k) ?? 0) + 1);
+    return m;
   };
-  const items = all.filter((r) => (Object.entries(chosen) as [LensGroup['key'], string][]).every(([g, k]) => !k || takes(r, g, k)));
 
   const when = (iso: string | null) => {
     if (!iso) return null;
@@ -125,27 +137,42 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
 
   return (
     <div className="q-stack q-stack-md">
-      <div className="q-attention" role="group" aria-label="Read the sheet by">
-        {sheet.lenses.map((g) => (
-          <div key={g.key} className="q-attention-group">
-            <span className="q-attention-axis">{g.label}</span>
-            {g.items.map((it) => {
-              const on = chosen[g.key] === it.key;
-              return (
-                <button
-                  key={it.key}
-                  type="button"
-                  className={['q-attention-item', on ? 'q-attention-on' : '', it.due ? 'q-attention-due' : ''].filter(Boolean).join(' ')}
-                  aria-pressed={on}
-                  onClick={() => setChosen((c) => ({ ...c, [g.key]: on ? undefined : it.key }))}
-                >
-                  <span className="q-attention-fig">{it.count}</span>
-                  <span className="q-attention-lab">{it.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
+      <div className="q-pull">
+        <div className="q-pull-axes" role="group" aria-label="Pull out by">
+          <span className="q-pull-word">Pull out by</span>
+          {sheet.lenses.map((g) => {
+            const on = open.includes(g.key);
+            const value = chosen[g.key] ? g.items.find((it) => it.key === chosen[g.key]) : null;
+            return (
+              <button key={g.key} type="button" className={on ? 'q-pull-axis q-pull-axis-on' : 'q-pull-axis'} aria-expanded={on} onClick={() => toggleAxis(g.key)}>
+                {g.label}{value ? <span className="q-pull-picked"> · {value.label}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+        {sheet.lenses.filter((g) => open.includes(g.key)).map((g) => {
+          const counts = countOn(g.key);
+          return (
+            <div key={g.key} className="q-pull-line" role="group" aria-label={g.label}>
+              <span className="q-pull-axis-name">{g.label}</span>
+              {g.items.map((it) => {
+                const on = chosen[g.key] === it.key;
+                const n = counts.get(it.key) ?? 0;
+                return (
+                  <button
+                    key={it.key}
+                    type="button"
+                    className={['q-lens', on ? 'q-lens-on' : '', it.due && n > 0 ? 'q-lens-due' : '', n === 0 ? 'q-lens-none' : ''].filter(Boolean).join(' ')}
+                    aria-pressed={on}
+                    onClick={() => toggleLens(g.key, it.key)}
+                  >
+                    <b>{n}</b> {it.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       <CatalogFilter
@@ -158,9 +185,10 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
         read={(b: SheetBooking) => ({
           name: b.title,
           description: b.clientName,
-          // The stage is a lens above, not a second control here.
+          // Stage and classification are axes to pull out by, above - not a
+          // second control here. This filter searches by name only.
           facet: null,
-          tags: b.classification,
+          tags: [],
         })}
       >
         {(shown, { sort }) => {

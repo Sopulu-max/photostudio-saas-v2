@@ -34,19 +34,25 @@ export type SheetBooking = BookingListRow & {
   needs: { id: string; name: string }[];
   /** What the money says: owed (something pending), not yet invoiced, or nothing to say. */
   money: 'owed' | 'uninvoiced' | null;
+  /** The values this row takes on each axis - axis key to item keys (see LensGroup). */
+  takes: Record<string, string[]>;
 };
 
 /**
- * A LENS IS A VALUE THE SHEET'S ROWS TAKE ON ONE OF ITS AXES, with how many
- * take it. The strip above the sheet is these, read off the data - never a
- * list named in code, which would lock every studio into one studio's six
- * questions. When: each band with bookings. Stage: each stage this studio
- * defined. Needs: each role with a step nobody is on. Money: owed, per
- * currency present; not yet invoiced. A studio that adds a stage or a role
- * sees a new lens; one with no enquiries sees no enquiry lens.
+ * AN AXIS IS A QUESTION THE SHEET CAN BE PULLED OUT BY; a lens is one of the
+ * values its rows take on it, with how many take it. The operator picks an
+ * axis, reads the breakdown, presses a value, stacks another axis - simple
+ * data analysis. The axes are read off the data, never a list named in
+ * code: the studio's stages, the bands present, each role a step needs,
+ * money, and every classification dimension the studio defined (Occasion,
+ * Context, ...). A studio that adds a stage, a role or a dimension sees a
+ * new value or a new axis; a value nobody takes is not there.
+ *
+ * Each row says which values it takes on each axis (SheetBooking.takes),
+ * so whoever draws the sheet intersects without knowing what an axis is.
  */
 export type LensGroup = {
-  key: 'when' | 'stage' | 'needs' | 'money';
+  key: string;
   label: string;
   items: { key: string; label: string; count: number; due?: boolean }[];
 };
@@ -138,7 +144,15 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     }
     const billing = billingOf.get(r.id) ?? 'none';
     const money: SheetBooking['money'] = r.owed ? 'owed' : (!closed && billing === 'none' && r.lineCount > 0) ? 'uninvoiced' : null;
-    return { ...r, band, work, billing, needs: [...needsById.values()], money };
+    const needs = [...needsById.values()];
+    const takes: Record<string, string[]> = {
+      stage: r.stage ? [r.stage.id] : [],
+      when: [band],
+      needs: closed ? [] : needs.map((n) => n.id),
+      money: money === 'owed' ? [`owed:${r.owed!.currency ?? currency}`] : money === 'uninvoiced' && !closed ? ['uninvoiced'] : [],
+    };
+    for (const c of r.classification) (takes[`dim:${c.dimensionId}`] ??= []).push(c.valueId);
+    return { ...r, band, work, billing, needs, money, takes };
   });
 
   // Within a band, soonest first; undated and closed by when they were made, newest first.
@@ -155,56 +169,43 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     }))
     .filter((b) => b.rows.length > 0);
 
-  // ---- The lenses: each axis, the values present, with counts.
-  const count = <K extends string>(rows: SheetBooking[], of: (r: SheetBooking) => K[]) => {
-    const m = new Map<K, number>();
-    for (const r of rows) for (const k of of(r)) m.set(k, (m.get(k) ?? 0) + 1);
-    return m;
-  };
-  const open = sheetRows.filter((r) => r.band !== 'closed');
-
-  const whenCounts = count(sheetRows, (r) => [r.band]);
-  const when: LensGroup = {
-    key: 'when', label: 'When',
-    items: BAND_ORDER.filter((b) => whenCounts.has(b)).map((b) => ({ key: b, label: BAND_LABEL[b], count: whenCounts.get(b)! })),
-  };
-
-  // The studio's own stages, in the order it arranged them, each that has a booking.
-  const stageCounts = count(sheetRows, (r) => (r.stage ? [r.stage.id] : []));
-  const stage: LensGroup = {
-    key: 'stage', label: 'Stage',
-    items: (stages as { id: string; name: string }[]).filter((st) => stageCounts.has(st.id)).map((st) => ({ key: st.id, label: st.name, count: stageCounts.get(st.id)! })),
-  };
-
-  // Each role with a step nobody is on, most needed first.
-  const needCounts = count(open, (r) => r.needs.map((n) => n.id));
-  const roleName = new Map(open.flatMap((r) => r.needs.map((n) => [n.id, n.name] as const)));
-  const needs: LensGroup = {
-    key: 'needs', label: 'Needs',
-    items: [...needCounts.entries()].sort((a, b) => b[1] - a[1])
-      .map(([id, c]) => ({ key: id, label: roleName.get(id) ?? 'no role set', count: c, due: true })),
-  };
-
-  // Money: owed per currency present, and what has not been asked for at all.
-  const owedBy = new Map<string, { amount: number; count: number }>();
-  for (const r of sheetRows) if (r.owed) {
-    const c = r.owed.currency ?? currency;
-    const had = owedBy.get(c) ?? { amount: 0, count: 0 };
-    owedBy.set(c, { amount: had.amount + r.owed.amount, count: had.count + 1 });
+  // ---- The axes: for each, the values present, with counts, in the order the axis is read.
+  const counts = new Map<string, Map<string, number>>();
+  for (const r of sheetRows) for (const [axis, keys] of Object.entries(r.takes)) {
+    const m = counts.get(axis) ?? new Map<string, number>();
+    for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
+    counts.set(axis, m);
   }
-  const uninvoiced = open.filter((r) => r.money === 'uninvoiced').length;
-  const money: LensGroup = {
-    key: 'money', label: 'Money',
-    items: [
-      ...[...owedBy.entries()].map(([c, v]) => ({ key: `owed:${c}`, label: `owed · ${new Intl.NumberFormat('en', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(v.amount)}`, count: v.count, due: true })),
-      ...(uninvoiced > 0 ? [{ key: 'uninvoiced', label: 'not invoiced yet', count: uninvoiced }] : []),
-    ],
+  const axis = (key: string, label: string, order: { key: string; label: string; due?: boolean }[], mostFirst = false): LensGroup => {
+    const m = counts.get(key) ?? new Map<string, number>();
+    const items = order.filter((o) => m.has(o.key)).map((o) => ({ ...o, count: m.get(o.key)! }));
+    return { key, label, items: mostFirst ? items.sort((a, b) => b.count - a.count) : items };
   };
 
-  return {
-    bands,
-    lenses: [when, stage, needs, money].filter((g) => g.items.length > 0),
-    currency,
-    today,
-  };
+  const roleName = new Map(sheetRows.flatMap((r) => r.needs.map((n) => [n.id, n.name] as const)));
+  const owedBy = new Map<string, number>();
+  for (const r of sheetRows) if (r.owed) { const c = r.owed.currency ?? currency; owedBy.set(c, (owedBy.get(c) ?? 0) + r.owed.amount); }
+  const dimensions = new Map<string, { name: string; values: Map<string, string> }>();
+  for (const r of sheetRows) for (const c of r.classification) {
+    const d = dimensions.get(c.dimensionId) ?? { name: c.dimensionName, values: new Map<string, string>() };
+    d.values.set(c.valueId, c.valueName);
+    dimensions.set(c.dimensionId, d);
+  }
+
+  const lenses: LensGroup[] = [
+    // The studio's own stages, in the order it arranged them.
+    axis('stage', 'Stage', (stages as { id: string; name: string }[]).map((st) => ({ key: st.id, label: st.name }))),
+    axis('when', 'When', BAND_ORDER.map((b) => ({ key: b, label: BAND_LABEL[b] }))),
+    // Each role with a step nobody is on, most needed first.
+    axis('needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), true),
+    axis('money', 'Money', [
+      ...[...owedBy.entries()].map(([c, amount]) => ({ key: `owed:${c}`, label: `owed ${new Intl.NumberFormat('en', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(amount)}`, due: true })),
+      { key: 'uninvoiced', label: 'not invoiced yet' },
+    ]),
+    // Every dimension the studio classifies bookings by, its values by name.
+    ...[...dimensions.entries()].map(([id, d]) =>
+      axis(`dim:${id}`, d.name, [...d.values.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, label]) => ({ key: k, label })))),
+  ].filter((g) => g.items.length > 0);
+
+  return { bands, lenses, currency, today };
 }
