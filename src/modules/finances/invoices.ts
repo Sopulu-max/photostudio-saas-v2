@@ -469,6 +469,8 @@ export async function createInvoiceForBooking(input: {
         organization_id: orgId,
         invoice_id: invoice.id,
         booking_line_id: l.id,
+        // Which extra, so a draft can keep in step with it (see drafts.ts).
+        booking_line_extra_id: x.id,
         description: describeInvoiceLine({ title: `${title} · ${x.label}`, details: [], label: input.label }),
         quantity: xq,
         unit_price: xa.unitPrice,

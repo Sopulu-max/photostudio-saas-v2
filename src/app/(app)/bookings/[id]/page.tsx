@@ -174,7 +174,15 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
   const latestContract = byNewest.find((c: any) => !['completed', 'cancelled'].includes(c.status)) || byNewest[0];
   const contractTerms: any = latestContract?.terms || {};
   const contractDepositPct = Number(contractTerms.deposit_percentage || 0);
-  const contractBasePrice = Number(contractTerms.base_price || 0);
+  /*
+   * AGREED MEANS SIGNED. A proposed contract is the booking read as an
+   * agreement and follows it; only a signed one fixes a figure the booking
+   * can no longer move. Reading "Agreed" off a proposal made an extra taken
+   * after drafting vanish from the money - the proposal said 20,000 and the
+   * page believed it over the booking's own 25,000.
+   */
+  const contractSigned = ['active', 'completed'].includes(latestContract?.status);
+  const contractBasePrice = contractSigned ? Number(contractTerms.base_price || 0) : 0;
 
   // What's actually landed vs what's still owed. A refund (outbound) reduces
   // what counts as paid rather than being its own separate figure — it's

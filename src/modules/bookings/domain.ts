@@ -1019,6 +1019,19 @@ export async function addBookingExtra(input: {
     await raisePackagePromise({ packageServiceId: ps.id, deliverableId: input.deliverableId, by: -units });
     throw dbError('Could not add the extra', error);
   }
+  /*
+   * THE DOCUMENTS NOT YET DOCUMENTS FOLLOW. A draft invoice carrying this
+   * line gets the extra as a row of its own; a proposed contract's figures
+   * become the booking's again. An issued invoice and a signed contract are
+   * frozen and untouched - what they did not cover shows as still to bill.
+   */
+  const { reflectExtraOnDrafts } = await import('@/modules/finances/interface');
+  const { data: priced } = await supabaseAdmin
+    .from('booking_lines').select('price, package:packages(price)').eq('id', line.id).maybeSingle();
+  await reflectExtraOnDrafts(orgId,
+    { id: made.id as string, bookingLineId: line.id, label, units, unitRate: { base_price: unitAmount, currency } },
+    amountOf(firstPriced((priced as any)?.package?.price, (priced as any)?.price)));
+  await refreshProposedContracts(orgId, line.booking_id);
   await logEvent({ organizationId: orgId, entityType: 'booking', entityId: line.booking_id, action: 'extra_added', actorId: actorId ?? undefined, payload: { label, unitAmount, currency } });
   revalidatePath(`/bookings/${line.booking_id}`);
   revalidatePath('/bookings');
@@ -1034,10 +1047,14 @@ export async function removeBookingExtra(input: { id: string }) {
   if (!x) throw new Error('Extra not found');
   const { raisePackagePromise } = await import('@/modules/deliverables/interface');
   await raisePackagePromise({ packageServiceId: x.package_service_id, deliverableId: x.ref_id, by: -Number(x.units) });
+  // Off the drafts first, while the row can still be found by it.
+  const { dropExtraFromDrafts } = await import('@/modules/finances/interface');
+  await dropExtraFromDrafts(orgId, x.id);
   const { error } = await supabaseAdmin.from('booking_line_extras').delete().eq('id', x.id).eq('organization_id', orgId);
   if (error) throw dbError('Could not remove the extra', error);
   const bookingId = (x as any).line?.booking_id as string | undefined;
   if (bookingId) {
+    await refreshProposedContracts(orgId, bookingId);
     await logEvent({ organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'extra_removed', actorId: actorId ?? undefined, payload: { label: x.label } });
     revalidatePath(`/bookings/${bookingId}`);
   }
@@ -1150,8 +1167,81 @@ export async function addBookingLine(input: {
   });
 
   await refreshBookingTitle(input.bookingId);
+  // A contract not yet signed states what the booking now is.
+  await refreshProposedContracts(orgId, input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { lineId: line.id };
+}
+
+/**
+ * What an agreement states: each line at what it sold for, each extra as its
+ * own item after it, and what the parts come to. price × quantity — a line
+ * for "3 hours" is not billed as one hour. The currency comes off the lines;
+ * the studio's own is the fallback rather than a hardcoded 'USD' that quietly
+ * renamed a Nigerian studio's money.
+ *
+ * Folding the extras into the package's figure would state a price the
+ * package never had, so they stay parts; the parts sum to the total.
+ */
+async function agreementFiguresOf(lines: any[]) {
+  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
+  let total = 0;
+  let currency: string | null = null;
+  for (const l of lines) {
+    const p: any = priceOfLine(l);
+    total += amountOf(p) * Number(l.quantity ?? 1) + extrasAmount(l.extras);
+    if (!currency && p?.currency) currency = p.currency;
+  }
+  if (!currency) currency = await getStudioCurrency();
+  const lineItems = lines.flatMap((l: any) => {
+    const p: any = priceOfLine(l);
+    const quantity = Number(l.quantity ?? 1);
+    const unitPrice = amountOf(p);
+    const title = nameOf(l);
+    return [
+      { title, quantity, unit: p?.unit || null, unitPrice, total: unitPrice * quantity },
+      ...((l.extras || []) as any[]).map((x: any) => ({
+        title: `${title} · ${x.label}`,
+        quantity: Number(x.units),
+        unit: null,
+        unitPrice: amountOf(x.unit_rate),
+        total: amountOf(x.unit_rate) * Number(x.units),
+      })),
+    ];
+  });
+  return { total, currency, lineItems };
+}
+
+/**
+ * A PROPOSED CONTRACT FOLLOWS THE BOOKING; A SIGNED ONE IS FROZEN.
+ *
+ * The figures were snapshotted when the contract was drafted, on the
+ * reasoning that a document must not drift. It is not a document until it
+ * is signed: proposed, it is the booking read as an agreement, and an extra
+ * taken after drafting left it saying 20,000 for a 25,000 job - and the page
+ * read "Agreed" off it. So while a contract is proposed, its base price and
+ * items are brought back to the booking's whenever the booking's lines or
+ * extras move. Signed (active), or revised by hand (modified), it is left
+ * alone: a change after that is a revision, which already exists.
+ */
+async function refreshProposedContracts(orgId: string, bookingId: string) {
+  const { data: proposed } = await supabaseAdmin
+    .from('contracts').select('id, terms')
+    .eq('organization_id', orgId).eq('booking_id', bookingId).eq('status', 'proposed');
+  if (!proposed || proposed.length === 0) return;
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines')
+    .select('title, price, quantity, package_id, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price)')
+    .eq('booking_id', bookingId).eq('organization_id', orgId).order('created_at');
+  const { total, currency, lineItems } = await agreementFiguresOf((lines || []) as any[]);
+  for (const c of proposed as any[]) {
+    await supabaseAdmin
+      .from('contracts')
+      .update({ terms: { ...((c.terms as any) || {}), base_price: total, currency, line_items: lineItems } })
+      .eq('id', c.id).eq('organization_id', orgId);
+    revalidatePath(`/contracts/${c.id}`);
+  }
 }
 
 /**
@@ -1223,46 +1313,10 @@ export async function createContractForBooking(
     );
   }
 
-  // price × quantity — a line for "3 hours" is not billed as one hour.
-  // The currency comes off the lines, which are now known to carry one; the
-  // studio's own is the fallback rather than a hardcoded 'USD' that quietly
-  // renamed a Nigerian studio's money.
-  let total = 0;
-  let currency: string | null = null;
-  for (const l of lines || []) {
-    const p: any = priceOfLine(l);
-    total += amountOf(p) * Number((l as any).quantity ?? 1) + extrasAmount((l as any).extras);
-    if (!currency && p.currency) currency = p.currency;
-  }
-  if (!currency) currency = await getStudioCurrency();
-
-  // Snapshot what's actually being sold, not just the total — a contract
-  // that only states a price with no scope reads as a payment slip, not an
-  // agreement. This is a snapshot like line prices already are: if the
-  // booking's lines change later, this contract's terms don't silently
-  // drift with them.
-  const lineItems = (lines || []).flatMap((l: any) => {
-    const p: any = priceOfLine(l);
-    const quantity = Number(l.quantity ?? 1);
-    const unitPrice = amountOf(p);
-    const title = nameOf(l);
-    /*
-     * WHAT WAS SOLD, THEN WHAT WAS ADDED. The package at what it sold for;
-     * each extra as its own item after it, at the figure agreed for it.
-     * Folding the extras into the package's figure would state a price the
-     * package never had. The parts sum to the contract's total below.
-     */
-    return [
-      { title, quantity, unit: p.unit || null, unitPrice, total: unitPrice * quantity },
-      ...(((l as any).extras || []) as any[]).map((x: any) => ({
-        title: `${title} · ${x.label}`,
-        quantity: Number(x.units),
-        unit: null,
-        unitPrice: amountOf(x.unit_rate),
-        total: amountOf(x.unit_rate) * Number(x.units),
-      })),
-    ];
-  });
+  // What is being agreed and what it comes to - the same figures a proposed
+  // contract is brought back to whenever the booking moves (see
+  // agreementFiguresOf and refreshProposedContracts).
+  const { total, currency, lineItems } = await agreementFiguresOf(lines || []);
 
   // What's due to book, asked of Contracts. It used to be resolved from the
   // packages — each carrying its own payment policy, strictest winning — until
@@ -2251,6 +2305,7 @@ export async function updateBookingLine(input: {
 
   await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'updated', actorId: actorId ?? undefined, payload: { ...linePatch, name, price } });
   await refreshBookingTitle(input.bookingId);
+  await refreshProposedContracts(orgId, input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
 }
@@ -2269,6 +2324,7 @@ export async function removeBookingLine(input: { lineId: string; bookingId: stri
 
   await logEvent({ organizationId: orgId, entityType: 'booking_line', entityId: input.lineId, action: 'removed', actorId: actorId ?? undefined, payload: { bookingId: input.bookingId } });
   await refreshBookingTitle(input.bookingId);
+  await refreshProposedContracts(orgId, input.bookingId);
   revalidatePath(`/bookings/${input.bookingId}`);
   return { ok: true };
 }
