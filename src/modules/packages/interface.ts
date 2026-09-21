@@ -18,6 +18,9 @@ export type { StudioDimensionShape } from '@/modules/services/interface';
 // services' workflows and its own departures. Production reads a booking's
 // work through this; nothing copies it.
 export { listResolvedTasksFor } from './workInternal';
+// What a package narrows itself to, per dimension - for asking whether what
+// is on a booking answers what its client asked for.
+export { packageNarrowingsFor } from './narrowing';
 export type { PackageWork } from './workInternal';
 export type { ResolvedTask } from './workShape';
 

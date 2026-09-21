@@ -157,12 +157,12 @@ export function LinePackageEditor({
         style={{ alignSelf: 'flex-start' }}
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        {open ? 'Close' : 'Configure package'}
+        {open ? 'Close' : 'Adjust this booking’s copy of the package'}
       </button>
 
       {!open && (
         <span className="q-meta-sm">
-          Services, deliverables, classifications, variables and price.
+          For when this client’s deal differs from the catalogue: what is bundled, what it promises, how it is classified.
         </span>
       )}
 

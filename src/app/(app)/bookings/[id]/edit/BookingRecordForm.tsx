@@ -267,6 +267,20 @@ export function BookingRecordForm({
         </span>
       </div>
 
+      </div>
+
+      {/* Whatever else this page is editing — what it is for, the packages,
+          what follows — above the button that ends the page. */}
+      {children}
+
+      {/*
+        * THE RECORD'S PRESENTATION, LAST. Neither the name nor the cover was
+        * entered when the booking was taken: the name is derived from the
+        * packages unless the studio names it, and the cover is the studio's
+        * picture of the job. They follow from the record, so they follow it.
+        */}
+      <div className="q-card q-section q-stack q-stack-lg">
+        <h2 className="q-section-title">Name and cover</h2>
       <div className="q-stack q-stack-sm">
         <label className="q-label" htmlFor="booking-title">Name</label>
         <input
@@ -298,10 +312,6 @@ export function BookingRecordForm({
       </div>
 
       </div>
-
-      {/* Whatever else this page is editing — the packages, above the button
-          that ends the page rather than below it. */}
-      {children}
 
       {/*
         * A DISABLED BUTTON SAYS WHY IT IS DISABLED.

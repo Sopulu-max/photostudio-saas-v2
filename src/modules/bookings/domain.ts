@@ -3001,6 +3001,50 @@ export async function setBookingClassification(input: {
   revalidatePath(`/bookings/${input.bookingId}/edit`);
 }
 
+/**
+ * IS WHAT THEY ASKED FOR ANSWERED BY WHAT IS ON THE BOOKING?
+ *
+ * The booking's own classification - what the studio understands it to be
+ * for - set against the packages on it, with the kernel's one rule: a
+ * package admits an answer when it never narrowed that dimension, or
+ * narrowed it to values that include the answer. Every answer admitted by
+ * some line means the request is answered and the resolver has nothing to
+ * do; an answer no line admits is what is still open, and is what the
+ * resolver should be about.
+ *
+ * This replaces "partly fulfilled", which was `lines.length > 0`: a verdict
+ * on the booking that compared nothing with nothing.
+ */
+export async function readRequestCoverage(bookingId: string): Promise<{
+  answers: { dimensionId: string; dimensionName: string; valueId: string; valueName: string; coveredBy: string[] }[];
+  covered: boolean;
+  /** The lines' packages, by name - what the request was answered by. */
+  answeredBy: string[];
+}> {
+  const { orgId } = await getAuthOrgId();
+  const own = await getBookingClassification(bookingId);
+  const { data: lines } = await supabaseAdmin
+    .from('booking_lines')
+    .select('id, package_id, package:packages(name)')
+    .eq('organization_id', orgId)
+    .eq('booking_id', bookingId);
+  const packaged = ((lines || []) as any[]).filter((l) => l.package_id);
+  const { packageNarrowingsFor } = await import('@/modules/packages/interface');
+  const { admits } = await import('@/kernel/classification');
+  const narrowings = await packageNarrowingsFor(orgId, packaged.map((l) => l.package_id));
+  const answers = own.map((c) => {
+    const coveredBy = packaged
+      .filter((l) => admits(narrowings.get(l.package_id) ?? new Map(), [{ dimensionId: c.dimensionId, valueId: c.valueId }]))
+      .map((l) => (l.package?.name as string) || 'Package');
+    return { dimensionId: c.dimensionId, dimensionName: c.dimensionName, valueId: c.valueId, valueName: c.valueName, coveredBy };
+  });
+  return {
+    answers,
+    covered: packaged.length > 0 && answers.every((a) => a.coveredBy.length > 0),
+    answeredBy: [...new Set(packaged.map((l) => (l.package?.name as string) || 'Package'))],
+  };
+}
+
 export async function getEnquiryForBooking(bookingId: string): Promise<{
   message: string | null;
   chosen: { dimension: string; value: string }[];

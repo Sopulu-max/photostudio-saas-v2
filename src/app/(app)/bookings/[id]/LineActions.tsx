@@ -25,6 +25,7 @@ export function LineActions({
   unit,
   currency,
   hasWork,
+  charge,
 }: {
   bookingId: string;
   lineId: string;
@@ -34,6 +35,12 @@ export function LineActions({
   unit: string | null;
   currency: string;
   hasWork: boolean;
+  /**
+   * A charge is a row and nothing else - a name, a figure, a quantity - so
+   * it is edited here. A package line's price sits under its questions and
+   * everything else about it is the package's; only Remove belongs here.
+   */
+  charge?: boolean;
 }) {
   const { isPending, run } = useAction();
   const [editing, setEditing] = useState(false);
@@ -94,7 +101,7 @@ export function LineActions({
 
   return (
     <div className="q-row">
-      <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Edit</button>
+      {charge !== false && <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setEditing(true)}>Edit</button>}
       <button className="q-btn q-btn-secondary q-btn-xs" onClick={() => setConfirming(true)}>Remove</button>
     </div>
   );

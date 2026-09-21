@@ -1,9 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking, getBookingClassification } from '@/modules/bookings/interface';
+import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking, getBookingClassification, readRequestCoverage } from '@/modules/bookings/interface';
 import { listClients } from '@/modules/clients/interface';
-import { listPackages, getOpenQuestionsForPackage } from '@/modules/packages/interface';
+import { listPackages, getOpenQuestionsForPackage, getPackage } from '@/modules/packages/interface';
+import { amountOf, firstPriced, extrasAmount } from '@/kernel/money';
 import { listInvoicesForBooking } from '@/modules/finances/interface';
 import { getBookingWork, getBookingTeam } from '@/modules/production/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -15,6 +16,8 @@ import { BookingRecordForm } from './BookingRecordForm';
 import { AddLineForm } from '../AddLineForm';
 import { LineActions } from '../LineActions';
 import { LineQuestionsEditor } from './LineQuestionsEditor';
+import { LinePrice } from './LinePrice';
+import { LineExtras } from '../LineExtras';
 import { ResolveEnquiry } from '../ResolveEnquiry';
 import { BookingClassification } from '../BookingClassification';
 import { LinePackageEditor } from './LinePackageEditor';
@@ -107,6 +110,15 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
     }
   }
   const intakeAnswers = (((booking as any).metadata?.form_responses ?? {}) as Record<string, any>);
+
+  // Whether what they asked for is answered by what is on the booking - the
+  // set test, not a flag - and each line's package as the booking reads it,
+  // for the extras it may take.
+  const coverage = await readRequestCoverage(booking.id);
+  const deepByLine: Record<string, any> = {};
+  for (const l of booking.lines as any[]) {
+    if (l.package_id) deepByLine[l.id] = await getPackage(l.package_id).catch(() => null);
+  }
 
   // What follows from the record - done on the booking, summarised here so
   // the page reads in the same order it was written.
@@ -202,7 +214,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
         <div className="q-card q-section">
           <h2 className="q-section-title">2. Packages</h2>
           <p className="q-meta" style={{ marginBottom: '14px' }}>
-            Each package, and what it left open. Changes here apply straight away — each package added or removed is its own change.
+            Each package: what it left open, its price for this booking, and anything taken beyond it. Changes here apply straight away.
           </p>
 
           {booking.lines.length === 0 ? (
@@ -224,8 +236,8 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                 const svcNames = ((linePkg?.services || []) as any[]).map((s: any) => s.name).filter(Boolean);
                 return (
                   <div key={l.id} className="q-tile">
-                    <div className="q-row q-row-between">
-                      <div>
+                    <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <strong className="q-strong">{l.title}</strong>
                         {svcNames.length > 0 && <div className="q-meta-sm">{svcNames.join(' · ')}</div>}
                         {/* What this package left open, asked under it - the
@@ -245,6 +257,40 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                             )}
                           />
                         )}
+                        {/* Its price for this booking, where it was at creation. */}
+                        {l.package_id && (
+                          <LinePrice
+                            bookingId={booking.id}
+                            lineId={l.id}
+                            basePrice={amountOf(firstPriced(linePkg?.price, l.price)) || null}
+                            catalogPrice={packageByLine[l.id]?.derivedFrom
+                              ? (amountOf((packageRows as any[]).find((p) => p.name === packageByLine[l.id].derivedFrom)?.price) || null)
+                              : null}
+                            currency={(firstPriced(linePkg?.price, l.price) as any)?.currency || currencyCode}
+                          />
+                        )}
+                        {/* More of what it promises - read, changed, taken. */}
+                        {deepByLine[l.id] && (
+                          <LineExtras
+                            lineId={l.id}
+                            currencyCode={currencyCode}
+                            promises={((deepByLine[l.id].services || []) as any[]).flatMap((s: any) =>
+                              ((s.deliverables || []) as any[]).map((d: any) => ({
+                                packageServiceId: s.packageServiceId as string,
+                                deliverableId: d.id as string,
+                                name: d.name as string,
+                                quantity: (d.quantity ?? null) as number | null,
+                                serviceName: s.name as string,
+                                rate: amountOf(((s.offers || []) as any[]).find((o: any) => o.id === d.id)?.rate) || null,
+                              })))}
+                            taken={((l.extras || []) as any[]).map((x: any) => ({
+                              id: x.id, label: x.label, units: Number(x.units), unit_rate: x.unit_rate,
+                              billedOn: ((x.billed || []) as any[])
+                                .map((b: any) => b.invoice).filter((i: any) => i && !i.voided_at)
+                                .map((i: any) => ({ id: i.id as string, number: (i.number ?? null) as string | null, status: i.status as string })),
+                            }))}
+                          />
+                        )}
                       </div>
                       <LineActions
                         bookingId={booking.id}
@@ -253,8 +299,9 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                         basePrice={(l.price as any)?.base_price ?? null}
                         quantity={Number(l.quantity ?? 1)}
                         unit={(l.price as any)?.unit ?? null}
-                        currency={(l.price as any)?.currency || 'USD'}
+                        currency={(l.price as any)?.currency || currencyCode}
                         hasWork={!!w}
+                        charge={!l.package_id}
                       />
                     </div>
                     {packageByLine[l.id] && (
@@ -290,58 +337,52 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             </div>
           )}
 
-          {booking.lines.length > 0 && (
-            <div className="q-tile-sub q-row q-row-between">
-              <span className="q-meta">Total</span>
-              <strong className="q-stat-value">
-                {formatMoney(
-                  booking.lines.reduce(
-                    (sum: number, l: any) => sum + Number(l.price?.base_price || 0) * Number(l.quantity ?? 1),
-                    0
-                  ),
-                  (booking.lines[0]?.price as any)?.currency || currencyCode
-                )}
-              </strong>
-            </div>
-          )}
-
           {/*
-            * WHAT IT IS FOR, BEFORE WHAT CAN ANSWER IT.
-            *
-            * Above the resolver on purpose: the lists below are computed from
-            * this, so an operator who reads them and thinks "that is not what
-            * they wanted" needs the correction in front of them, not after.
-            *
-            * ONLY WHEN NOTHING ON THE BOOKING NARROWS IT. With a package on
-            * the booking, what it is for is answered by the package (settled)
-            * or asked under it (left open, among the values it allows). This
-            * offered every question with every value the studio has - Burial
-            * for a children's portrait session, a Context the package had
-            * already fixed - beside the package that had settled them.
+            * FROM WHAT THEY ASKED FOR TO A PACKAGE - the enquiry's path, in the
+            * place the creation form offers the catalogue. Shown only while
+            * something they asked for is not answered by a package on the
+            * booking: with none on it, the studio's understanding is asked for
+            * and the descent runs (sell it, assemble it, or a catalogue
+            * decision); with packages on it that leave an answer uncovered,
+            * the descent runs about that. Answered, the packages speak and
+            * this says nothing - "partly fulfilled" was lines.length > 0,
+            * a verdict that compared nothing with nothing.
             */}
-          {askedDimensions.length > 0 && booking.lines.every((l: any) => !l.package_id) && (
-            <div className="q-tile" style={{ marginBottom: '16px' }}>
-              <BookingClassification
-                bookingId={booking.id}
-                dimensions={askedDimensions}
-                current={understoodByDimension}
-              />
-            </div>
-          )}
-
-          {/* What the client described, and what can answer it — whether or
-              not something is already on the booking. */}
-          {enquiry && (
-            <div style={{ marginBottom: '16px' }}>
-              <ResolveEnquiry
-                bookingId={booking.id}
-                chosen={enquiry.chosen}
-                message={enquiry.message}
-                offers={enquiry.offers}
-                capabilities={enquiry.capabilities}
-                currencyCode={currencyCode}
-                alreadyOn={booking.lines.length > 0}
-              />
+          {!coverage.covered && (
+            <div className="q-stack q-stack-sm" style={{ marginBottom: '16px' }}>
+              {booking.lines.every((l: any) => !l.package_id) ? (
+                askedDimensions.length > 0 && (
+                  <div className="q-tile">
+                    <BookingClassification
+                      bookingId={booking.id}
+                      dimensions={askedDimensions}
+                      current={understoodByDimension}
+                    />
+                  </div>
+                )
+              ) : (
+                coverage.answers.some((a) => a.coveredBy.length === 0) && (
+                  <p className="q-meta">
+                    {coverage.answers.filter((a) => a.coveredBy.length === 0).map((a) => (
+                      <span key={a.dimensionId} style={{ marginRight: '12px' }}>
+                        {a.dimensionName}: <strong className="q-strong">{a.valueName}</strong>
+                        <span className="q-text-danger"> · nothing on the booking covers this</span>
+                      </span>
+                    ))}
+                  </p>
+                )
+              )}
+              {enquiry && (
+                <ResolveEnquiry
+                  bookingId={booking.id}
+                  chosen={enquiry.chosen}
+                  message={enquiry.message}
+                  offers={enquiry.offers}
+                  capabilities={enquiry.capabilities}
+                  currencyCode={currencyCode}
+                  alreadyOn={booking.lines.some((l: any) => l.package_id)}
+                />
+              )}
             </div>
           )}
 
@@ -358,6 +399,26 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
             packagesOnBooking={booking.lines.map((l: any) => l.package_id).filter(Boolean)}
             currencyCode={currencyCode}
           />
+          {booking.lines.length > 0 && (
+            <div className="q-tile-sub q-row q-row-between">
+              <span className="q-meta">Total</span>
+              <strong className="q-stat-value">
+                {/* The same sum the booking page and the invoice read: each
+                    line at its own instance's price, plus what was taken
+                    beyond it. This read only the line's own price column,
+                    so a package line (priced on its instance) counted as 0
+                    and an extra counted for nothing. */}
+                {formatMoney(
+                  booking.lines.reduce(
+                    (sum: number, l: any) => sum + amountOf(firstPriced(l.package?.price, l.price)) * Number(l.quantity ?? 1) + extrasAmount(l.extras),
+                    0
+                  ),
+                  (booking.lines.map((l: any) => firstPriced(l.package?.price, l.price) as any).find((p: any) => p?.currency)?.currency) || currencyCode
+                )}
+              </strong>
+            </div>
+          )}
+
         </div>
         {/*
           * 3. WHAT FOLLOWS - in the place it had when the booking was taken.

@@ -56,6 +56,8 @@ export {
   giveLineItsOwnPackage,
   // A custom enquiry: what the client described, and whether it can be built on
   getEnquiryForBooking,
+  // Whether what the client asked for is answered by what is on the booking
+  readRequestCoverage,
   // Assembled from capabilities the studio already has, never invented
   buildPackageForBooking,
   // The staffing cascade: which roles the booked Packages' workflows call for
