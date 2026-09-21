@@ -20,7 +20,8 @@ import type { BookingsSheet, SheetBooking, SheetBand } from '@/modules/bookings/
  * the one thing a day book needs, order. The sheet row is a table whose
  * only true columns are the ones compared: the figure and the stage sit in
  * a fixed right column, the rest flows, and a row carries one more line -
- * where the work is - without breaking the alignment.
+ * where the work is - without breaking the alignment. Covers and the card
+ * view are set aside for now; the row is named by the client's initials.
  *
  * Everything drawn here arrives decided (readBookingsSheet): the bands,
  * the work on each row, the counts. This file holds only what to show and
@@ -93,7 +94,8 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
       b.packages.length > 0 ? b.packages.join(' · ') : null,
     ],
     absent: b.clientName ? 'No date or package yet' : 'No date, client or package yet',
-    frame: { url: b.coverUrl, initials: initialsFor(b.clientName) },
+    // No pictures on the day book, for now: the client's initials name the row.
+    frame: { initials: initialsFor(b.clientName) },
     figure: b.owed
       ? { text: formatMoney(b.owed.amount, b.owed.currency ?? sheet.currency), due: true }
       : b.work && b.work.total > 0
@@ -150,7 +152,7 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
         kind="catalogue"
         sorts={HOW_TO_ORDER}
         facetLabel="stage"
-        views
+        views={false}
         denseFirst
         read={(b: SheetBooking) => ({
           name: b.title,
@@ -159,10 +161,10 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
           tags: b.classification,
         })}
       >
-        {(shown, { dense, sort }) => {
-          // By day: the bands, each a heading on the sheet. Any other order,
-          // or the cards: one run, in that order.
-          if (!dense || (sort && sort !== 'soon')) return <Sheet items={shown.map(item)} dense={dense} />;
+        {(shown, { sort }) => {
+          // By day: the bands, each a heading on the sheet. Any other order:
+          // one run, in that order. (Cards are set aside with the covers.)
+          if (sort && sort !== 'soon') return <Sheet items={shown.map(item)} dense />;
           const shownIds = new Set(shown.map((b) => b.id));
           return (
             <div className="q-sheet">

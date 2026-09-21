@@ -9,7 +9,6 @@ import { DURATION_CHOICES, formatDuration } from '@/kernel/currency';
 import { toast, readableError } from '@/components/Toast';
 import { wallClockIn } from '@/kernel/wallClock';
 import { DayContext } from '@/components/DayContext';
-import { ImageUpload } from '@/components/ImageUpload';
 
 /*
  * THE WALL CLOCK BELONGS TO THE STUDIO, NOT TO WHOEVER IS LOOKING.
@@ -41,8 +40,6 @@ export function BookingRecordForm({
   scheduledFor,
   durationMinutes,
   brief,
-  coverUrl: initialCoverUrl,
-  coverPosition: initialCoverPosition,
   suggestedMinutes,
   clients,
   timeZone,
@@ -56,8 +53,6 @@ export function BookingRecordForm({
   durationMinutes: number | null;
   /** What the client asked for, in their words. */
   brief: string | null;
-  coverUrl: string | null;
-  coverPosition: string | null;
   suggestedMinutes: number | null;
   clients: ClientOption[];
   /**
@@ -99,34 +94,8 @@ export function BookingRecordForm({
   const [when, setWhen] = useState(initial.when);
   const [dur, setDur] = useState(initial.dur);
   const [briefText, setBriefText] = useState(initial.brief);
-  const [coverUrl, setCoverUrl] = useState<string | null>(initialCoverUrl);
-  const [coverPosition, setCoverPosition] = useState<string | null>(initialCoverPosition);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-
-  // Cover saves immediately — an upload has already happened in storage, and
-  // leaving the row unwritten until Save means navigating away orphans it.
-  const saveCover = (patch: { coverUrl?: string | null; coverPosition?: string | null }) => {
-    startTransition(async () => {
-      try {
-        await updateBookingRecord({ bookingId, ...patch });
-        router.refresh();
-      } catch (e: any) {
-        toast.bad(readableError(e, 'The cover could not be saved.'));
-      }
-    });
-  };
-
-  const applyCover = (next: string | null) => {
-    setCoverUrl(next);
-    setCoverPosition(null);
-    saveCover({ coverUrl: next, coverPosition: null });
-  };
-
-  const applyCoverPosition = (next: string) => {
-    setCoverPosition(next);
-    saveCover({ coverPosition: next });
-  };
 
   const dirty =
     t !== initial.title || cid !== initial.contactId || when !== initial.when || dur !== initial.dur ||
@@ -274,13 +243,12 @@ export function BookingRecordForm({
       {children}
 
       {/*
-        * THE RECORD'S PRESENTATION, LAST. Neither the name nor the cover was
-        * entered when the booking was taken: the name is derived from the
-        * packages unless the studio names it, and the cover is the studio's
-        * picture of the job. They follow from the record, so they follow it.
+        * THE RECORD'S NAME, LAST. It was not entered when the booking was
+        * taken: it is derived from the packages unless the studio names it,
+        * so it follows the record. (The cover is set aside for now.)
         */}
       <div className="q-card q-section q-stack q-stack-lg">
-        <h2 className="q-section-title">Name and cover</h2>
+        <h2 className="q-section-title">Name</h2>
       <div className="q-stack q-stack-sm">
         <label className="q-label" htmlFor="booking-title">Name</label>
         <input
@@ -295,21 +263,6 @@ export function BookingRecordForm({
         </span>
       </div>
 
-      <div className="q-field">
-        <label className="q-label">Cover</label>
-        <ImageUpload
-          url={coverUrl}
-          folder="bookings"
-          label="cover"
-          maxEdge={2400}
-          onUploaded={(u) => applyCover(u)}
-          onCleared={() => applyCover(null)}
-          position={coverPosition}
-          onPositionChange={applyCoverPosition}
-          disabled={isPending}
-        />
-        <span className="q-meta-sm">Saved as soon as it is chosen.</span>
-      </div>
 
       </div>
 

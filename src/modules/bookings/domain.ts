@@ -1655,8 +1655,6 @@ export type BookingListRow = {
   clientName: string | null;
   /** The title already leads with the client, so a caption need not say them again. */
   titleNamesClient: boolean;
-  /** The booking's own picture, else the first of its packages'. */
-  coverUrl: string | null;
   /** What is on it, by name. */
   packages: string[];
   lineCount: number;
@@ -1673,14 +1671,10 @@ export async function listBookings(): Promise<BookingListRow[]> {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .select(`
-      id, title, created_at, scheduled_for, cover_url, cover_position,
+      id, title, created_at, scheduled_for,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
-      booking_lines(id, title, package:packages(
-        name,
-        package_images(url, position, sort),
-        origin:instance_of(package_images(url, position, sort))
-      )),
+      booking_lines(id, title, package:packages(name)),
       contracts(id, status),
       financial_transactions(id, amount, status, currency),
       booking_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name)))
@@ -1738,7 +1732,6 @@ export async function listBookings(): Promise<BookingListRow[]> {
        * package fallback left to the cover model; the cover model now
        * provides it.
        */
-      coverUrl: picturesOf(b)[0]?.url ?? null,
       packages: ((b.booking_lines || []) as any[]).map((l) => lineNameOf(l, '')).filter(Boolean),
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,

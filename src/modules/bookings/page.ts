@@ -66,7 +66,6 @@ export type BookingPageData = {
     client: { id: string; name: string; email: string | null } | null;
     when: { at: string | null; durationMinutes: number | null; suggestedMinutes: number | null };
     brief: string | null;
-    images: any[];
     owed: Money | null;
   };
   formAnswers: any[];
@@ -253,7 +252,6 @@ export async function readBookingPage(bookingId: string): Promise<BookingPageDat
       client: booking.contact ? { id: booking.contact.id, name: booking.contact.display_name, email: booking.contact.email ?? null } : null,
       when: { at: booking.scheduled_for ?? null, durationMinutes: booking.duration_minutes ?? null, suggestedMinutes },
       brief: booking.brief ?? null,
-      images: booking.images || [],
       owed: pending > 0 ? { amount: pending, currency } : null,
     },
     formAnswers,

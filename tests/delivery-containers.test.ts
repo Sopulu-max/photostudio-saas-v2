@@ -359,7 +359,8 @@ describe('the studio’s delivery containers', () => {
 
     const copyType: any = declared.find((v: any) => v.label === 'Copy type');
     expect(copyType.options, 'the permitted answers were lost').toEqual(['Softcopy', 'Hardcopy']);
-    expect(copyType.deliverable_id, 'the question was not owned by the deliverable').toBe(id);
+    // The one shape every variable is read in (rowToVariable): owned by the deliverable.
+    expect(copyType.deliverableId, 'the question was not owned by the deliverable').toBe(id);
   }, 90000);
 
   it('returns the columns it promises — the unit a deliverable is counted in', async () => {
@@ -465,9 +466,9 @@ describe('the studio’s delivery containers', () => {
       deliverableId: outputTypeId,
       variable: { label: 'Cover material', kind: 'choice', options: ['Linen', 'Leather'] },
     });
-    expect(made.deliverable_id, 'it was not owned by the deliverable').toBe(outputTypeId);
-    expect(made.service_id, 'it claimed a service as well').toBeNull();
-    expect(made.dimension_id, 'it claimed a classification as well').toBeNull();
+    expect(made.deliverableId, 'it was not owned by the deliverable').toBe(outputTypeId);
+    expect(made.serviceId, 'it claimed a service as well').toBeNull();
+    expect(made.dimensionId, 'it claimed a classification as well').toBeNull();
     // The key is derived from the label, so a studio names a thing once.
     expect(made.key).toBe('cover_material');
 

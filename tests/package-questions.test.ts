@@ -46,6 +46,7 @@ import {
   createBooking, setBookingIntakeAnswers, getIntakeAnswersForBooking,
 } from '@/modules/bookings/interface';
 import { seedStudio, seedRow } from './seed';
+import { createDimension, addDimensionValue } from '@/modules/services/dimensionsAdmin';
 import { PURGE_ORDER } from './purge';
 
 const WHERE_FROM = { id: 'q_referral', type: 'text' as const, label: 'How did you hear about us?' };
@@ -67,23 +68,25 @@ describe('every route a package asks along', () => {
     /* ROUTE 2: something the service declares and the package will not fix. */
     await declareServiceVariable({
       serviceId,
-      key: 'hours',
-      label: 'Coverage hours',
-      kind: 'number',
+      variable: { key: 'hours', label: 'Coverage hours', kind: 'number' },
     } as any);
 
     /* ROUTE 3: a dimension narrowed to more than one value is still a question. */
     const domain = await supabaseAdmin.from('service_domains')
       .select('id').eq('organization_id', TEST_ORG_ID).eq('name', 'Photography').maybeSingle();
-    const dimension = await seedRow('dimensions', {
-      organization_id: TEST_ORG_ID, service_domain_id: (domain.data as any).id,
-      name: 'Occasion', question: 'What occasion is it for?', position: 0,
+    // Through the door, not a seeded row: a dimension is the studio's and is
+    // OFFERED by a domain through a join, which a bare row never makes - so
+    // a narrowing by it was refused as "from a different domain".
+    const made: any = await createDimension({
+      serviceDomainId: (domain.data as any).id, name: 'Occasion', question: 'What occasion is it for?',
     });
-    const values = [];
-    for (const [i, name] of ['Birthday', 'Convocation'].entries()) {
-      values.push(await seedRow('dimension_values', {
-        organization_id: TEST_ORG_ID, dimension_id: dimension.id, name, position: i,
-      }));
+    const dimension = { id: (made?.dimensionId ?? made?.id) as string };
+    const values: { id: string }[] = [];
+    for (const name of ['Birthday', 'Convocation']) {
+      await addDimensionValue({ dimensionId: dimension.id, name });
+      const { data: v } = await supabaseAdmin.from('dimension_values').select('id')
+        .eq('dimension_id', dimension.id).eq('name', name).single();
+      values.push({ id: v!.id });
     }
     for (const v of values) {
       await seedRow('service_dimension_values', {
