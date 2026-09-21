@@ -244,18 +244,31 @@ describe('A dimension says what follows from its answers', () => {
     ).toContain(dateVariableId);
   });
 
-  it('inheriting it is not the same as asking for it', async () => {
+  it('is asked wherever the classification applies, unless the studio fixed it', async () => {
     /*
-     * The rule that stops a declaration leaking onto a live booking form. A
-     * package inherits the field the moment it is classified; whether a client
-     * is asked is a separate decision nobody has made yet.
+     * RULED 2026-09-21. This pinned the opposite - "inheriting is not asking",
+     * a separate "client" decision per package - and that rule left a family
+     * that left the date to its members asking it on the members that
+     * happened to answer and not on the ones that stayed silent: same
+     * occasion, no date. Declaring the date on Occasion IS the decision to
+     * ask it wherever Occasion applies; that is why it lives on the dimension
+     * and not on a service. (A SERVICE's variable still needs the decision,
+     * or a new one would land on every live form the moment it was declared.)
      */
     const pkg = await createPackage({ name: 'Quiet Birthday', serviceIds: [serviceId] });
     const asked = await getOpenVariablesForPackagePublic(TEST_ORG_ID, pkg.packageId);
     expect(
       asked.map((v: any) => v.id),
-      'an undecided field was put on the public booking form',
-    ).not.toContain(dateVariableId);
+      'the date the classification declares was not asked',
+    ).toContain(dateVariableId);
+
+    // Fixed by the studio, it is an answer, not a question.
+    await updatePackage({
+      packageId: pkg.packageId,
+      variableValues: [{ serviceVariableId: dateVariableId, answeredBy: 'studio', value: '2026-12-25' }],
+    });
+    const after = await getOpenVariablesForPackagePublic(TEST_ORG_ID, pkg.packageId);
+    expect(after.map((v: any) => v.id), 'a date the studio fixed was still asked').not.toContain(dateVariableId);
   });
 
   it('is asked at booking once the package says the client answers it', async () => {
@@ -467,9 +480,10 @@ describe('A dimension says what follows from its answers', () => {
     expect(field, 'the address the Context declares did not reach a package classified Outdoor').toBeTruthy();
     expect(field!.kind).toBe('textarea');
 
-    // And the same rule governs it: inherited, not yet asked.
+    // And the same rule governs it: declared on the classification, so asked
+    // wherever it applies - Outdoor, here - until the studio fixes it.
     const asked = await getOpenVariablesForPackagePublic(TEST_ORG_ID, pkg.packageId);
-    expect(asked.map((v: any) => v.id)).not.toContain(declared!.id);
+    expect(asked.map((v: any) => v.id)).toContain(declared!.id);
 
     await updatePackage({
       packageId: pkg.packageId,

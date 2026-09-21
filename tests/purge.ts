@@ -11,7 +11,7 @@
  */
 export const PURGE_ORDER = [
   'events', 'notes',
-  'assignments', 'booking_tasks', 'booking_line_variable_values', 'booking_lines',
+  'assignments', 'booking_tasks', 'booking_line_extras', 'booking_line_variable_values', 'booking_dimension_values', 'booking_lines',
   // financial_transactions before contracts: a transaction points at the
   // contract it settles, so contracts cannot go first. Invoices go after the
   // transactions that pay them for the same reason.
@@ -23,10 +23,10 @@ export const PURGE_ORDER = [
   // purge that lists them says so rather than relying on it.
   'package_images',
   // Narrowings hang off package_services and go with it, so they need no line.
-  'package_variable_values',
+  'package_variable_values', 'package_member_answers',
   'packages',
   'service_deliverable_options',
-  'service_deliverables', 'variables', 'service_dimension_values',
+  'service_deliverables', 'variable_dimension_values', 'variables', 'service_dimension_values',
   'services',
   // Was 'blueprints', which no longer exists — that table became these three in
   // the workflow rework, and a delete against a missing table fails silently, so

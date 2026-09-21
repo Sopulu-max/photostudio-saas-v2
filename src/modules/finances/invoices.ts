@@ -337,7 +337,7 @@ export async function createInvoiceForBooking(input: {
 
   const { data: bookingLines } = await supabaseAdmin
     .from('booking_lines')
-    .select('id, quantity, title, price, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price)')
+    .select('id, quantity, title, price, package_id, extras:booking_line_extras(id, units, unit_rate, label, package_service_id, ref_id), package:packages(name, price)')
     .eq('organization_id', orgId)
     .eq('booking_id', input.bookingId)
     .order('created_at');

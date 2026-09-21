@@ -32,6 +32,15 @@ export type ExtraTaken = {
   unitRate: unknown;
 };
 
+/**
+ * Only a draft that has not been withdrawn follows the booking. Decided on
+ * the row's invoice after the read: filtering on the embedded invoice's
+ * status in the query did not take effect through the alias, and an extra
+ * taken after issue landed on the issued document - caught by the flow test,
+ * never by a booking that only had drafts.
+ */
+const isOpenDraft = (row: any) => row.invoice?.status === 'draft' && !row.invoice?.voided_at;
+
 /** Tax and discount, re-derived for a draft whose lines just changed. */
 async function refreshDraftFigures(orgId: string, invoiceId: string) {
   const { data: inv } = await supabaseAdmin
@@ -65,10 +74,8 @@ async function draftsCarrying(orgId: string, bookingLineId: string) {
     .select('id, invoice_id, description, unit_price, position, booking_line_extra_id, invoice:invoices!inner(id, status, voided_at)')
     .eq('organization_id', orgId)
     .eq('booking_line_id', bookingLineId)
-    .is('booking_line_extra_id', null)
-    .eq('invoice.status', 'draft')
-    .is('invoice.voided_at', null);
-  return (data || []) as any[];
+    .is('booking_line_extra_id', null);
+  return ((data || []) as any[]).filter(isOpenDraft);
 }
 
 /** Put the extra on every draft carrying its line. */
@@ -116,11 +123,9 @@ export async function dropExtraFromDrafts(orgId: string, extraId: string) {
     .from('invoice_lines')
     .select('id, invoice_id, invoice:invoices!inner(status, voided_at)')
     .eq('organization_id', orgId)
-    .eq('booking_line_extra_id', extraId)
-    .eq('invoice.status', 'draft')
-    .is('invoice.voided_at', null);
+    .eq('booking_line_extra_id', extraId);
   const touched = new Set<string>();
-  for (const row of (data || []) as any[]) {
+  for (const row of ((data || []) as any[]).filter(isOpenDraft)) {
     await supabaseAdmin.from('invoice_lines').delete().eq('id', row.id).eq('organization_id', orgId);
     touched.add(row.invoice_id);
   }
@@ -133,11 +138,9 @@ export async function reviseExtraOnDrafts(orgId: string, extra: ExtraTaken, pack
     .from('invoice_lines')
     .select('id, invoice_id, description, invoice:invoices!inner(status, voided_at)')
     .eq('organization_id', orgId)
-    .eq('booking_line_extra_id', extra.id)
-    .eq('invoice.status', 'draft')
-    .is('invoice.voided_at', null);
+    .eq('booking_line_extra_id', extra.id);
   const touched = new Set<string>();
-  for (const row of (data || []) as any[]) {
+  for (const row of ((data || []) as any[]).filter(isOpenDraft)) {
     // The share this draft bills, read off the package's own row on it.
     const { data: pkgRow } = await supabaseAdmin
       .from('invoice_lines').select('unit_price')
