@@ -1638,7 +1638,36 @@ export async function listBookingsOfPackage(packageId: string) {
     }));
 }
 
-export async function listBookings() {
+/**
+ * A ROW ON THE BOOKINGS SHEET - what a booking says about itself, decided
+ * here so the sheet only draws it. The sheet used to take an untyped row
+ * and work out for itself whether the title already named the client, and
+ * said "2 packages" because the names were not on the row, and drew no
+ * classification facet because "loading it would cost more than the filter
+ * saves" - one query for the whole studio, as it turns out.
+ */
+export type BookingListRow = {
+  id: string;
+  title: string;
+  createdAt: string;
+  scheduledFor: string | null;
+  stage: { id: string; name: string; kind: string; color: string | null } | null;
+  clientName: string | null;
+  /** The title already leads with the client, so a caption need not say them again. */
+  titleNamesClient: boolean;
+  /** The booking's own picture, else the first of its packages'. */
+  coverUrl: string | null;
+  /** What is on it, by name. */
+  packages: string[];
+  lineCount: number;
+  hasContract: boolean;
+  /** What still needs the studio: money pending, in the currency it was raised in. */
+  owed: { amount: number; currency: string | null } | null;
+  /** What the studio understands it to be for - the facet a sheet narrows by. */
+  classification: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
+};
+
+export async function listBookings(): Promise<BookingListRow[]> {
   const { orgId } = await getAuthOrgId();
 
   const { data, error } = await supabaseAdmin
@@ -1647,12 +1676,14 @@ export async function listBookings() {
       id, title, created_at, scheduled_for, cover_url, cover_position,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
-      booking_lines(id, package:packages(
+      booking_lines(id, title, package:packages(
+        name,
         package_images(url, position, sort),
         origin:instance_of(package_images(url, position, sort))
       )),
       contracts(id, status),
-      financial_transactions(id, amount, status, currency)
+      financial_transactions(id, amount, status, currency),
+      booking_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name)))
     `)
     .eq('organization_id', orgId)
     /*
@@ -1682,13 +1713,16 @@ export async function listBookings() {
     // then labelling the total with the studio's *current* currency would
     // rename a dollar debt as naira, so the currency travels with the figure.
     const pending = (b.financial_transactions || []).filter((t: any) => t.status === 'pending');
-    return {
+    const pendingTotal = pending.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+    const clientName = (b.contact?.display_name || null) as string | null;
+    const row: BookingListRow = {
       id: b.id as string,
       title: b.title as string,
       createdAt: b.created_at as string,
       scheduledFor: (b.scheduled_for ?? null) as string | null,
       stage: b.stage || null,
-      clientName: b.contact?.display_name || null,
+      clientName,
+      titleNamesClient: Boolean(clientName && String(b.title || '').toLowerCase().includes(clientName.toLowerCase())),
       /*
        * THE PICTURE THAT IDENTIFIES THE ROW.                            (D4)
        *
@@ -1705,11 +1739,18 @@ export async function listBookings() {
        * provides it.
        */
       coverUrl: picturesOf(b)[0]?.url ?? null,
+      packages: ((b.booking_lines || []) as any[]).map((l) => lineNameOf(l, '')).filter(Boolean),
       lineCount: (b.booking_lines || []).length,
       hasContract: (b.contracts || []).length > 0,
-      pendingTotal: pending.reduce((s: number, t: any) => s + Number(t.amount || 0), 0),
-      pendingCurrency: (pending[0]?.currency as string | undefined) ?? null,
+      owed: pendingTotal > 0 ? { amount: pendingTotal, currency: (pending[0]?.currency as string | undefined) ?? null } : null,
+      classification: ((b.booking_dimension_values || []) as any[])
+        .filter((r) => r.dimension_value?.dimension)
+        .map((r) => ({
+          dimensionId: r.dimension_value.dimension.id as string, dimensionName: r.dimension_value.dimension.name as string,
+          valueId: r.dimension_value.id as string, valueName: r.dimension_value.name as string,
+        })),
     };
+    return row;
   });
 }
 

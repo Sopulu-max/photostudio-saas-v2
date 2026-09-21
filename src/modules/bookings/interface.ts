@@ -103,3 +103,4 @@ export { lineNameOf } from './lineName';
 // The booking page, as one typed read with every derivation done - the page draws it.
 export { readBookingPage } from './page';
 export type { BookingPageData, BookingPageLine } from './page';
+export type { BookingListRow } from './domain';
