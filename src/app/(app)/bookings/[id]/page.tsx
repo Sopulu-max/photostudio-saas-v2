@@ -15,7 +15,7 @@ import { WorkPositions } from '@/components/WorkPositions';
 import { BookingTasks } from './BookingTasks';
 import { AddToTeam, RemoveFromTeam } from './TeamControls';
 
-import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking } from '@/modules/bookings/interface';
+import { getBooking, getIntakeAnswersForBooking, getEnquiryForBooking, suggestedDurationForBooking, lineNameOf } from '@/modules/bookings/interface';
 import { listPackages, getPackage, formatDeliverable } from '@/modules/packages/interface';
 import { listDeliverables } from '@/modules/deliverables/interface';
 import { getStudioCurrency } from '@/kernel/organizations';
@@ -313,7 +313,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
          * Packages section below reads it from too.
          */
         const lineNames = lines
-          .map((l: any) => l.package?.name || l.title || null)
+          .map((l: any) => lineNameOf(l, '') || null)
           .filter(Boolean) as string[];
         const when = booking.scheduled_for ? new Date(booking.scheduled_for) : null;
         const whenSaid = when
@@ -472,7 +472,7 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   <div key={l.id} className="q-card q-stack" style={{ padding: '20px' }}>
                     <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                       <div>
-                        <strong className="q-strong" style={{ fontSize: '1.1rem' }}>{l.title}</strong>
+                        <strong className="q-strong" style={{ fontSize: '1.1rem' }}>{lineNameOf(l)}</strong>
                         <div className="q-meta q-num" style={{ marginTop: '4px' }}>
                           {linePrice(l.price, l.quantity)}
                         </div>

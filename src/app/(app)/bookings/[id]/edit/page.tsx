@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking, getBookingClassification, readRequestCoverage } from '@/modules/bookings/interface';
+import { getBooking, suggestedDurationForBooking, getLineConfigurationForm, getEnquiryForBooking, getBookingClassification, readRequestCoverage, lineNameOf } from '@/modules/bookings/interface';
 import { listClients } from '@/modules/clients/interface';
 import { listPackages, getOpenQuestionsForPackage, getPackage } from '@/modules/packages/interface';
 import { amountOf, firstPriced, extrasAmount } from '@/kernel/money';
@@ -238,7 +238,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                   <div key={l.id} className="q-tile">
                     <div className="q-row q-row-between" style={{ alignItems: 'flex-start' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <strong className="q-strong">{l.title}</strong>
+                        <strong className="q-strong">{lineNameOf(l)}</strong>
                         {svcNames.length > 0 && <div className="q-meta-sm">{svcNames.join(' · ')}</div>}
                         {/* What this package left open, asked under it - the
                             same list the booking was taken with. */}
@@ -295,7 +295,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
                       <LineActions
                         bookingId={booking.id}
                         lineId={l.id}
-                        title={l.title}
+                        title={lineNameOf(l)}
                         basePrice={(l.price as any)?.base_price ?? null}
                         quantity={Number(l.quantity ?? 1)}
                         unit={(l.price as any)?.unit ?? null}

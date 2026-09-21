@@ -664,6 +664,23 @@ export async function updatePackage(input: {
   await logEvent({ organizationId: orgId, entityType: 'package', entityId: input.packageId, action: 'updated', actorId: actorId ?? undefined, payload: patch });
   revalidatePath('/packages');
   revalidatePath(`/packages/${input.packageId}`);
+
+  /*
+   * A BOOKING IS NAMED AFTER WHAT IS ON IT. Its instance of a package is
+   * what is on it, so renaming the instance renames the booking - unless
+   * the studio named the booking itself, which refreshBookingTitle keeps.
+   * Renaming through the line already did this; renaming through this
+   * editor did not, so the papers said one name and the booking another.
+   */
+  if (input.name !== undefined) {
+    const { data: carried } = await supabaseAdmin
+      .from('booking_lines').select('booking_id').eq('organization_id', orgId).eq('package_id', input.packageId);
+    const { refreshBookingTitle } = await import('@/modules/bookings/interface');
+    for (const bookingId of new Set(((carried || []) as any[]).map((l) => l.booking_id as string))) {
+      await refreshBookingTitle(bookingId);
+      revalidatePath(`/bookings/${bookingId}`);
+    }
+  }
   return { ok: true };
 }
 
@@ -2272,10 +2289,10 @@ export async function getLockedQuestionIds(packageId: string): Promise<string[]>
  * Deluxe that includes an album had nowhere to put assembling one.
  *
  * A ROW WITH NO id IS A TASK THIS PACKAGE ADDED, and it is stored with
- * workflow_task_id null. That null is the whole distinction: a task copied from
- * a workflow is answerable to it and gets rewritten when the workflow changes
- * (see syncPackageTasksForWorkflow), while a task the package added belongs to
- * the package and to nothing else.
+ * workflow_task_id null. That null is the whole distinction: a departure from
+ * a workflow step is answerable to the step and read against it (see
+ * workShape.ts), while a task the package added belongs to the package and
+ * to nothing else.
  *
  * IT DOES NOT FLOW BACK TO THE WORKFLOW. A workflow is how the service is
  * produced generally; every other package of that service would inherit the

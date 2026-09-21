@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { listResolvedTasksFor } from '@/modules/packages/interface';
+import { lineNameOf } from '@/modules/bookings/interface';
 
 /**
  * A BOOKING'S WORK, RESOLVED.
@@ -112,7 +113,7 @@ export async function resolveBookingTasks(orgId: string, bookingIds: string[]): 
 
     // The packages' work, as the workflows say it now.
     for (const line of lines.filter((l) => l.booking_id === bookingId && l.package_id)) {
-      const fromPackage = (line.package?.name ?? line.title ?? null) as string | null;
+      const fromPackage = lineNameOf(line, '') || null;
       for (const ps of work.get(line.package_id) || []) {
         for (const step of ps.tasks) {
           if (!step.isActive) continue;
@@ -187,7 +188,7 @@ function shapeLoose(r: any, bookingId: string, position: number, line: any, own:
     workflowRoleName: (r.step?.default_role?.name ?? null) as string | null,
     roleOverridden: Boolean(r.role?.id),
     assignee: person(r.assignee),
-    fromPackage: line ? ((line.package?.name ?? line.title ?? null) as string | null) : null,
+    fromPackage: line ? (lineNameOf(line, '') || null) : null,
     fromService: null,
     lineId: r.booking_line_id ?? null,
     packageServiceId: r.package_service_id ?? null,

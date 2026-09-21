@@ -7,6 +7,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
+import { lineNameOf } from '@/modules/bookings/interface';
 import { revalidatePath } from 'next/cache';
 import { settlementOf, describeInvoiceLine, invoiceLineAmount, billingShare, taxOn , invoiceTotals, discountOn } from './money';
 // A failure keeps the reason it failed — and says so plainly when the reason
@@ -373,7 +374,7 @@ export async function createInvoiceForBooking(input: {
   // of the package holds both; lines made before instancing hold them
   // themselves, and an invoice raised against one of those must still name and
   // price it rather than billing "Booking Line" for nothing.
-  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const nameOf = (l: any) => lineNameOf(l);
   const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
 
   /*

@@ -1,4 +1,5 @@
 import React from 'react';
+import { lineNameOf } from '@/modules/bookings/interface';
 import { formatMoney } from '@/kernel/currency';
 import { amountOf, firstPriced, hasPrice } from '@/kernel/money';
 import { specFromAnswers } from '@/modules/deliverables/shape';
@@ -209,7 +210,7 @@ export function BookingDocument({
                 <tr key={line.id}>
                   <td>
                     <div className="q-doc-strong">
-                      {line.package?.name || line.title || 'Booking line'}
+                      {lineNameOf(line)}
                     </div>
                     {line.package?.description && (
                       <div className="q-doc-meta">{line.package.description}</div>
@@ -252,7 +253,7 @@ export function BookingDocument({
             {lines.flatMap((line) => ((line.extras || []) as any[]).map((x: any) => (
               <tr key={x.id}>
                 <td>
-                  <div className="q-doc-meta">{line.package?.name || line.title || 'Booking line'} · <span className="q-doc-strong">{x.label}</span></div>
+                  <div className="q-doc-meta">{lineNameOf(line)} · <span className="q-doc-strong">{x.label}</span></div>
                   <div className="q-doc-meta">{Number(x.units)} × {formatMoney(amountOf(x.unit_rate), currency)}</div>
                 </td>
                 <td className="q-doc-right">{formatMoney(amountOf(x.unit_rate) * Number(x.units), currency)}</td>

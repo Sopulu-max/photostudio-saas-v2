@@ -7,6 +7,7 @@ import { isWallClock } from '@/kernel/wallClock';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
+import { lineNameOf } from './lineName';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { gatherPictures, type Picture } from '@/kernel/pictures';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
@@ -1236,7 +1237,7 @@ export async function addBookingLine(input: {
  * package never had, so they stay parts; the parts sum to the total.
  */
 async function agreementFiguresOf(lines: any[]) {
-  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const nameOf = (l: any) => lineNameOf(l);
   const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
   let total = 0;
   let currency: string | null = null;
@@ -1337,7 +1338,7 @@ export async function createContractForBooking(
   // What this line is for and what was agreed for it. The booking's own
   // instance of the package holds both; a line made before instancing holds
   // them itself, and a contract must state a price either way.
-  const nameOf = (l: any) => (l.package?.name as string) || (l.title as string) || 'Booking line';
+  const nameOf = (l: any) => lineNameOf(l);
   const priceOfLine = (l: any) => firstPriced(l.package?.price, l.price);
 
   /*
@@ -1862,7 +1863,7 @@ export async function listBookingsInRange(fromISO: string, toISO: string) {
     // Falling back to the line's own title: bookings made before a line pointed
     // at a package still carry their name there, and seven of them are named
     // nothing else at all.
-    lines: (b.booking_lines || []).map((l: any) => l.package?.name || l.title).filter(Boolean),
+    lines: (b.booking_lines || []).map((l: any) => lineNameOf(l, '')).filter(Boolean),
   }));
 }
 
@@ -2436,7 +2437,7 @@ export async function refreshBookingTitle(bookingId: string) {
 
   const title = composeTitle({
     clientName: (booking as any).contact?.display_name,
-    lineTitles: lines.map((l: any) => l.package?.name || l.title).filter(Boolean),
+    lineTitles: lines.map((l: any) => lineNameOf(l, '')).filter(Boolean),
     scheduledFor: booking.scheduled_for,
   });
 
@@ -3035,13 +3036,13 @@ export async function readRequestCoverage(bookingId: string): Promise<{
   const answers = own.map((c) => {
     const coveredBy = packaged
       .filter((l) => admits(narrowings.get(l.package_id) ?? new Map(), [{ dimensionId: c.dimensionId, valueId: c.valueId }]))
-      .map((l) => (l.package?.name as string) || 'Package');
+      .map((l) => lineNameOf(l, 'Package'));
     return { dimensionId: c.dimensionId, dimensionName: c.dimensionName, valueId: c.valueId, valueName: c.valueName, coveredBy };
   });
   return {
     answers,
     covered: packaged.length > 0 && answers.every((a) => a.coveredBy.length > 0),
-    answeredBy: [...new Set(packaged.map((l) => (l.package?.name as string) || 'Package'))],
+    answeredBy: [...new Set(packaged.map((l) => lineNameOf(l, 'Package')))],
   };
 }
 

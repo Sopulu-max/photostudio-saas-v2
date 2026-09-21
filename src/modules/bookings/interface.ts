@@ -96,3 +96,6 @@ export {
   // Composition — create other modules' objects against a booking
   createContractForBooking,
   } from './domain';
+
+// A line is called what its package is called, else what the operator named it - one rule, read everywhere.
+export { lineNameOf } from './lineName';
