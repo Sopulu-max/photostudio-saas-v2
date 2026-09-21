@@ -1,31 +1,34 @@
 'use client';
 
 import React, { useState } from 'react';
-import { stageBadgeClass } from '@/components/stageBadge';
+import { stageBadgeClass, stageColor, STAGE_COLORS } from '@/components/stageBadge';
 import { formatMoney } from '@/kernel/currency';
-import { CatalogFilter } from '@/components/CatalogFilter';
-import { Sheet, SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
-import type { BookingsSheet, SheetBooking, SheetBand } from '@/modules/bookings/interface';
+import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
+import type { BookingsSheet, SheetBooking, LensGroup } from '@/modules/bookings/interface';
 
 /**
- * THE DAY BOOK. Every job the studio has taken, read the way a studio reads
- * its day: what is happening today and this week, where each job has got
- * to, and what needs someone.
+ * THE DAY BOOK, AS SIMPLE DATA ANALYSIS. Every job the studio has taken,
+ * with the instrument a studio needs to pull out what it wants from them:
  *
- * WHY ROWS IN BANDS AND NOT A TABLE OR CARDS. A table aligns one scalar
+ *   narrow   - search, a date range, and one select per axis;
+ *   break    - group by any axis: the bookings under headings, and above
+ *              them the distribution - a segmented bar and a legend with
+ *              counts and shares - of what is shown;
+ *   read     - the rows, each saying where its work is and what it needs.
+ *
+ * The axes are the sheet's own (readBookingsSheet decides them: the bands,
+ * the studio's stages, the roles steps need, money, every dimension the
+ * studio classifies by). Each row says what it takes on each axis; this
+ * file narrows, groups and counts, and names nothing.
+ *
+ * WHY ROWS IN GROUPS AND NOT A TABLE OR CARDS. A table aligns one scalar
  * down a column so the eye compares - right for money and stage, wrong
  * for a title, two packages and a list of work positions, which it would
- * truncate or turn into a wall; and the daily question is not a comparison
- * but a reading, row by row. Cards are for browsing by picture and lose
- * the one thing a day book needs, order. The sheet row is a table whose
- * only true columns are the ones compared: the figure and the stage sit in
- * a fixed right column, the rest flows, and a row carries one more line -
- * where the work is - without breaking the alignment. Covers and the card
- * view are set aside for now; the row is named by the client's initials.
- *
- * Everything drawn here arrives decided (readBookingsSheet): the bands,
- * the work on each row, the counts. This file holds only what to show and
- * which rows the operator has asked to see.
+ * truncate or turn into a wall. Cards are for browsing by picture and lose
+ * order. The sheet row keeps the figure and the stage in a fixed right
+ * column, lets the rest flow, and carries one more line - where the work
+ * is. Covers are set aside for now; the row is named by the client's
+ * initials.
  */
 
 /*
@@ -41,50 +44,66 @@ function byDate(a: SheetBooking, b: SheetBooking, dir: 1 | -1) {
   return String(ad).localeCompare(String(bd)) * dir;
 }
 
-const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated', 'earlier', 'closed'];
+const ORDERS = [
+  { key: 'soon', label: 'Soonest first', compare: (a: SheetBooking, b: SheetBooking) => byDate(a, b, 1) },
+  { key: 'late', label: 'Latest first', compare: (a: SheetBooking, b: SheetBooking) => byDate(a, b, -1) },
+  { key: 'client', label: 'By client',
+    compare: (a: SheetBooking, b: SheetBooking) => (a.clientName || '￿').localeCompare(b.clientName || '￿') || byDate(a, b, 1) },
+  { key: 'title', label: 'By title', compare: (a: SheetBooking, b: SheetBooking) => (a.title || '').localeCompare(b.title || '') },
+];
+
+const NONE = '__none__';
 
 export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
-  /*
-   * PULL OUT WHAT YOU NEED. The axes are the sheet's own (readBookingsSheet
-   * decides them - the studio's stages, the bands, the roles steps need,
-   * money, every dimension the studio classifies by). The operator opens an
-   * axis to read its breakdown as figures, presses a figure to narrow the
-   * sheet to the rows that take it, and stacks another axis if they want.
-   * Each row says what it takes on each axis; this file intersects, and
-   * names nothing.
-   */
-  const [open, setOpen] = useState<string[]>([]);
+  const [q, setQ] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  // Grouped by the first axis the read offers (the bands) until the operator says otherwise.
+  const [groupBy, setGroupBy] = useState<string>(sheet.lenses[0]?.key ?? '');
+  const [order, setOrder] = useState('soon');
+
   const all = sheet.bands.flatMap((b) => b.rows);
-  const bandOf = new Map(sheet.bands.map((b) => [b.key, b]));
+  const pick = (axis: string, key: string) =>
+    setChosen((c) => (key ? { ...c, [axis]: key } : (({ [axis]: _, ...rest }) => rest)(c)));
 
-  const toggleAxis = (key: string) => {
-    if (open.includes(key)) {
-      setOpen((o) => o.filter((k) => k !== key));
-      setChosen(({ [key]: _, ...rest }) => rest);
-    } else setOpen((o) => [...o, key]);
-  };
-  const toggleLens = (axis: string, key: string) =>
-    setChosen((c) => (c[axis] === key ? (({ [axis]: _, ...rest }) => rest)(c) : { ...c, [axis]: key }));
+  // ---- Narrow: what is shown is what passes every control.
+  const needle = q.trim().toLowerCase();
+  const compare = ORDERS.find((o) => o.key === order)?.compare ?? ORDERS[0].compare;
+  const takes = (r: SheetBooking, axis: string, key: string) =>
+    key === NONE ? (r.takes[axis] ?? []).length === 0 : (r.takes[axis] ?? []).includes(key);
+  /* What passes every control - or every control but one axis's select, for that axis's distribution. */
+  const under = (except?: string) => all
+    .filter((r) =>
+      (!needle || [r.title, r.clientName, ...r.packages].some((s) => s?.toLowerCase().includes(needle))) &&
+      (!from || (r.day !== null && r.day >= from)) &&
+      (!to || (r.day !== null && r.day <= to)) &&
+      Object.entries(chosen).every(([axis, key]) => axis === except || takes(r, axis, key)))
+    .sort(compare);
+  const shown = under();
+  const narrowed = Boolean(needle || from || to || Object.keys(chosen).length > 0);
 
-  const HOW_TO_ORDER = [
-    { key: 'soon', label: 'By day', compare: (a: SheetBooking, b: SheetBooking) => byDate(a, b, 1) },
-    { key: 'late', label: 'Latest first', compare: (a: SheetBooking, b: SheetBooking) => byDate(a, b, -1) },
-    { key: 'client', label: 'By client',
-      compare: (a: SheetBooking, b: SheetBooking) => (a.clientName || '￿').localeCompare(b.clientName || '￿') || byDate(a, b, 1) },
-    { key: 'title', label: 'By title', compare: (a: SheetBooking, b: SheetBooking) => (a.title || '').localeCompare(b.title || '') },
-  ];
-
-  const picked = Object.entries(chosen);
-  const under = (rows: SheetBooking[], except?: string) =>
-    rows.filter((r) => picked.every(([axis, key]) => axis === except || (r.takes[axis] ?? []).includes(key)));
-  const items = under(all);
-  /* Cross-tabulation: an axis's figures are counted under every other axis's pick, so the sheet reads as a pivot. */
-  const countOn = (axis: string) => {
-    const m = new Map<string, number>();
-    for (const r of under(all, axis)) for (const k of r.takes[axis] ?? []) m.set(k, (m.get(k) ?? 0) + 1);
-    return m;
-  };
+  // ---- Break down: the grouped axis. Its distribution is counted under the
+  // other controls but not its own select, so picking one of its values
+  // narrows the rows without collapsing the comparison to 100%.
+  const axis: LensGroup | null = sheet.lenses.find((g) => g.key === groupBy) ?? null;
+  const basis = axis ? under(axis.key) : shown;
+  const breakdown = axis
+    ? [
+        ...axis.items.map((it, i) => ({
+          key: it.key, label: it.label, note: it.note ?? null, now: Boolean(it.now), due: Boolean(it.due),
+          color: it.look ? stageColor(it.look) : STAGE_COLORS[i % STAGE_COLORS.length],
+          all: basis.filter((r) => takes(r, axis.key, it.key)),
+        })),
+        {
+          key: NONE, label: axis.none ?? 'None', note: null, now: false, due: false, color: 'none',
+          all: basis.filter((r) => takes(r, axis.key, NONE)),
+        },
+      ].filter((g) => g.all.length > 0)
+        .map((g) => ({ ...g, rows: chosen[axis.key] && chosen[axis.key] !== g.key ? [] : g.all }))
+    : [];
+  const groups = breakdown.filter((g) => g.rows.length > 0);
+  const share = (n: number) => (basis.length > 0 ? Math.round((n / basis.length) * 100) : 0);
 
   const when = (iso: string | null) => {
     if (!iso) return null;
@@ -135,88 +154,108 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     dim: b.band === 'closed',
   });
 
+  const shareVar = (n: number) => ({ '--q-share': n } as unknown as React.CSSProperties);
+
   return (
     <div className="q-stack q-stack-md">
-      <div className="q-pull">
-        <div className="q-pull-axes" role="group" aria-label="Pull out by">
-          <span className="q-pull-word">Pull out by</span>
-          {sheet.lenses.map((g) => {
-            const on = open.includes(g.key);
-            const value = chosen[g.key] ? g.items.find((it) => it.key === chosen[g.key]) : null;
-            return (
-              <button key={g.key} type="button" className={on ? 'q-pull-axis q-pull-axis-on' : 'q-pull-axis'} aria-expanded={on} onClick={() => toggleAxis(g.key)}>
-                {g.label}{value ? <span className="q-pull-picked"> · {value.label}</span> : null}
-              </button>
-            );
-          })}
+      <div className="q-narrow">
+        <div className="q-toolbar">
+          <input
+            className="q-input"
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by title, client or package"
+            aria-label="Search bookings"
+          />
+          <span className="q-range">
+            <input className="q-input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+            <span className="q-range-dash">–</span>
+            <input className="q-input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+          </span>
+          {sheet.lenses.map((g) => (
+            <select
+              key={g.key}
+              className={chosen[g.key] ? 'q-select q-narrow-select-on' : 'q-select'}
+              value={chosen[g.key] ?? ''}
+              onChange={(e) => pick(g.key, e.target.value)}
+              aria-label={g.label}
+            >
+              <option value="">{g.label}: all</option>
+              {g.items.map((it) => <option key={it.key} value={it.key}>{it.label} ({it.count})</option>)}
+              {g.none && <option value={NONE}>{g.none}</option>}
+            </select>
+          ))}
         </div>
-        {sheet.lenses.filter((g) => open.includes(g.key)).map((g) => {
-          const counts = countOn(g.key);
-          return (
-            <div key={g.key} className="q-pull-line" role="group" aria-label={g.label}>
-              <span className="q-pull-axis-name">{g.label}</span>
-              {g.items.map((it) => {
-                const on = chosen[g.key] === it.key;
-                const n = counts.get(it.key) ?? 0;
-                return (
-                  <button
-                    key={it.key}
-                    type="button"
-                    className={['q-lens', on ? 'q-lens-on' : '', it.due && n > 0 ? 'q-lens-due' : '', n === 0 ? 'q-lens-none' : ''].filter(Boolean).join(' ')}
-                    aria-pressed={on}
-                    onClick={() => toggleLens(g.key, it.key)}
-                  >
-                    <b>{n}</b> {it.label}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+        <div className="q-toolbar">
+          <span className="q-narrow-key">Group by</span>
+          <select className="q-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} aria-label="Group by">
+            {sheet.lenses.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+            <option value="">No grouping</option>
+          </select>
+          <span className="q-narrow-key">Order</span>
+          <select className="q-select" value={order} onChange={(e) => setOrder(e.target.value)} aria-label="Order">
+            {ORDERS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <span className="q-toolbar-count">{shown.length} of {all.length} booking{all.length === 1 ? '' : 's'}</span>
+        </div>
       </div>
 
-      <CatalogFilter
-        items={items}
-        noun="booking"
-        kind="catalogue"
-        sorts={HOW_TO_ORDER}
-        views={false}
-        denseFirst
-        read={(b: SheetBooking) => ({
-          name: b.title,
-          description: b.clientName,
-          // Stage and classification are axes to pull out by, above - not a
-          // second control here. This filter searches by name only.
-          facet: null,
-          tags: [],
-        })}
-      >
-        {(shown, { sort }) => {
-          // By day: the bands, each a heading on the sheet. Any other order:
-          // one run, in that order. (Cards are set aside with the covers.)
-          if (sort && sort !== 'soon') return <Sheet items={shown.map(item)} dense />;
-          const shownIds = new Set(shown.map((b) => b.id));
-          return (
-            <div className="q-sheet">
-              {BAND_ORDER.map((key) => {
-                const band = bandOf.get(key);
-                const rows = (band?.rows || []).filter((r) => shownIds.has(r.id));
-                if (rows.length === 0) return null;
-                return (
-                  <React.Fragment key={key}>
-                    <div className={key === 'today' ? 'q-sheet-band q-sheet-band-today' : 'q-sheet-band'}>
-                      <span className="q-sheet-band-name">{band!.label}</span>
-                      {band!.note && <span className="q-sheet-band-note">{band!.note}</span>}
-                      <span className="q-sheet-band-count">{rows.length}</span>
-                    </div>
-                    {rows.map((r) => <SheetRow key={r.id} item={item(r)} />)}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          );
-        }}
-      </CatalogFilter>
+      {axis && basis.length > 0 && (
+        <div className="q-dist" role="group" aria-label={`By ${axis.label.toLowerCase()}`}>
+          <div className="q-dist-bar" aria-hidden="true">
+            {breakdown.map((g) => (
+              <span key={g.key} className={`q-dist-seg q-dist-c-${g.color}`} style={shareVar(g.all.length)} title={`${g.label}: ${g.all.length}`} />
+            ))}
+          </div>
+          <div className="q-dist-legend">
+            {breakdown.map((g) => {
+              const on = chosen[axis.key] === g.key;
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  className={on ? 'q-dist-key q-dist-key-on' : 'q-dist-key'}
+                  aria-pressed={on}
+                  onClick={() => pick(axis.key, on ? '' : g.key)}
+                >
+                  <i className={`q-dist-dot q-dist-c-${g.color}`} />
+                  {g.label} <b>{g.all.length}</b>
+                  <span className="q-dist-key-share">{share(g.all.length)}%</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {shown.length === 0 ? (
+        <p className="q-empty q-empty-lg">
+          {narrowed ? 'No bookings match — widen the search, the dates or a select above.' : 'No bookings yet.'}
+        </p>
+      ) : axis ? (
+        <div className="q-sheet">
+          {groups.map((g) => (
+            <React.Fragment key={g.key}>
+              <div className={g.now ? 'q-sheet-band q-sheet-band-today' : 'q-sheet-band'}>
+                <i className={`q-sheet-band-dot q-dist-c-${g.color}`} />
+                <span className="q-sheet-band-name">{g.label}</span>
+                {g.note && <span className="q-sheet-band-note">{g.note}</span>}
+                <span className="q-sheet-band-count">{g.rows.length}</span>
+                <span className="q-sheet-band-share">
+                  <span className="q-sheet-band-bar"><i className={`q-dist-c-${g.color}`} style={shareVar(share(g.rows.length))} /></span>
+                  {share(g.rows.length)}%
+                </span>
+              </div>
+              {g.rows.map((r) => <SheetRow key={r.id} item={item(r)} />)}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : (
+        <div className="q-sheet">
+          {shown.map((r) => <SheetRow key={r.id} item={item(r)} />)}
+        </div>
+      )}
     </div>
   );
 }

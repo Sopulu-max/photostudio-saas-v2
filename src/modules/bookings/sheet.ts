@@ -26,6 +26,8 @@ export type SheetBand = 'today' | 'tomorrow' | 'week' | 'later' | 'undated' | 'e
 
 export type SheetBooking = BookingListRow & {
   band: SheetBand;
+  /** The calendar day the work is, yyyy-mm-dd as the studio's clock reads it - null when unscheduled. */
+  day: string | null;
   /** Where the work is, per service, from Production - null when the booking carries no steps. */
   work: { total: number; done: number; unstaffed: number; positions: { service: string; step: string | null; who: string | null; done: boolean }[] } | null;
   /** Whether what is on the booking has been asked for. */
@@ -39,22 +41,35 @@ export type SheetBooking = BookingListRow & {
 };
 
 /**
- * AN AXIS IS A QUESTION THE SHEET CAN BE PULLED OUT BY; a lens is one of the
- * values its rows take on it, with how many take it. The operator picks an
- * axis, reads the breakdown, presses a value, stacks another axis - simple
- * data analysis. The axes are read off the data, never a list named in
- * code: the studio's stages, the bands present, each role a step needs,
- * money, and every classification dimension the studio defined (Occasion,
- * Context, ...). A studio that adds a stage, a role or a dimension sees a
- * new value or a new axis; a value nobody takes is not there.
+ * AN AXIS IS A QUESTION THE SHEET CAN BE BROKEN DOWN BY - narrowed with a
+ * select, grouped under headings, read as a distribution. Its items are the
+ * values the rows take on it, in the order the axis is read. The axes are
+ * read off the data, never a list named in code: the studio's stages, the
+ * bands present, each role a step needs, money, and every classification
+ * dimension the studio defined (Occasion, Context, ...). A studio that adds
+ * a stage, a role or a dimension sees a new value or a new axis; a value
+ * nobody takes is not there.
  *
  * Each row says which values it takes on each axis (SheetBooking.takes),
- * so whoever draws the sheet intersects without knowing what an axis is.
+ * so whoever draws the sheet narrows, groups and counts without knowing
+ * what an axis is. `none` is what to call the rows that take nothing on
+ * the axis (absent when every row takes something). An item may carry a
+ * `look` (a stage's chosen colour), a `note` (a band's dates) and `now`
+ * (the band that is today).
  */
 export type LensGroup = {
   key: string;
   label: string;
-  items: { key: string; label: string; count: number; due?: boolean }[];
+  none?: string;
+  items: {
+    key: string;
+    label: string;
+    count: number;
+    due?: boolean;
+    look?: { kind: string | null; color: string | null };
+    note?: string | null;
+    now?: boolean;
+  }[];
 };
 
 export type BookingsSheet = {
@@ -152,7 +167,7 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
       money: money === 'owed' ? [`owed:${r.owed!.currency ?? currency}`] : money === 'uninvoiced' && !closed ? ['uninvoiced'] : [],
     };
     for (const c of r.classification) (takes[`dim:${c.dimensionId}`] ??= []).push(c.valueId);
-    return { ...r, band, work, billing, needs, money, takes };
+    return { ...r, band, day, work, billing, needs, money, takes };
   });
 
   // Within a band, soonest first; undated and closed by when they were made, newest first.
@@ -176,11 +191,19 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
     for (const k of keys) m.set(k, (m.get(k) ?? 0) + 1);
     counts.set(axis, m);
   }
-  const axis = (key: string, label: string, order: { key: string; label: string; due?: boolean }[], mostFirst = false): LensGroup => {
+  type Item = Omit<LensGroup['items'][number], 'count'>;
+  const axis = (key: string, label: string, order: Item[], opts: { none?: string; mostFirst?: boolean } = {}): LensGroup => {
     const m = counts.get(key) ?? new Map<string, number>();
     const items = order.filter((o) => m.has(o.key)).map((o) => ({ ...o, count: m.get(o.key)! }));
-    return { key, label, items: mostFirst ? items.sort((a, b) => b.count - a.count) : items };
+    const taken = [...m.values()].reduce((a, b) => a + b, 0);
+    return {
+      key, label,
+      items: opts.mostFirst ? items.sort((a, b) => b.count - a.count) : items,
+      // Only worth a name when some row takes nothing on this axis.
+      none: opts.none && sheetRows.some((r) => (r.takes[key] ?? []).length === 0) ? opts.none : undefined,
+    };
   };
+  const dateOf = (day: string, style: Intl.DateTimeFormatOptions) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { ...style, timeZone: 'UTC' });
 
   const roleName = new Map(sheetRows.flatMap((r) => r.needs.map((n) => [n.id, n.name] as const)));
   const owedBy = new Map<string, number>();
@@ -193,18 +216,24 @@ export async function readBookingsSheet(): Promise<BookingsSheet> {
   }
 
   const lenses: LensGroup[] = [
-    // The studio's own stages, in the order it arranged them.
-    axis('stage', 'Stage', (stages as { id: string; name: string }[]).map((st) => ({ key: st.id, label: st.name }))),
-    axis('when', 'When', BAND_ORDER.map((b) => ({ key: b, label: BAND_LABEL[b] }))),
+    axis('when', 'When', BAND_ORDER.map((b) => ({
+      key: b, label: BAND_LABEL[b], now: b === 'today',
+      note: b === 'today' ? dateOf(today, { weekday: 'long', day: 'numeric', month: 'long' })
+        : b === 'week' ? `to ${dateOf(weekEnd, { weekday: 'long', day: 'numeric', month: 'short' })}`
+        : null,
+    }))),
+    // The studio's own stages, in the order it arranged them, each in its chosen colour.
+    axis('stage', 'Stage', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
+      .map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
     // Each role with a step nobody is on, most needed first.
-    axis('needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), true),
+    axis('needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Nobody needed', mostFirst: true }),
     axis('money', 'Money', [
-      ...[...owedBy.entries()].map(([c, amount]) => ({ key: `owed:${c}`, label: `owed ${new Intl.NumberFormat('en', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(amount)}`, due: true })),
-      { key: 'uninvoiced', label: 'not invoiced yet' },
-    ]),
+      ...[...owedBy.entries()].map(([c, amount]) => ({ key: `owed:${c}`, label: `Owed ${new Intl.NumberFormat('en', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(amount)}`, due: true })),
+      { key: 'uninvoiced', label: 'Not invoiced yet' },
+    ], { none: 'Nothing owed or pending' }),
     // Every dimension the studio classifies bookings by, its values by name.
     ...[...dimensions.entries()].map(([id, d]) =>
-      axis(`dim:${id}`, d.name, [...d.values.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, label]) => ({ key: k, label })))),
+      axis(`dim:${id}`, d.name, [...d.values.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, label]) => ({ key: k, label })), { none: `No ${d.name.toLowerCase()}` })),
   ].filter((g) => g.items.length > 0);
 
   return { bands, lenses, currency, today };
