@@ -13,6 +13,8 @@ import type { LensGroup, Takes } from '@/kernel/lenses';
  *   break    - group by any axis: the rows under headings, and above them
  *              the distribution - a segmented bar and a legend with counts
  *              and shares - of what is shown;
+ *   graph    - the same breakdown as a donut and horizontal bars, in place
+ *              of the rows (?view=graph);
  *   read     - the rows, drawn by whoever owns them.
  *
  * The axes arrive decided (kernel/lenses): whoever owns the rows says what
@@ -63,6 +65,7 @@ export function Analysis<R extends AnalysisRow>({
   const firstGroup = defaultGroup ?? lenses[0]?.key ?? '';
   const groupBy = params.has('group') ? params.get('group')! : firstGroup; // 'none' = no grouping
   const order = params.get('order') ?? orders[0].key;
+  const view = params.get('view') === 'graph' ? 'graph' : 'list';
   const chosen: Record<string, string> = {};
   for (const g of lenses) { const v = params.get(g.key); if (v) chosen[g.key] = v; }
 
@@ -152,10 +155,57 @@ export function Analysis<R extends AnalysisRow>({
             {orders.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
           <span className="q-toolbar-count">{shown.length} of {all.length} {noun}{all.length === 1 ? '' : 's'}</span>
+          <div className="q-seg" role="group" aria-label="View">
+            <button type="button" className={view === 'list' ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-pressed={view === 'list'} onClick={() => set('view', '')}>List</button>
+            <button type="button" className={view === 'graph' ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-pressed={view === 'graph'} onClick={() => set('view', 'graph')} disabled={!axis} title={axis ? undefined : 'Group by an axis to graph it'}>Graph</button>
+          </div>
         </div>
       </div>
 
-      {axis && basis.length > 0 && (
+      {axis && view === 'graph' && basis.length > 0 && (() => {
+        /*
+         * THE GRAPH: the grouped axis's breakdown, drawn twice. A donut for
+         * the shape of the whole, with the total in the middle; horizontal
+         * bars for the values by name - horizontal because the names are a
+         * studio's people, packages and bookings, which a vertical bar's
+         * label cannot hold. Bars scale to the largest; the figure beside
+         * each is its share of the whole. Pressing either narrows, as the
+         * legend does.
+         */
+        const total = breakdown.reduce((n, g) => n + g.all.length, 0);
+        const max = Math.max(...breakdown.map((g) => g.all.length), 1);
+        const r = 38, circ = 2 * Math.PI * r;
+        let offset = 0;
+        const arcs = breakdown.map((g) => { const dash = (g.all.length / total) * circ; const a = { ...g, dash, offset }; offset += dash; return a; });
+        return (
+          <div className="q-charts" role="group" aria-label={`By ${axis.label.toLowerCase()}, as a graph`}>
+            <svg className="q-donut" viewBox="0 0 100 100" aria-hidden="true">
+              <circle className="q-donut-track" cx="50" cy="50" r={r} fill="none" strokeWidth="14" />
+              {arcs.map((a) => (
+                <circle key={a.key} className={`q-donut-arc q-donut-c-${a.color}`} cx="50" cy="50" r={r} fill="none" strokeWidth="14"
+                  strokeDasharray={`${a.dash} ${circ}`} strokeDashoffset={-a.offset} transform="rotate(-90 50 50)" />
+              ))}
+              <text className="q-donut-total" x="50" y="48" textAnchor="middle">{total}</text>
+              <text className="q-donut-word" x="50" y="60" textAnchor="middle">{noun}{total === 1 ? '' : 's'}</text>
+            </svg>
+            <div className="q-hbars">
+              {breakdown.map((g) => {
+                const on = chosen[axis.key] === g.key;
+                return (
+                  <button key={g.key} type="button" className={on ? 'q-hbar q-hbar-on' : 'q-hbar'} aria-pressed={on} onClick={() => set(axis.key, on ? '' : g.key)}>
+                    <span className="q-hbar-label"><i className={`q-dist-dot q-dist-c-${g.color}`} />{g.label}</span>
+                    <span className="q-hbar-track"><i className={`q-dist-c-${g.color}`} style={shareVar(Math.round((g.all.length / max) * 100))} /></span>
+                    <b>{g.all.length}</b>
+                    <span className="q-hbar-share">{share(g.all.length)}%</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {axis && view === 'list' && basis.length > 0 && (
         <div className="q-dist" role="group" aria-label={`By ${axis.label.toLowerCase()}`}>
           <div className="q-dist-bar" aria-hidden="true">
             {breakdown.map((g) => (
@@ -183,7 +233,7 @@ export function Analysis<R extends AnalysisRow>({
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {view === 'graph' && axis ? null : shown.length === 0 ? (
         <p className="q-empty q-empty-lg">
           {narrowed ? `No ${noun}s match — widen the search, the dates or a select above.` : (empty ?? `No ${noun}s yet.`)}
         </p>
