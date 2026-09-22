@@ -8,6 +8,7 @@ import {
   type Period, type Say, type SheetBooking, type NextRow,
 } from '@/modules/bookings/interface';
 import { sayAbsence, is, verb, them, a as article } from '@/modules/bookings/say';
+import { Days, Share, Progress, Counts, Trend } from '@/components/Readings';
 import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,13 @@ export const dynamic = 'force-dynamic';
  * what each job still needs · where the work is · when everything is · what
  * the book has sold and what nobody answered · what it is for · where the
  * studio says everything is · how the book moved and what changed.
+ *
+ * WHAT IS STILL DRAWN, and why (Law 4, components/Readings): the four
+ * readings whose GEOMETRY IS THE FACT - days on a dated axis (a collision, a
+ * quiet week), length as a share of the whole (which way the book leans),
+ * length as progress, slope as direction over months. Each carries its own
+ * dates, words and numbers, so none of them needs a key. Everything else is
+ * a sentence.
  *
  * THE ROWS LEVEL, at /bookings?<axes>, is one cut: its definition once, then
  * the instrument, where a chosen cut may tabulate because the operator's own
@@ -93,16 +101,21 @@ function Region({ title, answers, children, right }: { title: string; answers: s
   );
 }
 
-/** One job, one statement - the reading that used to be a row of marks. */
-function Job({ id, name, say, tail, badge, tint }: { id: string; name: string; say: Say; tail?: string | null; badge?: React.ReactNode; tint?: boolean }) {
+/**
+ * One job: the statement, and where a quantity is worth comparing down the
+ * region, the one drawing that carries it (progress). Nothing here stands for
+ * a fact that is not also said.
+ */
+function Job({ id, name, say, tail, badge, tint, draw }: { id: string; name: string; say: Say; tail?: string | null; badge?: React.ReactNode; tint?: boolean; draw?: React.ReactNode }) {
   return (
     <Link href={`/bookings/${id}`} className={tint ? 'q-job q-job-now' : 'q-job'}>
       <span className="q-job-body">
         <span className="q-job-name">{name}</span>
         <span className="q-job-said"><Said say={say} /></span>
       </span>
-      {(tail || badge) && (
+      {(tail || badge || draw) && (
         <span className="q-job-tail">
+          {draw}
           {tail && <span className="q-job-figure">{tail}</span>}
           {badge}
         </span>
@@ -262,18 +275,26 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
         {/* 3 ─ where the work is */}
         <Region title="Where the work is" answers="where is the work; what is the studio short of; what is finished and not closed">
           {roleTotals.length > 0 && (
-            <div className="q-totals-said">
-              {roleTotals.map((role) => (
-                <Total
-                  key={role.id}
-                  say={[{ t: plural(role.count, 'open step'), tone: 'strong' }, { t: `${verb(role.count, 'need')} ${article(role.name)}, and nobody is on ${them(role.count)}.`, tone: 'warm' }]}
-                  href={into({ needs: role.id })}
-                />
-              ))}
-            </div>
+            <Counts
+              rows={roleTotals.map((role) => ({
+                key: role.id,
+                label: role.name,
+                count: role.count,
+                said: `${plural(role.count, 'open step')} ${verb(role.count, 'need')} ${article(role.name)}, and nobody is on ${them(role.count)}.`,
+                href: into({ needs: role.id }),
+                warm: true,
+              }))}
+            />
           )}
           {works.map((w) => (
-            <Job key={w.booking.id} id={w.booking.id} name={w.booking.title} say={sayWork(w.booking, sheet.today)} tail={sayProgress(w.booking)} badge={<Stage r={w.booking} />} />
+            <Job
+              key={w.booking.id}
+              id={w.booking.id}
+              name={w.booking.title}
+              say={sayWork(w.booking, sheet.today)}
+              badge={<Stage r={w.booking} />}
+              draw={w.booking.work ? <Progress done={w.booking.work.done} total={w.booking.work.total} said={sayProgress(w.booking) ?? ''} /> : null}
+            />
           ))}
           {toClose.map((r) => (
             <Job key={r.id} id={r.id} name={r.title} say={[{ t: 'Every step is done', tone: 'strong' }, { t: 'and the job is still open — only the stage says otherwise.' }]} badge={<Stage r={r} />} />
@@ -284,6 +305,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
 
         {/* 4 ─ when everything is */}
         <Region title="When everything is" answers="the thirty days behind and ahead — the sessions, and the occasions they are for">
+          <Days cells={dated.columns} weeks={dated.weeks} />
           {dated.days.length === 0 ? (
             <p className="q-region-empty">Nothing is dated within thirty days either side of today.</p>
           ) : (
@@ -309,14 +331,14 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
           {sold.packages.length === 0 ? (
             <p className="q-region-empty">No live job carries a package yet.</p>
           ) : (
-            <div className="q-lines">
-              {sold.packages.slice(0, 6).map((p, i) => (
-                <p key={p.name} className="q-line">
-                  <span className="q-said-strong">{p.name}</span> is on {plural(p.jobs, 'live job')}
-                  {i === 0 && sold.packages.length > 1 ? ' — more than any other package.' : '.'}
-                </p>
-              ))}
-            </div>
+            <Counts
+              rows={sold.packages.slice(0, 8).map((p) => ({
+                key: p.name,
+                label: p.name,
+                count: p.jobs,
+                said: `${p.name} is on ${plural(p.jobs, 'live job')}.`,
+              }))}
+            />
           )}
           {sold.questions.length > 0 && (
             <div className="q-lines q-lines-under">
@@ -337,6 +359,15 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             {forDimensions.map((d) => (
               <div key={d.id} className="q-dim">
                 <span className="q-dim-name">{d.name}</span>
+                {d.values.length > 1 && (
+                  <Share
+                    of={d.values.reduce((n, v) => n + v.jobs, 0) + d.open}
+                    slices={[
+                      ...d.values.map((v) => ({ key: v.id, label: v.name, count: v.jobs, href: into({ [`dim:${d.id}`]: v.id }) })),
+                      ...(d.open > 0 ? [{ key: 'open', label: 'not said', count: d.open, tone: 'warm' as const, href: into({ missing: 'classification' }) }] : []),
+                    ]}
+                  />
+                )}
                 <p className="q-dim-said">
                   {d.values.map((v, i) => (
                     <span key={v.id}>
@@ -354,6 +385,13 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
 
         {/* 7 ─ where the studio says everything is */}
         <Region title="Where the studio says everything is" answers="where does the studio say everything is; whose move is the decision">
+          <Share
+            of={pipeline.reduce((n, st) => n + st.count, 0)}
+            slices={pipeline.filter((st) => st.count > 0).map((st) => ({
+              key: st.key, label: st.label, count: st.count,
+              color: st.look?.color ?? null, href: into({ stage: st.key }),
+            }))}
+          />
           <div className="q-lines">
             {pipeline.filter((st) => st.count > 0).map((st) => (
               <p key={st.key} className="q-line">
@@ -364,6 +402,14 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               </p>
             ))}
           </div>
+          <Share
+            of={decision.awaitingStudio + decision.awaitingClient + decision.agreed}
+            slices={[
+              { key: 'you', label: 'waiting on you', count: decision.awaitingStudio, tone: 'warm' as const, href: into({ missing: 'decision-studio' }) },
+              { key: 'client', label: 'waiting on the client', count: decision.awaitingClient, href: into({ missing: 'decision-client' }) },
+              { key: 'agreed', label: 'agreed', count: decision.agreed, tone: 'green' as const },
+            ].filter((x) => x.count > 0)}
+          />
           <div className="q-lines q-lines-under">
             {decision.awaitingStudio > 0 && (
               <p className="q-line">
@@ -391,23 +437,25 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
 
         {/* 8 ─ how the book moved, and what changed */}
         <Region title="How the book moved, and what changed" answers="is the book growing; what changed" right={periodControl}>
-          <div className="q-lines">
+          <div className="q-measures">
             {sheet.figures.map((f) => {
-              const diff = f.value - f.before;
               const said = f.unit === 'percent' ? `${f.value}%` : String(f.value);
+              const line = sheet.series.lines.find((l) => l.key === f.key)?.points ?? null;
               return (
-                <p key={f.key} className="q-line">
-                  <span className="q-said-strong">{said}</span>{' '}
-                  {f.key === 'new' ? `jobs entered the book in the last ${plural(sheet.period.days, 'day')}`
-                    : f.key === 'agreed' ? 'were agreed'
-                    : f.key === 'conversion' ? 'of what came in was agreed'
-                    : 'sessions were held'}
-                  {', against '}
-                  {f.unit === 'percent' ? `${f.before}%` : f.before === 0 ? 'none' : f.before}
-                  {' in the window before it'}
-                  {diff !== 0 && f.unit !== 'percent' ? '.' : '.'}
-                  {f.note && f.key === 'conversion' && <> {f.note}.</>}
-                </p>
+                <div key={f.key} className="q-measure">
+                  <p className="q-measure-said">
+                    <span className="q-measure-value">{said}</span>{' '}
+                    {f.key === 'new' ? `jobs entered the book in the last ${plural(sheet.period.days, 'day')}`
+                      : f.key === 'agreed' ? 'were agreed'
+                      : f.key === 'conversion' ? 'of what came in was agreed'
+                      : 'sessions were held'}
+                    {', against '}
+                    {f.unit === 'percent' ? `${f.before}%` : f.before === 0 ? 'none' : f.before}
+                    {' in the window before it.'}
+                    {f.note && f.key === 'conversion' && <> {f.note}.</>}
+                  </p>
+                  {line && <Trend points={line} months={sheet.series.months} said={`${f.label} by month, over the last year`} />}
+                </div>
               );
             })}
           </div>

@@ -98,6 +98,15 @@ export type Dated = {
   ahead: number;
   /** Live jobs with no session date - on no day above, and that is the point. */
   undated: number;
+  /**
+   * EVERY DAY of the window, in order, whether anything happens on it or not -
+   * the columns of the axis (components/Readings Days). Position on a dated
+   * axis is when, two on one column is a collision, and a run of empty
+   * columns is a quiet week: readings a list of days cannot give.
+   */
+  columns: { day: string; sessions: string[]; occasions: string[]; today: boolean; behind: boolean }[];
+  /** The same window by week, each labelled with its own dates and its count. */
+  weeks: { from: string; label: string; count: number }[];
 };
 
 /**
@@ -281,10 +290,42 @@ export async function readBookingsDashboard(period: Period = 30): Promise<Bookin
       add(f.day, { bookingId: r.id, say: sayDatedOccasion(r, f.label, f.day, today) });
     }
   }
+  // The axis: every day of the window, with what falls on it, named.
+  const nameOf = (r: SheetBooking) => r.clientName ?? r.title;
+  const sessionsOn = new Map<string, string[]>();
+  const occasionsOn = new Map<string, string[]>();
+  for (const r of live) {
+    if (r.day) (sessionsOn.get(r.day) ?? sessionsOn.set(r.day, []).get(r.day)!).push(nameOf(r));
+    for (const f of r.facts) {
+      if (f.kind === 'date' && f.day) (occasionsOn.get(f.day) ?? occasionsOn.set(f.day, []).get(f.day)!).push(`${f.label} on ${nameOf(r)}'s job`);
+    }
+  }
+  const dayAt = (offset: number) => {
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    return d.toISOString().slice(0, 10);
+  };
+  const columns = Array.from({ length: 61 }, (_, i) => {
+    const day = dayAt(i - 30);
+    return { day, sessions: sessionsOn.get(day) ?? [], occasions: occasionsOn.get(day) ?? [], today: day === today, behind: day < today };
+  });
+  const weekLabel = (from: string) =>
+    new Date(`${from}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const weeks = [-28, -21, -14, -7, 0, 7, 14, 21].map((from) => {
+    const start = dayAt(from), end = dayAt(from + 7);
+    return {
+      from: start,
+      label: from === 0 ? `this week, from ${weekLabel(start)}` : weekLabel(start),
+      count: live.filter((r) => r.day !== null && r.day >= start && r.day < end).length,
+    };
+  });
+
   const dated: Dated = {
     days: [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, lines]) => ({ day, today: day === today, lines })),
     ahead: live.filter((r) => r.day !== null && r.day >= today && within30(r.planes.axis.session ?? 999)).length,
     undated: live.filter((r) => r.day === null).length,
+    columns,
+    weeks,
   };
 
   // ---- What the book has sold: packages by the live jobs that carry them.

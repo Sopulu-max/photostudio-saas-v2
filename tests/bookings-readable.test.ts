@@ -213,6 +213,27 @@ describe('The bookings page says something, and keeps saying it', () => {
     // A job with no date is counted, not drawn - and the count carries its noun.
     expect(dash.dated.undated).toBeGreaterThan(0);
     expect(dash.dated.ahead).toBeGreaterThan(0);
+
+    /*
+     * THE AXIS is every day of the window, whether anything falls on it or
+     * not: that is what makes a collision and a quiet week readable (Law 4).
+     */
+    expect(dash.dated.columns).toHaveLength(61);
+    expect(dash.dated.columns[30].today).toBe(true);
+    expect(dash.dated.columns[0].behind).toBe(true);
+    expect(dash.dated.columns[60].behind).toBe(false);
+    // The session two days back sits on its own column, named.
+    const back = dash.dated.columns.find((c) => c.day === day(-2))!;
+    expect(back.sessions).toContain('Ada Client');
+    // The occasion three days ahead sits on its own, and says whose job it is.
+    const ahead = dash.dated.columns.find((c) => c.day === day(3))!;
+    expect(ahead.occasions.join(' ')).toContain("Ada Client's job");
+    // Every column of a quiet day is empty rather than absent.
+    expect(dash.dated.columns.filter((c) => c.sessions.length === 0).length).toBeGreaterThan(50);
+    // And the same window by week, each week labelled with its own date and count.
+    expect(dash.dated.weeks).toHaveLength(8);
+    expect(dash.dated.weeks.find((w) => w.label.startsWith('this week'))).toBeTruthy();
+    expect(dash.dated.weeks.reduce((n, w) => n + w.count, 0)).toBeGreaterThan(0);
   });
 
   it('says what the book has sold, and how far each question has been answered', async () => {

@@ -2854,6 +2854,91 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-lines-under { border-top: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
 .q-line { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 0; padding: 6px 0; line-height: 1.55; max-width: 92ch; }
 
+/*
+ * THE READINGS (components/Readings) - the four drawings this page keeps,
+ * because in each of them the geometry IS the fact: days on a dated axis,
+ * length as a share of a whole, length as progress, slope as direction.
+ * Each carries its own dates, words and numbers, so none needs a key.
+ */
+
+/* Days: one column per day, sessions above the line, the occasions they are for below it. */
+.q-days { padding: 14px 24px 4px; }
+.q-days-strip { display: grid; grid-template-columns: repeat(61, minmax(0, 1fr)); gap: 1px; align-items: stretch; height: 74px; }
+.q-day-col { display: grid; grid-template-rows: 1fr 1px 1fr; min-width: 0; border-radius: 3px; }
+.q-day-col-behind { opacity: 0.62; }
+.q-day-col-now { background: var(--q-color-accent-soft); }
+.q-day-sessions { display: flex; align-items: flex-end; justify-content: center; position: relative; min-height: 0; }
+.q-day-occasions { display: flex; align-items: flex-start; justify-content: center; position: relative; min-height: 0; }
+.q-day-line { background: var(--q-color-ink-200); }
+.q-day-bar { display: block; width: 100%; max-width: 9px; border-radius: 2px 2px 0 0; background: var(--q-color-ink-600); height: calc(max(var(--q-share, 0), 22) * 1%); }
+.q-day-occasions .q-day-bar { border-radius: 0 0 2px 2px; background: none; border: 1px solid var(--q-color-ink-400); border-top: 0; }
+.q-day-col-now .q-day-bar { background: var(--q-color-accent); }
+.q-day-n { position: absolute; top: -11px; font-family: var(--q-font-mono); font-size: 0.56rem; color: var(--q-color-ink-500); }
+.q-day-occasions .q-day-n { top: auto; bottom: -11px; }
+
+/* The same window by week, each labelled with its own dates and count. */
+.q-days-weeks { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 1px; padding-top: 7px; border-top: 1px solid var(--q-color-ink-100); margin-top: 6px; }
+.q-days-week { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding-right: 6px; }
+.q-days-week-when { font-family: var(--q-font-mono); font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--q-color-ink-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-days-week-n { font-size: 0.72rem; color: var(--q-color-ink-600); }
+
+/* Share: the shape of the whole, each part carrying its word, count and percentage. */
+.q-share { padding: 14px 24px 4px; }
+.q-share-bar { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--q-color-ink-100); }
+.q-share-part, .q-share-link { display: block; width: calc(var(--q-share, 0) * 1%); min-width: 3px; height: 100%; }
+.q-share-link { display: block; }
+.q-share-link .q-share-part { width: 100%; }
+.q-share-plain { background: var(--q-color-ink-400); }
+.q-share-warm { background: var(--q-color-warning); }
+.q-share-accent { background: var(--q-color-accent); }
+.q-share-green { background: var(--q-hue-green); }
+.q-share-keys { display: flex; flex-wrap: wrap; gap: 6px 20px; padding-top: 11px; }
+.q-share-key { display: inline-flex; align-items: baseline; gap: 7px; font-size: 0.8rem; color: var(--q-color-ink-600); text-decoration: none; }
+a.q-share-key:hover { color: var(--q-color-accent); }
+.q-share-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; align-self: center; }
+.q-share-word { color: var(--q-color-ink-900); }
+.q-share-n { font-family: var(--q-font-mono); font-size: 0.82rem; color: var(--q-color-ink-900); }
+.q-share-pct { font-family: var(--q-font-mono); font-size: 0.66rem; color: var(--q-color-ink-400); }
+
+/* Progress: how far along, comparable down a region, with its own count on it. */
+.q-progress { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 116px; }
+.q-progress-track { display: block; width: 100%; height: 4px; border-radius: 999px; background: var(--q-color-ink-100); overflow: hidden; }
+.q-progress-fill { display: block; height: 100%; width: calc(var(--q-share, 0) * 1%); background: var(--q-color-ink-500); border-radius: 999px; }
+.q-progress-done { background: var(--q-hue-green); }
+.q-progress-said { font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-500); white-space: nowrap; }
+
+/* Counts: one quantity against the others of its kind. */
+.q-counts { padding: 12px 24px; border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); display: flex; flex-direction: column; gap: 7px; }
+.q-counts-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 14px; align-items: center; text-decoration: none; }
+.q-counts-said { font-size: 0.84rem; color: var(--q-color-ink-600); }
+a.q-counts-row:hover .q-counts-said { color: var(--q-color-accent); }
+.q-counts-track { display: block; height: 5px; border-radius: 999px; background: var(--q-color-ink-100); overflow: hidden; }
+.q-counts-fill { display: block; height: 100%; width: calc(var(--q-share, 0) * 1%); background: var(--q-color-ink-400); border-radius: 999px; }
+.q-counts-warm { background: var(--q-color-warning); }
+
+/* Trend: the direction over twelve months, its ends and its peak printed. */
+.q-trend { display: flex; flex-direction: column; gap: 4px; }
+.q-trend-svg { width: 100%; height: 44px; display: block; overflow: visible; }
+.q-trend-line { fill: none; stroke: var(--q-color-ink-400); stroke-width: 1.5; }
+.q-trend-area { fill: var(--q-color-ink-100); }
+.q-trend-end { fill: var(--q-color-accent); }
+.q-trend-axis { display: flex; justify-content: space-between; gap: 8px; font-family: var(--q-font-mono); font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--q-color-ink-400); }
+.q-trend-peak { color: var(--q-color-ink-500); }
+
+/* The period's four measures, each a sentence over its own trend. */
+.q-measures { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 2px; }
+.q-measure { padding: 14px 24px 16px; border-right: 1px solid var(--q-color-ink-100); }
+.q-measure:last-child { border-right: 0; }
+.q-measure-said { font-size: 0.84rem; color: var(--q-color-ink-600); line-height: 1.5; margin: 0 0 10px; }
+.q-measure-value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 52em) {
+  .q-days-strip { height: 58px; }
+  .q-days-weeks { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 1px; }
+  .q-counts-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .q-measure { border-right: 0; border-bottom: 1px solid var(--q-color-ink-100); }
+}
+
 /* When everything is: a day, and what happens on it. */
 .q-day { display: grid; grid-template-columns: minmax(0, 215px) minmax(0, 1fr); gap: 20px; align-items: baseline; padding: 11px 24px; border-bottom: 1px solid var(--q-color-ink-100); }
 .q-day:last-of-type { border-bottom: 0; }
