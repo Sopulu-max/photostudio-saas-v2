@@ -100,11 +100,46 @@ reason (live vs closed; enquiry vs agreed) without knowing the studio's words.
 
 A booking with no lines has **no package** — it is a title and perhaps a client.
 
-### 2.4 `booking_line_variable_values`, `booking_line_extras`, `booking_dimension_values`
+### 2.4 The questions, and this booking's answers
+
+A package fixes some things and **leaves others open**; the open ones are
+asked at booking. Which ones is not knowable in advance: every studio's
+packages leave different questions open, and a studio that grows will leave
+new ones. The page can therefore know a question only by its **structure**,
+never by its name.
+
+| Table | Field | Meaning |
+|---|---|---|
+| `variables` | `label` | the question's name — the studio's word ("Occasion Date", "Number of outfits") |
+| | `kind` | **what an answer is**: `text` · `textarea` · `number` · `date` · `choice` · `multichoice` · `boolean` · `url` · `size` — the only thing about a question code may reason from |
+| | `unit` | for a number: outfits, prints, hours |
+| | `service_id` \| `dimension_id` \| `deliverable_id` (exactly one) | where the question comes from: what a service lets vary; what a classification opens (Occasion → its date; Context: Outdoor → an address); what a deliverable asks |
+| `package_variable_values` | `answered_by` | **who answers**: `studio` (fixed in the package) · `client` (left open — asked at booking) · `member` (left to a family member) |
+| `booking_line_variable_values` | `value`, `source` | **this booking's answer**, and whether the studio or the client gave it |
+
+Whether a question is *asked* on a given line is a real rule (classification
+narrowing settles some; a family member may have answered; a value may close a
+question another opens) and it lives in one place, `getPackageVariables` /
+`getLineConfigurationForm`. The page **reuses that rule**; it never re-derives
+"asked".
+
+The label a booking sees is **its own**: a package's "Occasion Date" becomes
+"Anniversary Date" once this booking says Anniversary (`labelledByAnswer`).
+
+**Meaning for the page, by kind — never by name:**
+
+| Kind | An answer is | Where it belongs |
+|---|---|---|
+| `date` | **a calendar fact** distinct from the session — the occasion's own date | a session row; potentially the calendar |
+| `textarea`, `text`, `url` | what the crew needs on the day (an address, a brief) | a session row |
+| `number` + unit, `size` | a quantity the work is sized by | a session row; the day book caption |
+| `choice`, `multichoice`, `boolean` | a selection | a session row |
+
+And the **absence**: a question asked at booking with no answer is a fact the
+day still lacks — an attention item in the same family as *no date* (§5, §6).
 
 | Table | Meaning | Contributes |
 |---|---|---|
-| `booking_line_variable_values` | the answers to what the package left open (outfits, hours, …) | the row's caption; not a dashboard figure |
 | `booking_line_extras` | more of what a package promises, added on this booking | commercial; not read here |
 | `booking_dimension_values` → `dimension_values` → `dimensions` | **what the job is for**, in the studio's own dimensions (Occasion: Birthday; Context: Outdoor) | classification axes — one per dimension the studio defined |
 
@@ -298,6 +333,8 @@ Nothing here is stored. Each is a function of the fields above.
 | **sessions in period** | booked/completed with day in [from, to] | work held |
 | **pipeline** | count per stage, in the studio's order; per stage the fact for its kind | declared positions |
 | **classification axes** | one per dimension present on any booking | what jobs are for |
+| **facts** | this booking's answers, said by kind (a date as a date, a number with its unit), dates first | what the package left open and the booking settled |
+| **unanswered** | questions asked at booking (by the one rule) with no answer | what the day still lacks |
 
 What is **not** derivable, and therefore not shown: time in stage (no stage-
 entered timestamp except through events; could be derived from `stage_changed`
@@ -411,6 +448,13 @@ post-production. Kind is the app's; the words are the studio's.
   a multi-service session (photo + video) has several. The row should carry the
   within-booking hierarchy (§4) — one position per service — as the day book row
   already does.
+- **The answers** (§2.4): a session row must carry what the booking answered —
+  the occasion's date, the address, the quantities — by kind, and name what was
+  asked and not answered. The rows showed none of it.
+- **Unanswered questions across all live bookings** as an attention row needs
+  the *asked* rule batched; today it runs per line, so it is read only for the
+  sessions ahead. A batched form of `getPackageVariables` is the step that
+  unlocks the count.
 - **Time in stage** is not derivable without reading `stage_changed` history;
   worth deriving for the pipeline's "longest waiting" (currently days since
   created, which overstates for a booking that moved recently).
@@ -434,6 +478,8 @@ post-production. Kind is the app's; the words are the studio's.
 | progress | done / total, with a short bar | a ratio |
 | a share of the whole | segmented bar + legend | a distribution |
 | a period figure | numeral + delta vs previous window + sparkline | a measure with its trend |
+| an answer | `label value`, dates first, in the row's second line | a fact the booking settled, said by its kind |
+| an unanswered question | its label, warm, "unanswered" | a fact the day lacks |
 | a relationship to detail | a link: row → booking; count → instrument narrowed | every widget is a door |
 
 ---

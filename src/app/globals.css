@@ -2845,6 +2845,9 @@ body::before {
 @media (max-width: 60em) { .q-dash, .q-dash-wide { grid-template-columns: minmax(0, 1fr); } }
 .q-widget { min-width: 0; container-type: inline-size; }
 .q-widget > .q-empty { margin: 0; font-size: 0.85rem; }
+/* A trace, not a call: quieter ground, smaller type. */
+.q-widget-quiet { background: var(--q-color-paper-subtle); }
+.q-widget-quiet .q-recent-row { font-size: 0.8rem; padding: 6px 0; }
 
 /* THE HEADLINE: the day, and the numbers that decide it, in one calm line. */
 .q-headline {
@@ -2906,7 +2909,13 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 }
 .q-next-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .q-next-title { font-weight: 600; font-size: 0.9rem; color: var(--q-color-ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--q-dur-2) var(--q-ease); }
-.q-next-pos { font-size: 0.78rem; color: var(--q-color-ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-next-pos { font-size: 0.78rem; color: var(--q-color-ink-500); min-width: 0; }
+/* The booking's own facts: what the package asked and the booking answered, each a label and a value; dates lead; an unanswered one is warm. */
+.q-next-facts { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 3px; font-size: 0.75rem; color: var(--q-color-ink-600); }
+.q-fact { white-space: nowrap; }
+.q-fact-label { color: var(--q-color-ink-400); }
+.q-fact-date { color: var(--q-color-ink-900); font-weight: 550; }
+.q-fact-unanswered, .q-fact-unanswered .q-fact-label { color: var(--q-color-warning); }
 
 /* PIPELINE: the studio's stages as rows under the bar: name, count, share, who is next. */
 .q-pipe { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }

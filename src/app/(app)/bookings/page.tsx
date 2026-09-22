@@ -63,8 +63,13 @@ function Where({ p }: { p: Position }) {
   return <>{p.service} · {p.step} · <span className={p.who ? '' : 'q-work-gap'}>{p.who ?? 'Unassigned'}</span></>;
 }
 
-/** A session row: time and day, the client's initials, the booking, what it needs or where it is, the stage. */
-function SessionRow({ row: { booking: b, position } }: { row: NextRow }) {
+/**
+ * A session row: time and day, the client's initials, the booking, each
+ * service's position (unassigned first), the stage - and the booking's own
+ * facts: what the package left open and this booking answered, by kind
+ * (dates first), and what it was asked and has not answered, warm.
+ */
+function SessionRow({ row: { booking: b, positions, unanswered } }: { row: NextRow }) {
   return (
     <Link href={`/bookings/${b.id}`} className={b.band === 'today' ? 'q-next-row q-next-today' : 'q-next-row'}>
       <span className="q-next-when">
@@ -75,8 +80,22 @@ function SessionRow({ row: { booking: b, position } }: { row: NextRow }) {
       <span className="q-next-body">
         <span className="q-next-title">{b.title}</span>
         <span className="q-next-pos">
-          {position ? <Where p={position} /> : b.work && b.work.total > 0 ? 'All steps complete' : 'No steps defined'}
+          {positions.length > 0
+            ? positions.map((p, i) => <span key={i}>{i > 0 ? ' · ' : ''}<Where p={p} /></span>)
+            : b.work && b.work.total > 0 ? 'All steps complete' : 'No steps defined'}
         </span>
+        {(b.facts.length > 0 || unanswered.length > 0) && (
+          <span className="q-next-facts">
+            {b.facts.map((f, i) => (
+              <span key={i} className={f.kind === 'date' ? 'q-fact q-fact-date' : 'q-fact'}>
+                <span className="q-fact-label">{f.label}</span> {f.text}
+              </span>
+            ))}
+            {unanswered.map((label, i) => (
+              <span key={`u${i}`} className="q-fact q-fact-unanswered"><span className="q-fact-label">{label}</span> unanswered</span>
+            ))}
+          </span>
+        )}
       </span>
       {b.stage && <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>}
     </Link>
@@ -312,7 +331,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             </div>
             <div className="q-doing-series">
               <header className="q-dash-head">
-                <span className="q-dash-title">Twelve months</span>
+                <span className="q-dash-title">Twelve months to date</span>
                 <nav className="q-seg" aria-label="Measure">
                   {sheet.series.lines.map((l) => (
                     <Link key={l.key} href={withParams(q, { measure: l.key === sheet.series.lines[0].key ? null : l.key })} className={l.key === measure.key ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={l.key === measure.key ? 'page' : undefined}>
@@ -325,8 +344,8 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
             </div>
           </section>
 
-          {/* RECENT ACTIVITY. */}
-          <section className="q-card q-widget" aria-label="Recent activity">
+          {/* RECENT ACTIVITY - a trace, read when something is off: last, and small. */}
+          <section className="q-card q-widget q-widget-quiet" aria-label="Recent activity">
             <header className="q-dash-head">
               <span className="q-dash-title">Recent activity</span>
             </header>

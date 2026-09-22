@@ -3,6 +3,7 @@ import { studioTimezone } from '@/kernel/studioHours';
 import { calendarIn, dayIn, addDays, bandOf, whenItems, type Band } from '@/kernel/bands';
 import { axisOf, valuesSeen, type LensGroup, type Takes } from '@/kernel/lenses';
 import { listEventsSince } from '@/kernel/events';
+import { listNoteRemindersInRange } from '@/modules/notes/interface';
 import { listBookings, listStages, type BookingListRow } from './domain';
 
 /**
@@ -35,6 +36,18 @@ export type SheetBooking = BookingListRow & {
   work: { total: number; done: number; unstaffed: number; positions: { service: string; step: string | null; who: string | null; done: boolean }[] } | null;
   /** The roles this booking still needs someone for - each role with an unfinished step nobody is on. */
   needs: { id: string; name: string }[];
+  /**
+   * The answers, said: each with its kind, so a surface can place it without
+   * knowing its name - a date-kind answer is a calendar fact (the occasion's
+   * date, distinct from the session), a text one is what the crew needs on
+   * the day, a number a quantity. Dates first, then the rest, in the order
+   * the package asked them.
+   */
+  facts: { label: string; kind: string; text: string; day: string | null }[];
+  /** When it entered its current stage - the last stage_changed event, else when it was made. */
+  stageSince: string;
+  /** Reminders on this booking now due, and the earliest of them. */
+  reminders: { count: number; earliest: string } | null;
   /** The values this row takes on each axis - axis key to item keys (kernel/lenses). */
   takes: Takes;
 };
@@ -92,10 +105,31 @@ export type BookingsSheet = {
 
 const BAND_ORDER: SheetBand[] = ['today', 'tomorrow', 'week', 'later', 'undated', 'earlier', 'closed'];
 
-/** The absences a live booking can have, in the order they are resolved. */
+/** An answer as text, by its kind - the only thing about a question the app may know. */
+function sayAnswer(a: { kind: string; unit: string | null; value: unknown }): string {
+  const v = a.value;
+  switch (a.kind) {
+    case 'date': return typeof v === 'string' ? new Date(`${v.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : String(v);
+    case 'boolean': return v ? 'Yes' : 'No';
+    case 'number': return a.unit ? `${v} ${a.unit}${Number(v) === 1 ? '' : 's'}` : String(v);
+    case 'size': return typeof v === 'object' && v && 'w' in (v as any) ? `${(v as any).w}×${(v as any).h}${a.unit ? ` ${a.unit}` : ''}` : String(v);
+    case 'multichoice': return Array.isArray(v) ? v.join(', ') : String(v);
+    default: return String(v);
+  }
+}
+
+/**
+ * The absences and obligations a live booking can carry, in the order they
+ * are resolved (11-BOOKINGS_INFORMATION_ARCHITECTURE §5-6): an enquiry
+ * whose session date passed undecided; a decision awaited from the studio
+ * or the client; a reminder the studio set itself, now due; no client, no
+ * date, no package; a session coming up with a step unassigned.
+ */
 export const MISSING = [
+  { key: 'lapsed', label: 'Session date passed, undecided' },
   { key: 'decision-studio', label: 'Awaiting studio decision' },
   { key: 'decision-client', label: 'Awaiting client decision' },
+  { key: 'reminder', label: 'Reminder due' },
   { key: 'client', label: 'No client' },
   { key: 'date', label: 'No date' },
   { key: 'package', label: 'No package' },
@@ -109,10 +143,23 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
 
   const cal = calendarIn(timezone);
   const { today } = cal;
-  // Agreements are events: every move of a booking into a booked stage, back a year (the series) and more (the period before).
-  const yearAgo = new Date(`${today}T00:00:00Z`); yearAgo.setUTCMonth(yearAgo.getUTCMonth() - 12); yearAgo.setUTCDate(1);
-  const agreedEvents = (await listEventsSince('booking', 'stage_changed', addDays(yearAgo.toISOString().slice(0, 10), -periodDays * 2)))
-    .filter((e) => e.payload.kind === 'booked');
+  // Transitions are events. Every stage change, oldest first: the latest per
+  // booking says when it entered its stage; those into a booked stage are the
+  // agreements the period figures and the series count.
+  const nowIso = new Date().toISOString();
+  const [stageEvents, dueReminders] = await Promise.all([
+    listEventsSince('booking', 'stage_changed', '1970-01-01'),
+    listNoteRemindersInRange('1970-01-01', nowIso),
+  ]);
+  const agreedEvents = stageEvents.filter((e) => e.payload.kind === 'booked');
+  const stageSinceOf = new Map<string, string>();
+  for (const e of stageEvents) stageSinceOf.set(e.entityId, e.at);
+  const remindersOf = new Map<string, { count: number; earliest: string }>();
+  for (const n of dueReminders) {
+    if (n.aboutType !== 'booking' || !n.aboutId || !n.remindAt) continue;
+    const had = remindersOf.get(n.aboutId);
+    remindersOf.set(n.aboutId, { count: (had?.count ?? 0) + 1, earliest: had && had.earliest < n.remindAt ? had.earliest : n.remindAt });
+  }
 
   const { resolveBookingTasks } = await import('@/modules/production/interface');
   const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
@@ -156,11 +203,15 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
      * crew for a session coming up. Read off the row, never declared.
      */
     const upcoming = day !== null && day >= today;
+    const enquiry = !r.stage || r.stage.kind === 'enquiry';
+    const reminders = remindersOf.get(r.id) ?? null;
     const missing = closed ? [] : [
+      ...(enquiry && day !== null && day < today ? ['lapsed'] : []),
+      ...(enquiry ? [r.proposalOut ? 'decision-client' : 'decision-studio'] : []),
+      ...(reminders ? ['reminder'] : []),
       ...(!r.clientName ? ['client'] : []),
       ...(day === null ? ['date'] : []),
       ...(r.lineCount === 0 ? ['package'] : []),
-      ...(!r.stage || r.stage.kind === 'enquiry' ? [r.proposalOut ? 'decision-client' : 'decision-studio'] : []),
       ...(r.stage?.kind === 'booked' && upcoming && (work?.unstaffed ?? 0) > 0 ? ['crew'] : []),
     ];
     const takes: Takes = {
@@ -170,7 +221,10 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
       missing,
     };
     for (const c of r.classification) (takes[`dim:${c.dimensionId}`] ??= []).push(c.valueId);
-    return { ...r, band, day, work, needs, takes };
+    const facts = [...r.answers]
+      .sort((a, b) => Number(b.kind === 'date') - Number(a.kind === 'date'))
+      .map((a) => ({ label: a.label, kind: a.kind, text: sayAnswer(a), day: a.kind === 'date' && typeof a.value === 'string' ? a.value.slice(0, 10) : null }));
+    return { ...r, band, day, work, needs, facts, stageSince: stageSinceOf.get(r.id) ?? r.createdAt, reminders, takes };
   });
 
   // ---- The axes: for each, the values present, with counts, in the order the axis is read.

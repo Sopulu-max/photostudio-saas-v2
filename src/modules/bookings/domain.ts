@@ -8,6 +8,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { logEvent } from '@/kernel/events';
 import { amountOf, firstPriced, hasPrice, extrasAmount } from '@/kernel/money';
 import { lineNameOf } from './lineName';
+import { labelledByAnswer } from '@/kernel/classification';
 import { getStudioCurrency } from '@/kernel/organizations';
 import { gatherPictures, type Picture } from '@/kernel/pictures';
 import { getPackageForBooking, getPackageVariables } from '@/modules/packages/interface';
@@ -1665,6 +1666,27 @@ export type BookingListRow = {
   owed: { amount: number; currency: string | null } | null;
   /** What the studio understands it to be for - the facet a sheet narrows by. */
   classification: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
+  /** The lines, by id - what a per-line read is addressed by. */
+  lineIds: string[];
+  /**
+   * WHAT THE PACKAGE LEFT OPEN AND THIS BOOKING ANSWERED. Every studio's
+   * packages leave different questions open, so a row carries them as
+   * structure - a label, a kind, a unit, a value, who answered - never by
+   * name. The label is the one the booking's own classification gives it
+   * (an Occasion Date becomes the Anniversary Date once the booking says
+   * Anniversary), by the same kernel rule the forms apply.
+   */
+  answers: BookingAnswer[];
+};
+
+export type BookingAnswer = {
+  lineId: string;
+  variableId: string;
+  label: string;
+  kind: string;
+  unit: string | null;
+  value: unknown;
+  source: string | null;
 };
 
 export async function listBookings(): Promise<BookingListRow[]> {
@@ -1676,7 +1698,8 @@ export async function listBookings(): Promise<BookingListRow[]> {
       id, title, created_at, scheduled_for,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
-      booking_lines(id, title, package:packages(name)),
+      booking_lines(id, title, package:packages(name),
+        booking_line_variable_values(value, source, variable:variables(id, label, kind, unit, dimension:dimensions(id, name)))),
       contracts(id, status),
       financial_transactions(id, amount, status, currency),
       booking_dimension_values(dimension_value:dimension_values(id, name, dimension:dimensions(id, name)))
@@ -1745,7 +1768,24 @@ export async function listBookings(): Promise<BookingListRow[]> {
           dimensionId: r.dimension_value.dimension.id as string, dimensionName: r.dimension_value.dimension.name as string,
           valueId: r.dimension_value.id as string, valueName: r.dimension_value.name as string,
         })),
+      lineIds: ((b.booking_lines || []) as any[]).map((l) => l.id as string),
+      answers: [],
     };
+    const said = new Map(row.classification.map((c) => [c.dimensionId, c.valueName]));
+    row.answers = ((b.booking_lines || []) as any[]).flatMap((l) =>
+      ((l.booking_line_variable_values || []) as any[])
+        .filter((a) => a.variable && a.value !== null && a.value !== undefined && a.value !== '')
+        .map((a) => ({
+          lineId: l.id as string,
+          variableId: a.variable.id as string,
+          label: a.variable.dimension && said.get(a.variable.dimension.id)
+            ? labelledByAnswer(a.variable.label, a.variable.dimension.name, said.get(a.variable.dimension.id)!)
+            : (a.variable.label as string),
+          kind: a.variable.kind as string,
+          unit: (a.variable.unit ?? null) as string | null,
+          value: a.value,
+          source: (a.source ?? null) as string | null,
+        })));
     return row;
   });
 }
