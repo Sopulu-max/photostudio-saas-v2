@@ -30,15 +30,53 @@ Two things that page got wrong, both reported by the operator:
    unnecessary*. A reading must announce itself from inside, leaving a label
    nothing to do.
 
-Neither failure is a styling matter and neither is fixed by spacing. They come
-from a missing step: doc 11 never asked, of each item of information, **what
-shape it has** and therefore **what display makes it readable without
-explanation**. Nor did it ask what each item *becomes* when read across the
-whole book rather than within one job — which is the step that produces
-sections rather than lanes.
+None of these is a styling matter and none is fixed by spacing. They come from
+a missing step: doc 11 never asked, of each item of information, **what shape
+it has** and therefore **what display makes it readable without explanation**.
+Nor did it ask what each item *becomes* when read across the whole book rather
+than within one job — which is the step that produces sections rather than
+lanes.
 
 This document supplies both. §9 of doc 11 (structure → interface) is superseded
 by §5 here where the two disagree.
+
+### 0.1 The method, in the operator's words
+
+> Deconstruct what information needs to be **read**, then display that in a form
+> that allows for **maximum understanding**. Everything on the dashboard should
+> be displaying meaningful information.
+
+Three constraints, in order, and they are not the same as doc 11's:
+
+1. **Start from what needs to be read, not from what exists.** §2 below is an
+   inventory of what the schema *can* say; it is not a list of what the page
+   *will* say. An item earns a place only by answering a question the operator
+   actually asks (doc 11 §7). The inventory exists to make the choice
+   deliberate, not to be displayed.
+2. **Then choose the form for maximum understanding of that question** — which
+   is what §3 derives from shape, and what Law 2 constrains.
+3. **Then delete everything that informs nobody.** Law 7.
+
+### 0.2 What needs to be read, and the form that gives most understanding
+
+| The operator's question | What must be read | The form that gives most understanding |
+|---|---|---|
+| What is happening today? | the sessions on today's date, with their times, who is coming, and what the day still lacks | a statement per session, in time order: *Vera shoots at 12:19; editing is next and nobody is on it* |
+| What is about to happen that is not ready? | sessions ahead whose crew or steps are unfilled | the same statement, with the absence said: *shoots Saturday, in 4 days — nobody is on the shoot* |
+| What is waiting on me? | live jobs with an absent edge, oldest first; proposals not yet out; reminders due | one clause per job naming what is absent, and a count per absence |
+| What is waiting on a client? | jobs with a proposal out, and how long it has been out | *proposed 6 days ago; waiting on the client* |
+| Where is the work? | per job and service, the next step and who holds it | *editing next, nobody on it — 3 of 5 steps done* |
+| What is the studio short of? | open steps grouped by the role they need | *3 open steps need an Editor* |
+| What is finished and not closed? | booked, session held, every step done, still live | one statement, or the honest *nothing is waiting to be closed* |
+| What has the book sold, and what has nobody answered? | packages on live jobs; each question's answered count and its total | *33 outfits across 17 jobs*; *Occasion Date answered on 10 jobs* |
+| What is the book for? | each dimension's values with counts, and the jobs its packages left open | the studio's word with its count, and the unclassified count |
+| Where does the studio say everything is? | stage counts in the studio's order; whose move the decision is | *20 at Enquiry, 3 at Booked*; *7 waiting on you, 13 on the client* |
+| Is the book growing? | the window's counts against the window before | *22 entered in 30 days, against 1 in the 30 before* |
+| What changed? | the last events, named | a sentence per event |
+| Anything else | — | the rows level: narrow, group, read |
+
+Everything in §2 that answers none of these is **not on the page**. That is the
+difference between an inventory and a reading.
 
 ---
 
@@ -107,12 +145,32 @@ correct for a reader who cannot distinguish them.)
 says what is absent — *no package yet*, *nobody on the shoot*, *no session
 date* — not a blank cell, not a dash, and not an unfilled shape.
 
+**Law 7 — Every element informs.** Nothing may occupy the page that tells the
+operator nothing. In particular:
+
+- **A zero appears only when the zero answers a question.** *Nothing is shot
+  today* and *nothing is waiting to be closed* are answers. `Reminders · 0` as a
+  column total is furniture: it was on the page because its neighbours were.
+- **No count without consequence.** A number the operator cannot act on or judge
+  by is not shown merely because it can be computed.
+- **No element for symmetry.** A region does not exist because another region
+  exists; a fourth figure does not exist to fill a row of four.
+- **No repetition across regions.** If two regions would say the same thing, one
+  of them is wrong — and the one that is wrong is the one whose plane it does
+  not belong to.
+- **A distribution needs more than one value.** A bar with a single segment, or a
+  dimension with one value on one job, is a sentence, not a chart.
+
+The test, applied element by element: *what question does this answer, and what
+would the operator do differently if it read otherwise?* No answer, no element.
+
 ---
 
-## 2. Every item of information, deconstructed
+## 2. What the schema can say (the inventory)
 
-Grounded in doc 11 §2 (the schema), with the four properties doc 11 never
-recorded. *Unit* = what carries the item. *Cardinality* = how many per booking.
+Read this as the **available** information, from which §0.2 chose. It is not a
+list of what the page displays. Grounded in doc 11 §2 (the schema), with the
+four properties doc 11 never recorded. *Unit* = what carries the item. *Cardinality* = how many per booking.
 *Shape* = the logical form of the value. *Absence* = whether not-having-it is
 itself information.
 
@@ -217,7 +275,8 @@ both laws, and it was my invention, not the data's.
 form — *who the studio is short of* — is a count over item 15, which belongs
 with the work. One plane, two readings, no third region.
 
-So the regions, derived:
+So the regions, derived — each one answering questions from §0.2, and nothing
+on the page that answers none:
 
 1. **What each job still needs** — one clause per job saying what is absent,
    the jobs that need the operator first, and a count per absence. *Act.*
