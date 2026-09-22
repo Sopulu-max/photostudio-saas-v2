@@ -74,8 +74,8 @@ are omitted.
 | `contact_id` → `contacts` | **the client** (nullable — a booking may exist before a client is known) | identity; absence = *no client* |
 | `stage_id` → `booking_stages` | **where the studio says it is** (nullable — a booking may have no stage) | status; absence = *no stage* |
 | `scheduled_for` | **when the session is** (nullable) | time; absence = *no date* |
-| `duration_minutes` | how long the session is | time (secondary) |
-| `brief` | free text from intake | context (secondary) |
+| `duration_minutes` | **how long the session is** — a session has an end, not only a start; two sessions can collide | time: the session's span on the day |
+| `brief` | **what the client asked for**, in their words — the thing an enquiry is decided on | the decision's substance; an enquiry row must carry it |
 | `created_at` | **when the job entered the book** | age; "waiting since"; period figures |
 
 ### 2.2 `booking_stages` — the studio's own vocabulary of position
@@ -172,6 +172,11 @@ on the page is computed at read time from these three tables.
 
 Two edges, one person; `getBookingTeam` reads both so they cannot disagree.
 
+**Meaning for the page:** on a session, *who is coming* is the declared crew
+(`assignments`) — a photographer is on Saturday's shoot before any step names
+them; *who is on each step* is the task edge. A session row must say the crew;
+a post-production row must say the step's assignee. They are different facts.
+
 ### 2.7 The agreement: `contracts`
 
 | Field | Meaning |
@@ -195,11 +200,12 @@ decision edge.
 **Present on the booking, not on this page** — delivery is a gallery's reading
 (`gallery-not-delivery`). Noted so the boundary is deliberate (§10).
 
-### 2.9 `notes` (`about_type = 'booking'`, `remind_at`)
+### 2.9 `notes` (`about_type = 'booking'`)
 
-A note on a booking with a reminder is a **dated obligation the studio set
-itself**. Contributes to *what requires attention* when `remind_at ≤ now`.
-(Not currently read by the page — a gap, §9.7.)
+A note on a booking is **what the studio wrote to itself about the job**; one
+with `remind_at` is a **dated obligation**. Contributes: a reminder due is an
+attention item; the latest note on a session or an enquiry is context the row
+can carry (pinned first).
 
 ### 2.10 `events` (`entity_type = 'booking'`)
 
@@ -389,6 +395,42 @@ door names one.
 ## 9. From structure to interface
 
 Now, and only now, what the page must be — each element with its reason.
+
+### 9.0 The derivation: every information item → its element
+
+The rule for each row: the *shape of the answer* decides the representation; the
+*kind of need* decides the region; the *relationship* decides the door. An
+element that cannot be written as a row here does not exist on the page.
+
+| Information (§2–§6) | Shape | Need (§7) | Representation | Region · position | Door |
+|---|---|---|---|---|---|
+| today, on the studio's clock | a date | all | the headline's first words | headline | — |
+| live × band = today, count | a count | act | numeral in a sentence | headline | → Today |
+| Σ missing, count | a count | act | warm numeral in a sentence | headline | → Requires attention |
+| booked × earlier × work open, count | a count | understand | numeral in a sentence | headline | → Post-production |
+| the whole set, count | a count | investigate | "All N →" | headline, last | → rows level, no cut |
+| each `missing` value: count, longest wait, sample | a count + an age + a few rows | act | numeral (warm > 0) · label · age · chips; zero rows quiet | Requires attention, in resolution order, two columns when wide | count → rows level, `missing=<key>`; chip → booking |
+| enquiry `brief` (decision rows) | text, the client's | act | the first line of the brief under the chip on hover / in the rows level | Requires attention (rows level carries it in full) | — |
+| live × today, each: `scheduled_for`, `duration_minutes`, client, title | rows, ordered by time | act | time **start–end** · initials · title | Today, first | row → booking |
+| … its declared crew (`assignments`) | names by role | act | "Crew: name (role) · name (role)"; none → warm "No crew" | Today row, second line | — |
+| … one position per service (resolved tasks) | per-service state | act | service · step · assignee, unassigned warm | Today row, third line | — |
+| … its answers (`facts`), dates first; asked-and-unanswered | typed values | act | `label value` pairs; unanswered warm | Today row, fourth line | — |
+| … its stage | the studio's word | understand | pill in the studio's colour | Today row, right | — |
+| live × tomorrow/week, the same | rows | act | the same row, fewer lines when space is short | Rest of this week, under Today | "View all" → rows level, `when=week` |
+| booked × earlier × work open: days since, open positions, done/total | rows, ordered by age | understand | `Nd` mono · initials · title · positions (unassigned first) · progress bar | Post-production, oldest first | row → booking#work |
+| booked × earlier × work complete × live | rows | act (close it) | dim row "All steps complete · move to a closed stage" | Post-production, after | row → booking |
+| booking → stage: count per stage, share | a distribution | understand | segmented bar in the studio's colours + one row per stage | Pipeline | stage row → rows level, `stage=<id>` |
+| … per stage, the fact for its kind (longest in stage / next session / ahead–in post) | a row + a fact | understand | sentence under the stage row | Pipeline row | booking → booking |
+| new, agreed, conversion, sessions over the period vs before | four measures + deltas | judge | mono label · numeral · sparkline · delta; the period control **in this region** | This period | — |
+| one measure by month, twelve months | a series | judge | line + area, month labels; measure a link | This period, beneath, as the period extended | — |
+| events on bookings, newest first | a trace | judge | who · what · which, relative time; quieter ground | Recent activity, last | booking → booking |
+| the rows of one cut; the cut's axes | rows + a definition | investigate | title = the cut in words · **the definition once** · distribution · the day-book row | the rows level (opened by a door; `/bookings?<axes>`) | back → summary |
+
+What the derivation produced that the earlier drafts lacked: **start–end** on a
+session (from `duration_minutes`); **the declared crew** on a session as a
+distinct line from the step assignees; **the brief** carried into the rows
+level for decision cuts; and the rows level as **the same URL with a cut set**
+rather than a second section under the summary.
 
 ### 9.1 Top-level structure = the three kinds of need (§7)
 
