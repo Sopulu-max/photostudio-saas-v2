@@ -53,28 +53,34 @@ export type SheetBooking = BookingListRow & {
   /** The values this row takes on each axis - axis key to item keys (kernel/lenses). */
   takes: Takes;
   /**
-   * THE STRAND - the booking as one line (11-BOOKINGS_INFORMATION_ARCHITECTURE
-   * §9.9): the intake points, what it is for, its dated facts on its own
-   * axis, the within-booking hierarchy of steps, the close. Every booking is
-   * the same line with different points filled; empty is warm.
+   * THE PLANES this row sits on, each decided here so a statement is only
+   * ever composed and never re-derived (12-BOOKINGS_READABILITY §5): which
+   * edges it has, what it is for and what its packages left open, its dated
+   * facts, where its work is, and whether it is finished. The page says these
+   * in words (say.ts); nothing here is drawn as a mark.
    */
-  strand: Strand;
+  planes: Planes;
 };
 
 export type StepState = 'done' | 'current' | 'open' | 'ahead';
-export type Strand = {
+export type Planes = {
   /** The four edges a booking grows first, in the order a job resolves them. */
   intake: { client: boolean; package: boolean; date: boolean; agreement: 'none' | 'proposed' | 'agreed' };
-  /** The semantic plane: what it is for, and the dimensions its packages leave open that it has not answered. */
+  /**
+   * The semantic plane: what it is for, and the dimensions its packages leave
+   * open that it has not answered. An open one carries the studio's OWN
+   * question ("What occasion is it for?"), so a statement can ask it in their
+   * words instead of the app's paraphrase of its name.
+   */
   forValues: { id: string; name: string }[];
-  forOpen: { id: string; name: string }[];
-  /** Its dated facts as day offsets from today on the studio's clock (negative = past). */
+  forOpen: { id: string; name: string; question: string | null }[];
+  /** Its dated facts as day offsets from today on the studio's clock (negative = past); the days themselves are on facts. */
   axis: { session: number | null; occasions: { label: string; offset: number }[]; reminders: number[] };
-  /** A bracket per package, a run per service, a point per step in workflow order. */
+  /** The within-booking hierarchy: per package, per service, its steps in workflow order. */
   runs: { packageName: string; services: { name: string; steps: { name: string; state: StepState; who: string | null }[] }[] }[];
-  /** The last point: closed, complete but still live (ready), or ahead. */
+  /** Closed, complete but still live (ready to close), or still running. */
   close: 'done' | 'ready' | 'ahead';
-  /** The one number for where the strand is, and whether it needs the operator. */
+  /** The one figure for how long this has been where it is, and whether it needs the operator. */
   figure: { text: string; warm: boolean; today: boolean };
 };
 
@@ -176,12 +182,14 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   const nowIso = new Date().toISOString();
   const [stageEvents, allReminders, studioDimensions] = await Promise.all([
     listEventsSince('booking', 'stage_changed', '1970-01-01'),
-    // Every reminder on a booking, past and ahead: a tick on the strand's axis, warm once past.
+    // Every reminder on a booking, past and ahead: a dated obligation, warm once it is past.
     listNoteRemindersInRange('1970-01-01', addDays(today, 60) + 'T23:59:59Z'),
     listStudioDimensions(),
   ]);
   const dueReminders = allReminders.filter((n) => n.remindAt && n.remindAt <= nowIso);
   const dimensionName = new Map(studioDimensions.map((d) => [d.id, d.name] as const));
+  // A dimension's own question, so an unanswered one can be asked in the studio's words.
+  const dimensionAsks = new Map(studioDimensions.map((d) => [d.id, d.question ?? null] as const));
   // What each package on the book leaves open: a dimension it allows more than one value of.
   const packageIds = [...new Set(rows.flatMap((r) => r.packageIds))];
   const narrowings: Map<string, Map<string, Set<string>>> = packageIds.length > 0 ? await packageNarrowingsFor(orgId, packageIds) : new Map();
@@ -270,7 +278,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
       .sort((a, b) => Number(b.kind === 'date') - Number(a.kind === 'date'))
       .map((a) => ({ label: a.label, kind: a.kind, text: sayAnswer(a), day: a.kind === 'date' && typeof a.value === 'string' ? a.value.slice(0, 10) : null }));
 
-    // ---- The strand.
+    // ---- The planes this row sits on.
     const offset = (d: string) => Math.round((new Date(`${d}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
     const answered = new Set(r.classification.map((c) => c.dimensionId));
     const openDims = new Map<string, string>();
@@ -306,10 +314,10 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
       : upcomingDays !== null && upcomingDays > 0 ? { text: `in ${upcomingDays}d`, warm: false, today: false }
       : (!r.stage || r.stage.kind === 'enquiry') && r.proposalOut ? { text: `${Math.max(0, Math.round((Date.now() - new Date(stageSinceOf.get(r.id) ?? r.createdAt).getTime()) / 86_400_000))}d with client`, warm: false, today: false }
       : { text: `${Math.max(0, Math.round((Date.now() - new Date(stageSinceOf.get(r.id) ?? r.createdAt).getTime()) / 86_400_000))}d waiting`, warm: true, today: false };
-    const strand: Strand = {
+    const planes: Planes = {
       intake: { client: Boolean(r.clientName), package: r.lineCount > 0, date: day !== null, agreement: r.hasContract && !r.proposalOut ? 'agreed' : r.proposalOut ? 'proposed' : 'none' },
       forValues: r.classification.map((c) => ({ id: c.valueId, name: c.valueName })),
-      forOpen: [...openDims.entries()].map(([id, name]) => ({ id, name })),
+      forOpen: [...openDims.entries()].map(([id, name]) => ({ id, name, question: dimensionAsks.get(id) ?? null })),
       axis: {
         session: day !== null ? offset(day) : null,
         occasions: facts.filter((f) => f.day).map((f) => ({ label: f.label, offset: offset(f.day!) })),
@@ -319,7 +327,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
       close: closed ? 'done' : allDone && held ? 'ready' : 'ahead',
       figure,
     };
-    return { ...r, band, day, work, needs, facts, stageSince: stageSinceOf.get(r.id) ?? r.createdAt, reminders, takes, strand };
+    return { ...r, band, day, work, needs, facts, stageSince: stageSinceOf.get(r.id) ?? r.createdAt, reminders, takes, planes };
   });
 
   // ---- The axes: for each, the values present, with counts, in the order the axis is read.

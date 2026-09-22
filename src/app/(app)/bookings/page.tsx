@@ -2,38 +2,41 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { readBookingsDashboard, PERIODS, type Period, type Figure, type NextRow, type SheetBooking } from '@/modules/bookings/interface';
-import { stageColor } from '@/components/stageBadge';
-import { Sparkline } from '@/components/Charts';
-import { StrandKey, StrandRow, StrandCaption } from '@/components/Strand';
+import {
+  readBookingsDashboard, PERIODS,
+  sayNeeds, sayWait, saySession, sayWork, sayProgress, sayDay, sayAge, plural,
+  type Period, type Say, type SheetBooking, type NextRow,
+} from '@/modules/bookings/interface';
+import { sayAbsence, is, verb, them, a as article } from '@/modules/bookings/say';
 import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * BOOKINGS - one page at two levels of one subject, made of strands
- * (11-BOOKINGS_INFORMATION_ARCHITECTURE §9; the design canvas, boards 4-6).
+ * BOOKINGS - one page at two levels, and everything on it is a statement
+ * (12-BOOKINGS_READABILITY; the design canvas, board 8).
  *
- * THE SUMMARY LEVEL, at /bookings: lanes of strands under the questions a
- * studio asks in the order it asks them, with the totals sitting over the
- * very columns they count -
- *   Today: strands whose session touches now.
- *   Requires attention: strands with an empty point, earliest empty point
- *     first; the column totals (client · pkg · date · agreed · for) and the
- *     open points by role over the steps.
- *   Post-production: the session behind now, steps still open; then
- *     complete but not closed.
- *   One calendar: every strand's dated facts on the studio's one axis.
- *   Pipeline, This period, Recent activity.
+ * The page carries no key and no labels, because nothing on it is a mark: a
+ * verb says which plane a reading comes from, a numeral carries the noun it
+ * counts, an absence is a clause. Each region begins from a question the
+ * operator actually asks (§0.2) and says so in its own head; a region that
+ * answers none does not exist, and neither does a count nobody can act on
+ * (Law 7 - which is why there is no "reminders 0" anywhere here).
  *
- * THE ROWS LEVEL, at /bookings?<axes>: one cut, its definition once, its
- * strands grouped - every door above opens it.
+ * THE SUMMARY LEVEL, at /bookings, answers in order: what is happening today ·
+ * what each job still needs · where the work is · when everything is · what
+ * the book has sold and what nobody answered · what it is for · where the
+ * studio says everything is · how the book moved and what changed.
  *
- * Everything arrives decided (readBookingsDashboard); the page draws.
+ * THE ROWS LEVEL, at /bookings?<axes>, is one cut: its definition once, then
+ * the instrument, where a chosen cut may tabulate because the operator's own
+ * act gave the columns their subject.
+ *
+ * Everything arrives decided (readBookingsDashboard, say.ts); the page draws.
  */
 
 type Query = Record<string, string | string[] | undefined>;
-const OWN = new Set(['period', 'measure']);
+const OWN = new Set(['period']);
 
 function withParams(q: Query, patch: Record<string, string | null>) {
   const p = new URLSearchParams();
@@ -47,36 +50,76 @@ const into = (narrow: Record<string, string>) => `/bookings?${new URLSearchParam
 
 const ago = (iso: string, now: number) => {
   const m = Math.round((now - new Date(iso).getTime()) / 60_000);
-  if (m < 1) return 'now';
-  if (m < 60) return `${m}m`;
+  if (m < 1) return 'a moment ago';
+  if (m < 60) return `${plural(m, 'minute')} ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
-};
-const pct = (offset: number) => 50 + Math.max(-30, Math.min(30, offset)) * (50 / 30);
-const dayLabel = (today: string, offset: number) => {
-  const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + offset);
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  if (h < 24) return `${plural(h, 'hour')} ago`;
+  return `${plural(Math.round(h / 24), 'day')} ago`;
 };
 
-/* The order a job resolves its absences, so a strand sorts by its earliest empty point. */
-const RESOLVE = ['lapsed', 'decision-studio', 'decision-client', 'reminder', 'client', 'date', 'package', 'classification', 'crew'];
-function firstEmpty(r: SheetBooking) {
+/* The order a job resolves its absences, so the jobs that need most come first. */
+const RESOLVE = ['lapsed', 'decision-studio', 'reminder', 'client', 'package', 'date', 'classification', 'crew', 'decision-client'];
+function firstGap(r: SheetBooking) {
   const idx = (r.takes.missing ?? []).map((k) => RESOLVE.indexOf(k)).filter((i) => i >= 0);
   return idx.length > 0 ? Math.min(...idx) : RESOLVE.length;
 }
 
-function CalRow({ name, children }: { name: string; children: React.ReactNode }) {
+/** A statement, drawn: the words, with the fragments that need the operator warm. */
+function Said({ say }: { say: Say }) {
   return (
-    <div className="q-cal-row">
-      <span className="q-cal-name">{name}</span>
-      <span className="q-cal-axis">
-        {[0, 16.67, 33.33, 66.67, 83.33, 100].map((x) => <i key={x} className="q-cal-tick" style={{ '--q-x': x } as React.CSSProperties} />)}
-        <i className="q-cal-now" />
-        {children}
-      </span>
-    </div>
+    <>
+      {say.map((p, i) => (
+        <span key={i} className={p.tone === 'warm' ? 'q-said-warm' : p.tone === 'strong' ? 'q-said-strong' : undefined}>
+          {i > 0 ? ' ' : ''}{p.t}
+        </span>
+      ))}
+    </>
   );
+}
+
+/** A region: the questions it answers, said in its own head. */
+function Region({ title, answers, children, right }: { title: string; answers: string; children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <section className="q-region">
+      <div className="q-region-head">
+        <div>
+          <h2 className="q-region-title">{title}</h2>
+          <p className="q-region-answers">{answers}</p>
+        </div>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One job, one statement - the reading that used to be a row of marks. */
+function Job({ id, name, say, tail, badge, tint }: { id: string; name: string; say: Say; tail?: string | null; badge?: React.ReactNode; tint?: boolean }) {
+  return (
+    <Link href={`/bookings/${id}`} className={tint ? 'q-job q-job-now' : 'q-job'}>
+      <span className="q-job-body">
+        <span className="q-job-name">{name}</span>
+        <span className="q-job-said"><Said say={say} /></span>
+      </span>
+      {(tail || badge) && (
+        <span className="q-job-tail">
+          {tail && <span className="q-job-figure">{tail}</span>}
+          {badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** A sentence that is also a door: the region's own totals. */
+function Total({ say, href }: { say: Say; href?: string }) {
+  const body = <Said say={say} />;
+  return href ? <Link href={href} className="q-total-said">{body}</Link> : <p className="q-total-said">{body}</p>;
+}
+
+function Stage({ r }: { r: SheetBooking }) {
+  if (!r.stage) return null;
+  return <span className="q-job-stage">{r.stage.name}</span>;
 }
 
 export default async function BookingsPage(props: { searchParams: Promise<Query> }) {
@@ -88,9 +131,8 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   const q = await props.searchParams;
   const periodDays = (PERIODS.find((p) => String(p.days) === q.period)?.days ?? 30) as Period;
   const dash = await readBookingsDashboard(periodDays);
-  const { sheet, attention, roleTotals, calendar, today, week, later, works, toClose, pipeline, recent } = dash;
+  const { sheet, attention, roleTotals, dated, sold, forDimensions, decision, today, week, later, works, toClose, pipeline, recent } = dash;
   const now = Date.now();
-  const todayDate = new Date(`${sheet.today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   const all = sheet.bands.flatMap((b) => b.rows);
   const live = all.filter((r) => r.band !== 'closed');
 
@@ -106,7 +148,11 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
           <div>
             <Link href="/bookings" className="q-meta-sm q-plain-link">← Bookings</Link>
             <h1 className="q-page-title">{title}</h1>
-            <p className="q-page-subtitle">{setAxes.length > 0 ? 'One cut of every booking — its definition below, once.' : 'Every booking — narrow, group, read.'}</p>
+            <p className="q-page-subtitle">
+              {setAxes.length > 0
+                ? 'One cut of the book. You chose it, so the columns below can compare it.'
+                : 'Every booking — narrow it, group it, read it.'}
+            </p>
           </div>
           <div className="q-row q-row-sm">
             <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
@@ -120,220 +166,265 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   }
 
   // ---- The summary level.
-  const emptyPoints = attention.reduce((n, a) => n + a.count, 0);
-  const totalOf = (key: string) => attention.find((a) => a.key === key)?.count ?? 0;
-  const studio = totalOf('decision-studio');
-  const client = totalOf('decision-client');
-  const withEmpty = live.filter((r) => (r.takes.missing ?? []).length > 0)
-    .sort((a, b) => firstEmpty(a) - firstEmpty(b) || a.createdAt.localeCompare(b.createdAt));
-  const total = pipeline.reduce((n, s) => n + s.count, 0);
-  const ahead30 = calendar.sessions.filter((s) => s.offset >= 0).length;
+  const todayDate = new Date(`${sheet.today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const withGap = live.filter((r) => (r.takes.missing ?? []).length > 0)
+    .sort((a, b) => firstGap(a) - firstGap(b) || a.createdAt.localeCompare(b.createdAt));
+  const oldest = [...live].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0] ?? null;
+  const shownGaps = withGap.slice(0, 5);
+  const inPost = works.length;
 
-  const say = (f: Figure, n: number) => (f.unit === 'percent' ? `${n}%` : String(n));
-  const delta = (f: Figure) => {
-    const diff = f.value - f.before;
-    const dir: 'up' | 'down' | 'flat' = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
-    const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
-    const text = diff === 0 ? 'unchanged' : f.unit === 'percent' ? `${sign}${Math.abs(diff)} pts` : f.before >= 5 ? `${sign}${Math.abs(Math.round((diff / f.before) * 100))}%` : `${sign}${Math.abs(diff)}`;
-    return { dir, text, title: `${say(f, f.before)} in the previous ${sheet.period.days} days` };
-  };
-  const trend = (f: Figure) => sheet.series.lines.find((l) => l.key === f.key)?.points ?? null;
+  // The one sentence the whole page is a reading of: what today is.
+  const headline: Say = [];
+  if (today.length > 0) {
+    const said = today
+      .map((n) => `${n.booking.clientName ?? n.booking.title}${n.booking.scheduledFor ? ` at ${new Date(n.booking.scheduledFor).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}`)
+      .join(', ');
+    headline.push({ t: `${plural(today.length, 'session')} today:`, tone: 'strong' }, { t: `${said}.` });
+  } else {
+    headline.push({ t: 'Nothing is shot today.' });
+    const next = week[0] ?? later[0];
+    if (next?.booking.day) headline.push({ t: `The next session is ${next.booking.clientName ?? next.booking.title}'s, ${sayDay(next.booking.day, sheet.today)}.` });
+  }
+  if (inPost > 0) headline.push({ t: `${plural(inPost, 'job')} ${inPost === 1 ? 'is' : 'are'} in post-production.` });
+  if (dated.undated > 0) headline.push({ t: `Of ${plural(live.length, 'live job')},` }, { t: `${dated.undated} have no session date at all`, tone: 'warm' });
+  /* The count the region below shows, from the same source: one fact, one number on the page. */
+  const waitingOnClient = attention.find((x) => x.key === 'decision-client')?.count ?? 0;
+  if (waitingOnClient > 0) headline.push({ t: `and ${waitingOnClient} ${is(waitingOnClient)} waiting on a client to agree a proposal.`, tone: 'warm' });
 
-  const Total = ({ n, label, narrow, align }: { n: number; label: string; narrow?: Record<string, string>; align?: 'start' | 'end' }) => {
-    const cls = ['q-total', n > 0 ? 'q-total-live' : '', align ? `q-total-${align}` : ''].filter(Boolean).join(' ');
-    const body = <><b>{n}</b><small>{label}</small></>;
-    return n > 0 && narrow ? <Link href={into(narrow)} className={cls}>{body}</Link> : <span className={cls}>{body}</span>;
-  };
-  const sessionRow = (r: NextRow) => (
-    <StrandRow key={r.booking.id} b={r.booking} caption={
-      <>
-        <StrandCaption b={r.booking} crew={r.crew} />
-        {r.unanswered.map((l) => <span key={l}><span className="q-strand-cap-sep"> · </span><span className="q-fact q-fact-unanswered"><span className="q-fact-label">{l}</span> unanswered</span></span>)}
-      </>
-    } />
+  const periodControl = (
+    <div className="q-seg q-seg-sm">
+      {PERIODS.map((p) => (
+        <Link key={p.days} href={withParams(q, { period: p.days === 30 ? null : String(p.days) })} className={p.days === sheet.period.days ? 'q-seg-btn q-seg-on' : 'q-seg-btn'}>
+          {p.days === 365 ? '1y' : `${p.days}d`}
+        </Link>
+      ))}
+    </div>
   );
 
   return (
-    <div>
+    <div className="q-read">
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Bookings</h1>
-          <p className="q-page-subtitle">Every job as a line: what it has, what it is for, where it is in time, what it still needs.</p>
+          <p className="q-page-subtitle">{todayDate}</p>
         </div>
         <div className="q-row q-row-sm">
-          <Link href="/bookings/settings" className="q-btn q-btn-secondary">Stages</Link>
+          <Link href="/bookings/settings/stages" className="q-btn q-btn-ghost">Stages</Link>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       </header>
 
-      <div className="q-stack q-stack-md">
-        {/* THE HEADLINE: the day, and the numbers that decide it. */}
-        <p className="q-headline">
-          <span className="q-headline-day">{todayDate}</span>
-          <span className="q-headline-sep" aria-hidden="true">·</span>
-          <a href="#today" className="q-headline-part">{today.length === 0 ? 'No sessions today' : <><b>{today.length}</b> session{today.length === 1 ? '' : 's'} today</>}</a>
-          <span className="q-headline-sep" aria-hidden="true">·</span>
-          <a href="#attention" className={emptyPoints > 0 ? 'q-headline-part q-headline-warm' : 'q-headline-part'}>{emptyPoints === 0 ? 'No empty points on live jobs' : <><b>{emptyPoints}</b> empty point{emptyPoints === 1 ? '' : 's'} on live jobs</>}</a>
-          <span className="q-headline-sep" aria-hidden="true">·</span>
-          <a href="#post" className="q-headline-part">{works.length === 0 ? 'Nothing in post-production' : <><b>{works.length}</b> in post-production</>}</a>
-          <span className="q-headline-sep" aria-hidden="true">·</span>
-          <a href="#calendar" className="q-headline-part"><b>{ahead30}</b> session{ahead30 === 1 ? '' : 's'} in the next 30 days</a>
-          <span className="q-headline-sep" aria-hidden="true">·</span>
-          <Link href={into({ group: 'stage' })} className="q-headline-part q-headline-door">All {all.length} →</Link>
-        </p>
+      <p className="q-headline-said"><Said say={headline} /> <Link href="/bookings?all=1" className="q-headline-door">All {live.length} →</Link></p>
 
-        <StrandKey />
-
-        {/* TODAY */}
-        <section id="today" className="q-lane" aria-label="Today">
-          <div className="q-lane-head q-lane-head-today"><span className="q-lane-title">Today</span><span className="q-lane-note">strands whose session touches now</span></div>
-          {today.length === 0 ? <p className="q-lane-empty">No sessions today.</p> : today.map(sessionRow)}
-          {week.length > 0 && (
+      <div className="q-regions">
+        {/* 1 ─ what is happening today, and what is about to happen that is not ready */}
+        <Region title="What is happening today" answers="what is happening today; what is about to happen that is not ready">
+          {today.length === 0 && week.length === 0 && later.length === 0 ? (
+            <p className="q-region-empty">Nothing is dated in the days ahead.</p>
+          ) : (
             <>
-              <div className="q-lane-head"><span className="q-lane-title">Rest of this week</span><Link href={into({ when: 'week' })} className="q-lane-note q-plain-link">View all →</Link></div>
-              {week.map(sessionRow)}
+              {today.map((n: NextRow) => (
+                <Job key={n.booking.id} id={n.booking.id} name={n.booking.title} say={saySession(n.booking, n.crew, sheet.today)} badge={<Stage r={n.booking} />} tint />
+              ))}
+              {(week.length > 0 ? week : later).map((n: NextRow) => (
+                <Job key={n.booking.id} id={n.booking.id} name={n.booking.title} say={saySession(n.booking, n.crew, sheet.today)} badge={<Stage r={n.booking} />} />
+              ))}
             </>
           )}
-          {today.length === 0 && week.length === 0 && later.length > 0 && (
-            <>
-              <div className="q-lane-head"><span className="q-lane-title">Upcoming</span><Link href={into({ when: 'later' })} className="q-lane-note q-plain-link">View all →</Link></div>
-              {later.map(sessionRow)}
-            </>
+        </Region>
+
+        {/* 2 ─ what each job still needs */}
+        <Region title="What each job still needs" answers="what is waiting on me; what is waiting on a client">
+          {attention.filter((a) => a.count > 0).length === 0 ? (
+            <p className="q-region-empty">Nothing is missing on any live job.</p>
+          ) : (
+            <div className="q-totals-said">
+              {attention.filter((a) => a.count > 0).map((a) => (
+                <Total key={a.key} say={sayAbsence(a.key, a.count)} href={into(a.narrow as Record<string, string>)} />
+              ))}
+            </div>
           )}
-        </section>
-
-        {/* REQUIRES ATTENTION: the totals over the columns they count, then the strands. */}
-        <section id="attention" className="q-lane" aria-label="Requires attention">
-          <div className="q-lane-head"><span className="q-lane-title">Requires attention</span><span className="q-lane-note">live strands with an empty point · earliest empty point first</span></div>
-          <div className="q-strand q-totals">
-            <span className="q-totals-word">empty points, by column →</span>
-            <span className="q-strand-intake">
-              <Total n={totalOf('client')} label="client" narrow={{ missing: 'client' }} />
-              <Total n={totalOf('package')} label="pkg" narrow={{ missing: 'package' }} />
-              <Total n={totalOf('date')} label="date" narrow={{ missing: 'date' }} />
-              <Total n={studio + client} label="agreed" narrow={{ missing: 'decision-studio' }} />
-            </span>
-            <Total n={totalOf('classification')} label="open" narrow={{ missing: 'classification' }} align="start" />
-            <span className="q-totals-roles">
-              <Total n={totalOf('lapsed')} label="date passed" narrow={{ missing: 'lapsed' }} align="start" />
-              <Total n={totalOf('reminder')} label="reminders" narrow={{ missing: 'reminder' }} align="start" />
-            </span>
-            <span className="q-totals-roles">
-              {roleTotals.map((r) => <Total key={r.id} n={r.count} label={r.name} narrow={{ needs: r.id }} align="start" />)}
-              {roleTotals.length === 0 && <span className="q-totals-word">no open points need a role</span>}
-            </span>
-            <span className="q-total q-total-end">
-              <small>of {studio + client} awaiting agreement</small>
-              <small className="q-strand-fig-warm">{studio} you · {client} the client</small>
-            </span>
-          </div>
-          {withEmpty.length === 0 ? <p className="q-lane-empty">Nothing outstanding.</p> : withEmpty.slice(0, 6).map((b) => <StrandRow key={b.id} b={b} />)}
-          {withEmpty.length > 6 && <Link href={into({ missing: RESOLVE[firstEmpty(withEmpty[6])] ?? 'date' })} className="q-lane-more">{withEmpty.length - 6} more with an empty point <span className="q-accent">→</span></Link>}
-        </section>
-
-        {/* POST-PRODUCTION */}
-        <section id="post" className="q-lane" aria-label="Post-production">
-          <div className="q-lane-head"><span className="q-lane-title">Post-production</span><span className="q-lane-note">the session behind now, steps still open · oldest first{toClose.length > 0 ? ` · ${toClose.length} ready to close` : ''}</span></div>
-          {works.length === 0 && toClose.length === 0 ? <p className="q-lane-empty">No sessions awaiting post-production.</p> : (
-            <>
-              {works.map((w) => <StrandRow key={w.booking.id} b={w.booking} href={`/bookings/${w.booking.id}#work`} caption={<StrandCaption b={w.booking} />} />)}
-              {toClose.map((b) => <StrandRow key={b.id} b={b} caption={<StrandCaption b={b} />} />)}
-            </>
+          {shownGaps.map((r) => (
+            <Job
+              key={r.id}
+              id={r.id}
+              name={r.title}
+              say={[...sayNeeds(r, sheet.today), ...(oldest && r.id === oldest.id ? sayWait(r, sheet.today, true) : [])]}
+              tail={`waiting ${sayAge(r.createdAt, sheet.today)}`}
+              badge={<Stage r={r} />}
+            />
+          ))}
+          {withGap.length > shownGaps.length && (
+            <Link href="/bookings?all=1" className="q-region-more">{withGap.length - shownGaps.length} more jobs are missing something →</Link>
           )}
-        </section>
+        </Region>
 
-        {/* ONE CALENDAR */}
-        <section id="calendar" className="q-lane q-cal-lane" aria-label="One calendar">
-          <div className="q-lane-head"><span className="q-lane-title">One calendar</span><span className="q-lane-note">every strand's sessions, occasions and reminders on the studio's one axis · collisions and load read across</span></div>
-          <div className="q-cal-row q-cal-head">
-            <span>the last and next thirty days</span>
-            <span className="q-cal-head-axis">{[-30, -20, -10].map((o) => <span key={o}>{dayLabel(sheet.today, o)}</span>)}<span className="q-strand-now-word">today · {dayLabel(sheet.today, 0)}</span>{[10, 20, 30].map((o) => <span key={o}>{dayLabel(sheet.today, o)}</span>)}</span>
-          </div>
-          <CalRow name={`Sessions · ${calendar.sessions.length}`}>
-            {calendar.sessions.map((s) => (
-              <Link key={s.booking.id} href={`/bookings/${s.booking.id}`} className={`q-mark ${s.today ? 'q-mark-session q-mark-session-today' : s.held ? 'q-mark-held' : 'q-mark-session'}`} style={{ '--q-x': pct(s.offset) } as React.CSSProperties} title={`${s.booking.title} · ${dayLabel(sheet.today, s.offset)}`} />
+        {/* 3 ─ where the work is */}
+        <Region title="Where the work is" answers="where is the work; what is the studio short of; what is finished and not closed">
+          {roleTotals.length > 0 && (
+            <div className="q-totals-said">
+              {roleTotals.map((role) => (
+                <Total
+                  key={role.id}
+                  say={[{ t: plural(role.count, 'open step'), tone: 'strong' }, { t: `${verb(role.count, 'need')} ${article(role.name)}, and nobody is on ${them(role.count)}.`, tone: 'warm' }]}
+                  href={into({ needs: role.id })}
+                />
+              ))}
+            </div>
+          )}
+          {works.map((w) => (
+            <Job key={w.booking.id} id={w.booking.id} name={w.booking.title} say={sayWork(w.booking, sheet.today)} tail={sayProgress(w.booking)} badge={<Stage r={w.booking} />} />
+          ))}
+          {toClose.map((r) => (
+            <Job key={r.id} id={r.id} name={r.title} say={[{ t: 'Every step is done', tone: 'strong' }, { t: 'and the job is still open — only the stage says otherwise.' }]} badge={<Stage r={r} />} />
+          ))}
+          {works.length === 0 && toClose.length === 0 && <p className="q-region-empty">No job has open work behind its session.</p>}
+          {toClose.length === 0 && works.length > 0 && <p className="q-region-note">No job has finished its steps and is waiting to be closed.</p>}
+        </Region>
+
+        {/* 4 ─ when everything is */}
+        <Region title="When everything is" answers="the thirty days behind and ahead — the sessions, and the occasions they are for">
+          {dated.days.length === 0 ? (
+            <p className="q-region-empty">Nothing is dated within thirty days either side of today.</p>
+          ) : (
+            dated.days.map((d) => (
+              <div key={d.day} className={d.today ? 'q-day q-day-now' : 'q-day'}>
+                <span className="q-day-when">{d.today ? `Today, ${sayDay(d.day, sheet.today).replace('today, ', '')}` : sayDay(d.day, sheet.today)}</span>
+                <span className="q-day-lines">
+                  {d.lines.map((l, i) => (
+                    <Link key={i} href={`/bookings/${l.bookingId}`} className="q-day-line"><Said say={l.say} /></Link>
+                  ))}
+                </span>
+              </div>
+            ))
+          )}
+          <p className="q-region-note">
+            {plural(dated.ahead, 'session')} {dated.ahead === 1 ? 'falls' : 'fall'} in the next thirty days.
+            {dated.undated > 0 && <> <Link href={into({ missing: 'date' })} className="q-said-warm q-plain-link">{plural(dated.undated, 'live job')} have no date at all</Link>, so they appear on no day above.</>}
+          </p>
+        </Region>
+
+        {/* 5 ─ what the book has sold, and what nobody has answered */}
+        <Region title="What the book has sold, and what nobody has answered" answers="what has the book sold; what has nobody answered">
+          {sold.packages.length === 0 ? (
+            <p className="q-region-empty">No live job carries a package yet.</p>
+          ) : (
+            <div className="q-lines">
+              {sold.packages.slice(0, 6).map((p, i) => (
+                <p key={p.name} className="q-line">
+                  <span className="q-said-strong">{p.name}</span> is on {plural(p.jobs, 'live job')}
+                  {i === 0 && sold.packages.length > 1 ? ' — more than any other package.' : '.'}
+                </p>
+              ))}
+            </div>
+          )}
+          {sold.questions.length > 0 && (
+            <div className="q-lines q-lines-under">
+              {sold.questions.map((question) => (
+                <p key={question.label} className="q-line">
+                  <span className="q-said-strong">{question.label}</span> is answered on {plural(question.answered, 'job')}
+                  {question.said ? <> and comes to <span className="q-said-strong">{question.said}</span>.</> : '.'}
+                  {question.next && <> The next of them is {question.next.name}&apos;s, {sayDay(question.next.day, sheet.today)}.</>}
+                </p>
+              ))}
+            </div>
+          )}
+        </Region>
+
+        {/* 6 ─ what the book is for */}
+        {forDimensions.length > 0 && (
+          <Region title="What the book is for" answers="what is the book for">
+            {forDimensions.map((d) => (
+              <div key={d.id} className="q-dim">
+                <span className="q-dim-name">{d.name}</span>
+                <p className="q-dim-said">
+                  {d.values.map((v, i) => (
+                    <span key={v.id}>
+                      {i > 0 ? ', ' : ''}
+                      <Link href={into({ [`dim:${d.id}`]: v.id })} className="q-plain-link"><span className="q-said-strong">{v.name}</span> on {plural(v.jobs, 'job')}</Link>
+                    </span>
+                  ))}
+                  {d.values.length > 0 && '. '}
+                  {d.open > 0 && <Link href={into({ missing: 'classification' })} className="q-said-warm q-plain-link">{plural(d.open, 'job')} {d.open === 1 ? 'has' : 'have'} not said, though their packages ask.</Link>}
+                </p>
+              </div>
             ))}
-          </CalRow>
-          <CalRow name={`Occasions · ${calendar.occasions.length}`}>
-            {calendar.occasions.map((o, i) => <Link key={i} href={`/bookings/${o.booking.id}`} className="q-mark q-mark-occasion" style={{ '--q-x': pct(o.offset) } as React.CSSProperties} title={`${o.booking.title} · ${o.label} · ${dayLabel(sheet.today, o.offset)}`} />)}
-          </CalRow>
-          <CalRow name={`Reminders · ${calendar.reminders.length}`}>
-            {calendar.reminders.map((r, i) => <Link key={i} href={`/bookings/${r.booking.id}`} className={r.offset <= 0 ? 'q-mark q-mark-reminder q-mark-past' : 'q-mark q-mark-reminder'} style={{ '--q-x': pct(r.offset) } as React.CSSProperties} title={`${r.booking.title} · ${dayLabel(sheet.today, r.offset)}`} />)}
-          </CalRow>
-          <div className="q-cal-row">
-            <span className="q-cal-name">Sessions per week</span>
-            <span className="q-cal-bars">
-              {calendar.perWeek.map((w) => {
-                const max = Math.max(...calendar.perWeek.map((x) => x.count), 1);
-                return <span key={w.from} className={w.ahead ? 'q-cal-bar q-cal-bar-ahead' : 'q-cal-bar'} style={{ '--q-share': Math.round((w.count / max) * 100) } as React.CSSProperties} title={`${w.count} · week of ${dayLabel(sheet.today, w.from)}`} />;
-              })}
-            </span>
+          </Region>
+        )}
+
+        {/* 7 ─ where the studio says everything is */}
+        <Region title="Where the studio says everything is" answers="where does the studio say everything is; whose move is the decision">
+          <div className="q-lines">
+            {pipeline.filter((st) => st.count > 0).map((st) => (
+              <p key={st.key} className="q-line">
+                <Link href={into({ stage: st.key })} className="q-plain-link">
+                  <span className="q-said-strong">{plural(st.count, 'job')}</span> {st.count === 1 ? 'is' : 'are'} at {st.label}
+                </Link>
+                {st.fact && <>. {st.fact.booking.clientName ?? st.fact.booking.title} has been there longest{st.kind === 'booked' ? '' : ` — ${st.fact.text.replace('longest in stage, ', '')}`}.</>}
+              </p>
+            ))}
           </div>
-        </section>
+          <div className="q-lines q-lines-under">
+            {decision.awaitingStudio > 0 && (
+              <p className="q-line">
+                <Link href={into({ missing: 'decision-studio' })} className="q-plain-link">
+                  <span className="q-said-strong">{plural(decision.awaitingStudio, 'job')}</span> <span className="q-said-warm">{decision.awaitingStudio === 1 ? 'is' : 'are'} waiting on you</span> to put a proposal out
+                </Link>.
+              </p>
+            )}
+            {decision.awaitingClient > 0 && (
+              <p className="q-line">
+                <Link href={into({ missing: 'decision-client' })} className="q-plain-link">
+                  <span className="q-said-strong">{plural(decision.awaitingClient, 'job')}</span> {decision.awaitingClient === 1 ? 'is' : 'are'} waiting on a client to agree a proposal
+                </Link>.
+              </p>
+            )}
+            {decision.agreed > 0 && <p className="q-line"><span className="q-said-strong">{plural(decision.agreed, 'job')}</span> {decision.agreed === 1 ? 'has' : 'have'} an agreement in place.</p>}
+            {decision.bookedWithoutAgreement > 0 && (
+              <p className="q-line">
+                <span className="q-said-strong">{plural(decision.bookedWithoutAgreement, 'job')}</span> {decision.bookedWithoutAgreement === 1 ? 'was' : 'were'} moved to a booked stage{' '}
+                <span className="q-said-warm">without a contract ever going active</span>, so the stage and the agreement disagree.
+              </p>
+            )}
+          </div>
+        </Region>
 
-        <div className="q-dash q-dash-wide">
-          {/* PIPELINE */}
-          <section className="q-card q-widget" aria-label="Pipeline">
-            <header className="q-dash-head"><span className="q-dash-title">Pipeline</span><span className="q-dash-note">every strand, by the studio's stages · {total}</span></header>
-            <div className="q-dist-bar" aria-hidden="true">
-              {pipeline.map((s) => <span key={s.key || 'none'} className={`q-dist-seg q-dist-c-${s.look ? stageColor(s.look) : 'none'}`} style={{ '--q-share': s.count } as React.CSSProperties} title={`${s.label}: ${s.count}`} />)}
-            </div>
-            <ul className="q-pipe">
-              {pipeline.map((s) => (
-                <li key={s.key || 'none'} className="q-pipe-row">
-                  <Link href={into({ stage: s.key || '__none__' })} className="q-pipe-name"><i className={`q-dist-dot q-dist-c-${s.look ? stageColor(s.look) : 'none'}`} />{s.label}</Link>
-                  <b className="q-pipe-n">{s.count}</b>
-                  <span className="q-pipe-share">{total > 0 ? Math.round((s.count / total) * 100) : 0}%</span>
-                  <span className="q-pipe-note">
-                    {s.kind === 'booked' && s.count > 0 && <span className="q-pipe-split">{s.ahead} ahead · {s.inPost} in post-production</span>}
-                    {s.fact && <span className="q-pipe-fact">{s.kind === 'booked' && s.count > 0 ? ' · ' : ''}{s.fact.text}: <Link href={`/bookings/${s.fact.booking.id}`} className="q-plain-link q-pipe-who">{s.fact.booking.clientName ?? s.fact.booking.title}</Link></span>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* THIS PERIOD */}
-          <section className="q-card q-widget q-doing" aria-label={`The last ${sheet.period.days} days`}>
-            <header className="q-dash-head q-doing-head">
-              <span className="q-dash-title">This period</span>
-              <nav className="q-seg" aria-label="Period">
-                {PERIODS.map((p) => (
-                  <Link key={p.days} href={withParams(q, { period: p.days === 30 ? null : String(p.days) })} className={p.days === periodDays ? 'q-seg-btn q-seg-on' : 'q-seg-btn'} aria-current={p.days === periodDays ? 'page' : undefined}>{p.days === 365 ? '1y' : `${p.days}d`}</Link>
-                ))}
-              </nav>
-            </header>
-            <div className="q-figures-row q-figures-four">
-              {sheet.figures.map((f) => {
-                const d = delta(f);
-                const t = trend(f);
-                return (
-                  <div key={f.key} className="q-fig">
-                    <span className="q-fig-label">{f.label}</span>
-                    <span className="q-fig-main"><span className="q-fig-value">{say(f, f.value)}</span>{t && <Sparkline points={t} tone={d.dir} />}</span>
-                    <span className={`q-fig-delta q-fig-${d.dir}`} title={d.title}><span className="q-fig-arrow" aria-hidden="true">{d.dir === 'up' ? '↑' : d.dir === 'down' ? '↓' : '→'}</span>{d.text} <span className="q-fig-vs">vs previous {sheet.period.days} days</span></span>
-                    {f.note && <span className="q-fig-note">{f.note}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-
-        {/* RECENT ACTIVITY */}
-        <section className="q-card q-widget q-widget-quiet" aria-label="Recent activity">
-          <header className="q-dash-head"><span className="q-dash-title">Recent activity</span></header>
-          {recent.length === 0 ? <p className="q-empty">No activity recorded.</p> : (
-            <ul className="q-recent q-recent-grid">
-              {recent.map((e) => (
-                <li key={e.id} className="q-recent-row">
-                  <span className="q-recent-text"><b>{e.who}</b> {e.booking ? e.phrase.replace(/\ba booking\b/, '') : e.phrase}{e.booking && <> <Link href={`/bookings/${e.booking.id}`} className="q-plain-link q-recent-what">{e.booking.title}</Link></>}</span>
-                  <time className="q-recent-at" dateTime={e.at} title={new Date(e.at).toLocaleString('en-GB')}>{ago(e.at, now)}</time>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* 8 ─ how the book moved, and what changed */}
+        <Region title="How the book moved, and what changed" answers="is the book growing; what changed" right={periodControl}>
+          <div className="q-lines">
+            {sheet.figures.map((f) => {
+              const diff = f.value - f.before;
+              const said = f.unit === 'percent' ? `${f.value}%` : String(f.value);
+              return (
+                <p key={f.key} className="q-line">
+                  <span className="q-said-strong">{said}</span>{' '}
+                  {f.key === 'new' ? `jobs entered the book in the last ${plural(sheet.period.days, 'day')}`
+                    : f.key === 'agreed' ? 'were agreed'
+                    : f.key === 'conversion' ? 'of what came in was agreed'
+                    : 'sessions were held'}
+                  {', against '}
+                  {f.unit === 'percent' ? `${f.before}%` : f.before === 0 ? 'none' : f.before}
+                  {' in the window before it'}
+                  {diff !== 0 && f.unit !== 'percent' ? '.' : '.'}
+                  {f.note && f.key === 'conversion' && <> {f.note}.</>}
+                </p>
+              );
+            })}
+          </div>
+          <div className="q-lines q-lines-under">
+            {recent.length === 0 ? (
+              <p className="q-line">Nothing has happened on a booking yet.</p>
+            ) : (
+              recent.map((e) => (
+                <p key={e.id} className="q-line">
+                  {e.who} {e.booking ? e.phrase.replace(/\ba booking\b/, '') : e.phrase}
+                  {e.booking && <> <Link href={`/bookings/${e.booking.id}`} className="q-plain-link q-said-strong">{e.booking.title}</Link></>}
+                  , {ago(e.at, now)}.
+                </p>
+              ))
+            )}
+          </div>
+        </Region>
       </div>
     </div>
   );

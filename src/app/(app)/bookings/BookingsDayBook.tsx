@@ -4,7 +4,7 @@ import React from 'react';
 import { stageBadgeClass } from '@/components/stageBadge';
 import Link from 'next/link';
 import { Analysis, type Order, type Column } from '@/components/Analysis';
-import { StrandKey, StrandRow, StrandCaption } from '@/components/Strand';
+import { sayNeeds, sayWork, saySession, sayProgress, type Say } from '@/modules/bookings/say';
 import type { BookingsSheet, SheetBooking } from '@/modules/bookings/interface';
 
 /**
@@ -16,11 +16,12 @@ import type { BookingsSheet, SheetBooking } from '@/modules/bookings/interface';
  * studio classifies by - decided in readBookingsSheet. This file says only
  * what a row looks like and how rows order.
  *
- * A ROW IS A STRAND (components/Strand): the booking as one line - its
- * intake points, what it is for, its dated facts on its own axis, its
- * steps as the within-booking hierarchy, the close - with a caption in
- * words beneath. The same element the summary level is made of, so the
- * two levels cannot read a booking two ways.
+ * A ROW IS A STATEMENT (modules/bookings/say), the same composition the
+ * summary level draws, so the two levels cannot read a booking two ways:
+ * where its session is, where its work is, and what it still lacks - in
+ * words, with nothing to decode. The TABLE view is where a cut is compared
+ * column by column: the operator chose the cut, so a column's subject comes
+ * from their own act rather than from a key (12-BOOKINGS_READABILITY §1).
  */
 
 /*
@@ -42,6 +43,44 @@ const ORDERS: Order<SheetBooking>[] = [
   { key: 'client', label: 'By client', compare: (a, b) => (a.clientName || '￿').localeCompare(b.clientName || '￿') || byDate(a, b, 1) },
   { key: 'title', label: 'By title', compare: (a, b) => (a.title || '').localeCompare(b.title || '') },
 ];
+
+/** The words, with the fragments that need the operator warm - the page's one drawing of a statement. */
+function Said({ say }: { say: Say }) {
+  return (
+    <>
+      {say.map((p, i) => (
+        <span key={i} className={p.tone === 'warm' ? 'q-said-warm' : p.tone === 'strong' ? 'q-said-strong' : undefined}>
+          {i > 0 ? ' ' : ''}{p.t}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * ONE ROW: the job, then the statement its own state calls for - a session
+ * ahead says when it is and who is coming; one behind with work open says
+ * where the work is; anything else says what it still lacks.
+ */
+function Row({ b, today }: { b: SheetBooking; today: string }) {
+  const held = b.day !== null && b.day < today;
+  const say = b.day && !held ? saySession(b, [], today)
+    : held && b.work && b.work.done < b.work.total ? sayWork(b, today)
+    : sayNeeds(b, today);
+  const progress = sayProgress(b);
+  return (
+    <Link href={`/bookings/${b.id}`} className="q-job">
+      <span className="q-job-body">
+        <span className="q-job-name">{b.title}</span>
+        <span className="q-job-said"><Said say={say} /></span>
+      </span>
+      <span className="q-job-tail">
+        {progress && <span className="q-job-figure">{progress}</span>}
+        {b.stage && <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>}
+      </span>
+    </Link>
+  );
+}
 
 export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
   const all = sheet.bands.flatMap((b) => b.rows);
@@ -78,8 +117,7 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
       searchIn={(b) => [b.title, b.clientName, ...b.packages]}
       searchPlaceholder="Search by title, client or package"
       noun="booking"
-      render={(b) => <StrandRow b={b} caption={<StrandCaption b={b} />} />}
-      before={<StrandKey />}
+      render={(b) => <Row b={b} today={sheet.today} />}
     />
   );
 }

@@ -699,6 +699,20 @@ export async function setLineConfiguration(input: {
     for (const row of ((fixed || []) as any[])) {
       for (const f of (row.package_variable_values || [])) {
         if (taken.has(f.variable_id)) continue;
+        /*
+         * A QUESTION THE PACKAGE LEFT OPEN IS AN ABSENCE, NOT A STORED NULL.
+         *
+         * package_variable_values carries a row for every variable the package
+         * touched, including the ones it answers with nobody ("answered_by:
+         * client", value null). Copying those onto the line wrote null into a
+         * NOT NULL column, so creating a booking of such a package threw
+         * "Failed to save what was chosen" - unless the same call happened to
+         * supply the answer, which the booking form always does, which is why
+         * this survived. A booking must be able to exist with the question
+         * still unanswered (progressive enrichment): nothing is stored, and
+         * getPackageVariables goes on reporting it as asked.
+         */
+        if (f.value === null || f.value === undefined || f.value === '') continue;
         taken.add(f.variable_id);
         inherited.push({
           organization_id: orgId,

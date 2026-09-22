@@ -1,6 +1,7 @@
 import { listRecentActivity } from '@/kernel/events';
 import { readBookingsSheet, MISSING, type BookingsSheet, type SheetBooking, type Period, type MissingKey } from './sheet';
 import { getLineConfigurationForm } from './domain';
+import { sayDatedSession, sayDatedOccasion, sayTotal, type Say } from './say';
 import { getBookingTeam } from '@/modules/production/interface';
 
 /**
@@ -79,21 +80,75 @@ export type PipelineStage = {
 
 export type RecentRow = { id: string; at: string; who: string; phrase: string; booking: { id: string; title: string } | null };
 
-/** One calendar: every live strand's dated facts on the studio's one axis, as day offsets from today. */
-export type Calendar = {
-  sessions: { booking: SheetBooking; offset: number; held: boolean; today: boolean }[];
-  occasions: { booking: SheetBooking; label: string; offset: number }[];
-  reminders: { booking: SheetBooking; offset: number }[];
-  /** Sessions per week, three weeks back and three ahead. */
-  perWeek: { from: number; count: number; ahead: boolean }[];
+/**
+ * WHEN EVERYTHING IS (12-BOOKINGS_READABILITY §0.2) - the studio's dated facts
+ * in day order, each said. A day appears because something happens on it;
+ * sessions and the occasions they are for share the order, because both are
+ * points in time and the studio reads them together. The jobs with no date at
+ * all are counted, not drawn: that they appear on no day IS the fact.
+ */
+export type DatedDay = {
+  day: string;
+  today: boolean;
+  lines: { bookingId: string; say: Say }[];
+};
+export type Dated = {
+  days: DatedDay[];
+  /** Sessions dated from today onwards, within the window. */
+  ahead: number;
+  /** Live jobs with no session date - on no day above, and that is the point. */
+  undated: number;
+};
+
+/**
+ * WHAT THE BOOK HAS SOLD, AND WHAT NOBODY HAS ANSWERED - the promise plane
+ * read across the book (12 §5). Packages by how many live jobs carry them;
+ * each question the studio asks by how far it has been answered, with the
+ * total where the answers are quantities (33 outfits is the size of the work
+ * the book has promised) and the next one where they are dates.
+ */
+export type Sold = {
+  packages: { name: string; jobs: number }[];
+  questions: {
+    label: string;
+    kind: string;
+    answered: number;
+    /** The quantity total, or the single answer when only one job has given it. */
+    said: string | null;
+    next: { bookingId: string; name: string; day: string } | null;
+  }[];
+};
+
+/** WHAT THE BOOK IS FOR - each dimension the studio defined, counted across live jobs. */
+export type ForDimension = {
+  id: string;
+  name: string;
+  values: { id: string; name: string; jobs: number }[];
+  /** Live jobs whose packages ask this dimension and that have not answered it. */
+  open: number;
+};
+
+/**
+ * WHOSE MOVE THE DECISION IS - the contract plane, read as the question it
+ * answers. `bookedWithoutAgreement` is the disagreement between two planes:
+ * the studio moved the job to a booked stage and no contract ever went active.
+ */
+export type Decision = {
+  awaitingStudio: number;
+  awaitingClient: number;
+  agreed: number;
+  bookedWithoutAgreement: number;
 };
 
 export type BookingsDashboard = {
   sheet: BookingsSheet;
   attention: Attention[];
-  /** Open, unassigned step points across live strands, by the role they need - the people plane read from the other side. */
+  /** Open steps nobody is on, across live jobs, by the role each needs - what the studio is short of. */
   roleTotals: { id: string; name: string; count: number }[];
-  calendar: Calendar;
+  dated: Dated;
+  sold: Sold;
+  forDimensions: ForDimension[];
+  decision: Decision;
   today: NextRow[];
   week: NextRow[];
   /** What follows the week, shown only when the week is empty. */
@@ -207,18 +262,95 @@ export async function readBookingsDashboard(period: Period = 30): Promise<Bookin
   }
   const roleTotals = [...roleCount.values()].sort((a, b) => b.count - a.count);
 
-  // ---- One calendar: every live strand's dated facts within ±30 days of today.
+  // ---- When everything is: every dated fact within ±30 days, in day order, said.
   const within30 = (o: number) => o >= -30 && o <= 30;
-  const calendar: Calendar = {
-    sessions: live.filter((r) => r.strand.axis.session !== null && within30(r.strand.axis.session!)).sort((a, b) => a.strand.axis.session! - b.strand.axis.session!)
-      .map((r) => ({ booking: r, offset: r.strand.axis.session!, held: r.strand.axis.session! < 0, today: r.strand.axis.session === 0 })),
-    occasions: live.flatMap((r) => r.strand.axis.occasions.filter((o) => within30(o.offset)).map((o) => ({ booking: r, label: o.label, offset: o.offset }))),
-    reminders: live.flatMap((r) => r.strand.axis.reminders.filter(within30).map((offset) => ({ booking: r, offset }))),
-    perWeek: [-21, -14, -7, 0, 7, 14].map((from) => ({
-      from, ahead: from >= 0,
-      count: live.filter((r) => r.strand.axis.session !== null && r.strand.axis.session! >= from && r.strand.axis.session! < from + 7).length,
-    })),
+  const byDay = new Map<string, { bookingId: string; say: Say }[]>();
+  const add = (day: string, line: { bookingId: string; say: Say }) =>
+    (byDay.get(day) ?? byDay.set(day, []).get(day)!).push(line);
+
+  for (const r of live) {
+    if (r.day && within30(r.planes.axis.session ?? 999)) {
+      add(r.day, { bookingId: r.id, say: sayDatedSession(r, today) });
+    }
+    // A date-kind answer is the occasion the job is for - a different date from the session.
+    for (const f of r.facts) {
+      if (f.kind !== 'date' || !f.day) continue;
+      const offset = Math.round((new Date(`${f.day}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
+      if (!within30(offset)) continue;
+      if (r.day === f.day) continue; // the session line already says the day
+      add(f.day, { bookingId: r.id, say: sayDatedOccasion(r, f.label, f.day, today) });
+    }
+  }
+  const dated: Dated = {
+    days: [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, lines]) => ({ day, today: day === today, lines })),
+    ahead: live.filter((r) => r.day !== null && r.day >= today && within30(r.planes.axis.session ?? 999)).length,
+    undated: live.filter((r) => r.day === null).length,
   };
 
-  return { sheet, attention, roleTotals, calendar, today: todayRows, week: weekRows, later: laterRows, works, toClose, pipeline, recent };
+  // ---- What the book has sold: packages by the live jobs that carry them.
+  const pkgCount = new Map<string, number>();
+  for (const r of live) for (const name of new Set(r.packages)) pkgCount.set(name, (pkgCount.get(name) ?? 0) + 1);
+
+  /*
+   * And every question the studio asks, by how far it has been answered. Grouped
+   * by the label the booking itself uses, because that is the label the operator
+   * would recognise (an Occasion Date reads as the Anniversary Date once the
+   * booking says Anniversary - kernel/labelledByAnswer, carried on the row).
+   */
+  type Q = { label: string; kind: string; unit: string | null; jobs: Set<string>; numbers: number[]; dates: { bookingId: string; name: string; day: string }[]; only: string | null };
+  const qs = new Map<string, Q>();
+  for (const r of live) {
+    for (const a of r.answers) {
+      if (a.value === null || a.value === undefined || a.value === '') continue;
+      const q = qs.get(a.label) ?? { label: a.label, kind: a.kind, unit: a.unit, jobs: new Set<string>(), numbers: [], dates: [], only: null };
+      qs.set(a.label, q);
+      q.jobs.add(r.id);
+      if (a.kind === 'number' && Number.isFinite(Number(a.value))) q.numbers.push(Number(a.value));
+      if (a.kind === 'date' && typeof a.value === 'string') {
+        const day = a.value.slice(0, 10);
+        if (day >= today) q.dates.push({ bookingId: r.id, name: r.clientName ?? r.title, day });
+      }
+      const said = r.facts.find((f) => f.label === a.label)?.text ?? null;
+      q.only = q.jobs.size === 1 ? said : null;
+    }
+  }
+  const sold: Sold = {
+    packages: [...pkgCount.entries()].map(([name, jobs]) => ({ name, jobs })).sort((a, b) => b.jobs - a.jobs || a.name.localeCompare(b.name)),
+    questions: [...qs.values()].map((q) => ({
+      label: q.label,
+      kind: q.kind,
+      answered: q.jobs.size,
+      said: q.numbers.length > 0 ? sayTotal(q.numbers.reduce((n, x) => n + x, 0), q.unit) : q.only,
+      next: q.dates.sort((a, b) => a.day.localeCompare(b.day))[0] ?? null,
+    })).sort((a, b) => b.answered - a.answered || a.label.localeCompare(b.label)),
+  };
+
+  // ---- What the book is for: each dimension a live job carries, with its values and what it leaves open.
+  const dims = new Map<string, ForDimension>();
+  for (const r of live) {
+    for (const c of r.classification) {
+      const d = dims.get(c.dimensionId) ?? { id: c.dimensionId, name: c.dimensionName, values: [], open: 0 };
+      dims.set(c.dimensionId, d);
+      const v = d.values.find((x) => x.id === c.valueId);
+      if (v) v.jobs += 1; else d.values.push({ id: c.valueId, name: c.valueName, jobs: 1 });
+    }
+    for (const o of r.planes.forOpen) {
+      const d = dims.get(o.id) ?? { id: o.id, name: o.name, values: [], open: 0 };
+      dims.set(o.id, d);
+      d.open += 1;
+    }
+  }
+  const forDimensions = [...dims.values()]
+    .map((d) => ({ ...d, values: d.values.sort((a, b) => b.jobs - a.jobs || a.name.localeCompare(b.name)) }))
+    .sort((a, b) => b.values.length - a.values.length || a.name.localeCompare(b.name));
+
+  // ---- Whose move the decision is, and where the stage and the agreement disagree.
+  const decision: Decision = {
+    awaitingStudio: live.filter((r) => r.stage?.kind !== 'booked' && !r.hasContract && !r.proposalOut).length,
+    awaitingClient: live.filter((r) => r.proposalOut).length,
+    agreed: live.filter((r) => r.hasContract && !r.proposalOut).length,
+    bookedWithoutAgreement: live.filter((r) => r.stage?.kind === 'booked' && !r.hasContract).length,
+  };
+
+  return { sheet, attention, roleTotals, dated, sold, forDimensions, decision, today: todayRows, week: weekRows, later: laterRows, works, toClose, pipeline, recent };
 }

@@ -2144,7 +2144,6 @@ body::before {
 /* A form card that stays narrow but must not clip its own popovers. */
 .q-card-narrow-lg { width: 100%; max-width: 520px; overflow: visible; position: relative; }
 
-
 /* ---- Poster card: the picture IS the card --------------------------------- */
 /*
  * A package on the client-facing booking page. The studio has already chosen a
@@ -2766,236 +2765,19 @@ body::before {
 .q-hbar-share { color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; text-align: right; }
 .q-hbar-on { color: var(--q-color-ink-900); }
 .q-hbar-on .q-hbar-label { text-decoration: underline; text-decoration-color: var(--q-color-accent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
-@media (max-width: 40em) { .q-hbar { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-hbar-track { grid-column: 1 / -1; } }
-
-/*
- * THE DATA PAGE'S TOP: figures, a series, a breakdown - in one register.
- * A tiny uppercase mono label over a big display numeral, figures side by
- * side in one panel rather than four boxes, a hairline under them saying a
- * share, a foot line saying what is left. Dense and calm: the numbers do
- * the talking, the labels step back. Up takes the green, down the warm
- * colour; a balance owed is warm.
- */
-.q-figures-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px 24px;
-}
-.q-fig { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.q-fig-label {
-  font-family: var(--q-font-mono);
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--q-color-ink-500);
-  white-space: nowrap;
-}
-.q-fig-value {
-  font-size: clamp(1.4rem, 1.9vw, 1.8rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  color: var(--q-color-ink-900);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex: none;
-}
-.q-fig-warm { color: var(--q-color-warning); }
-/* The figure and its trend side by side: the number leads, the line answers. */
-.q-fig-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
-.q-spark { width: 88px; height: 32px; flex: 0 1 88px; min-width: 36px; overflow: visible; }
-.q-spark-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.q-spark-dot { stroke: var(--q-color-paper-elevated); stroke-width: 1.5; }
-.q-spark-up   { --q-spark: var(--q-hue-green); }
-.q-spark-down { --q-spark: var(--q-color-warning); }
-.q-spark-flat { --q-spark: var(--q-color-accent); }
-.q-spark-line, .q-spark-dot { stroke: var(--q-spark); }
-.q-spark-dot { fill: var(--q-spark); }
-.q-spark-stop-a { stop-color: var(--q-spark); stop-opacity: 0.28; }
-.q-spark-stop-b { stop-color: var(--q-spark); stop-opacity: 0; }
-.q-fig-delta {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--q-color-ink-500);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.q-fig-up   { color: var(--q-hue-green); }
-.q-fig-down { color: var(--q-color-warning); }
-.q-fig-flat { color: var(--q-color-ink-500); font-weight: 500; }
-.q-fig-arrow { font-weight: 700; }
-.q-fig-vs { font-weight: 500; color: var(--q-color-ink-400); }
-@media (max-width: 52em) { .q-figures-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-/*
- * THE DASHBOARD: widgets in the order the questions are asked. Two per
- * row - needs you beside up next, pipeline beside recently - then the
- * figures with the year. Each widget is a card with a mono title; its rows
- * are doors: the row opens the booking, the heading opens the day book on
- * that question.
- */
-.q-dash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
-.q-dash-wide { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-@media (max-width: 60em) { .q-dash, .q-dash-wide { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 40em) { .q-hbar { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-hbar-track { grid-column: 1 / -1; } }@media (max-width: 52em) { .q-figures-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }@media (max-width: 60em) { .q-dash, .q-dash-wide { grid-template-columns: minmax(0, 1fr); } }
 .q-widget { min-width: 0; container-type: inline-size; }
 .q-widget > .q-empty { margin: 0; font-size: 0.85rem; }
 /* A trace, not a call: quieter ground, smaller type. */
 .q-widget-quiet { background: var(--q-color-paper-subtle); }
-.q-widget-quiet .q-recent-row { font-size: 0.8rem; padding: 6px 0; }
-
-/* THE HEADLINE: the day, and the numbers that decide it, in one calm line. */
-.q-headline {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
-  margin: 0; font-size: 1.05rem; color: var(--q-color-ink-600); line-height: 1.4;
-}
-.q-headline-day { font-weight: 600; color: var(--q-color-ink-900); }
-.q-headline-sep { color: var(--q-color-ink-300); }
-.q-headline-part { color: inherit; text-decoration: none; transition: color var(--q-dur-2) var(--q-ease); }
-.q-headline-part:hover { color: var(--q-color-ink-900); }
-.q-headline-part > b { font-weight: 700; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
-.q-headline-warm > b { color: var(--q-color-warning); }
-.q-headline-door { color: var(--q-color-accent); }
-.q-recent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
-.q-recent-grid .q-recent-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 60em) { .q-recent-grid { grid-template-columns: minmax(0, 1fr); } }
-
-/* NEEDS YOU: a count, what it counts, one more thing; then the first few, as chips. */
-.q-att { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 28px; }
-.q-att-row { padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.q-att-row:last-child { border-bottom: 0; }
-/* Wide enough, the six absences sit in two columns - decision beside decision, client beside date, package beside crew. */
+.q-widget-quiet .q-recent-row { font-size: 0.8rem; padding: 6px 0; }@media (max-width: 60em) { .q-recent-grid { grid-template-columns: minmax(0, 1fr); } }/* Wide enough, the six absences sit in two columns - decision beside decision, client beside date, package beside crew. */
 @container (min-width: 30em) {
   .q-att { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .q-att-row:nth-last-child(-n+2) { border-bottom: 0; }
-}
-.q-att-row-quiet { opacity: 0.55; }
-.q-att-link { display: grid; grid-template-columns: 2.6ch minmax(0, 1fr) auto; gap: 10px; align-items: baseline; color: inherit; text-decoration: none; }
-a.q-att-link:hover .q-att-what { color: var(--q-color-ink-900); }
-.q-att-n { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--q-color-ink-400); line-height: 1; }
-.q-att-n-live { color: var(--q-color-warning); }
-.q-att-what { font-size: 0.9rem; color: var(--q-color-ink-700); min-width: 0; }
-.q-att-note { color: var(--q-color-ink-400); font-size: 0.8rem; }
-.q-att-go { color: var(--q-color-ink-400); transition: transform var(--q-dur-2) var(--q-spring), color var(--q-dur-2) var(--q-ease); }
-a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-accent); }
-.q-att-sample { display: flex; flex-wrap: wrap; gap: 6px; padding-left: calc(2.6ch + 10px); }
-.q-att-chip {
-  font-size: 0.75rem; padding: 3px 9px; border-radius: 999px;
-  background: var(--q-color-ink-100); color: var(--q-color-ink-700); text-decoration: none;
-  max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  transition: background var(--q-dur-2) var(--q-ease), color var(--q-dur-2) var(--q-ease);
-}
-.q-att-chip:hover { background: var(--q-color-accent-soft); color: var(--q-color-accent); }
-.q-att-more { font-size: 0.75rem; color: var(--q-color-ink-400); align-self: center; }
-
-/* UP NEXT: time-led rows, the stage pill at the end; today's are lifted. */
-.q-next { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.q-next-row {
-  display: grid; grid-template-columns: 4.2rem 30px minmax(0, 1fr) auto; gap: 12px; align-items: center;
-  padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); color: inherit; text-decoration: none;
-  transition: background var(--q-dur-2) var(--q-ease);
-}
-.q-next > li:last-child > .q-next-row { border-bottom: 0; }
-.q-next > li:first-child > .q-next-row { padding-top: 0; }
-.q-next-row:hover .q-next-title { color: var(--q-color-accent); }
-.q-next-when { display: flex; flex-direction: column; line-height: 1.1; }
-.q-next-when > b { font-family: var(--q-font-mono); font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
-.q-next-when > small { font-family: var(--q-font-mono); font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); margin-top: 3px; white-space: nowrap; }
-.q-next-today .q-next-when > small { color: var(--q-color-accent); }
-.q-next-frame {
-  width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--q-color-ink-100); color: var(--q-color-ink-600); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.02em;
-}
-.q-next-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.q-next-title { font-weight: 600; font-size: 0.9rem; color: var(--q-color-ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--q-dur-2) var(--q-ease); }
-.q-next-pos { font-size: 0.78rem; color: var(--q-color-ink-500); min-width: 0; }
-/* The booking's own facts: what the package asked and the booking answered, each a label and a value; dates lead; an unanswered one is warm. */
-.q-next-facts { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 3px; font-size: 0.75rem; color: var(--q-color-ink-600); }
-.q-fact { white-space: nowrap; }
+}.q-fact { white-space: nowrap; }
 .q-fact-label { color: var(--q-color-ink-400); }
 .q-fact-date { color: var(--q-color-ink-900); font-weight: 550; }
-.q-fact-unanswered, .q-fact-unanswered .q-fact-label { color: var(--q-color-warning); }
-
-/* PIPELINE: the studio's stages as rows under the bar: name, count, share, who is next. */
-.q-pipe { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }
-.q-pipe-row {
-  display: grid; grid-template-columns: minmax(6rem, auto) auto 3.2ch minmax(0, 1fr); gap: 12px; align-items: baseline;
-  padding: 9px 0; border-bottom: 1px solid var(--q-color-ink-100); font-size: 0.875rem;
-}
-.q-pipe-row:last-child { border-bottom: 0; }
-.q-pipe-name { display: inline-flex; align-items: center; gap: 8px; color: var(--q-color-ink-900); font-weight: 600; text-decoration: none; }
-.q-pipe-name:hover { color: var(--q-color-accent); }
-.q-pipe-n { font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
-.q-pipe-share { color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-.q-pipe-note { color: var(--q-color-ink-500); font-size: 0.8rem; min-width: 0; }
-@container (max-width: 40em) { .q-pipe-row { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-pipe-note { grid-column: 1 / -1; margin-top: -2px; } }
-.q-pipe-who { color: var(--q-color-ink-700); font-weight: 550; }
-.q-pipe-who:hover { color: var(--q-color-accent); }
-
-/* RECENTLY: who did what to which, and how long ago. */
-.q-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.q-recent-row { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--q-color-ink-100); font-size: 0.85rem; color: var(--q-color-ink-600); }
-.q-recent-row:last-child { border-bottom: 0; }
-.q-recent-row:first-child { padding-top: 0; }
-.q-recent-text { min-width: 0; flex: 1; }
-.q-recent-text > b { color: var(--q-color-ink-900); font-weight: 600; }
-.q-recent-what { color: var(--q-color-ink-900); font-weight: 550; }
-.q-recent-what:hover { color: var(--q-color-accent); }
-.q-recent-at { flex: none; font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }
-
-/* THIS PERIOD: the period control in the head, four figures, a year of one of them beneath. */
-.q-doing { display: flex; flex-direction: column; gap: 18px; }
-.q-doing-head { margin-bottom: 0; }
-.q-figures-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@container (min-width: 44em) { .q-figures-four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.q-doing-series { min-width: 0; }
-.q-fig-note { font-size: 0.75rem; color: var(--q-color-ink-400); }
-/* A second heading inside one widget - Today, then Upcoming. */
-.q-dash-head-again { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--q-color-ink-100); }
-.q-next-row-dim { opacity: 0.7; }
-.q-pipe-split { color: var(--q-color-ink-600); }
-.q-dash-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.q-dash-title {
-  font-family: var(--q-font-mono);
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--q-color-ink-500);
-}
-.q-dash-note { font-size: 0.8rem; color: var(--q-color-ink-500); font-variant-numeric: tabular-nums; }
-
-/* THE SERIES: one line with the area under it; dots that keep their size
-   when the drawing stretches; the months beneath in the mono label. */
-.q-series { position: relative; }
-.q-series-svg { display: block; width: 100%; height: 140px; }
-.q-series-grid { stroke: var(--q-color-ink-100); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
-.q-series-stop-a { stop-color: var(--q-color-accent); stop-opacity: 0.32; }
-.q-series-stop-b { stop-color: var(--q-color-accent); stop-opacity: 0; }
-.q-series-line { fill: none; stroke: var(--q-color-accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.q-series-points { position: absolute; inset: 0 0 auto 0; height: 140px; pointer-events: none; }
-.q-series-point {
-  position: absolute;
-  left: calc(var(--q-x) * 100%); top: calc(var(--q-y) * 100%);
-  width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
-  background: var(--q-color-paper-elevated); border: 2px solid var(--q-color-accent);
-  pointer-events: auto;
-}
-.q-series-labels { display: flex; justify-content: space-between; margin-top: 8px; padding: 0 2px; }
-.q-series-label {
-  font-family: var(--q-font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--q-color-ink-400);
-  font-variant-numeric: tabular-nums;
-}
-
+.q-fact-unanswered, .q-fact-unanswered .q-fact-label { color: var(--q-color-warning); }@container (max-width: 40em) { .q-pipe-row { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-pipe-note { grid-column: 1 / -1; margin-top: -2px; } }@container (min-width: 44em) { .q-figures-four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 /* THE TABLE VIEW of an analysis: sortable headers, group heading rows, cells in the sheet's register. */
 .q-table-analysis { font-size: 0.875rem; }
 .q-table-th-end, .q-table-td-end { text-align: end; }
@@ -3023,151 +2805,79 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 .q-table-container { overflow-x: auto; }
 
 /*
- * THE STRAND - one booking as one line (11-BOOKINGS_INFORMATION_ARCHITECTURE
- * §9.9). One grid for the key row, every strand and every column total, so
- * a glance down a column reads one fact across every job. Points are the
- * one vocabulary: filled = the edge exists / the step is done; a warm ring
- * = absent, or open and unassigned; an accent ring = current with someone
- * on it; a grey ring = ahead. The axis is ±30 days with now fixed at the
- * centre; a mark's place is a custom property, as FramePreview sizes itself.
+ * SAYING IT (12-BOOKINGS_READABILITY §1). Every statement is capped at a
+ * reading measure (~92ch): a sentence that runs the whole width of a desk
+ * monitor is not readable, whatever it says. The page has no key and no labels
+ * because nothing on it is a mark: every reading is a statement, and these
+ * classes only decide how a statement sits on the page. Two tones, and the
+ * page must read correctly with both removed (Law 5): `strong` is the part of
+ * a sentence the eye should land on first, `warm` is a part that needs the
+ * operator. There is no colour here that carries a fact on its own.
  */
-.q-strand {
-  display: grid;
-  /* Sized to the lane, not the design board: identity · intake · for · axis · steps (the rest) · end. */
-  grid-template-columns: minmax(0, 190px) 100px 96px 170px minmax(0, 1fr) 128px;
-  gap: 14px;
-  align-items: center;
-  padding: 12px 18px;
-  min-width: 0;
-}
-.q-lane, .q-cal-lane, .q-sheet { container-type: inline-size; }
-@container (min-width: 72em) {
-  .q-strand { grid-template-columns: minmax(0, 232px) 120px 112px 220px minmax(0, 1fr) 150px; gap: 18px; padding: 12px 22px; }
-  .q-strand-caption { padding-left: calc(22px + 232px + 18px); }
-  .q-cal-row { grid-template-columns: minmax(0, 232px) minmax(0, 1fr); gap: 18px; padding-left: 22px; padding-right: 22px; }
-}
-.q-strand-key {
-  padding: 10px 18px 8px;
-  border-bottom: 1px solid var(--q-color-ink-100);
-  font-family: var(--q-font-mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--q-color-ink-400);
-  align-items: end;
-}
-.q-strand-key .q-strand-intake { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; position: static; }
-.q-strand-key .q-strand-intake::before { display: none; }
-.q-strand-axis-key { display: flex; justify-content: space-between; }
-.q-strand-now-word { color: var(--q-color-accent); }
-.q-strand-row { border-bottom: 1px solid var(--q-color-ink-100); }
-.q-strand-row:last-child { border-bottom: 0; }
-.q-strand-today { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 60%); }
-.q-strand-closed { opacity: 0.5; }
-a.q-strand:hover .q-strand-title { color: var(--q-color-accent); }
+.q-read { display: flex; flex-direction: column; gap: 0; }
+.q-regions { display: flex; flex-direction: column; gap: 22px; }
 
-.q-strand-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.q-strand-face { width: 32px; height: 32px; border-radius: 9px; background: var(--q-color-ink-100); color: var(--q-color-ink-600); display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex: none; }
-.q-strand-title { font-size: 0.9rem; font-weight: 600; color: var(--q-color-ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--q-dur-2) var(--q-ease); }
+.q-said-strong { color: var(--q-color-ink-900); font-weight: 550; }
+.q-said-warm { color: var(--q-color-warning); }
 
-/* The points. */
-.q-pt { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; flex: none; position: relative; }
-.q-pt-full { background: var(--q-color-ink-600); }
-.q-pt-empty { border: 2px solid var(--q-color-warning); background: var(--q-color-paper-elevated); }
-.q-pt-half { border: 2px solid var(--q-color-ink-600); background: linear-gradient(90deg, var(--q-color-ink-600) 50%, var(--q-color-paper-elevated) 50%); }
-.q-pt-done { background: var(--q-hue-green); }
-.q-pt-current { border: 2px solid var(--q-color-accent); }
-.q-pt-open { border: 2px solid var(--q-color-warning); }
-.q-pt-ahead { border: 1.5px solid var(--q-color-ink-300); }
-.q-pt-close { margin-left: 10px; }
-.q-pt-close::before { content: ''; position: absolute; left: -12px; top: 50%; width: 8px; height: 1px; background: var(--q-color-ink-200); }
-.q-pt-close-done { background: var(--q-hue-green); }
-.q-pt-close-ready { border: 2px solid var(--q-color-warning); }
-.q-pt-close-ahead { border: 1.5px solid var(--q-color-ink-300); }
+/* A region: one kind of information, and the questions it answers. */
+.q-region { border: 1px solid var(--q-color-ink-100); border-radius: 16px; background: var(--q-color-paper-elevated); overflow: hidden; }
+.q-region-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 15px 24px 13px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-region-title { font-size: 0.98rem; font-weight: 650; letter-spacing: -0.01em; color: var(--q-color-ink-900); margin: 0; }
+.q-region-answers { font-size: 0.76rem; color: var(--q-color-ink-400); margin: 4px 0 0; }
+.q-region-empty { padding: 15px 24px; font-size: 0.86rem; color: var(--q-color-ink-500); margin: 0; }
+.q-region-note { padding: 13px 24px; font-size: 0.83rem; color: var(--q-color-ink-500); margin: 0; border-top: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
+.q-region-more { display: block; padding: 13px 24px; font-size: 0.83rem; color: var(--q-color-ink-500); }
+.q-region-more:hover { color: var(--q-color-accent); }
 
-.q-strand-intake { display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; position: relative; }
-.q-strand-intake::before { content: ''; position: absolute; left: 14px; right: 14px; top: 50%; height: 1px; background: var(--q-color-ink-200); }
+/* One job, one statement. */
+.q-job { display: flex; align-items: baseline; gap: 18px; padding: 13px 24px; border-bottom: 1px solid var(--q-color-ink-100); color: inherit; text-decoration: none; transition: background var(--q-dur-2) var(--q-ease); }
+.q-job:last-child { border-bottom: 0; }
+.q-job:hover { background: var(--q-color-paper-subtle); }
+.q-job-now { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 55%); }
+.q-job-body { flex: 1; min-width: 0; }
+.q-job-name { display: block; font-size: 0.9rem; font-weight: 600; color: var(--q-color-ink-900); }
+.q-job:hover .q-job-name { color: var(--q-color-accent); }
+.q-job-said { display: block; font-size: 0.84rem; color: var(--q-color-ink-600); margin-top: 3px; line-height: 1.55; max-width: 92ch; }
+.q-job-tail { flex: none; display: flex; align-items: center; gap: 10px; }
+.q-job-figure { font-family: var(--q-font-mono); font-size: 0.74rem; color: var(--q-color-ink-500); white-space: nowrap; }
+.q-job-stage { font-family: var(--q-font-mono); font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--q-color-ink-500); white-space: nowrap; }
 
-.q-strand-for { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
-.q-for { font-size: 0.66rem; padding: 2px 7px; border-radius: 6px; background: var(--q-color-ink-100); color: var(--q-color-ink-700); white-space: nowrap; }
-.q-for-open { background: none; border: 1px solid var(--q-color-warning); color: var(--q-color-warning); }
-.q-for-none { color: var(--q-color-ink-300); font-size: 0.7rem; }
+/* A region's own totals: each a whole sentence, and each a door. */
+.q-totals-said { padding: 13px 24px; border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
+.q-total-said { display: block; font-size: 0.86rem; color: var(--q-color-ink-600); padding: 4px 0; margin: 0; line-height: 1.5; text-decoration: none; max-width: 92ch; }
+a.q-total-said:hover { color: var(--q-color-accent); }
+a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 
-/* The axis: its own dated facts, now fixed at the centre. */
-.q-strand-axis { position: relative; height: 24px; display: block; }
-.q-strand-axis::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--q-color-ink-200); }
-.q-strand-axis-undated::before { height: 0; border-top: 1px dashed var(--q-color-warning); opacity: 0.6; }
-.q-strand-now { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--q-color-accent); opacity: 0.6; }
-.q-strand-today .q-strand-now { opacity: 1; }
-.q-mark { position: absolute; left: calc(var(--q-x, 50) * 1%); top: 50%; }
-.q-mark-session { width: 12px; height: 12px; background: var(--q-color-ink-900); border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); }
-.q-mark-session-today { background: var(--q-color-accent); width: 13px; height: 13px; box-shadow: 0 0 0 4px var(--q-color-accent-soft); }
-.q-mark-pinned { opacity: 0.55; }
-.q-mark-occasion { width: 10px; height: 10px; border: 1.5px solid var(--q-color-ink-500); box-sizing: border-box; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); }
-.q-mark-reminder { top: 2px; bottom: 2px; width: 2px; background: var(--q-color-ink-500); transform: translateX(-50%); }
-.q-mark-past { background: var(--q-color-warning); }
-.q-mark-label { position: absolute; left: calc(var(--q-x, 50) * 1%); top: -11px; transform: translateX(-50%); font-family: var(--q-font-mono); font-size: 0.56rem; color: var(--q-color-ink-500); white-space: nowrap; }
-.q-strand-today .q-mark-label { color: var(--q-color-accent); }
+/* Statements that are not about one job: packages, questions, stages, figures, events. */
+.q-lines { padding: 6px 24px 10px; }
+.q-lines-under { border-top: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
+.q-line { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 0; padding: 6px 0; line-height: 1.55; max-width: 92ch; }
 
-/* The steps: a bracket per package, a run per service. */
-.q-strand-steps { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-.q-run-bracket { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px; border: 1px solid var(--q-color-ink-100); border-radius: 8px; flex: none; }
-.q-run { display: inline-flex; align-items: center; gap: 5px; }
-.q-strand-nosteps { font-size: 0.75rem; color: var(--q-color-ink-400); }
+/* When everything is: a day, and what happens on it. */
+.q-day { display: grid; grid-template-columns: minmax(0, 215px) minmax(0, 1fr); gap: 20px; align-items: baseline; padding: 11px 24px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-day:last-of-type { border-bottom: 0; }
+.q-day-now { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 55%); }
+.q-day-when { font-size: 0.82rem; color: var(--q-color-ink-500); }
+.q-day-now .q-day-when { color: var(--q-color-accent); font-weight: 550; }
+.q-day-lines { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.q-day-line { font-size: 0.86rem; color: var(--q-color-ink-600); text-decoration: none; line-height: 1.5; max-width: 88ch; }
+.q-day-line:hover { color: var(--q-color-accent); }
 
-.q-strand-end { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
-.q-strand-fig { font-family: var(--q-font-mono); font-size: 0.75rem; color: var(--q-color-ink-500); white-space: nowrap; }
-.q-strand-fig-warm { color: var(--q-color-warning); }
-.q-strand-fig-today { color: var(--q-color-accent); }
+/* What the book is for: one dimension, its values counted. */
+.q-dim { padding: 13px 24px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-dim:last-child { border-bottom: 0; }
+.q-dim-name { font-size: 0.76rem; color: var(--q-color-ink-400); }
+.q-dim-said { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 6px 0 0; line-height: 1.6; max-width: 92ch; }
 
-/* The caption under a strand: the current points, in words. */
-.q-strand-caption { padding: 0 18px 12px calc(18px + 190px + 14px); font-size: 0.78rem; color: var(--q-color-ink-500); }
-.q-strand-cap-key { color: var(--q-color-ink-400); }
-.q-strand-cap-sep { color: var(--q-color-ink-300); }
+/* The one sentence the page is a reading of. */
+.q-headline-said { font-size: 0.98rem; color: var(--q-color-ink-600); line-height: 1.7; margin: 0 0 22px; max-width: 94ch; }
+.q-headline-door { color: var(--q-color-accent); white-space: nowrap; }
 
-/* A lane: strands under one question. */
-.q-lane { border: 1px solid var(--q-color-ink-100); border-radius: 16px; background: var(--q-color-paper-elevated); overflow: hidden; }
-.q-lane-head { display: flex; align-items: baseline; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--q-color-ink-100); }
-.q-lane-head-today { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 50%); }
-.q-lane-title { font-family: var(--q-font-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--q-color-ink-500); }
-.q-lane-head-today .q-lane-title { color: var(--q-color-accent); }
-.q-lane-note { font-size: 0.78rem; color: var(--q-color-ink-500); }
-.q-lane-more { display: block; padding: 12px 22px; font-size: 0.82rem; color: var(--q-color-ink-500); }
-.q-lane-more:hover { color: var(--q-color-accent); }
-.q-lane-empty { padding: 14px 22px; font-size: 0.85rem; color: var(--q-color-ink-500); }
-
-/* The totals over the columns they count. */
-.q-totals { background: var(--q-color-paper-subtle); border-bottom: 1px solid var(--q-color-ink-100); align-items: end; padding-top: 12px; padding-bottom: 8px; }
-.q-totals-word { font-size: 0.75rem; color: var(--q-color-ink-400); }
-.q-total { display: flex; flex-direction: column; gap: 2px; align-items: center; text-decoration: none; color: inherit; }
-.q-total b { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }
-.q-total-live b { color: var(--q-color-warning); }
-.q-total small { font-family: var(--q-font-mono); font-size: 0.56rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); white-space: nowrap; }
-.q-total-start { align-items: flex-start; }
-.q-total-end { align-items: flex-end; }
-.q-totals-roles { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
-.q-totals .q-total b { font-size: 1.1rem; }
-.q-totals .q-total small { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
-
-/* One calendar: every strand's dated facts on the studio's one axis. */
-.q-cal-row { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--q-color-ink-100); }
-.q-cal-row:first-of-type { border-top: 0; }
-.q-cal-name { font-size: 0.78rem; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-cal-axis { position: relative; height: 26px; display: block; }
-.q-cal-axis::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--q-color-ink-200); }
-.q-cal-tick { position: absolute; left: calc(var(--q-x, 0) * 1%); top: 0; bottom: 0; width: 1px; background: var(--q-color-ink-100); }
-.q-cal-now { position: absolute; left: 50%; top: -6px; bottom: -6px; width: 1px; background: var(--q-color-accent); opacity: 0.5; }
-.q-cal-head { padding: 12px 22px 6px; font-family: var(--q-font-mono); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); align-items: end; }
-.q-cal-head-axis { display: flex; justify-content: space-between; }
-.q-mark-held { width: 11px; height: 11px; background: var(--q-color-ink-500); border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); }
-.q-cal-bars { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; align-items: end; height: 28px; }
-.q-cal-bar { background: var(--q-color-ink-300); border-radius: 2px 2px 0 0; height: calc(var(--q-share, 0) * 1%); }
-.q-cal-bar-ahead { background: var(--q-color-accent); }
-
-@media (max-width: 56em) {
-  /* Narrow: the strand keeps its columns and the lane scrolls sideways rather than crushing the points. */
-  .q-lane, .q-cal-lane, .q-sheet { overflow-x: auto; }
-  .q-strand, .q-strand-key, .q-cal-row { min-width: 820px; }
+@media (max-width: 40em) {
+  .q-day { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .q-job { flex-direction: column; gap: 8px; }
+  .q-job-tail { align-self: flex-start; }
 }
 
 /* A group heading's share of what is shown: a short bar and the figure. */
@@ -4858,7 +4568,6 @@ a.q-strand:hover .q-strand-title { color: var(--q-color-accent); }
   .q-rail > * { flex: 0 0 min(17rem, 82vw); }
 }
 
-
 /* ==========================================================================
    SCROLLBARS
 
@@ -4892,7 +4601,6 @@ a.q-strand:hover .q-strand-title { color: var(--q-color-accent); }
 }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--q-color-ink-300); }
 ::-webkit-scrollbar-thumb:active { background-color: var(--q-color-ink-400); }
-
 
 /* ==========================================================================
    THE RAIL'S EDGES
