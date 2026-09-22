@@ -23,6 +23,12 @@ Two things that page got wrong, both reported by the operator:
 2. **A display does not say what it is reading.** A column of dots does not
    announce that the third one is the date edge. The reader must infer the
    source from position. Inference is not reading.
+3. **And labelling it is not the fix.** The first draft of this document
+   answered failure 2 with `label value` pairs — `Session · Sat 26 Sept`. That
+   is the same defect one step along: a label is a patch over a value that does
+   not say what it is. The requirement is stronger — *make labelling
+   unnecessary*. A reading must announce itself from inside, leaving a label
+   nothing to do.
 
 Neither failure is a styling matter and neither is fixed by spacing. They come
 from a missing step: doc 11 never asked, of each item of information, **what
@@ -45,11 +51,42 @@ Nothing on the page may require a key row, a colour key, or a hover to be
 understood. (Hover may *add* — a full timestamp, a longer name — never
 *decode*.)
 
-**Law 2 — A display names what it reads.** The label travels with the value:
-`Session · Sat 26 Sept`, `Package · Standard Wedding`, `Steps · 2 of 5`. A
-number with no noun attached is not information. Column headers satisfy this
-only when the column is wide enough to keep its header in view and the value
-under it is itself a word or a number — never when the value is a glyph.
+**Law 2 — A reading is a statement, not a field.** Every value appears in a
+form that announces what it is from inside — a verb, a unit, a proper noun, or
+the studio's own word — so that no label, header or key is needed to know what
+you are looking at. Not `Session · Sat 26 Sept` but *shoots Saturday 26
+September, in 4 days*. Not `Steps · 2 of 5` but *editing next, nobody on it · 2
+of 5 steps done*. Not `Package · —` but *no package yet*. If a value cannot be
+made self-announcing, it is the wrong value to show.
+
+Corollaries, each of which removes something the earlier drafts had:
+
+- **No `label value` pairs**, anywhere, including captions.
+- **No column header may be required** to understand the cells beneath it. A
+  header may repeat what the cells already say; it may never carry meaning the
+  cells lack.
+- **No bare numeral.** A number appears with the unit or the noun it counts —
+  *23 outfits*, *15 jobs*, *2 of 5 steps* — because the unit is what makes the
+  numeral self-announcing.
+- **A date is said, and placed.** Its own words plus its distance from now
+  (*Saturday 26 September, in 4 days*), because a date alone cannot say which
+  of a booking's several dates it is; the verb does that.
+- **The verb carries the plane.** *shoots* · *shot* · *waiting since* ·
+  *proposed* · *unanswered on* · *nobody on*. The verb is how a fragment
+  announces which plane it comes from, and it is the app's own word, not the
+  studio's.
+- **The app supplies only connective words.** Studio vocabulary — stage names,
+  role names, dimension values, question labels, package names — is composed in
+  **verbatim**, never inflected, pluralised or parsed to fit a sentence. *Birthday
+  2* is a statement (the value is the word, the numeral counts it); *2
+  birthdays* would be the app rewriting the studio's vocabulary, which is
+  forbidden (see `no-single-case-hardcoding`).
+
+**Where alignment is wanted instead.** Statements read without headers but do
+not align, and comparing one fact across many rows wants a column. That is the
+rows level's job: there the operator has *chosen* the cut, so the column's
+subject is given by their own act and the header is a restatement rather than a
+decoder. The summary speaks in statements; the chosen cut may tabulate.
 
 **Law 3 — Words for what a thing is; numerals for how many.** A category is
 its own word, in whoever's vocabulary owns it (§4). A quantity is a numeral
@@ -66,8 +103,9 @@ needs the operator, but the thing must already say so in words. Remove all
 colour and the page must still read correctly. (This also makes the page
 correct for a reader who cannot distinguish them.)
 
-**Law 6 — Absence is stated, not omitted.** An empty edge is a phrase — *No
-package* — not a blank cell, and not an unfilled shape.
+**Law 6 — Absence is stated, not omitted.** An empty edge is a clause that
+says what is absent — *no package yet*, *nobody on the shoot*, *no session
+date* — not a blank cell, not a dash, and not an unfilled shape.
 
 ---
 
@@ -113,17 +151,17 @@ period figures are counts over items 4, 18 and 5.
 A section is one kind of information read across every job. That reading has a
 form, and the form is a property of the shape — not a choice:
 
-| Shape | Within one job | **Across the book** | Readable as |
+| Shape | Within one job | **Across the book** | Said so that no label is needed |
 |---|---|---|---|
-| a name (1, 2, 14, 16) | the name | a **list**, ordered by something else | the text; names do not aggregate — they identify |
-| a category (6, 7, 11, 15) | the word | a **distribution**: count per value + the residual *not set* | the word · its count; shares as bar lengths that carry their numbers |
-| a named typed value (9) | `label value` | per label: a **count answered / unanswered**; per `kind: number` a **total with its unit**; per `kind: date` it joins the time axis | `Number of outfits · 23 outfits across 14 jobs` |
-| a named absence (10, 12) | the phrase | a **count per question / per dimension** | `Occasion Date · unanswered on 6 jobs` |
-| a point in time (4, 5, 17, and 9 where `kind = date`) | a date, and its distance from today | a **projection onto one labelled axis**, plus counts per bucket | the axis with dates on it; `N this week` |
-| a span (5 with duration) | start–end | **collision** and **load** on the axis | `11:52–13:52`; two spans overlapping on the same day |
-| an ordered sequence with state (13) | the **current element**, named, and `n of m` | count of open elements, grouped by what they need (15) | `Edit · Unassigned` · `2 of 5 done` · `3 steps need an Editor` |
-| a presence-reading (missing) | the phrase | a **count per absence** | `No date · 15 jobs` |
-| a trace (18) | — | **newest first**, who · what · which | a sentence per event |
+| a name (1, 2, 14, 16) | the name | a **list**, ordered by something else | the text itself — a person's name announces that it is a person's name; names identify, they do not aggregate |
+| a category (6, 7, 11, 15) | the word | a **distribution**: count per value + the residual *not set* | the studio's word with its count — *Birthday 2* · *Outdoor 1* · *not classified 6*; a bar only beside the numbers it divides |
+| a named typed value (9) | the question's own label is the noun, so the answer is said with it, verbatim | per question: how many jobs answered it, how many have not; a `number` totals with its unit; a `date` joins the axis | *Number of outfits — 23 outfits over 14 jobs* · *Drone coverage — No on 3 jobs* |
+| a named absence (10, 12) | the clause | a **count per question / per dimension** | *Occasion Date unanswered on 6 jobs* |
+| a point in time (4, 5, 17, 9 where `kind = date`) | the date in words, and its distance from now, said by a verb | a **projection onto one dated axis**, plus counts per bucket | *shoots Saturday 26 September, in 4 days* · *shot 16 days ago* · *entered the book 43 days ago* |
+| a span (5 with duration) | start–end | **collision** and **load** on the axis | *11:52–13:52* · two spans overlapping one day on the axis |
+| an ordered sequence with state (13) | the **current element, named**, plus how far along | open elements counted by what they need (15) | *editing next, nobody on it · 2 of 5 steps done* · *3 open steps need an Editor* |
+| a presence-reading (missing) | the clause | a **count per absence** | *15 jobs have no session date* |
+| a trace (18) | — | **newest first** | *Sopulu added a team member to Okolo Daniel's booking, 18 hours ago* |
 
 Two consequences worth stating, because both were violated:
 
@@ -181,22 +219,27 @@ with the work. One plane, two readings, no third region.
 
 So the regions, derived:
 
-1. **What each job still needs** — the presence-reading, in phrases, warm-first,
-   with a count per absence. *Act.*
-2. **The promise** — packages on the book, and every open question by its own
-   label with the count of jobs it is unanswered on. *Act.* (New: doc 11 had the
-   unanswered fact only as a line under a session row; cross-sectionally it is
-   a studio-wide list of what nobody has asked yet.)
-3. **What the book is for** — a distribution per dimension, with its open count.
-   *Understand.*
-4. **The calendar** — the one place geometry survives Law 4: dated axis,
-   sessions with their spans, occasions, reminders; counts per week. *Understand.*
-5. **The work** — per job and service, the current step named and `n of m`, plus
-   what the studio is short of, by role. *Act and understand.*
-6. **Position** — stage and decision, as two distributions, each value its own
-   word with its count. *Understand.*
+1. **What each job still needs** — one clause per job saying what is absent,
+   the jobs that need the operator first, and a count per absence. *Act.*
+   *Ijeoma Adubor — no package yet, waiting 29 days.*
+2. **The promise** — what the book has sold, and every question nobody has
+   answered, said by the studio's own label with the count of jobs it is open
+   on. *Act.* (New: doc 11 carried an unanswered question only as a line under
+   one session; across the book it is a studio-wide list of what has not been
+   asked.)
+3. **What the book is for** — per dimension, its values with their counts and
+   the jobs not yet classified on it. *Understand.*
+4. **The calendar** — the one place geometry survives Law 4, because a dated
+   axis announces itself: sessions with their spans, the occasions they are
+   for, the reminders set on them. *Understand.*
+5. **The work** — per job and service, the step that is next and who is on it,
+   how far along it is, and what the studio is short of by role. *Act and
+   understand.* *Ngozi Emmanuella Madu — shot 16 days ago, editing next on
+   Event Photography and Event Videography, nobody on either.*
+6. **Position** — the stage each job was moved to, and whose move the decision
+   is, each as its own word with its count. *Understand.*
 7. **This period, and what changed** — counts over a window against the window
-   before; then the trace. *Judge.*
+   before, then the trace, each event a sentence. *Judge.*
 
 The spine (identity) repeats in every region, same width, same place — so
 scanning down assembles one job entire without any row carrying every plane.
@@ -213,6 +256,12 @@ scanning down assembles one job entire without any row carrying every plane.
 - **Point vocabularies** — filled / warm ring / accent ring / grey ring; solid
   versus hollow diamonds; reminder ticks. Each becomes the phrase it stood for.
 - **Bars without numbers**, **colour-only states**, and any count without a noun.
+- **`label value` pairs and meaning-bearing column headers** — the patch this
+  document's own first draft reached for. A value that needs a label is the
+  wrong expression of that value.
+- **Bare dates and bare numerals**: a date without the verb that says which
+  date it is, a quantity without its unit.
+- **Any sentence that inflects the studio's vocabulary** to read more smoothly.
 - **A row of dots for a workflow.** A sequence's readable form is its current
   element named plus `n of m`; the whole sequence belongs on the booking, where
   each step has room for its own name.
