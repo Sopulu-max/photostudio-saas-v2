@@ -34,7 +34,10 @@ import {
 } from '@/modules/bookings/domain';
 import { toggleTaskDone, getBookingTasks } from '@/modules/production/domain';
 import { readBookingsDashboard } from '@/modules/bookings/dashboard';
-import { sayNeeds, saySession, sayWork, sayPositions, sayProgress, sayAbsence, sayDay, flat } from '@/modules/bookings/say';
+import {
+  sayNeeds, saySession, sayWork, sayPositions, sayProgress, sayAbsence, sayDay, flat,
+  cardName, cardWhat, cardWhen, cardNeeds,
+} from '@/modules/bookings/say';
 import { PURGE_ORDER } from './purge';
 import { seedStudio, seedRow } from './seed';
 
@@ -281,6 +284,57 @@ describe('The bookings page says something, and keeps saying it', () => {
     expect(dash.sheet.figures.find((f) => f.key === 'new')!.value).toBe(5);
     expect(dash.recent.length).toBeGreaterThan(0);
     expect(dash.recent[0].phrase).toBeTruthy();
+  });
+
+  it('gives every card the same four lines, so a column of them scans as a set', async () => {
+    const dash = await readBookingsDashboard(30);
+    const rows = dash.sheet.bands.flatMap((b) => b.rows).filter((r) => r.band !== 'closed');
+    const today = dash.sheet.today;
+
+    /*
+     * THE BOARD's card is a fixed shape (components/Board): who it is for, what
+     * it is, when it is, and the ONE thing it most needs. Every line is the
+     * same kind of fact on every card, and "when" is never blank - a job with
+     * no date says so, because that is the fact.
+     */
+    for (const r of rows) {
+      expect(cardName(r), `${r.title} has no name on its card`).toBeTruthy();
+      const when = cardWhen(r, today);
+      expect(when).toBeTruthy();
+      expect(when).not.toMatch(/undefined|NaN|Invalid/);
+      if (!r.day) expect(when).toBe('no date yet');
+      const what = cardWhat(r);
+      if (r.packages.length > 0) expect(what).toBe(r.packages.join(' · '));
+    }
+
+    // The job with nothing on it leads with the absence a studio resolves first.
+    const bare = rows.find((r) => r.id === bareId)!;
+    expect(cardNeeds(bare)).toBe('no client');
+    expect(cardWhen(bare, today)).toBe('no date yet');
+
+    // Today's session says the time, not the date.
+    const now = rows.find((r) => r.id === todayId)!;
+    expect(cardWhen(now, today)).toMatch(/^today at \d{2}:\d{2}$/);
+
+    /*
+     * A job with a proposal out AND a step nobody is on leads with the step:
+     * the step is the studio's own gap, while the proposal is the client's
+     * move. The card shows one absence, so which one it shows is a ruling -
+     * the same order the page sorts by (RESOLVE), crew before decision-client.
+     */
+    const proposed = rows.find((r) => r.id === proposedId)!;
+    expect(cardNeeds(proposed)).toBe('2 steps with nobody on them');
+
+    // And every card sits in a column of every axis the board can be read by.
+    for (const key of ['when', 'stage', 'needs', 'missing']) {
+      const axis = dash.sheet.lenses.find((g) => g.key === key)!;
+      expect(axis, `the board cannot be grouped by ${key}`).toBeTruthy();
+      for (const r of rows) {
+        const takes = r.takes[key] ?? [];
+        // Either it takes a value on the axis, or the axis names the rows that take none.
+        expect(takes.length > 0 || Boolean(axis.none), `${r.title} falls out of the ${key} board`).toBe(true);
+      }
+    }
   });
 
   /* ─────────── the readability laws, pinned ─────────── */

@@ -5,10 +5,12 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
   readBookingsDashboard, PERIODS,
   sayNeeds, sayWait, saySession, sayWork, sayProgress, sayDay, sayAge, plural,
+  cardName, cardWhat, cardWhen, cardNeeds,
   type Period, type Say, type SheetBooking, type NextRow,
 } from '@/modules/bookings/interface';
 import { sayAbsence, is, verb, them, a as article } from '@/modules/bookings/say';
 import { Days, Share, Progress, Counts, Trend } from '@/components/Readings';
+import { Board, type BoardCard } from '@/components/Board';
 import { BookingsDayBook } from './BookingsDayBook';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,14 @@ export const dynamic = 'force-dynamic';
  * the book has sold and what nobody answered · what it is for · where the
  * studio says everything is · how the book moved and what changed.
  *
+ * WHERE EVERYTHING SITS opens the page, because "where is everything" is read
+ * spatially or not at all: a column per value of an axis, a card per job, so
+ * the column's height is how much of the book sits there and an empty column
+ * is a value nothing is at (components/Board). The AXIS IS CHOSEN - stage,
+ * when, what a job needs, what is missing, or any dimension the studio
+ * defined - because across bookings no grouping is the hierarchy (doc 11 §4);
+ * ?board=<axis> carries the choice.
+ *
  * WHAT IS STILL DRAWN, and why (Law 4, components/Readings): the four
  * readings whose GEOMETRY IS THE FACT - days on a dated axis (a collision, a
  * quiet week), length as a share of the whole (which way the book leans),
@@ -44,7 +54,7 @@ export const dynamic = 'force-dynamic';
  */
 
 type Query = Record<string, string | string[] | undefined>;
-const OWN = new Set(['period']);
+const OWN = new Set(['period', 'board']);
 
 function withParams(q: Query, patch: Record<string, string | null>) {
   const p = new URLSearchParams();
@@ -204,6 +214,28 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   const waitingOnClient = attention.find((x) => x.key === 'decision-client')?.count ?? 0;
   if (waitingOnClient > 0) headline.push({ t: `and ${waitingOnClient} ${is(waitingOnClient)} waiting on a client to agree a proposal.`, tone: 'warm' });
 
+  /*
+   * THE BOARD'S AXIS: the operator's, from the same axes the instrument groups
+   * by. Stage is only the default because it is the one the studio declares by
+   * hand; nothing in the page privileges it beyond that.
+   */
+  const boardKey = typeof q.board === 'string' && q.board ? q.board : 'stage';
+  const boardAxis = sheet.lenses.find((g) => g.key === boardKey) ?? sheet.lenses.find((g) => g.key === 'stage') ?? sheet.lenses[0] ?? null;
+  const boardAxes = sheet.lenses
+    .filter((g) => g.items.length > 1 || g.none)
+    .map((g) => ({ key: g.key, label: g.label, href: withParams(q, { board: g.key === 'stage' ? null : g.key }), on: g.key === boardAxis?.key }));
+  const boardCards: BoardCard[] = live.map((r) => ({
+    id: r.id,
+    takes: r.takes,
+    name: cardName(r),
+    what: cardWhat(r),
+    when: cardWhen(r, sheet.today),
+    behind: r.day !== null && r.day < sheet.today,
+    now: r.day === sheet.today,
+    needs: cardNeeds(r),
+    work: r.work && r.work.total > 0 ? { done: r.work.done, total: r.work.total } : null,
+  }));
+
   const periodControl = (
     <div className="q-seg q-seg-sm">
       {PERIODS.map((p) => (
@@ -228,6 +260,21 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
       </header>
 
       <p className="q-headline-said"><Said say={headline} /> <Link href="/bookings?all=1" className="q-headline-door">All {live.length} →</Link></p>
+
+      {boardAxis && (
+        <Region
+          title="Where everything sits"
+          answers={`every live job, grouped by ${boardAxis.label.toLowerCase()} — the column's height is how much of the book is there`}
+        >
+          <Board
+            axis={boardAxis}
+            cards={boardCards}
+            axes={boardAxes}
+            hrefFor={(c) => `/bookings/${c.id}`}
+            cutFor={(itemKey) => into({ [boardAxis.key]: itemKey })}
+          />
+        </Region>
+      )}
 
       <div className="q-regions">
         {/* 1 ─ what is happening today, and what is about to happen that is not ready */}

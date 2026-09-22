@@ -2855,6 +2855,72 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-line { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 0; padding: 6px 0; line-height: 1.55; max-width: 92ch; }
 
 /*
+ * THE BOARD (components/Board) - the page's one spatial reading. A column per
+ * value of the chosen axis, a card per job: the column's height is how much of
+ * the book sits there, a card's place is its membership, an empty column is a
+ * value nothing is at. The columns scroll sideways rather than shrink, because
+ * a crushed column stops being a quantity you can compare.
+ */
+.q-board { padding: 4px 0 6px; }
+
+/* Which axis the columns are: the operator's choice, not the app's. */
+.q-board-by { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 12px 24px 14px; }
+.q-board-by-word { font-family: var(--q-font-mono); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--q-color-ink-400); margin-right: 2px; }
+.q-board-by-axis { font-size: 0.8rem; color: var(--q-color-ink-500); padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; transition: color var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease), border-color var(--q-dur-2) var(--q-ease); }
+.q-board-by-axis:hover { color: var(--q-color-ink-900); background: var(--q-color-paper-subtle); }
+.q-board-by-on { color: var(--q-color-accent); border-color: var(--q-color-accent); background: var(--q-color-accent-soft); }
+
+.q-board-cols { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding: 0 24px 16px; scroll-snap-type: x proximity; }
+.q-board-col { flex: 0 0 236px; min-width: 0; scroll-snap-align: start; }
+.q-board-col-now .q-board-word { color: var(--q-color-accent); }
+
+.q-board-head { display: block; padding: 0 0 10px; text-decoration: none; }
+.q-board-head-top { display: flex; align-items: baseline; gap: 7px; }
+.q-board-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; }
+.q-board-word { font-size: 0.82rem; font-weight: 600; color: var(--q-color-ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-board-n { font-family: var(--q-font-mono); font-size: 0.82rem; color: var(--q-color-ink-500); margin-left: auto; }
+a.q-board-head:hover .q-board-word { color: var(--q-color-accent); }
+/* The column's share of the book, so the reading survives a column being scrolled away. */
+.q-board-weight { display: block; height: 3px; border-radius: 999px; background: var(--q-color-ink-100); margin-top: 7px; overflow: hidden; }
+.q-board-weight > i { display: block; height: 100%; width: calc(var(--q-share, 0) * 1%); background: var(--q-color-ink-400); border-radius: 999px; }
+.q-board-col-now .q-board-weight > i { background: var(--q-color-accent); }
+.q-board-note { display: block; font-size: 0.7rem; color: var(--q-color-ink-400); margin-top: 6px; }
+
+.q-board-stack { display: flex; flex-direction: column; gap: 8px; }
+
+/* A card: the same four lines on every job, so a column of them scans as a set. */
+.q-card {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 11px 13px;
+  border: 1px solid var(--q-color-ink-100);
+  border-radius: 12px;
+  background: var(--q-color-paper-elevated);
+  text-decoration: none;
+  transition: transform var(--q-dur-2) var(--q-spring), border-color var(--q-dur-2) var(--q-ease), box-shadow var(--q-dur-2) var(--q-ease);
+}
+.q-card:hover { transform: translateY(-2px); border-color: var(--q-color-ink-200); box-shadow: var(--q-shadow-md); }
+.q-card:active { transform: translateY(0); }
+.q-card-now { border-color: var(--q-color-accent); background: linear-gradient(160deg, var(--q-color-accent-soft), var(--q-color-paper-elevated) 70%); }
+.q-card-name { font-size: 0.84rem; font-weight: 600; color: var(--q-color-ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-card-what { font-size: 0.72rem; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-card-when { font-family: var(--q-font-mono); font-size: 0.66rem; letter-spacing: 0.02em; color: var(--q-color-ink-600); margin-top: 3px; }
+.q-card-behind { color: var(--q-color-ink-400); }
+.q-card-now .q-card-when { color: var(--q-color-accent); }
+.q-card-needs-said { font-size: 0.7rem; color: var(--q-color-warning); }
+.q-card-work { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.q-card-work-track { flex: 1; height: 3px; border-radius: 999px; background: var(--q-color-ink-100); overflow: hidden; }
+.q-card-work-fill { display: block; height: 100%; width: calc(var(--q-share, 0) * 1%); background: var(--q-color-ink-400); border-radius: 999px; }
+.q-card-work-done { background: var(--q-hue-green); }
+.q-card-work-said { font-family: var(--q-font-mono); font-size: 0.6rem; color: var(--q-color-ink-400); white-space: nowrap; }
+
+.q-board-more { font-size: 0.74rem; color: var(--q-color-ink-500); padding: 6px 2px; }
+.q-board-more:hover { color: var(--q-color-accent); }
+
+@media (max-width: 52em) {
+  .q-board-col { flex: 0 0 202px; }
+}
+
+/*
  * THE READINGS (components/Readings) - the four drawings this page keeps,
  * because in each of them the geometry IS the fact: days on a dated axis,
  * length as a share of a whole, length as progress, slope as direction.

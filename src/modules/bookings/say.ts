@@ -233,6 +233,42 @@ export function sayAbsence(key: string, n: number): Say {
 const nameOf = (r: SheetBooking) => r.clientName ?? r.title;
 
 /**
+ * A CARD'S FOUR LINES (components/Board). A card is a fixed shape so a column
+ * of them scans as a set, which means each line is short and each is the same
+ * kind of fact on every card: who it is for, what it is, when it is, and the
+ * ONE thing it most needs - the first absence in the order a job resolves
+ * them, because a card that lists everything is a paragraph again.
+ */
+export function cardName(r: SheetBooking) {
+  return r.clientName ?? r.title;
+}
+
+export function cardWhat(r: SheetBooking): string | null {
+  if (r.packages.length > 0) return r.packages.join(' · ');
+  // No package: the job's own title, unless the title is only the client's name again.
+  return r.titleNamesClient || r.title === r.clientName ? null : r.title;
+}
+
+export function cardWhen(r: SheetBooking, today: string): string {
+  if (!r.day) return 'no date yet';
+  if (r.day === today) return r.scheduledFor ? `today at ${timeOf(r.scheduledFor)}` : 'today';
+  return sayDay(r.day, today);
+}
+
+/** The one absence a card shows, in the order a job resolves them. */
+export function cardNeeds(r: SheetBooking): string | null {
+  const p = r.planes;
+  if (!p.intake.client) return 'no client';
+  if (!p.intake.package) return 'no package';
+  if (r.day && r.stage?.kind !== 'booked' && r.reminders) return 'a reminder is due';
+  if (p.intake.agreement === 'none' && r.stage?.kind !== 'booked') return 'no proposal out';
+  if ((r.work?.unstaffed ?? 0) > 0) return `${plural(r.work!.unstaffed, 'step')} with nobody on ${them(r.work!.unstaffed)}`;
+  if (p.forOpen.length > 0) return `${p.forOpen[0].name} not said`;
+  if (p.intake.agreement === 'proposed') return 'waiting on the client';
+  return null;
+}
+
+/**
  * A SESSION ON ITS DAY, for the dated reading. The verb carries the tense, so
  * the line needs no column and no label to say what kind of date this is.
  */
