@@ -2799,13 +2799,12 @@ body::before {
   color: var(--q-color-ink-900);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: none;
 }
 .q-fig-warm { color: var(--q-color-warning); }
 /* The figure and its trend side by side: the number leads, the line answers. */
 .q-fig-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
-.q-spark { width: 88px; height: 32px; flex: 0 1 88px; min-width: 44px; overflow: visible; }
+.q-spark { width: 88px; height: 32px; flex: 0 1 88px; min-width: 36px; overflow: visible; }
 .q-spark-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .q-spark-dot { stroke: var(--q-color-paper-elevated); stroke-width: 1.5; }
 .q-spark-up   { --q-spark: var(--q-hue-green); }
@@ -2844,20 +2843,36 @@ body::before {
 .q-dash { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
 .q-dash-wide { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 @media (max-width: 60em) { .q-dash, .q-dash-wide { grid-template-columns: minmax(0, 1fr); } }
-.q-widget { min-width: 0; }
-.q-widget > .q-empty { margin: 0; }
+.q-widget { min-width: 0; container-type: inline-size; }
+.q-widget > .q-empty { margin: 0; font-size: 0.85rem; }
+
+/* THE HEADLINE: the day, and the numbers that decide it, in one calm line. */
+.q-headline {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
+  margin: 0; font-size: 1.05rem; color: var(--q-color-ink-600); line-height: 1.4;
+}
+.q-headline-day { font-weight: 600; color: var(--q-color-ink-900); }
+.q-headline-sep { color: var(--q-color-ink-300); }
+.q-headline-part { color: inherit; text-decoration: none; transition: color var(--q-dur-2) var(--q-ease); }
+.q-headline-part:hover { color: var(--q-color-ink-900); }
+.q-headline-part > b { font-weight: 700; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
+.q-headline-warm > b { color: var(--q-color-warning); }
 
 /* NEEDS YOU: a count, what it counts, one more thing; then the first few, as chips. */
-.q-att { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.q-att-row { padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); display: flex; flex-direction: column; gap: 6px; }
-.q-att-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.q-att-row:first-child { padding-top: 0; }
+.q-att { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 28px; }
+.q-att-row { padding: 10px 0; border-bottom: 1px solid var(--q-color-ink-100); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.q-att-row:last-child { border-bottom: 0; }
+/* Wide enough, the six absences sit in two columns - decision beside decision, client beside date, package beside crew. */
+@container (min-width: 30em) {
+  .q-att { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .q-att-row:nth-last-child(-n+2) { border-bottom: 0; }
+}
 .q-att-row-quiet { opacity: 0.55; }
 .q-att-link { display: grid; grid-template-columns: 2.6ch minmax(0, 1fr) auto; gap: 10px; align-items: baseline; color: inherit; text-decoration: none; }
 a.q-att-link:hover .q-att-what { color: var(--q-color-ink-900); }
 .q-att-n { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--q-color-ink-400); line-height: 1; }
 .q-att-n-live { color: var(--q-color-warning); }
-.q-att-what { font-size: 0.9rem; color: var(--q-color-ink-700); }
+.q-att-what { font-size: 0.9rem; color: var(--q-color-ink-700); min-width: 0; }
 .q-att-note { color: var(--q-color-ink-400); font-size: 0.8rem; }
 .q-att-go { color: var(--q-color-ink-400); transition: transform var(--q-dur-2) var(--q-spring), color var(--q-dur-2) var(--q-ease); }
 a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-accent); }
@@ -2904,10 +2919,10 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 .q-pipe-name:hover { color: var(--q-color-accent); }
 .q-pipe-n { font-variant-numeric: tabular-nums; color: var(--q-color-ink-900); }
 .q-pipe-share { color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-.q-pipe-note { color: var(--q-color-ink-500); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-pipe-note { color: var(--q-color-ink-500); font-size: 0.8rem; min-width: 0; }
+@container (max-width: 40em) { .q-pipe-row { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-pipe-note { grid-column: 1 / -1; margin-top: -2px; } }
 .q-pipe-who { color: var(--q-color-ink-700); font-weight: 550; }
 .q-pipe-who:hover { color: var(--q-color-accent); }
-@media (max-width: 40em) { .q-pipe-row { grid-template-columns: minmax(0, 1fr) auto 3.2ch; } .q-pipe-note { grid-column: 1 / -1; } }
 
 /* RECENTLY: who did what to which, and how long ago. */
 .q-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -2923,8 +2938,8 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 /* THIS PERIOD: the period control in the head, four figures, a year of one of them beneath. */
 .q-doing { display: flex; flex-direction: column; gap: 18px; }
 .q-doing-head { margin-bottom: 0; }
-.q-figures-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 52em) { .q-figures-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.q-figures-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 44em) { .q-figures-four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .q-doing-series { min-width: 0; }
 .q-fig-note { font-size: 0.75rem; color: var(--q-color-ink-400); }
 /* A second heading inside one widget - Today, then Upcoming. */

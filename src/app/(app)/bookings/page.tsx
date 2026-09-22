@@ -96,7 +96,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   const measure = sheet.series.lines.find((l) => l.key === q.measure) ?? sheet.series.lines[0];
   const now = Date.now();
   const total = pipeline.reduce((n, s) => n + s.count, 0);
-  const needsAnything = attention.some((a) => a.count > 0);
+  const attentionTotal = attention.reduce((n, a) => n + a.count, 0);
   const todayDate = new Date(`${sheet.today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   const say = (f: Figure, n: number) => (f.unit === 'percent' ? `${n}%` : String(n));
@@ -127,12 +127,23 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
       </header>
 
       <div className="q-stack q-stack-lg">
-        <div className="q-dash">
+        {/* THE HEADLINE. One line the eye lands on: the day, and the three numbers that decide it. Each part a door. */}
+        <p className="q-headline">
+          <span className="q-headline-day">{todayDate}</span>
+          <span className="q-headline-sep" aria-hidden="true">·</span>
+          <a href="#sessions" className="q-headline-part">{today.length === 0 ? 'No sessions today' : <><b>{today.length}</b> session{today.length === 1 ? '' : 's'} today</>}</a>
+          <span className="q-headline-sep" aria-hidden="true">·</span>
+          <a href="#attention" className={attentionTotal > 0 ? 'q-headline-part q-headline-warm' : 'q-headline-part'}>{attentionTotal === 0 ? 'Nothing requires attention' : <><b>{attentionTotal}</b> item{attentionTotal === 1 ? '' : 's'} require{attentionTotal === 1 ? 's' : ''} attention</>}</a>
+          <span className="q-headline-sep" aria-hidden="true">·</span>
+          <a href="#post" className="q-headline-part">{works.length === 0 ? 'Nothing in post-production' : <><b>{works.length}</b> in post-production</>}</a>
+        </p>
+
+        <div className="q-dash q-dash-wide">
           {/* REQUIRES ATTENTION. Each absence, counted; each a door. */}
-          <section className="q-card q-widget" aria-label="Requires attention">
+          <section id="attention" className="q-card q-widget" aria-label="Requires attention">
             <header className="q-dash-head">
               <span className="q-dash-title">Requires attention</span>
-              <span className="q-dash-note">{needsAnything ? `${attention.reduce((n, a) => n + a.count, 0)} items` : 'Nothing outstanding'}</span>
+              <span className="q-dash-note">{attentionTotal > 0 ? `${attentionTotal} item${attentionTotal === 1 ? '' : 's'}` : 'Nothing outstanding'}</span>
             </header>
             <ul className="q-att">
               {attention.map((a) => (
@@ -163,7 +174,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
           </section>
 
           {/* TODAY, then UPCOMING. */}
-          <section className="q-card q-widget" aria-label="Sessions">
+          <section id="sessions" className="q-card q-widget" aria-label="Sessions">
             <header className="q-dash-head">
               <span className="q-dash-title">Today</span>
               <span className="q-dash-note">{todayDate}</span>
@@ -183,7 +194,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
 
         <div className="q-dash q-dash-wide">
           {/* POST-PRODUCTION. Sessions held, steps open - oldest first; then those complete but not closed. */}
-          <section className="q-card q-widget" aria-label="Post-production">
+          <section id="post" className="q-card q-widget" aria-label="Post-production">
             <header className="q-dash-head">
               <span className="q-dash-title">Post-production</span>
               <span className="q-dash-note">{works.length} in progress{toClose.length > 0 ? ` · ${toClose.length} ready to close` : ''}</span>
