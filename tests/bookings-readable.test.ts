@@ -26,7 +26,7 @@ vi.mock('@/lib/supabase/getOrgId', () => ({
   getOptionalAuthOrgId: async () => ({ userId: 'read', orgId: TEST_ORG_ID, personId: TEST_PERSON_ID, contactId: TEST_PERSON_ID }),
 }));
 
-import { createService, declareDimensionVariable, declareServiceVariable } from '@/modules/services/domain';
+import { createService, declareDimensionVariable, declareServiceVariable, declareServiceDeliverable } from '@/modules/services/domain';
 import { createDimension, addDimensionValue } from '@/modules/services/dimensionsAdmin';
 import { createPackage } from '@/modules/packages/domain';
 import {
@@ -34,6 +34,7 @@ import {
 } from '@/modules/bookings/domain';
 import { toggleTaskDone, getBookingTasks } from '@/modules/production/domain';
 import { readBookingsDashboard } from '@/modules/bookings/dashboard';
+import { readBookingsRegister } from '@/modules/bookings/register';
 import {
   sayNeeds, saySession, sayWork, sayPositions, sayProgress, sayAbsence, sayDay, flat,
   cardName, cardWhat, cardWhen, cardNeeds,
@@ -53,7 +54,7 @@ const day = (offset: number) => {
 
 describe('The bookings page says something, and keeps saying it', () => {
   let serviceId: string, packageId: string, occasionId: string, contextId: string;
-  let weddingId: string, birthdayId: string, studioId: string, outdoorId: string, dateVarId: string, outfitsVarId: string;
+  let weddingId: string, birthdayId: string, studioId: string, outdoorId: string, dateVarId: string, outfitsVarId: string, photographsId: string;
   let bareId: string, todayId: string, heldId: string, proposedId: string, bookedId: string;
   let enquiryStageId: string, bookedStageId: string;
 
@@ -82,6 +83,10 @@ describe('The bookings page says something, and keeps saying it', () => {
     for (const valueId of [weddingId, birthdayId, studioId, outdoorId]) {
       await supabaseAdmin.from('service_dimension_values').insert({ organization_id: TEST_ORG_ID, service_id: serviceId, dimension_value_id: valueId });
     }
+    // What the service produces, so a package can promise a quantity of it.
+    await declareServiceDeliverable({ serviceId, name: 'Edited photographs' });
+    photographsId = await byName('deliverables', 'Edited photographs');
+
     // A date the occasion declares - a calendar fact that is not the session - and a quantity.
     dateVarId = (await declareDimensionVariable({ dimensionId: occasionId, variable: { key: 'date', label: 'Occasion Date', kind: 'date' } as any }))!.id;
     outfitsVarId = (await declareServiceVariable({ serviceId, variable: { key: 'outfits', label: 'Number of outfits', kind: 'number', unit: 'outfit' } as any }))!.id;
@@ -95,6 +100,7 @@ describe('The bookings page says something, and keeps saying it', () => {
         { serviceId, valueId: studioId },                                        // settled
       ],
       variableValues: [{ serviceVariableId: outfitsVarId, answeredBy: 'client' }],
+      deliverables: [{ serviceId, deliverableId: photographsId, quantity: 4 }],
     })).packageId;
 
     const client = await seedRow('contacts', { organization_id: TEST_ORG_ID, display_name: 'Ada Client' }, 'a client');
@@ -335,6 +341,62 @@ describe('The bookings page says something, and keeps saying it', () => {
         expect(takes.length > 0 || Boolean(axis.none), `${r.title} falls out of the ${key} board`).toBe(true);
       }
     }
+  });
+
+  it('gives the register a row per booking, with the three facts the sheet does not carry', async () => {
+    const reg = await readBookingsRegister(30);
+    expect(reg.rows).toHaveLength(5);
+
+    /*
+     * COMMITTED is the promise, read through the package instance: the package
+     * promises 4 edited photographs, so every booking carrying it owes 4. A
+     * booking with no package promises nothing - which is not zero of
+     * something, but nothing at all.
+     */
+    const withPackage = reg.rows.find((r) => r.id === todayId)!;
+    expect(withPackage.committed).toEqual([
+      { deliverable: 'Edited photographs', quantity: 4, extra: 0, undecided: false },
+    ]);
+    const bare = reg.rows.find((r) => r.id === bareId)!;
+    expect(bare.committed).toEqual([]);
+    expect(bare.packages).toEqual([]);
+
+    // PERSONNEL is the declared crew, which nothing in this studio has assigned yet.
+    for (const r of reg.rows) expect(Array.isArray(r.personnel)).toBe(true);
+    expect(withPackage.personnel).toEqual([]);
+
+    /*
+     * LAST MOVED comes from the events log, which is the only record of a
+     * transition: every booking here was created, so every row has one.
+     */
+    for (const r of reg.rows) {
+      expect(r.lastActivity, `${r.title} has no recorded activity`).toBeTruthy();
+      expect(new Date(r.lastActivity!.at).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+    }
+    /*
+     * The NEWEST event wins, not the first: the held booking was created, then
+     * moved to a booked stage, then classified, so its last movement is the
+     * classification - which is what "last moved" has to mean for the column
+     * to be worth reading.
+     */
+    const held = reg.rows.find((r) => r.id === heldId)!;
+    expect(held.lastActivity!.action).toBe('classification_changed');
+    expect(bare.lastActivity!.action).toBe('created');
+
+    // And everything the columns read of the sheet is still on the row.
+    expect(withPackage.takes.stage?.length).toBe(1);
+    expect(withPackage.work?.total).toBe(2);
+    expect(reg.sheet.lenses.map((g) => g.key)).toContain('missing');
+  });
+
+  it('counts a promise the package left open without counting it as none', async () => {
+    const reg = await readBookingsRegister(30);
+    const row = reg.rows.find((r) => r.id === proposedId)!;
+    const promise = row.committed.find((c) => c.deliverable === 'Edited photographs')!;
+    expect(promise.quantity).toBe(4);
+    // Nothing was added on this booking, and the number was not left to anybody.
+    expect(promise.extra).toBe(0);
+    expect(promise.undecided).toBe(false);
   });
 
   /* ─────────── the readability laws, pinned ─────────── */

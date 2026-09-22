@@ -2855,6 +2855,123 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-line { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 0; padding: 6px 0; line-height: 1.55; max-width: 92ch; }
 
 /*
+ * THE BOOKINGS PAGE: a small dashboard over one set of rows, read three ways.
+ *
+ * The bands above are not a second surface - every figure in them is a link
+ * that narrows the table below, so the summary and the rows cannot disagree.
+ * Warm marks a cost the studio pays by not acting, and nothing else is warm.
+ */
+.q-book { display: flex; flex-direction: column; gap: 16px; }
+
+.q-bands { border: 1px solid var(--q-color-ink-100); border-radius: 14px; background: var(--q-color-paper-elevated); overflow: hidden; }
+.q-band { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 11px 18px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-band:last-child { border-bottom: 0; }
+.q-band-today { gap: 10px 16px; }
+.q-band-day { font-size: 0.94rem; font-weight: 650; letter-spacing: -0.01em; color: var(--q-color-ink-900); }
+.q-band-said { font-size: 0.83rem; color: var(--q-color-ink-600); }
+.q-band-name { color: var(--q-color-ink-900); font-weight: 600; }
+.q-band-name:hover { color: var(--q-color-accent); }
+.q-band-sep { color: var(--q-color-ink-300); }
+.q-band-warm { color: var(--q-color-warning); }
+.q-band-quiet { color: var(--q-color-ink-400); }
+.q-band-label { font-family: var(--q-font-mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--q-color-ink-400); min-width: 7.5em; }
+.q-band-doors { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 0; }
+
+/* A figure that is also a cut: pressed, it narrows the table; pressed again, it releases it. */
+.q-door { display: inline-flex; align-items: baseline; gap: 7px; padding: 4px 11px; border-radius: 8px; border: 1px solid var(--q-color-ink-100); color: inherit; white-space: nowrap; transition: border-color var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease); }
+.q-door:hover { border-color: var(--q-color-ink-300); }
+.q-door > b { font-family: var(--q-font-mono); font-size: 0.82rem; color: var(--q-color-warning); }
+.q-door > span { font-size: 0.75rem; color: var(--q-color-ink-500); }
+.q-door-on { border-color: var(--q-color-accent); background: var(--q-color-accent-soft); }
+.q-door-on > b, .q-door-on > span { color: var(--q-color-accent); }
+
+.q-band-shape { display: inline-flex; align-items: center; gap: 9px; }
+.q-band-bar { display: flex; gap: 2px; width: 140px; height: 7px; border-radius: 999px; overflow: hidden; background: var(--q-color-ink-100); }
+.q-band-bar > i { display: block; width: calc(var(--q-share, 0) * 1%); height: 100%; background: var(--q-color-ink-400); }
+.q-band-note { font-size: 0.75rem; color: var(--q-color-ink-500); }
+
+/* The view switcher: one set of rows, three presentations. */
+.q-switch { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--q-color-ink-100); border-radius: 10px; background: var(--q-color-paper-elevated); align-self: flex-start; }
+.q-switch-btn { padding: 5px 14px; border-radius: 7px; font-size: 0.8rem; color: var(--q-color-ink-500); transition: background var(--q-dur-2) var(--q-ease), color var(--q-dur-2) var(--q-ease); }
+.q-switch-btn:hover { color: var(--q-color-ink-900); }
+.q-switch-on { background: var(--q-color-accent); color: var(--q-color-accent-text); font-weight: 600; }
+.q-switch-on:hover { color: var(--q-color-accent-text); }
+
+/* The register. */
+.q-reg { border: 1px solid var(--q-color-ink-100); border-radius: 14px; background: var(--q-color-paper-elevated); overflow: hidden; }
+.q-reg-views { display: flex; align-items: flex-end; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--q-color-ink-100); overflow-x: auto; }
+.q-reg-view { display: inline-flex; align-items: baseline; gap: 6px; padding: 9px 13px; font-size: 0.8rem; color: var(--q-color-ink-500); white-space: nowrap; border-bottom: 2px solid transparent; }
+.q-reg-view > b { font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-300); }
+.q-reg-view:hover { color: var(--q-color-ink-900); }
+.q-reg-view-on { color: var(--q-color-ink-900); font-weight: 600; border-bottom-color: var(--q-color-accent); }
+.q-reg-view-on > b { color: var(--q-color-ink-600); }
+
+.q-reg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
+.q-reg-search { height: 30px; min-width: 15em; padding: 0 11px; border-radius: 8px; border: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-elevated); color: var(--q-color-ink-900); font-size: 0.8rem; font-family: inherit; }
+.q-reg-search::placeholder { color: var(--q-color-ink-400); }
+.q-reg-search:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 1px; }
+.q-reg-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px 0 11px; border-radius: 8px; border: 1px solid var(--q-color-accent); background: var(--q-color-accent-soft); font-size: 0.76rem; color: var(--q-color-ink-600); white-space: nowrap; }
+.q-reg-chip > b { color: var(--q-color-ink-900); font-weight: 600; }
+.q-reg-chip > i { font-style: normal; color: var(--q-color-ink-400); }
+.q-reg-chip:hover > i { color: var(--q-color-warning); }
+.q-reg-count { margin-left: auto; font-size: 0.78rem; color: var(--q-color-ink-500); white-space: nowrap; }
+
+.q-reg-menu { position: relative; display: inline-flex; }
+.q-reg-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-elevated); color: var(--q-color-ink-700); font-size: 0.78rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.q-reg-btn:hover { border-color: var(--q-color-ink-300); color: var(--q-color-ink-900); }
+.q-reg-btn-open { border-color: var(--q-color-accent); color: var(--q-color-ink-900); }
+.q-reg-caret { font-style: normal; font-size: 0.6rem; color: var(--q-color-ink-400); }
+.q-reg-pop { position: absolute; top: calc(100% + 5px); left: 0; z-index: 20; min-width: 15em; max-height: 21em; overflow-y: auto; display: flex; flex-direction: column; padding: 5px; border: 1px solid var(--q-color-ink-200); border-radius: 10px; background: var(--q-color-paper-elevated); box-shadow: var(--q-shadow-lg); }
+.q-reg-pop-item { padding: 6px 9px; border-radius: 7px; font-size: 0.78rem; color: var(--q-color-ink-600); white-space: nowrap; }
+.q-reg-pop-item:hover { background: var(--q-color-paper-subtle); color: var(--q-color-ink-900); }
+.q-reg-pop-on { color: var(--q-color-accent); }
+
+.q-reg-scroll { overflow-x: auto; }
+.q-reg-head, .q-reg-row, .q-reg-totals { display: grid; gap: 12px; padding: 8px 16px; align-items: center; }
+.q-reg-head { border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-elevated); position: sticky; top: 0; z-index: 2; }
+.q-reg-h { font-family: var(--q-font-mono); font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--q-color-ink-400); white-space: nowrap; overflow: hidden; }
+.q-reg-row { border-bottom: 1px solid var(--q-color-ink-100); color: inherit; transition: background var(--q-dur-2) var(--q-ease); }
+.q-reg-row:hover { background: var(--q-color-paper-subtle); }
+.q-reg-cell { font-size: 0.78rem; color: var(--q-color-ink-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.q-reg-right { text-align: right; justify-self: stretch; }
+.q-reg-strong { color: var(--q-color-ink-900); font-weight: 550; }
+.q-reg-none { color: var(--q-color-ink-300); }
+.q-reg-warm { color: var(--q-color-warning); }
+.q-reg-now { color: var(--q-color-accent); }
+.q-reg-mono { font-family: var(--q-font-mono); font-size: 0.72rem; color: var(--q-color-ink-500); }
+
+.q-reg-steps { display: inline-flex; align-items: center; gap: 7px; }
+.q-reg-track { display: inline-block; width: 42px; height: 4px; border-radius: 999px; background: var(--q-color-ink-100); overflow: hidden; }
+.q-reg-fill { display: block; width: calc(var(--q-share, 0) * 1%); height: 100%; background: var(--q-color-ink-400); }
+.q-reg-fill-done { background: var(--q-hue-green); }
+
+.q-reg-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; padding: 9px 16px; background: var(--q-color-paper-subtle); border-top: 1px solid var(--q-color-ink-100); border-bottom: 1px solid var(--q-color-ink-100); }
+.q-reg-dot { width: 7px; height: 7px; border-radius: 50%; align-self: center; }
+.q-reg-group-name { font-size: 0.8rem; font-weight: 600; color: var(--q-color-ink-900); }
+.q-reg-group-n { font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-500); }
+.q-reg-group-sum { font-size: 0.72rem; color: var(--q-color-ink-400); }
+.q-reg-totals { border-top: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-subtle); }
+.q-reg-total { font-family: var(--q-font-mono); font-size: 0.66rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; }
+.q-reg-empty { padding: 18px 16px; font-size: 0.85rem; color: var(--q-color-ink-500); margin: 0; }
+
+/* The calendar view's list under the day columns. */
+.q-cal-under { border-top: 1px solid var(--q-color-ink-100); }
+.q-cal-line { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 16px; padding: 9px 20px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-cal-line-now { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 55%); }
+.q-cal-when { font-size: 0.78rem; color: var(--q-color-ink-500); }
+.q-cal-line-now .q-cal-when { color: var(--q-color-accent); font-weight: 550; }
+.q-cal-what { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.q-cal-item { font-size: 0.8rem; color: var(--q-color-ink-600); }
+.q-cal-item:hover { color: var(--q-color-accent); }
+.q-cal-tray { display: block; padding: 11px 20px; font-size: 0.8rem; color: var(--q-color-warning); }
+.q-cal-tray:hover { color: var(--q-color-accent); }
+
+@media (max-width: 52em) {
+  .q-band-label { min-width: 0; }
+  .q-cal-line { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+
+/*
  * THE BOARD (components/Board) - the page's one spatial reading. A column per
  * value of the chosen axis, a card per job: the column's height is how much of
  * the book sits there, a card's place is its membership, an empty column is a
