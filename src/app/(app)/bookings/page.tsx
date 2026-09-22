@@ -3,41 +3,52 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import {
-  readBookingsRegister, readBookingsDashboard, PERIODS, plural, sayDay,
+  readBookingsRegister, readBookingsDashboard, PERIODS,
   type Period, type RegisterRow,
 } from '@/modules/bookings/interface';
-import { Board, type BoardCard } from '@/components/Board';
-import { Days } from '@/components/Readings';
+import { readBookingsMonth } from '@/modules/bookings/month';
 import { cardName, cardWhat, cardWhen, cardNeeds } from '@/modules/bookings/say';
+import { Board, type BoardCard } from '@/components/Board';
+import { CutBar } from './CutBar';
 import { Register } from './Register';
+import { Outstanding, Calendar, Distribution } from './Views';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * BOOKINGS - one set of rows, read three ways, under a small dashboard.
+ * BOOKINGS - one set of rows, one cut, five presentations.
  *
- * THE DASHBOARD is three bands and no more: what is happening today, which
- * cannot wait for a filter; what requires the studio, worst consequence
- * first; and what is elsewhere - outstanding with clients, in production, and
- * the shape of the book. Every figure in it is a LINK THAT NARROWS THE TABLE
- * BELOW rather than a door to another page, so the summary and the rows are
- * one surface and cannot disagree: they are the same rows.
+ * Nothing is forced into a single view and nothing sits above them all: the
+ * page is the tab bar, the cut every tab shares, and one reading at a time.
+ * The tabs are not a menu somebody chose - each is the presentation that one
+ * shape of reading justifies (12-BOOKINGS_READABILITY §3), and the
+ * deconstruction produces exactly five:
  *
- * THE VIEWS are three presentations of that one set:
- *   table     the register - every fact a column, narrowed, grouped, sorted.
- *   board     columns by whichever axis is chosen; no axis is the hierarchy.
- *   calendar  the same rows placed in time, with those that cannot be placed
- *             counted beside it.
- * The view, the cut, the grouping and the sort all live in the URL, so a cut
- * is a link and the back button works.
+ *   register      names and typed values, per booking → rows and columns
+ *   outstanding   presence and absence → a worklist, by consequence
+ *   calendar      points in time → the studio's own days, and the window
+ *   board         membership of a category → columns of cards
+ *   distribution  proportion, and counts over a window → shares and a trend
+ *
+ * The event trace is not among them: a trace is a reading of events, not of
+ * bookings, and it belongs on the booking it happened to.
+ *
+ * THE CUT IS APPLIED HERE, once, before any view draws - so narrowing to the
+ * bookings with no session date and then switching to Distribution shows what
+ * those bookings are made of. The tab, the cut, the grouping, the sort and the
+ * month are all in the URL, so a reading is a link and the back button works.
  *
  * Money is not on this page: value and settlement are reported in Finances.
  */
 
 type Query = Record<string, string | string[] | undefined>;
-/** The page's own parameters - everything else in the URL is a cut on an axis. */
-const OWN = new Set(['view', 'group', 'sort', 'find', 'period', 'board']);
-type View = 'table' | 'board' | 'calendar';
+/** The page's own parameters. Every other parameter in the URL is a cut on an axis. */
+const OWN = new Set(['view', 'group', 'sort', 'period', 'board', 'month']);
+const VIEWS = ['register', 'outstanding', 'calendar', 'board', 'distribution'] as const;
+type View = (typeof VIEWS)[number];
+const LABEL: Record<View, string> = {
+  register: 'Register', outstanding: 'Outstanding', calendar: 'Calendar', board: 'Board', distribution: 'Distribution',
+};
 
 export default async function BookingsPage(props: { searchParams: Promise<Query> }) {
   try {
@@ -49,17 +60,16 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
   const q: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(params)) if (typeof v === 'string' && v) q[k] = v;
 
+  const view: View = (VIEWS as readonly string[]).includes(q.view ?? '') ? (q.view as View) : 'register';
   const periodDays = (PERIODS.find((p) => String(p.days) === q.period)?.days ?? 30) as Period;
-  const [{ sheet, rows }, dash] = await Promise.all([
+
+  const [{ sheet, rows }, dash, month] = await Promise.all([
     readBookingsRegister(periodDays),
     readBookingsDashboard(periodDays),
+    view === 'calendar' ? readBookingsMonth(q.month) : Promise.resolve(null),
   ]);
 
-  const view: View = q.view === 'board' ? 'board' : q.view === 'calendar' ? 'calendar' : 'table';
-  const live = rows.filter((r) => r.band !== 'closed');
-  const today = new Date(`${sheet.today}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-
-  /** One URL shape for every control on the page: patch what changes, keep the rest. */
+  /** One URL shape for every control: patch what changes, keep the rest. */
   const href = (patch: Record<string, string | null>) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
@@ -67,31 +77,55 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
     const s = p.toString();
     return `/bookings${s ? `?${s}` : ''}`;
   };
-  /** A figure in the dashboard: one cut, the rest of the URL kept, the view kept. */
-  const narrow = (axis: string, value: string) => href({ [axis]: q[axis] === value ? null : value });
-  const isOn = (axis: string, value: string) => q[axis] === value;
 
-  // ---- the three bands
-  const sessionsToday = dash.today;
-  const absences = dash.attention.filter((a) => a.count > 0);
-  const waitingOnClient = dash.attention.find((a) => a.key === 'decision-client')?.count ?? 0;
-  const stageShare = dash.pipeline.filter((s) => s.count > 0);
-  const stageTotal = stageShare.reduce((n, s) => n + s.count, 0);
-  const committedTotal = new Map<string, number>();
-  for (const r of live) for (const c of r.committed) committedTotal.set(c.deliverable, (committedTotal.get(c.deliverable) ?? 0) + c.quantity + c.extra);
-  const biggestPromise = [...committedTotal.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
+  // ---- THE CUT, applied once for every view.
+  const cuts = sheet.lenses.map((g) => ({ g, value: q[g.key] })).filter((x) => Boolean(x.value));
+  const cut = rows.filter((r) =>
+    cuts.every(({ g, value }) => {
+      const takes = r.takes[g.key] ?? [];
+      /*
+       * Three ways to narrow on an axis: to one of its values, to the rows
+       * that take none of them (__none__), or to the rows that take ANY of
+       * them (__any__) - which is what "unresolved" means on the absence
+       * axis, where the question is whether anything is missing at all
+       * rather than which thing.
+       */
+      if (value === '__none__') return takes.length === 0;
+      if (value === '__any__') return takes.length > 0;
+      return takes.includes(value!);
+    }));
+  const live = cut.filter((r) => r.band !== 'closed');
 
-  // ---- the saved views: cuts the derivation produced, each with its own count
-  const cutCount = (axis: string, value: string) =>
+  // ---- the saved cuts: values of an axis, each with its own count over the whole book
+  const countOf = (axis: string, value: string) =>
     rows.filter((r) => (value === '__none__' ? (r.takes[axis] ?? []).length === 0 : (r.takes[axis] ?? []).includes(value))).length;
+  const unresolved = rows.filter((r) => (r.takes.missing ?? []).length > 0).length;
   const saved = [
-    { key: 'all', label: 'Everything', count: rows.length, href: href({ missing: null, when: null, stage: null }), on: !Object.keys(q).some((k) => !OWN.has(k)) },
-    { key: 'awaiting', label: 'Awaiting agreement', count: cutCount('missing', 'decision-client'), href: href({ missing: 'decision-client', when: null, stage: null }), on: q.missing === 'decision-client' },
-    { key: 'unscheduled', label: 'Not scheduled', count: cutCount('missing', 'date'), href: href({ missing: 'date', when: null, stage: null }), on: q.missing === 'date' },
-    { key: 'behind', label: 'Behind', count: cutCount('when', 'earlier'), href: href({ when: 'earlier', missing: null, stage: null }), on: q.when === 'earlier' },
+    { key: 'all', label: 'Everything', count: rows.length, href: href(Object.fromEntries(sheet.lenses.map((g) => [g.key, null]))), on: cuts.length === 0 },
+    { key: 'unresolved', label: 'Unresolved', count: unresolved, href: href({ ...Object.fromEntries(sheet.lenses.map((g) => [g.key, null])), missing: '__any__' }), on: q.missing === '__any__' },
+    { key: 'awaiting', label: 'Awaiting client', count: countOf('missing', 'decision-client'), href: href({ ...Object.fromEntries(sheet.lenses.map((g) => [g.key, null])), missing: 'decision-client' }), on: q.missing === 'decision-client' },
+    { key: 'unscheduled', label: 'Not scheduled', count: countOf('missing', 'date'), href: href({ ...Object.fromEntries(sheet.lenses.map((g) => [g.key, null])), missing: 'date' }), on: q.missing === 'date' },
+    { key: 'behind', label: 'Behind', count: countOf('when', 'earlier'), href: href({ ...Object.fromEntries(sheet.lenses.map((g) => [g.key, null])), when: 'earlier' }), on: q.when === 'earlier' },
   ].filter((v) => v.count > 0 || v.key === 'all');
 
-  // ---- the board view's cards and axis
+  // ---- what each view needs, decided here
+  const committed = (() => {
+    const sum = new Map<string, { quantity: number; extra: number; undecided: number }>();
+    for (const r of live) for (const c of r.committed) {
+      const had = sum.get(c.deliverable) ?? { quantity: 0, extra: 0, undecided: 0 };
+      had.quantity += c.quantity; had.extra += c.extra; had.undecided += c.undecided ? 1 : 0;
+      sum.set(c.deliverable, had);
+    }
+    return [...sum.entries()].map(([deliverable, v]) => ({ deliverable, ...v }))
+      .sort((a, b) => b.quantity + b.extra - (a.quantity + a.extra));
+  })();
+
+  const narrowTo: Record<string, string> = {};
+  for (const g of sheet.lenses) {
+    for (const it of g.items) narrowTo[`${g.key}:${it.key}`] = href({ [g.key]: it.key });
+    if (g.none) narrowTo[`${g.key}:__none__`] = href({ [g.key]: '__none__' });
+  }
+
   const boardKey = q.board ?? 'stage';
   const boardAxis = sheet.lenses.find((g) => g.key === boardKey) ?? sheet.lenses.find((g) => g.key === 'stage') ?? sheet.lenses[0] ?? null;
   const boardCards: BoardCard[] = live.map((r) => ({
@@ -100,107 +134,57 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
     needs: cardNeeds(r), work: r.work && r.work.total > 0 ? { done: r.work.done, total: r.work.total } : null,
   }));
 
-  const viewLink = (v: View, label: string) => (
-    <Link href={href({ view: v === 'table' ? null : v })} className={view === v ? 'q-switch-btn q-switch-on' : 'q-switch-btn'}>{label}</Link>
-  );
+  // The window and the undated count follow the cut, so the calendar reads the same set as the table.
+  const inCut = new Set(cut.map((r) => r.id));
+  const strip = dash.dated.columns.map((c) => ({ ...c }));
+  const undatedInCut = live.filter((r) => r.day === null).length;
 
   return (
     <div className="q-book">
       <header className="q-page-header">
-        <div>
-          <h1 className="q-page-title">Bookings</h1>
-        </div>
+        <div><h1 className="q-page-title">Bookings</h1></div>
         <div className="q-row q-row-sm">
           <Link href="/bookings/settings/stages" className="q-btn q-btn-ghost">Stages</Link>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       </header>
 
-      {/* ── the small dashboard: three bands, every figure a cut on the table below ── */}
-      <section className="q-bands">
-        <div className="q-band q-band-today">
-          <span className="q-band-day">{today}</span>
-          {sessionsToday.length === 0 ? (
-            <span className="q-band-said">
-              No session today.
-              {dash.dated.ahead > 0 && (() => {
-                const next = live.filter((r) => r.day && r.day > sheet.today).sort((a, b) => (a.day ?? '').localeCompare(b.day ?? ''))[0];
-                return next?.day ? <> Next is {next.clientName ?? next.title}, {sayDay(next.day, sheet.today)}.</> : null;
-              })()}
-            </span>
-          ) : (
-            <span className="q-band-said">
-              {sessionsToday.map((n, i) => (
-                <span key={n.booking.id}>
-                  {i > 0 && <span className="q-band-sep"> · </span>}
-                  <Link href={`/bookings/${n.booking.id}`} className="q-band-name">{n.booking.clientName ?? n.booking.title}</Link>
-                  {n.booking.scheduledFor && <> {new Date(n.booking.scheduledFor).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</>}
-                  {(n.booking.work?.unstaffed ?? 0) > 0
-                    ? <span className="q-band-warm"> — {plural(n.booking.work!.unstaffed, 'step')} unassigned</span>
-                    : n.crew.length > 0 ? <> — {n.crew[0]}</> : <span className="q-band-warm"> — nobody assigned</span>}
-                </span>
-              ))}
-            </span>
-          )}
-        </div>
-
-        <div className="q-band">
-          <span className="q-band-label">Requires you</span>
-          <span className="q-band-doors">
-            {absences.map((a) => (
-              <Link key={a.key} href={narrow('missing', a.key)} className={isOn('missing', a.key) ? 'q-door q-door-on' : 'q-door'}>
-                <b>{a.count}</b><span>{a.label.toLowerCase()}</span>
-              </Link>
-            ))}
-          </span>
-        </div>
-
-        <div className="q-band">
-          <span className="q-band-label">Elsewhere</span>
-          <span className="q-band-doors">
-            {waitingOnClient > 0 && (
-              <Link href={narrow('missing', 'decision-client')} className={isOn('missing', 'decision-client') ? 'q-door q-door-on' : 'q-door'}>
-                <b>{waitingOnClient}</b><span>awaiting client</span>
-              </Link>
-            )}
-            {dash.works.length > 0 && (
-              <Link href={narrow('when', 'earlier')} className={isOn('when', 'earlier') ? 'q-door q-door-on' : 'q-door'}>
-                <b>{dash.works.length}</b><span>in post-production</span>
-              </Link>
-            )}
-            <span className="q-band-shape">
-              <span className="q-band-bar">
-                {stageShare.map((s) => (
-                  <i key={s.key} className={s.look?.color ? `q-dist-c-${s.look.color}` : undefined} style={{ '--q-share': Math.round((s.count / Math.max(1, stageTotal)) * 100) } as React.CSSProperties} />
-                ))}
-              </span>
-              <span className="q-band-note">{stageShare.map((s) => `${s.count} at ${s.label}`).join(', ')}</span>
-            </span>
-            {biggestPromise && (
-              <span className="q-band-note">
-                {biggestPromise[1]} {biggestPromise[0].toLowerCase()} committed
-                <span className="q-band-quiet"> · production not recorded</span>
-              </span>
-            )}
-          </span>
-        </div>
-      </section>
-
-      {/* ── one set of rows, three presentations ── */}
-      <div className="q-switch">
-        {viewLink('table', 'Table')}
-        {viewLink('board', 'Board')}
-        {viewLink('calendar', 'Calendar')}
+      <div className="q-tabs">
+        {VIEWS.map((v) => (
+          <Link key={v} href={href({ view: v === 'register' ? null : v })} className={view === v ? 'q-tab q-tab-on' : 'q-tab'}>
+            {LABEL[v]}
+          </Link>
+        ))}
       </div>
 
-      {view === 'table' && (
-        <Suspense fallback={null}>
-          <Register rows={rows} lenses={sheet.lenses} q={q} today={sheet.today} views={saved} />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <CutBar lenses={sheet.lenses} q={q} saved={saved} shown={cut.length} total={rows.length} />
+      </Suspense>
 
-      {view === 'board' && boardAxis && (
-        <section className="q-reg">
+      <section className="q-view">
+        {view === 'register' && (
+          <Suspense fallback={null}>
+            <Register rows={cut} lenses={sheet.lenses} q={q} today={sheet.today} />
+          </Suspense>
+        )}
+
+        {view === 'outstanding' && <Outstanding rows={live} today={sheet.today} />}
+
+        {view === 'calendar' && month && (
+          <Calendar
+            month={month}
+            rows={live}
+            strip={strip}
+            weeks={dash.dated.weeks}
+            undated={undatedInCut}
+            undatedHref={href({ missing: 'date', view: 'register' })}
+            previousHref={href({ month: month.previous })}
+            nextHref={href({ month: month.next })}
+            todayHref={href({ month: null })}
+          />
+        )}
+
+        {view === 'board' && boardAxis && (
           <Board
             axis={boardAxis}
             cards={boardCards}
@@ -208,33 +192,23 @@ export default async function BookingsPage(props: { searchParams: Promise<Query>
               key: g.key, label: g.label, href: href({ board: g.key === 'stage' ? null : g.key }), on: g.key === boardAxis.key,
             }))}
             hrefFor={(c) => `/bookings/${c.id}`}
-            cutFor={(itemKey) => href({ [boardAxis.key]: itemKey, view: null })}
+            cutFor={(itemKey) => href({ [boardAxis.key]: itemKey })}
           />
-        </section>
-      )}
+        )}
 
-      {view === 'calendar' && (
-        <section className="q-reg">
-          <Days cells={dash.dated.columns} weeks={dash.dated.weeks} />
-          <div className="q-cal-under">
-            {dash.dated.days.filter((d) => d.day >= sheet.today).slice(0, 8).map((d) => (
-              <div key={d.day} className={d.today ? 'q-cal-line q-cal-line-now' : 'q-cal-line'}>
-                <span className="q-cal-when">{d.today ? 'Today' : sayDay(d.day, sheet.today)}</span>
-                <span className="q-cal-what">
-                  {d.lines.map((l, i) => (
-                    <Link key={i} href={`/bookings/${l.bookingId}`} className="q-cal-item">{l.say.map((p) => p.t).join(' ')}</Link>
-                  ))}
-                </span>
-              </div>
-            ))}
-            {dash.dated.undated > 0 && (
-              <Link href={narrow('missing', 'date')} className="q-cal-tray">
-                {plural(dash.dated.undated, 'booking')} cannot be placed at all — no session date →
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
+        {view === 'distribution' && (
+          <Distribution
+            rows={live}
+            lenses={sheet.lenses}
+            figures={sheet.figures}
+            months={sheet.series.months}
+            series={sheet.series.lines}
+            periodDays={sheet.period.days}
+            narrowTo={narrowTo}
+            committed={committed}
+          />
+        )}
+      </section>
     </div>
   );
 }

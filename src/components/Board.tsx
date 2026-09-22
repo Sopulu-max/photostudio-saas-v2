@@ -28,7 +28,7 @@ import type { LensGroup, Takes } from '@/kernel/lenses';
 export type BoardCard = {
   id: string;
   takes: Takes;
-  /** Who the job is for, or the job's own name when nobody is on it yet. */
+  /** Who the booking is for, or its own title when no client is recorded. */
   name: string;
   /** What it is - the packages, or what the studio typed instead. */
   what: string | null;
@@ -36,9 +36,9 @@ export type BoardCard = {
   when: string;
   /** Whether that when is behind now. */
   behind: boolean;
-  /** Today's session: the one card that is happening as you read. */
+  /** A session dated today. */
   now: boolean;
-  /** The one thing this job most needs, said - absent when nothing is missing. */
+  /** The one unresolved item on this booking - absent when the record is complete. */
   needs: string | null;
   /** How far its work has gone, when it has any. */
   work: { done: number; total: number } | null;

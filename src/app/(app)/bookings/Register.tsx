@@ -19,9 +19,10 @@ import type { RegisterRow } from '@/modules/bookings/interface';
  * rows (kernel/lenses) - a new stage, role or dimension appears with no change
  * here.
  *
- * THE URL HOLDS THE STATE: the cut, the grouping and the sort. So a cut is a
- * link, the back button works, and the figures in the dashboard above are
- * ordinary links that narrow this table instead of navigating away from it.
+ * THE CUT IS NOT ITS BUSINESS. The axes set in the URL are applied by the page
+ * before any view draws (CutBar owns them, every view shares them); what
+ * belongs to a table alone stays here - the search box, the grouping and the
+ * sort - and each of those is in the URL too, so a reading is a link.
  *
  * Subtotals sit on the group heading; the totals row sums each column OVER THE
  * CUT, not over the book - with fifteen rows shown, "44 edited photographs" is
@@ -80,7 +81,7 @@ const COLUMNS: Column[] = [
   { key: 'decision', label: 'Decision', width: 108,
     cell: (r) => r.hasContract && !r.proposalOut ? <span>Agreed</span>
       : r.proposalOut ? <span>Issued</span>
-      : <span className="q-reg-warm">None issued</span>,
+      : <span className="q-reg-warm">Not issued</span>,
     total: (rs) => {
       const issued = rs.filter((r) => r.proposalOut).length;
       return issued > 0 ? <span>{issued} issued</span> : null;
@@ -88,7 +89,7 @@ const COLUMNS: Column[] = [
   { key: 'personnel', label: 'Personnel', width: 150,
     cell: (r) => r.personnel.length > 0
       ? <span title={r.personnel.join(' · ')}>{r.personnel.join(' · ')}</span>
-      : <span className="q-reg-warm">Nobody assigned</span>,
+      : <span className="q-reg-warm">Unassigned</span>,
     total: (rs) => {
       const short = rs.filter((r) => r.personnel.length === 0).length;
       return short > 0 ? <span className="q-reg-warm">{short} unassigned</span> : null;
@@ -145,12 +146,11 @@ const COLUMNS: Column[] = [
       : <span className="q-reg-none">—</span> },
 ];
 
-export function Register({ rows, lenses, q, today, views }: {
+export function Register({ rows, lenses, q, today }: {
   rows: RegisterRow[];
   lenses: LensGroup[];
   q: Query;
   today: string;
-  views: { key: string; label: string; count: number; href: string; on: boolean }[];
 }) {
   const [search, setSearch] = React.useState('');
   const [openMenu, setOpenMenu] = React.useState<string | null>(null);
@@ -165,21 +165,10 @@ export function Register({ rows, lenses, q, today, views }: {
     return `/bookings${s ? `?${s}` : ''}`;
   };
 
-  const cuts = lenses
-    .map((g) => ({ g, value: q[g.key] }))
-    .filter((x): x is { g: LensGroup; value: string } => Boolean(x.value));
-
-  const narrowed = rows.filter((r) => {
-    for (const { g, value } of cuts) {
-      const takes = r.takes[g.key] ?? [];
-      if (value === '__none__' ? takes.length > 0 : !takes.includes(value)) return false;
-    }
-    if (search.trim()) {
-      const hay = [r.title, r.clientName, ...r.packages, ...r.personnel].join(' ').toLowerCase();
-      if (!hay.includes(search.trim().toLowerCase())) return false;
-    }
-    return true;
-  });
+  const narrowed = search.trim()
+    ? rows.filter((r) => [r.title, r.clientName, ...r.packages, ...r.personnel]
+        .join(' ').toLowerCase().includes(search.trim().toLowerCase()))
+    : rows;
 
   const sort = SORTS.find((s) => s.key === q.sort) ?? SORTS[0];
   const ordered = [...narrowed].sort(sort.compare);
@@ -222,28 +211,9 @@ export function Register({ rows, lenses, q, today, views }: {
 
   return (
     <section className="q-reg">
-      <div className="q-reg-views">
-        {views.map((v) => (
-          <Link key={v.key} href={v.href} className={v.on ? 'q-reg-view q-reg-view-on' : 'q-reg-view'}>
-            {v.label}<b>{v.count}</b>
-          </Link>
-        ))}
-      </div>
-
       <div className="q-reg-bar">
         <input className="q-reg-search" value={search} onChange={(e) => setSearch(e.target.value)}
                placeholder="Search client, package, personnel" aria-label="Search the register" />
-        {cuts.map(({ g, value }) => (
-          <Link key={g.key} href={href({ [g.key]: null })} className="q-reg-chip">
-            <span>{g.label}</span>
-            <b>{value === '__none__' ? g.none ?? 'None' : g.items.find((i) => i.key === value)?.label ?? value}</b>
-            <i aria-hidden="true">×</i>
-          </Link>
-        ))}
-        {menu('filter', 'Filter', lenses.flatMap((g) => [
-          ...g.items.map((it) => ({ label: `${g.label}: ${it.label} (${it.count})`, href: href({ [g.key]: it.key }), on: q[g.key] === it.key })),
-          ...(g.none ? [{ label: `${g.label}: ${g.none}`, href: href({ [g.key]: '__none__' }), on: q[g.key] === '__none__' }] : []),
-        ]))}
         {menu('group', groupBy ? `Group: ${groupBy.label}` : 'Group', [
           { label: 'No grouping', href: href({ group: null }), on: !groupBy },
           ...lenses.map((g) => ({ label: g.label, href: href({ group: g.key }), on: q.group === g.key })),
@@ -251,9 +221,9 @@ export function Register({ rows, lenses, q, today, views }: {
         {menu('sort', `Sort: ${sort.label}`, SORTS.map((s) => ({
           label: s.label, href: href({ sort: s.key === 'oldest' ? null : s.key }), on: sort.key === s.key,
         })))}
-        <span className="q-reg-count">
-          {ordered.length === rows.length ? plural(rows.length, 'booking') : `${ordered.length} of ${plural(rows.length, 'booking')}`}
-        </span>
+        {search.trim() && (
+          <span className="q-reg-count">{ordered.length} of {plural(rows.length, 'booking')} match the search</span>
+        )}
       </div>
 
       <div className="q-reg-scroll">

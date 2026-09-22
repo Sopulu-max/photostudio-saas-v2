@@ -19,6 +19,10 @@ import type { SheetBooking } from './sheet';
  * 2. NOTHING IS INFERRED ABOUT A PERSON. No pronoun is ever put on a client or
  *    a crew member: a name is not evidence of anything. Statements are written
  *    so none is needed.
+ * 3. PLAIN PROFESSIONAL BUSINESS LANGUAGE, and never the second person. Not
+ *    "waiting on you" but "awaiting a studio decision"; not "nobody is on it"
+ *    but "unassigned"; not "no proposal out" but "no proposal issued". The
+ *    page reports the state of the record; it does not address the reader.
  *
  * Pure: everything arrives on the row (sheet.ts), so a statement is
  * composition and never a second reading of the database.
@@ -89,29 +93,29 @@ export function sayAge(sinceIso: string, today: string): string {
 export function sayNeeds(r: SheetBooking, today: string): Say {
   const p = r.planes;
   const gaps: string[] = [];
-  if (!p.intake.client) gaps.push('no client');
-  if (!p.intake.package) gaps.push('no package');
+  if (!p.intake.client) gaps.push('no client recorded');
+  if (!p.intake.package) gaps.push('no package recorded');
   if (!p.intake.date) gaps.push('no session date');
-  if (p.intake.agreement === 'none' && r.stage?.kind !== 'booked') gaps.push('no proposal out');
+  if (p.intake.agreement === 'none' && r.stage?.kind !== 'booked') gaps.push('no proposal issued');
   const out: Say = [];
 
   if (gaps.length > 0) {
     const said = gaps.length === 1 ? gaps[0] : `${gaps.slice(0, -1).join(', ')} and ${gaps[gaps.length - 1]}`;
     out.push(warm(`${said.charAt(0).toUpperCase()}${said.slice(1)}.`));
   }
-  if (!p.intake.package) out.push(t('Nothing is promised, so no work exists on it yet.'));
-  if (!p.intake.client) out.push(t('It is named by its package.'));
+  if (!p.intake.package) out.push(t('Nothing is committed and no work is defined.'));
+  if (!p.intake.client) out.push(t('Identified by its package.'));
 
   // The date that passed without a decision, which is the likeliest loss on the book.
   if (p.intake.date && r.day && r.day < today && r.stage?.kind !== 'booked') {
     out.push(warm(`The session date passed ${sayAge(r.day, today)} ago,`), t(`on ${dayOf(`${r.day}T00:00:00Z`)}.`));
   }
   if (p.intake.agreement === 'proposed') {
-    out.push(t(`A proposal has been out ${sayAge(r.stageSince, today)}, so the move is the client's.`));
+    out.push(t(`Proposal issued ${sayAge(r.stageSince, today)} ago; awaiting a client response.`));
   }
   out.push(...sayUnanswered(p.forOpen));
-  if (r.reminders) out.push(warm(`A reminder is due.`));
-  if (gaps.length === 0 && out.length === 0) out.push(t('Nothing is missing.'));
+  if (r.reminders) out.push(warm('Reminder due.'));
+  if (gaps.length === 0 && out.length === 0) out.push(t('The record is complete.'));
   return out;
 }
 
@@ -132,8 +136,8 @@ export function saySession(r: SheetBooking, crew: string[], today: string): Say 
 
   out.push(...sayPositions(r));
 
-  if (crew.length > 0) out.push(t(`On the job: ${crew.join(', ')}.`));
-  else out.push(warm('Nobody is on the job.'));
+  if (crew.length > 0) out.push(t(`Personnel: ${crew.join(', ')}.`));
+  else out.push(warm('No personnel assigned.'));
 
   // A date-kind answer is the occasion the session is for - a different date from the session.
   for (const f of p.axis.occasions) {
@@ -155,8 +159,8 @@ export function sayUnanswered(open: { name: string; question: string | null }[])
   const asked = open.filter((d) => d.question);
   const bare = open.filter((d) => !d.question);
   const out: Say = [];
-  if (asked.length > 0) out.push(warm(`Nobody has answered: ${asked.map((d) => d.question).join(' ')}`));
-  if (bare.length > 0) out.push(warm(`Nobody has said ${bare.map((d) => d.name).join(' or ')}.`));
+  if (asked.length > 0) out.push(warm(`Unanswered: ${asked.map((d) => d.question).join(' ')}`));
+  if (bare.length > 0) out.push(warm(`${bare.map((d) => d.name).join(' and ')} not stated.`));
   return out;
 }
 
@@ -182,7 +186,7 @@ export function sayPositions(r: SheetBooking): Say {
     const subject = services.length === 1 ? services[0] : `${services.slice(0, -1).join(', ')} and ${services[services.length - 1]}`;
     const isAre = services.length === 1 ? 'is' : services.length === 2 ? 'are both' : 'are all';
     out.push(t(`${subject} ${isAre} on ${step},`));
-    out.push(who ? t(`with ${who} on ${them(services.length)}.`) : warm(`and nobody is on ${them(services.length)}.`));
+    out.push(who ? t(`assigned to ${who}.`) : warm('unassigned.'));
   }
   return out;
 }
@@ -216,15 +220,15 @@ export function sayReadyToClose(r: SheetBooking): Say {
  */
 export function sayAbsence(key: string, n: number): Say {
   switch (key) {
-    case 'lapsed': return [strong(plural(n, 'session date')), warm('passed with no decision taken.')];
-    case 'decision-studio': return [strong(plural(n, 'job')), warm(`${is(n)} waiting on you`), t('to put a proposal out.')];
-    case 'decision-client': return [strong(plural(n, 'job')), t(`${is(n)} waiting on a client to agree a proposal that is already out.`)];
+    case 'lapsed': return [strong(plural(n, 'session date')), warm('passed with no decision recorded.')];
+    case 'decision-studio': return [strong(plural(n, 'booking')), warm(`${is(n)} awaiting a studio decision:`), t('no proposal issued.')];
+    case 'decision-client': return [strong(plural(n, 'booking')), t(`${is(n)} awaiting a client response to a proposal already issued.`)];
     case 'reminder': return [strong(plural(n, 'reminder')), warm(`${is(n)} due.`)];
-    case 'client': return [strong(plural(n, 'job')), t(`${has(n)} no client, so ${n === 1 ? 'it is named by its package' : 'they are named by their package'}.`)];
-    case 'date': return [strong(plural(n, 'job')), t(`${has(n)} no session date, so ${n === 1 ? 'it cannot' : 'they cannot'} be placed on a calendar at all.`)];
-    case 'package': return [strong(plural(n, 'job')), t(`${has(n)} no package, so nothing is promised and no work exists on ${them(n)}.`)];
-    case 'classification': return [strong(plural(n, 'job')), t(`${has(n)} not said what ${n === 1 ? 'it is' : 'they are'} for, though ${n === 1 ? 'its package asks' : 'their packages ask'}.`)];
-    case 'crew': return [strong(plural(n, 'session')), warm(`${is(n)} coming up with steps nobody is on.`)];
+    case 'client': return [strong(plural(n, 'booking')), t(`${has(n)} no client recorded, and ${n === 1 ? 'is' : 'are'} identified by package.`)];
+    case 'date': return [strong(plural(n, 'booking')), t(`${has(n)} no session date and ${n === 1 ? 'does' : 'do'} not appear on the calendar.`)];
+    case 'package': return [strong(plural(n, 'booking')), t(`${has(n)} no package recorded: nothing is committed and no work is defined.`)];
+    case 'classification': return [strong(plural(n, 'booking')), t(`${has(n)} a classification the package leaves open and unanswered.`)];
+    case 'crew': return [strong(plural(n, 'session')), t(`${is(n)} scheduled with`), warm('steps unassigned.')];
     default: return [strong(String(n))];
   }
 }
@@ -258,13 +262,13 @@ export function cardWhen(r: SheetBooking, today: string): string {
 /** The one absence a card shows, in the order a job resolves them. */
 export function cardNeeds(r: SheetBooking): string | null {
   const p = r.planes;
-  if (!p.intake.client) return 'no client';
-  if (!p.intake.package) return 'no package';
-  if (r.day && r.stage?.kind !== 'booked' && r.reminders) return 'a reminder is due';
-  if (p.intake.agreement === 'none' && r.stage?.kind !== 'booked') return 'no proposal out';
-  if ((r.work?.unstaffed ?? 0) > 0) return `${plural(r.work!.unstaffed, 'step')} with nobody on ${them(r.work!.unstaffed)}`;
-  if (p.forOpen.length > 0) return `${p.forOpen[0].name} not said`;
-  if (p.intake.agreement === 'proposed') return 'waiting on the client';
+  if (!p.intake.client) return 'No client recorded';
+  if (!p.intake.package) return 'No package recorded';
+  if (r.day && r.stage?.kind !== 'booked' && r.reminders) return 'Reminder due';
+  if (p.intake.agreement === 'none' && r.stage?.kind !== 'booked') return 'No proposal issued';
+  if ((r.work?.unstaffed ?? 0) > 0) return `${plural(r.work!.unstaffed, 'step')} unassigned`;
+  if (p.forOpen.length > 0) return `${p.forOpen[0].name} not stated`;
+  if (p.intake.agreement === 'proposed') return 'Awaiting client response';
   return null;
 }
 
@@ -278,7 +282,7 @@ export function sayDatedSession(r: SheetBooking, today: string): Say {
   // A date that passed on an undecided job was never a shoot: it is a date that went by.
   const undecided = held && r.stage?.kind !== 'booked';
   if (r.day === today && r.scheduledFor) out.push(t(`shoots at ${timeOf(r.scheduledFor)}.`));
-  else if (undecided) out.push(warm('had this session date, and it passed with no decision taken.'));
+  else if (undecided) out.push(warm('had this session date; it passed with no decision recorded.'));
   else if (held) out.push(t('was shot.'));
   else out.push(t('shoots.'));
 
@@ -288,7 +292,7 @@ export function sayDatedSession(r: SheetBooking, today: string): Say {
     out.push(t(`Still in post-production, ${r.work.done} of ${plural(r.work.total, 'step')} done.`));
   } else if (!held && r.planes.runs.length > 0) {
     const open = r.work?.unstaffed ?? 0;
-    if (open > 0) out.push(warm(`${plural(open, 'step')} on it with nobody on ${them(open)}.`));
+    if (open > 0) out.push(warm(`${plural(open, 'step')} unassigned.`));
   }
   return out;
 }
@@ -309,7 +313,7 @@ export function sayDatedOccasion(r: SheetBooking, label: string, day: string, to
       : gap > 0 ? `${plural(gap, 'day')} after the shoot.`
       : `${plural(-gap, 'day')} before the shoot.`));
   } else {
-    out.push(warm('The job still has no session date.'));
+    out.push(warm('No session date recorded.'));
   }
   return out;
 }

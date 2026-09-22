@@ -158,7 +158,7 @@ describe('The bookings page says something, and keeps saying it', () => {
 
     const said = flat(saySession(row!.booking, row!.crew, dash.sheet.today));
     expect(said).toMatch(/Shoots at \d{2}:\d{2}/);            // the verb carries the plane
-    expect(said).toMatch(/Nobody is on the job|On the job:/);  // the crew, said either way
+    expect(said).toMatch(/No personnel assigned|Personnel:/);  // the crew, said either way
     expect(said).not.toMatch(/undefined|NaN|null/);
   });
 
@@ -168,19 +168,19 @@ describe('The bookings page says something, and keeps saying it', () => {
     const said = flat(sayNeeds(bare, dash.sheet.today));
 
     // One clause, every absence in it, in the order a job resolves them.
-    expect(said).toContain('No client, no package, no session date and no proposal out.');
-    // And it explains the consequence rather than leaving a blank.
-    expect(said).toContain('Nothing is promised');
+    expect(said).toContain('No client recorded, no package recorded, no session date and no proposal issued.');
+    // And it states the consequence rather than leaving a blank.
+    expect(said).toContain('Nothing is committed and no work is defined.');
 
     // The absence totals are whole sentences with the noun attached, never a bare numeral.
     const dateTotal = dash.attention.find((a) => a.key === 'date')!;
     expect(dateTotal.count).toBeGreaterThan(0);
-    expect(flat(sayAbsence('date', dateTotal.count))).toMatch(/jobs? (has|have) no session date/);
+    expect(flat(sayAbsence('date', dateTotal.count))).toMatch(/bookings? (has|have) no session date/);
     // And the sentence agrees with its own count, either way.
-    expect(flat(sayAbsence('date', 1))).toContain('1 job has no session date');
-    expect(flat(sayAbsence('date', 4))).toContain('4 jobs have no session date');
-    expect(flat(sayAbsence('decision-client', 1))).toContain('is waiting on a client');
-    expect(flat(sayAbsence('decision-client', 3))).toContain('are waiting on a client');
+    expect(flat(sayAbsence('date', 1))).toContain('1 booking has no session date');
+    expect(flat(sayAbsence('date', 4))).toContain('4 bookings have no session date');
+    expect(flat(sayAbsence('decision-client', 1))).toContain('is awaiting a client response');
+    expect(flat(sayAbsence('decision-client', 3))).toContain('are awaiting a client response');
   });
 
   it('says where the work is: the next step, who holds it, and how far along', async () => {
@@ -191,7 +191,7 @@ describe('The bookings page says something, and keeps saying it', () => {
     const said = flat(sayWork(post!.booking, dash.sheet.today));
     expect(said).toMatch(/Shot /);                       // past tense: the session is behind
     expect(said).toContain('Edit');                      // the step that is next, by name
-    expect(said).toMatch(/nobody is on it|with /);       // who holds it, or that nobody does
+    expect(said).toMatch(/unassigned|assigned to /);     // who holds it, or that nobody is on it
     expect(sayProgress(post!.booking)).toBe('1 of 2 steps done');
 
     // What the studio is short of, by its own role names.
@@ -315,7 +315,7 @@ describe('The bookings page says something, and keeps saying it', () => {
 
     // The job with nothing on it leads with the absence a studio resolves first.
     const bare = rows.find((r) => r.id === bareId)!;
-    expect(cardNeeds(bare)).toBe('no client');
+    expect(cardNeeds(bare)).toBe('No client recorded');
     expect(cardWhen(bare, today)).toBe('no date yet');
 
     // Today's session says the time, not the date.
@@ -329,7 +329,7 @@ describe('The bookings page says something, and keeps saying it', () => {
      * the same order the page sorts by (RESOLVE), crew before decision-client.
      */
     const proposed = rows.find((r) => r.id === proposedId)!;
-    expect(cardNeeds(proposed)).toBe('2 steps with nobody on them');
+    expect(cardNeeds(proposed)).toBe('2 steps unassigned');
 
     // And every card sits in a column of every axis the board can be read by.
     for (const key of ['when', 'stage', 'needs', 'missing']) {
@@ -415,6 +415,28 @@ describe('The bookings page says something, and keeps saying it', () => {
       }
     }
     for (const q of dash.sold.questions) if (q.said) expect(q.said).not.toMatch(/^\d+$|undefined|NaN/);
+  });
+
+  it('never addresses the reader, and never says nobody', async () => {
+    /*
+     * PLAIN PROFESSIONAL BUSINESS LANGUAGE, ruled more than once: the page
+     * reports the state of the record. It does not speak to the operator
+     * ("waiting on you"), and it does not say "nobody" where a record simply
+     * names no one - the term is unassigned.
+     */
+    const dash = await readBookingsDashboard(30);
+    const rows = dash.sheet.bands.flatMap((b) => b.rows);
+    const said: string[] = [];
+    for (const r of rows) {
+      said.push(flat(sayNeeds(r, dash.sheet.today)), flat(sayWork(r, dash.sheet.today)), flat(sayPositions(r)), cardNeeds(r) ?? '');
+    }
+    for (const m of ['lapsed', 'decision-studio', 'decision-client', 'reminder', 'client', 'date', 'package', 'classification', 'crew']) {
+      said.push(flat(sayAbsence(m, 1)), flat(sayAbsence(m, 3)));
+    }
+    for (const t of said) {
+      expect(t, `second person in: ${t}`).not.toMatch(/(you|your|yours)/i);
+      expect(t, `"nobody" in: ${t}`).not.toMatch(/nobody/i);
+    }
   });
 
   it('says a date with the distance that makes it legible, and never a bare date', async () => {
