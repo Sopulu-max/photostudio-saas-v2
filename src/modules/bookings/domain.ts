@@ -1668,6 +1668,8 @@ export type BookingListRow = {
   classification: { dimensionId: string; dimensionName: string; valueId: string; valueName: string }[];
   /** The lines, by id - what a per-line read is addressed by. */
   lineIds: string[];
+  /** The package instances on it, by id - what a narrowing is asked of. */
+  packageIds: string[];
   /**
    * WHAT THE PACKAGE LEFT OPEN AND THIS BOOKING ANSWERED. Every studio's
    * packages leave different questions open, so a row carries them as
@@ -1698,7 +1700,7 @@ export async function listBookings(): Promise<BookingListRow[]> {
       id, title, created_at, scheduled_for,
       stage:booking_stages(id, name, kind, color),
       contact:contacts(display_name),
-      booking_lines(id, title, package:packages(name),
+      booking_lines(id, title, package_id, package:packages(name),
         booking_line_variable_values(value, source, variable:variables(id, label, kind, unit, dimension:dimensions(id, name)))),
       contracts(id, status),
       financial_transactions(id, amount, status, currency),
@@ -1769,6 +1771,7 @@ export async function listBookings(): Promise<BookingListRow[]> {
           valueId: r.dimension_value.id as string, valueName: r.dimension_value.name as string,
         })),
       lineIds: ((b.booking_lines || []) as any[]).map((l) => l.id as string),
+      packageIds: ((b.booking_lines || []) as any[]).map((l) => l.package_id as string | null).filter((id): id is string => Boolean(id)),
       answers: [],
     };
     const said = new Map(row.classification.map((c) => [c.dimensionId, c.valueName]));

@@ -2860,6 +2860,10 @@ body::before {
 .q-headline-part:hover { color: var(--q-color-ink-900); }
 .q-headline-part > b { font-weight: 700; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
 .q-headline-warm > b { color: var(--q-color-warning); }
+.q-headline-door { color: var(--q-color-accent); }
+.q-recent-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
+.q-recent-grid .q-recent-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 60em) { .q-recent-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* NEEDS YOU: a count, what it counts, one more thing; then the first few, as chips. */
 .q-att { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 28px; }
@@ -3017,6 +3021,154 @@ a.q-att-link:hover .q-att-go { transform: translateX(3px); color: var(--q-color-
 .q-cell-progress { display: inline-flex; align-items: center; gap: 8px; }
 .q-table-analysis .q-table-td { padding: 12px 16px; vertical-align: middle; }
 .q-table-container { overflow-x: auto; }
+
+/*
+ * THE STRAND - one booking as one line (11-BOOKINGS_INFORMATION_ARCHITECTURE
+ * §9.9). One grid for the key row, every strand and every column total, so
+ * a glance down a column reads one fact across every job. Points are the
+ * one vocabulary: filled = the edge exists / the step is done; a warm ring
+ * = absent, or open and unassigned; an accent ring = current with someone
+ * on it; a grey ring = ahead. The axis is ±30 days with now fixed at the
+ * centre; a mark's place is a custom property, as FramePreview sizes itself.
+ */
+.q-strand {
+  display: grid;
+  /* Sized to the lane, not the design board: identity · intake · for · axis · steps (the rest) · end. */
+  grid-template-columns: minmax(0, 190px) 100px 96px 170px minmax(0, 1fr) 128px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+  min-width: 0;
+}
+.q-lane, .q-cal-lane, .q-sheet { container-type: inline-size; }
+@container (min-width: 72em) {
+  .q-strand { grid-template-columns: minmax(0, 232px) 120px 112px 220px minmax(0, 1fr) 150px; gap: 18px; padding: 12px 22px; }
+  .q-strand-caption { padding-left: calc(22px + 232px + 18px); }
+  .q-cal-row { grid-template-columns: minmax(0, 232px) minmax(0, 1fr); gap: 18px; padding-left: 22px; padding-right: 22px; }
+}
+.q-strand-key {
+  padding: 10px 18px 8px;
+  border-bottom: 1px solid var(--q-color-ink-100);
+  font-family: var(--q-font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--q-color-ink-400);
+  align-items: end;
+}
+.q-strand-key .q-strand-intake { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; position: static; }
+.q-strand-key .q-strand-intake::before { display: none; }
+.q-strand-axis-key { display: flex; justify-content: space-between; }
+.q-strand-now-word { color: var(--q-color-accent); }
+.q-strand-row { border-bottom: 1px solid var(--q-color-ink-100); }
+.q-strand-row:last-child { border-bottom: 0; }
+.q-strand-today { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 60%); }
+.q-strand-closed { opacity: 0.5; }
+a.q-strand:hover .q-strand-title { color: var(--q-color-accent); }
+
+.q-strand-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.q-strand-face { width: 32px; height: 32px; border-radius: 9px; background: var(--q-color-ink-100); color: var(--q-color-ink-600); display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex: none; }
+.q-strand-title { font-size: 0.9rem; font-weight: 600; color: var(--q-color-ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--q-dur-2) var(--q-ease); }
+
+/* The points. */
+.q-pt { display: inline-block; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; flex: none; position: relative; }
+.q-pt-full { background: var(--q-color-ink-600); }
+.q-pt-empty { border: 2px solid var(--q-color-warning); background: var(--q-color-paper-elevated); }
+.q-pt-half { border: 2px solid var(--q-color-ink-600); background: linear-gradient(90deg, var(--q-color-ink-600) 50%, var(--q-color-paper-elevated) 50%); }
+.q-pt-done { background: var(--q-hue-green); }
+.q-pt-current { border: 2px solid var(--q-color-accent); }
+.q-pt-open { border: 2px solid var(--q-color-warning); }
+.q-pt-ahead { border: 1.5px solid var(--q-color-ink-300); }
+.q-pt-close { margin-left: 10px; }
+.q-pt-close::before { content: ''; position: absolute; left: -12px; top: 50%; width: 8px; height: 1px; background: var(--q-color-ink-200); }
+.q-pt-close-done { background: var(--q-hue-green); }
+.q-pt-close-ready { border: 2px solid var(--q-color-warning); }
+.q-pt-close-ahead { border: 1.5px solid var(--q-color-ink-300); }
+
+.q-strand-intake { display: grid; grid-template-columns: repeat(4, 1fr); justify-items: center; position: relative; }
+.q-strand-intake::before { content: ''; position: absolute; left: 14px; right: 14px; top: 50%; height: 1px; background: var(--q-color-ink-200); }
+
+.q-strand-for { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.q-for { font-size: 0.66rem; padding: 2px 7px; border-radius: 6px; background: var(--q-color-ink-100); color: var(--q-color-ink-700); white-space: nowrap; }
+.q-for-open { background: none; border: 1px solid var(--q-color-warning); color: var(--q-color-warning); }
+.q-for-none { color: var(--q-color-ink-300); font-size: 0.7rem; }
+
+/* The axis: its own dated facts, now fixed at the centre. */
+.q-strand-axis { position: relative; height: 24px; display: block; }
+.q-strand-axis::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--q-color-ink-200); }
+.q-strand-axis-undated::before { height: 0; border-top: 1px dashed var(--q-color-warning); opacity: 0.6; }
+.q-strand-now { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--q-color-accent); opacity: 0.6; }
+.q-strand-today .q-strand-now { opacity: 1; }
+.q-mark { position: absolute; left: calc(var(--q-x, 50) * 1%); top: 50%; }
+.q-mark-session { width: 12px; height: 12px; background: var(--q-color-ink-900); border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); }
+.q-mark-session-today { background: var(--q-color-accent); width: 13px; height: 13px; box-shadow: 0 0 0 4px var(--q-color-accent-soft); }
+.q-mark-pinned { opacity: 0.55; }
+.q-mark-occasion { width: 10px; height: 10px; border: 1.5px solid var(--q-color-ink-500); box-sizing: border-box; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); }
+.q-mark-reminder { top: 2px; bottom: 2px; width: 2px; background: var(--q-color-ink-500); transform: translateX(-50%); }
+.q-mark-past { background: var(--q-color-warning); }
+.q-mark-label { position: absolute; left: calc(var(--q-x, 50) * 1%); top: -11px; transform: translateX(-50%); font-family: var(--q-font-mono); font-size: 0.56rem; color: var(--q-color-ink-500); white-space: nowrap; }
+.q-strand-today .q-mark-label { color: var(--q-color-accent); }
+
+/* The steps: a bracket per package, a run per service. */
+.q-strand-steps { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+.q-run-bracket { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px; border: 1px solid var(--q-color-ink-100); border-radius: 8px; flex: none; }
+.q-run { display: inline-flex; align-items: center; gap: 5px; }
+.q-strand-nosteps { font-size: 0.75rem; color: var(--q-color-ink-400); }
+
+.q-strand-end { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.q-strand-fig { font-family: var(--q-font-mono); font-size: 0.75rem; color: var(--q-color-ink-500); white-space: nowrap; }
+.q-strand-fig-warm { color: var(--q-color-warning); }
+.q-strand-fig-today { color: var(--q-color-accent); }
+
+/* The caption under a strand: the current points, in words. */
+.q-strand-caption { padding: 0 18px 12px calc(18px + 190px + 14px); font-size: 0.78rem; color: var(--q-color-ink-500); }
+.q-strand-cap-key { color: var(--q-color-ink-400); }
+.q-strand-cap-sep { color: var(--q-color-ink-300); }
+
+/* A lane: strands under one question. */
+.q-lane { border: 1px solid var(--q-color-ink-100); border-radius: 16px; background: var(--q-color-paper-elevated); overflow: hidden; }
+.q-lane-head { display: flex; align-items: baseline; gap: 12px; padding: 12px 22px; border-bottom: 1px solid var(--q-color-ink-100); }
+.q-lane-head-today { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 50%); }
+.q-lane-title { font-family: var(--q-font-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--q-color-ink-500); }
+.q-lane-head-today .q-lane-title { color: var(--q-color-accent); }
+.q-lane-note { font-size: 0.78rem; color: var(--q-color-ink-500); }
+.q-lane-more { display: block; padding: 12px 22px; font-size: 0.82rem; color: var(--q-color-ink-500); }
+.q-lane-more:hover { color: var(--q-color-accent); }
+.q-lane-empty { padding: 14px 22px; font-size: 0.85rem; color: var(--q-color-ink-500); }
+
+/* The totals over the columns they count. */
+.q-totals { background: var(--q-color-paper-subtle); border-bottom: 1px solid var(--q-color-ink-100); align-items: end; padding-top: 12px; padding-bottom: 8px; }
+.q-totals-word { font-size: 0.75rem; color: var(--q-color-ink-400); }
+.q-total { display: flex; flex-direction: column; gap: 2px; align-items: center; text-decoration: none; color: inherit; }
+.q-total b { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }
+.q-total-live b { color: var(--q-color-warning); }
+.q-total small { font-family: var(--q-font-mono); font-size: 0.56rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); white-space: nowrap; }
+.q-total-start { align-items: flex-start; }
+.q-total-end { align-items: flex-end; }
+.q-totals-roles { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+.q-totals .q-total b { font-size: 1.1rem; }
+.q-totals .q-total small { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+
+/* One calendar: every strand's dated facts on the studio's one axis. */
+.q-cal-row { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--q-color-ink-100); }
+.q-cal-row:first-of-type { border-top: 0; }
+.q-cal-name { font-size: 0.78rem; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-cal-axis { position: relative; height: 26px; display: block; }
+.q-cal-axis::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--q-color-ink-200); }
+.q-cal-tick { position: absolute; left: calc(var(--q-x, 0) * 1%); top: 0; bottom: 0; width: 1px; background: var(--q-color-ink-100); }
+.q-cal-now { position: absolute; left: 50%; top: -6px; bottom: -6px; width: 1px; background: var(--q-color-accent); opacity: 0.5; }
+.q-cal-head { padding: 12px 22px 6px; font-family: var(--q-font-mono); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--q-color-ink-400); align-items: end; }
+.q-cal-head-axis { display: flex; justify-content: space-between; }
+.q-mark-held { width: 11px; height: 11px; background: var(--q-color-ink-500); border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); }
+.q-cal-bars { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; align-items: end; height: 28px; }
+.q-cal-bar { background: var(--q-color-ink-300); border-radius: 2px 2px 0 0; height: calc(var(--q-share, 0) * 1%); }
+.q-cal-bar-ahead { background: var(--q-color-accent); }
+
+@media (max-width: 56em) {
+  /* Narrow: the strand keeps its columns and the lane scrolls sideways rather than crushing the points. */
+  .q-lane, .q-cal-lane, .q-sheet { overflow-x: auto; }
+  .q-strand, .q-strand-key, .q-cal-row { min-width: 820px; }
+}
 
 /* A group heading's share of what is shown: a short bar and the figure. */
 .q-sheet-band-share { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--q-color-ink-400); font-variant-numeric: tabular-nums; }

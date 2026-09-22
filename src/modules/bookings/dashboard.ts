@@ -1,6 +1,7 @@
 import { listRecentActivity } from '@/kernel/events';
 import { readBookingsSheet, MISSING, type BookingsSheet, type SheetBooking, type Period, type MissingKey } from './sheet';
 import { getLineConfigurationForm } from './domain';
+import { getBookingTeam } from '@/modules/production/interface';
 
 /**
  * THE BOOKINGS DASHBOARD - the day's questions about bookings, each
@@ -29,6 +30,8 @@ export type Position = { service: string; step: string; who: string | null };
 
 export type NextRow = {
   booking: SheetBooking;
+  /** The declared crew (assignments): who is coming, by role - a different fact from who is on a step. */
+  crew: string[];
   /** One position per service of the booking - its first open step and who is on it - unassigned first. The within-booking hierarchy, on the row. */
   positions: Position[];
   /**
@@ -76,9 +79,21 @@ export type PipelineStage = {
 
 export type RecentRow = { id: string; at: string; who: string; phrase: string; booking: { id: string; title: string } | null };
 
+/** One calendar: every live strand's dated facts on the studio's one axis, as day offsets from today. */
+export type Calendar = {
+  sessions: { booking: SheetBooking; offset: number; held: boolean; today: boolean }[];
+  occasions: { booking: SheetBooking; label: string; offset: number }[];
+  reminders: { booking: SheetBooking; offset: number }[];
+  /** Sessions per week, three weeks back and three ahead. */
+  perWeek: { from: number; count: number; ahead: boolean }[];
+};
+
 export type BookingsDashboard = {
   sheet: BookingsSheet;
   attention: Attention[];
+  /** Open, unassigned step points across live strands, by the role they need - the people plane read from the other side. */
+  roleTotals: { id: string; name: string; count: number }[];
+  calendar: Calendar;
   today: NextRow[];
   week: NextRow[];
   /** What follows the week, shown only when the week is empty. */
@@ -133,8 +148,15 @@ export async function readBookingsDashboard(period: Period = 30): Promise<Bookin
     const forms = await Promise.all(r.lineIds.map((id) => getLineConfigurationForm(id).catch(() => [] as any[])));
     unansweredOf.set(r.id, forms.flat().filter((x: any) => x.asked && (x.value === null || x.value === undefined || x.value === '')).map((x: any) => x.label as string));
   }));
+  // The declared crew, for the sessions ahead: the fact a session row needs that the steps do not carry.
+  const crewOf = new Map<string, string[]>();
+  await Promise.all(shownAhead.map(async (r) => {
+    const team = await getBookingTeam(r.id).catch(() => null);
+    crewOf.set(r.id, (team?.roles ?? []).flatMap((role: any) => (role.covering ?? []).map((p: any) => `${p.name} (${role.roleName ?? 'no role'})`)));
+  }));
   const next = (r: SheetBooking): NextRow => ({
     booking: r,
+    crew: crewOf.get(r.id) ?? [],
     positions: positionsOf(r).sort((a, b) => Number(Boolean(a.who)) - Number(Boolean(b.who))),
     unanswered: unansweredOf.get(r.id) ?? [],
   });
@@ -177,5 +199,26 @@ export async function readBookingsDashboard(period: Period = 30): Promise<Bookin
     booking: titleOf.has(e.entityId) ? { id: e.entityId, title: titleOf.get(e.entityId)! } : null,
   }));
 
-  return { sheet, attention, today: todayRows, week: weekRows, later: laterRows, works, toClose, pipeline, recent };
+  // ---- The people plane, read from the other side: open unassigned points by role.
+  const roleCount = new Map<string, { id: string; name: string; count: number }>();
+  for (const r of live) for (const n of r.needs) {
+    const had = roleCount.get(n.id) ?? { id: n.id, name: n.name, count: 0 };
+    had.count += 1; roleCount.set(n.id, had);
+  }
+  const roleTotals = [...roleCount.values()].sort((a, b) => b.count - a.count);
+
+  // ---- One calendar: every live strand's dated facts within ±30 days of today.
+  const within30 = (o: number) => o >= -30 && o <= 30;
+  const calendar: Calendar = {
+    sessions: live.filter((r) => r.strand.axis.session !== null && within30(r.strand.axis.session!)).sort((a, b) => a.strand.axis.session! - b.strand.axis.session!)
+      .map((r) => ({ booking: r, offset: r.strand.axis.session!, held: r.strand.axis.session! < 0, today: r.strand.axis.session === 0 })),
+    occasions: live.flatMap((r) => r.strand.axis.occasions.filter((o) => within30(o.offset)).map((o) => ({ booking: r, label: o.label, offset: o.offset }))),
+    reminders: live.flatMap((r) => r.strand.axis.reminders.filter(within30).map((offset) => ({ booking: r, offset }))),
+    perWeek: [-21, -14, -7, 0, 7, 14].map((from) => ({
+      from, ahead: from >= 0,
+      count: live.filter((r) => r.strand.axis.session !== null && r.strand.axis.session! >= from && r.strand.axis.session! < from + 7).length,
+    })),
+  };
+
+  return { sheet, attention, roleTotals, calendar, today: todayRows, week: weekRows, later: laterRows, works, toClose, pipeline, recent };
 }

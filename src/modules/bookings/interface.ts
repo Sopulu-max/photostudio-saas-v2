@@ -107,9 +107,9 @@ export type { BookingListRow } from './domain';
 
 // The bookings sheet as the studio's day book: bands by when the work is, the work on each row, what needs someone.
 export { readBookingsSheet } from './sheet';
-export type { BookingsSheet, SheetBooking, SheetBand, Period, Figure, SeriesLine } from './sheet';
+export type { BookingsSheet, SheetBooking, SheetBand, Period, Figure, SeriesLine, Strand, StepState } from './sheet';
 export { PERIODS, MISSING } from './sheet';
 export type { MissingKey } from './sheet';
 // The day's questions about bookings, answered with the bookings themselves.
 export { readBookingsDashboard } from './dashboard';
-export type { BookingsDashboard, Attention, NextRow, WorkRow, Position, PipelineStage, RecentRow } from './dashboard';
+export type { BookingsDashboard, Attention, NextRow, WorkRow, Position, PipelineStage, RecentRow, Calendar } from './dashboard';

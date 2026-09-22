@@ -4,6 +4,8 @@ import { calendarIn, dayIn, addDays, bandOf, whenItems, type Band } from '@/kern
 import { axisOf, valuesSeen, type LensGroup, type Takes } from '@/kernel/lenses';
 import { listEventsSince } from '@/kernel/events';
 import { listNoteRemindersInRange } from '@/modules/notes/interface';
+import { listStudioDimensions } from '@/modules/services/interface';
+import { packageNarrowingsFor } from '@/modules/packages/interface';
 import { listBookings, listStages, type BookingListRow } from './domain';
 
 /**
@@ -50,6 +52,30 @@ export type SheetBooking = BookingListRow & {
   reminders: { count: number; earliest: string } | null;
   /** The values this row takes on each axis - axis key to item keys (kernel/lenses). */
   takes: Takes;
+  /**
+   * THE STRAND - the booking as one line (11-BOOKINGS_INFORMATION_ARCHITECTURE
+   * §9.9): the intake points, what it is for, its dated facts on its own
+   * axis, the within-booking hierarchy of steps, the close. Every booking is
+   * the same line with different points filled; empty is warm.
+   */
+  strand: Strand;
+};
+
+export type StepState = 'done' | 'current' | 'open' | 'ahead';
+export type Strand = {
+  /** The four edges a booking grows first, in the order a job resolves them. */
+  intake: { client: boolean; package: boolean; date: boolean; agreement: 'none' | 'proposed' | 'agreed' };
+  /** The semantic plane: what it is for, and the dimensions its packages leave open that it has not answered. */
+  forValues: { id: string; name: string }[];
+  forOpen: { id: string; name: string }[];
+  /** Its dated facts as day offsets from today on the studio's clock (negative = past). */
+  axis: { session: number | null; occasions: { label: string; offset: number }[]; reminders: number[] };
+  /** A bracket per package, a run per service, a point per step in workflow order. */
+  runs: { packageName: string; services: { name: string; steps: { name: string; state: StepState; who: string | null }[] }[] }[];
+  /** The last point: closed, complete but still live (ready), or ahead. */
+  close: 'done' | 'ready' | 'ahead';
+  /** The one number for where the strand is, and whether it needs the operator. */
+  figure: { text: string; warm: boolean; today: boolean };
 };
 
 export type { LensGroup };
@@ -133,6 +159,7 @@ export const MISSING = [
   { key: 'client', label: 'No client' },
   { key: 'date', label: 'No date' },
   { key: 'package', label: 'No package' },
+  { key: 'classification', label: 'Classification open' },
   { key: 'crew', label: 'Unassigned steps, upcoming' },
 ] as const;
 export type MissingKey = (typeof MISSING)[number]['key'];
@@ -147,13 +174,25 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   // booking says when it entered its stage; those into a booked stage are the
   // agreements the period figures and the series count.
   const nowIso = new Date().toISOString();
-  const [stageEvents, dueReminders] = await Promise.all([
+  const [stageEvents, allReminders, studioDimensions] = await Promise.all([
     listEventsSince('booking', 'stage_changed', '1970-01-01'),
-    listNoteRemindersInRange('1970-01-01', nowIso),
+    // Every reminder on a booking, past and ahead: a tick on the strand's axis, warm once past.
+    listNoteRemindersInRange('1970-01-01', addDays(today, 60) + 'T23:59:59Z'),
+    listStudioDimensions(),
   ]);
+  const dueReminders = allReminders.filter((n) => n.remindAt && n.remindAt <= nowIso);
+  const dimensionName = new Map(studioDimensions.map((d) => [d.id, d.name] as const));
+  // What each package on the book leaves open: a dimension it allows more than one value of.
+  const packageIds = [...new Set(rows.flatMap((r) => r.packageIds))];
+  const narrowings: Map<string, Map<string, Set<string>>> = packageIds.length > 0 ? await packageNarrowingsFor(orgId, packageIds) : new Map();
   const agreedEvents = stageEvents.filter((e) => e.payload.kind === 'booked');
   const stageSinceOf = new Map<string, string>();
   for (const e of stageEvents) stageSinceOf.set(e.entityId, e.at);
+  const remindersAll = new Map<string, string[]>();
+  for (const n of allReminders) {
+    if (n.aboutType !== 'booking' || !n.aboutId || !n.remindAt) continue;
+    (remindersAll.get(n.aboutId) ?? remindersAll.set(n.aboutId, []).get(n.aboutId)!).push(n.remindAt);
+  }
   const remindersOf = new Map<string, { count: number; earliest: string }>();
   for (const n of dueReminders) {
     if (n.aboutType !== 'booking' || !n.aboutId || !n.remindAt) continue;
@@ -214,6 +253,12 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
       ...(r.lineCount === 0 ? ['package'] : []),
       ...(r.stage?.kind === 'booked' && upcoming && (work?.unstaffed ?? 0) > 0 ? ['crew'] : []),
     ];
+    // Which dimensions this booking's packages leave open, unanswered - an absence on the semantic plane.
+    {
+      const answeredDims = new Set(r.classification.map((c) => c.dimensionId));
+      const open = r.packageIds.some((pid) => [...((narrowings.get(pid) ?? new Map()) as Map<string, Set<string>>).entries()].some(([dimId, values]) => values.size > 1 && !answeredDims.has(dimId) && dimensionName.has(dimId)));
+      if (!closed && open) missing.push('classification');
+    }
     const takes: Takes = {
       stage: r.stage ? [r.stage.id] : [],
       when: [band],
@@ -224,7 +269,57 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     const facts = [...r.answers]
       .sort((a, b) => Number(b.kind === 'date') - Number(a.kind === 'date'))
       .map((a) => ({ label: a.label, kind: a.kind, text: sayAnswer(a), day: a.kind === 'date' && typeof a.value === 'string' ? a.value.slice(0, 10) : null }));
-    return { ...r, band, day, work, needs, facts, stageSince: stageSinceOf.get(r.id) ?? r.createdAt, reminders, takes };
+
+    // ---- The strand.
+    const offset = (d: string) => Math.round((new Date(`${d}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
+    const answered = new Set(r.classification.map((c) => c.dimensionId));
+    const openDims = new Map<string, string>();
+    for (const pid of r.packageIds) for (const [dimId, values] of (narrowings.get(pid) ?? new Map()) as Map<string, Set<string>>) {
+      if (values.size > 1 && !answered.has(dimId) && dimensionName.has(dimId)) openDims.set(dimId, dimensionName.get(dimId)!);
+    }
+    // A bracket per package, a run per service, a point per step: the first open step of a run is current
+    // when someone is on it and open (warm) when nobody is; the rest of the open steps are ahead.
+    const byLine = new Map<string, { packageName: string; services: Map<string, { name: string; steps: { name: string; state: StepState; who: string | null }[] }> }>();
+    for (const t of [...tasks].sort((a, b) => a.position - b.position)) {
+      const lk = t.lineId ?? '';
+      const line = byLine.get(lk) ?? { packageName: t.fromPackage ?? 'This booking', services: new Map() };
+      byLine.set(lk, line);
+      const sk = t.packageServiceId ?? '';
+      const svc = line.services.get(sk) ?? { name: t.fromService ?? (t.lineId ? 'Package' : 'Added here'), steps: [] };
+      line.services.set(sk, svc);
+      svc.steps.push({ name: t.name, state: t.done ? 'done' : 'ahead', who: t.assignee?.name ?? null });
+    }
+    const runs = [...byLine.values()].map((l) => ({
+      packageName: l.packageName,
+      services: [...l.services.values()].sort((a, b) => a.name.localeCompare(b.name)).map((svc) => {
+        const first = svc.steps.find((st) => st.state !== 'done');
+        if (first) first.state = first.who ? 'current' : 'open';
+        return svc;
+      }),
+    }));
+    const allDone = tasks.length > 0 && tasks.every((t) => t.done);
+    const held = day !== null && day < today;
+    const upcomingDays = day !== null ? offset(day) : null;
+    const figure = closed ? { text: '', warm: false, today: false }
+      : band === 'today' ? { text: r.scheduledFor ? new Date(r.scheduledFor).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'today', warm: false, today: true }
+      : held && r.stage?.kind === 'booked' ? { text: `${-upcomingDays!}d since${work ? ` · ${work.done}/${work.total}` : ''}`, warm: false, today: false }
+      : upcomingDays !== null && upcomingDays > 0 ? { text: `in ${upcomingDays}d`, warm: false, today: false }
+      : (!r.stage || r.stage.kind === 'enquiry') && r.proposalOut ? { text: `${Math.max(0, Math.round((Date.now() - new Date(stageSinceOf.get(r.id) ?? r.createdAt).getTime()) / 86_400_000))}d with client`, warm: false, today: false }
+      : { text: `${Math.max(0, Math.round((Date.now() - new Date(stageSinceOf.get(r.id) ?? r.createdAt).getTime()) / 86_400_000))}d waiting`, warm: true, today: false };
+    const strand: Strand = {
+      intake: { client: Boolean(r.clientName), package: r.lineCount > 0, date: day !== null, agreement: r.hasContract && !r.proposalOut ? 'agreed' : r.proposalOut ? 'proposed' : 'none' },
+      forValues: r.classification.map((c) => ({ id: c.valueId, name: c.valueName })),
+      forOpen: [...openDims.entries()].map(([id, name]) => ({ id, name })),
+      axis: {
+        session: day !== null ? offset(day) : null,
+        occasions: facts.filter((f) => f.day).map((f) => ({ label: f.label, offset: offset(f.day!) })),
+        reminders: (remindersAll.get(r.id) ?? []).map((iso) => offset(dayIn(iso, timezone))),
+      },
+      runs,
+      close: closed ? 'done' : allDone && held ? 'ready' : 'ahead',
+      figure,
+    };
+    return { ...r, band, day, work, needs, facts, stageSince: stageSinceOf.get(r.id) ?? r.createdAt, reminders, takes, strand };
   });
 
   // ---- The axes: for each, the values present, with counts, in the order the axis is read.

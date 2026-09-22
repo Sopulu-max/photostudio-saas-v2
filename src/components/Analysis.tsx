@@ -42,7 +42,7 @@ export type Column<R> = { key: string; label: string; cell: (r: R) => React.Reac
 const NONE = '__none__';
 
 export function Analysis<R extends AnalysisRow>({
-  rows: all, lenses, orders: given, columns, searchIn, searchPlaceholder, noun, render, defaultGroup, empty,
+  rows: all, lenses, orders: given, columns, searchIn, searchPlaceholder, noun, render, defaultGroup, empty, before,
 }: {
   rows: R[];
   lenses: LensGroup[];
@@ -56,6 +56,8 @@ export function Analysis<R extends AnalysisRow>({
   /** The axis grouped by until the operator says otherwise; the first axis when absent. */
   defaultGroup?: string;
   empty?: string;
+  /** Drawn once above the rows in the list view - a column key for rows that share one. */
+  before?: React.ReactNode;
 }) {
   const params = useSearchParams();
   // A sortable column is an order too, so the header and the Order select agree.
@@ -274,6 +276,7 @@ export function Analysis<R extends AnalysisRow>({
         </p>
       ) : axis ? (
         <div className="q-sheet">
+          {before}
           {groups.map((g) => (
             <React.Fragment key={g.key}>
               <div className={g.now ? 'q-sheet-band q-sheet-band-today' : 'q-sheet-band'}>
@@ -292,6 +295,7 @@ export function Analysis<R extends AnalysisRow>({
         </div>
       ) : (
         <div className="q-sheet">
+          {before}
           {shown.map((r) => <React.Fragment key={r.id}>{render(r)}</React.Fragment>)}
         </div>
       )}

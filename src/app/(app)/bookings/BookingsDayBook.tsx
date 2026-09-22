@@ -4,7 +4,7 @@ import React from 'react';
 import { stageBadgeClass } from '@/components/stageBadge';
 import Link from 'next/link';
 import { Analysis, type Order, type Column } from '@/components/Analysis';
-import { SheetRow, initialsFor, type SheetItem } from '@/components/Sheet';
+import { StrandKey, StrandRow, StrandCaption } from '@/components/Strand';
 import type { BookingsSheet, SheetBooking } from '@/modules/bookings/interface';
 
 /**
@@ -16,14 +16,11 @@ import type { BookingsSheet, SheetBooking } from '@/modules/bookings/interface';
  * studio classifies by - decided in readBookingsSheet. This file says only
  * what a row looks like and how rows order.
  *
- * WHY ROWS AND NOT A TABLE OR CARDS. A table aligns one scalar down a
- * column so the eye compares - right for money and stage, wrong for a
- * title, two packages and a list of work positions, which it would
- * truncate or turn into a wall. Cards are for browsing by picture and lose
- * order. The sheet row keeps the figure and the stage in a fixed right
- * column, lets the rest flow, and carries one more line - where the work
- * is. Covers are set aside for now; the row is named by the client's
- * initials.
+ * A ROW IS A STRAND (components/Strand): the booking as one line - its
+ * intake points, what it is for, its dated facts on its own axis, its
+ * steps as the within-booking hierarchy, the close - with a caption in
+ * words beneath. The same element the summary level is made of, so the
+ * two levels cannot read a booking two ways.
  */
 
 /*
@@ -56,47 +53,6 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
     return d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   };
 
-  /*
-   * The row: what the booking says about itself. Under the caption, where
-   * its work is - each service at its first unfinished step and who is on
-   * it, "Unassigned" in the warm colour, since that is the thing to see.
-   */
-  const item = (b: SheetBooking): SheetItem => ({
-    id: b.id,
-    href: `/bookings/${b.id}`,
-    name: b.title,
-    caption: [
-      when(b.scheduledFor),
-      !b.titleNamesClient ? b.clientName : null,
-      b.packages.length > 0 ? b.packages.join(' · ') : null,
-    ],
-    absent: b.clientName ? 'No date or package' : 'No client, date or package',
-    // No pictures on the day book, for now: the client's initials name the row.
-    frame: { initials: initialsFor(b.clientName) },
-    // The figure is where the work is; a live booking with a step nobody is on takes the warm colour.
-    figure: b.work && b.work.total > 0
-      ? { text: b.work.done === b.work.total ? 'Complete' : `${b.work.done} of ${b.work.total} steps`, due: b.band !== 'closed' && b.work.unstaffed > 0, none: b.work.done !== b.work.total && !(b.band !== 'closed' && b.work.unstaffed > 0) }
-      : { text: b.band === 'closed' ? 'Closed' : 'No steps defined', none: true },
-    badge: b.stage?.name
-      ? <span className={`q-badge ${stageBadgeClass(b.stage as any)}`}>{b.stage.name}</span>
-      : undefined,
-    detail: b.work && b.work.total > 0 && b.band !== 'closed' ? (
-      <span className="q-work q-work-compact">
-        <span className="q-work-services">
-          {b.work.positions.map((p) => (
-            <span key={p.service} className={p.done ? 'q-work-service q-work-done' : 'q-work-service'}>
-              <span className="q-work-name">{p.service}</span>
-              <span className="q-work-pos">
-                {p.done ? 'Complete' : <>{p.step}<span className={p.who ? 'q-work-who' : 'q-work-who q-work-gap'}> · {p.who ?? 'Unassigned'}</span></>}
-              </span>
-            </span>
-          ))}
-        </span>
-      </span>
-    ) : undefined,
-    dim: b.band === 'closed',
-  });
-
   /* THE TABLE: one scalar per column, so the eye compares down it. */
   const columns: Column<SheetBooking>[] = [
     { key: 'client', label: 'Client', cell: (b) => <span className="q-cell-strong">{b.clientName ?? '—'}</span>, sort: (a, b) => (a.clientName || '￿').localeCompare(b.clientName || '￿') },
@@ -122,7 +78,8 @@ export function BookingsDayBook({ sheet }: { sheet: BookingsSheet }) {
       searchIn={(b) => [b.title, b.clientName, ...b.packages]}
       searchPlaceholder="Search by title, client or package"
       noun="booking"
-      render={(b) => <SheetRow item={item(b)} />}
+      render={(b) => <StrandRow b={b} caption={<StrandCaption b={b} />} />}
+      before={<StrandKey />}
     />
   );
 }
