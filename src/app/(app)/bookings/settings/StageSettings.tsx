@@ -23,7 +23,7 @@ function useAction() {
       try {
         await fn();
         after?.();
-        toast.ok('The stages are saved.');
+        toast.ok('The statuses are saved.');
         router.refresh();
       }
       catch (e: any) { toast.bad(readableError(e, 'Something went wrong.')); }
@@ -120,12 +120,12 @@ export function StageSettings({ stages }: { stages: Stage[] }) {
           </select>
           <button className="q-btn q-btn-primary" aria-busy={isPending} disabled={isPending}
             onClick={() => name.trim() && run(() => createStage({ name: name.trim(), kind: kind as any }), () => { setName(''); setOpen(false); })}>
-            Add stage
+            Add status
           </button>
           <button className="q-btn q-btn-secondary" onClick={() => setOpen(false)}>Cancel</button>
         </div>
       ) : (
-        <button className="q-btn q-btn-secondary" onClick={() => setOpen(true)}>+ New stage</button>
+        <button className="q-btn q-btn-secondary" onClick={() => setOpen(true)}>+ New status</button>
       )}
 
       <div className="q-panel q-stack q-stack-sm">
@@ -137,8 +137,8 @@ export function StageSettings({ stages }: { stages: Stage[] }) {
           </div>
         ))}
         <span className="q-meta-sm">
-          Name your stages whatever you like — the kind is how the calendar, Command Center and reports understand them.
-          You can have several stages of the same kind (“Booked in”, “Shoot day”, “In edit” are all Booked).
+          Name your statuses whatever you like — the kind is how the calendar, Command Center and reports understand them.
+          You can have several statuses of the same kind (“Booked in”, “Shoot day”, “In edit” are all Booked).
         </span>
       </div>
     </div>

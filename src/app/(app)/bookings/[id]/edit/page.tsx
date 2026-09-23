@@ -483,7 +483,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
         <div className="q-card q-section">
           <h2 className="q-section-title">Delete booking</h2>
           <p className="q-meta" style={{ marginBottom: '14px' }}>
-            If the job simply isn&rsquo;t happening, move it to a cancelled stage instead — that keeps the record.
+            If the job simply isn&rsquo;t happening, move it to a cancelled status instead — that keeps the record.
             Deleting is for bookings created by mistake.
           </p>
           <DeleteBookingButton bookingId={booking.id} />

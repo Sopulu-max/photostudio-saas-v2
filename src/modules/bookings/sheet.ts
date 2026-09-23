@@ -385,8 +385,8 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   const lenses: LensGroup[] = [
     axisOf(sheetRows, 'when', 'When', whenOrder),
     // The studio's own stages, in the order it arranged them, each in its chosen colour.
-    axisOf(sheetRows, 'stage', 'Stage', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
-      .map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
+    axisOf(sheetRows, 'stage', 'Status', (stages as { id: string; name: string; kind: string | null; color: string | null }[])
+      .map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No status' }),
     // Each role with an unassigned step, most needed first.
     axisOf(sheetRows, 'needs', 'Needs', [...roleName.entries()].map(([id, name]) => ({ key: id, label: name, due: true })), { none: 'Fully assigned', mostFirst: true }),
     // What a live booking has not yet - each a door from the dashboard.

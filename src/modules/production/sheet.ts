@@ -101,7 +101,7 @@ export async function readTasksSheet(): Promise<TasksSheet> {
     axisOf(rows, 'task', 'Task', valuesSeen(rows, 'task', (k) => k), { mostFirst: true }),
     axisOf(rows, 'service', 'Service', valuesSeen(rows, 'service', (k) => k), { none: 'No service' }),
     axisOf(rows, 'package', 'Package', valuesSeen(rows, 'package', (k) => k), { none: 'Added to the booking' }),
-    axisOf(rows, 'stage', 'Stage', [...stages.values()].map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
+    axisOf(rows, 'stage', 'Status', [...stages.values()].map((st) => ({ key: st.id, label: st.name, look: { kind: st.kind, color: st.color } })), { none: 'No stage' }),
     axisOf(rows, 'when', 'When', whenItems(cal)),
     // Bookings soonest first, as liveBookings orders them.
     axisOf(rows, 'booking', 'Booking', live.map((b) => ({ key: b.id, label: bookingTitle.get(b.id) ?? b.id }))),

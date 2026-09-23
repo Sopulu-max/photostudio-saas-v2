@@ -124,7 +124,7 @@ export function DeleteBookingButton({ bookingId }: { bookingId: string }) {
     return (
       <div className="q-note q-note-bad q-stack q-stack-sm">
         <strong>Delete this booking for good?</strong>
-        <span className="q-meta-plain">Everything on it — packages, charges, work, contracts, invoices and deliveries — goes too. If the job simply isn’t happening, move it to a cancelled stage instead — that keeps the record.</span>
+        <span className="q-meta-plain">Everything on it — packages, charges, work, contracts, invoices and deliveries — goes too. If the job simply isn’t happening, move it to a cancelled status instead — that keeps the record.</span>
         <div className="q-row">
           <button className="q-btn q-btn-primary q-btn-sm" aria-busy={isPending} disabled={isPending}
             onClick={() => run(async () => { await deleteBooking(bookingId); router.push('/bookings'); })}>

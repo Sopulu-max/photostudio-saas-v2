@@ -259,7 +259,7 @@ export async function readBookingsDashboard(period: Period = 30, given?: Booking
     const fact = kind === 'booked' && dated[0]
       ? { booking: dated[0], text: `next session ${dated[0].band === 'today' ? 'today' : dated[0].band === 'tomorrow' ? 'tomorrow' : sayDate(dated[0].scheduledFor!)}` }
       : (kind === 'enquiry' || kind === null) && longest
-        ? { booking: longest, text: `longest in stage, ${plural(daysBetween(longest.stageSince.slice(0, 10), today), 'day')}` }
+        ? { booking: longest, text: `longest in status, ${plural(daysBetween(longest.stageSince.slice(0, 10), today), 'day')}` }
         : null;
     return { key: st.key, label: st.label, look: st.look, kind, count: st.count, ahead: dated.length, inPost: kind === 'booked' ? past.length : 0, fact };
   });

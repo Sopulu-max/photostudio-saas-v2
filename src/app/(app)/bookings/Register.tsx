@@ -380,7 +380,7 @@ function columnsFor(): Column[] {
         const n = rs.filter((r) => r.packages.length === 0).length;
         return n > 0 ? <span className="q-reg-warm">{n} with no package</span> : null;
       } },
-    { key: 'stage', label: 'Stage', width: 124, cell: (r, c) => <StageCell r={r} c={c} /> },
+    { key: 'stage', label: 'Status', width: 124, cell: (r, c) => <StageCell r={r} c={c} /> },
     { key: 'session', label: 'Session', width: 168, cell: (r, c) => <SessionCell r={r} c={c} />,
       total: (rs) => {
         const n = rs.filter((r) => !r.day).length;

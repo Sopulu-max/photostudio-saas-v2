@@ -208,9 +208,9 @@ export function sayProgress(r: SheetBooking): string | null {
   return `${r.work.done} of ${plural(r.work.total, 'step')} done`;
 }
 
-/** Whether this job is finished and only the stage says otherwise. */
+/** Whether this job is finished and only the status says otherwise. */
 export function sayReadyToClose(r: SheetBooking): Say {
-  return [strong('Every step is done'), t('and the job is still open — only the stage says otherwise.')];
+  return [strong('Every step is done'), t('and the job is still open — only the status says otherwise.')];
 }
 
 /**

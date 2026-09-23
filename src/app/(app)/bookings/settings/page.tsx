@@ -30,7 +30,7 @@ export default async function BookingSettingsPage() {
       </header>
 
       <div className="q-card">
-        <h2 className="q-section-title">Stages</h2>
+        <h2 className="q-section-title">Statuses</h2>
         <p className="q-meta" style={{ marginBottom: '18px' }}>
           The steps a booking moves through. Rename them, add your own, remove what you don’t use.
         </p>

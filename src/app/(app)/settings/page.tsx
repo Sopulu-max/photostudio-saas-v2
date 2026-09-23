@@ -133,7 +133,7 @@ export default async function SettingsPage() {
           <div className="q-stack q-stack-sm">
             <Link href="/bookings/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
-                <strong className="q-strong">Booking stages</strong>
+                <strong className="q-strong">Booking statuses</strong>
                 <div className="q-meta">The steps a job moves through, in your words</div>
               </div>
               <span className="q-meta-sm">Bookings &rarr;</span>
