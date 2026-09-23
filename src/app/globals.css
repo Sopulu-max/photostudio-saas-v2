@@ -667,6 +667,13 @@ body::before {
 }
 .q-input::placeholder,
 .q-textarea::placeholder { color: var(--q-color-ink-400); }
+
+/*
+ * The small field: a quantity beside a line, a time in a row of them. Named by
+ * three surfaces (the new booking form, a line's extras, the attendance board)
+ * and never defined, so it was silently taking the full-size padding.
+ */
+.q-input-sm { padding: 6px 9px; border-radius: 8px; font-size: 0.82rem; }
 /*
  * A FIELD BLOOMS. It snapped: a 3px ring in dur-2, which is a state change
  * being reported rather than a control waking up. dur-3 and a wider, softer
@@ -839,6 +846,8 @@ body::before {
 
 /* Vertical stack. --gap overrides the default per instance. */
 .q-stack      { display: flex; flex-direction: column; gap: var(--gap, 12px); }
+/* The tighter stack a row of fields inside a line wants (LineExtras). */
+.q-stack-xs   { display: flex; flex-direction: column; gap: 5px; }
 /*
  * A BUTTON SIZES TO ITS LABEL. Full width is a decision, not an accident.
  *
@@ -2912,6 +2921,67 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-view > .q-reg { border: 0; border-radius: 0; }
 .q-view-empty { padding: 20px; font-size: 0.86rem; color: var(--q-color-ink-500); margin: 0; }
 
+/*
+ * THE REGISTER: the table view. Its own grid, its own toolbar, and the menus
+ * that narrow it. Every row is a link, so the cells carry the text styles and
+ * the row carries the grid.
+ *
+ * Restored after being deleted by accident: the block that held these rules
+ * also held the bands the tabs replaced, and swapping the bands out took the
+ * table with them. The page then rendered as inline text. tests/ui-classes
+ * now fails if a class this page writes has no rule.
+ */
+.q-reg { overflow: hidden; }
+.q-reg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
+.q-reg-search { height: 30px; min-width: 15em; padding: 0 11px; border-radius: 8px; border: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-elevated); color: var(--q-color-ink-900); font-size: 0.8rem; font-family: inherit; }
+.q-reg-search::placeholder { color: var(--q-color-ink-400); }
+.q-reg-search:focus-visible { outline: 2px solid var(--q-color-accent); outline-offset: 1px; }
+.q-reg-count { margin-left: auto; font-size: 0.78rem; color: var(--q-color-ink-500); white-space: nowrap; }
+
+/* The menus: what to group by, what to sort by, what to narrow to. */
+.q-reg-menu { position: relative; display: inline-flex; }
+.q-reg-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-elevated); color: var(--q-color-ink-700); font-size: 0.78rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.q-reg-btn:hover { border-color: var(--q-color-ink-300); color: var(--q-color-ink-900); }
+.q-reg-btn-open { border-color: var(--q-color-accent); color: var(--q-color-ink-900); }
+.q-reg-caret { font-style: normal; font-size: 0.6rem; color: var(--q-color-ink-400); }
+.q-reg-pop { position: absolute; top: calc(100% + 5px); left: 0; z-index: 20; min-width: 15em; max-height: 21em; overflow-y: auto; display: flex; flex-direction: column; padding: 5px; border: 1px solid var(--q-color-ink-200); border-radius: 10px; background: var(--q-color-paper-elevated); box-shadow: var(--q-shadow-lg); }
+.q-reg-pop-item { padding: 6px 9px; border-radius: 7px; font-size: 0.78rem; color: var(--q-color-ink-600); white-space: nowrap; }
+.q-reg-pop-item:hover { background: var(--q-color-paper-subtle); color: var(--q-color-ink-900); }
+.q-reg-pop-on { color: var(--q-color-accent); }
+
+/* The table. The row holds the grid; the columns' widths arrive as a style. */
+.q-reg-scroll { overflow-x: auto; }
+.q-reg-head, .q-reg-row, .q-reg-totals { display: grid; gap: 12px; padding: 8px 16px; align-items: center; }
+.q-reg-head { border-bottom: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-elevated); position: sticky; top: 0; z-index: 2; }
+.q-reg-h { font-family: var(--q-font-mono); font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--q-color-ink-400); white-space: nowrap; overflow: hidden; }
+.q-reg-row { border-bottom: 1px solid var(--q-color-ink-100); color: inherit; transition: background var(--q-dur-2) var(--q-ease); }
+.q-reg-row:hover { background: var(--q-color-paper-subtle); }
+.q-reg-cell { font-size: 0.78rem; color: var(--q-color-ink-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.q-reg-right { text-align: right; }
+.q-reg-strong { color: var(--q-color-ink-900); font-weight: 550; }
+.q-reg-none { color: var(--q-color-ink-300); }
+.q-reg-warm { color: var(--q-color-warning); }
+.q-reg-now { color: var(--q-color-accent); }
+.q-reg-mono { font-family: var(--q-font-mono); font-size: 0.72rem; color: var(--q-color-ink-500); }
+
+.q-reg-steps { display: inline-flex; align-items: center; gap: 7px; }
+.q-reg-track { display: inline-block; width: 42px; height: 4px; border-radius: 999px; background: var(--q-color-ink-100); overflow: hidden; }
+.q-reg-fill { display: block; width: calc(var(--q-share, 0) * 1%); height: 100%; background: var(--q-color-ink-400); }
+.q-reg-fill-done { background: var(--q-hue-green); }
+
+/* A group heading carries its own subtotals; the totals row sums the cut. */
+.q-reg-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; padding: 9px 16px; background: var(--q-color-paper-subtle); border-top: 1px solid var(--q-color-ink-100); border-bottom: 1px solid var(--q-color-ink-100); }
+.q-reg-dot { width: 7px; height: 7px; border-radius: 50%; align-self: center; }
+.q-reg-group-name { font-size: 0.8rem; font-weight: 600; color: var(--q-color-ink-900); }
+.q-reg-group-n { font-family: var(--q-font-mono); font-size: 0.7rem; color: var(--q-color-ink-500); }
+.q-reg-group-sum { font-size: 0.72rem; color: var(--q-color-ink-400); }
+.q-reg-totals { border-top: 1px solid var(--q-color-ink-200); background: var(--q-color-paper-subtle); }
+.q-reg-total { font-family: var(--q-font-mono); font-size: 0.66rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; }
+.q-reg-empty { padding: 18px 16px; font-size: 0.85rem; color: var(--q-color-ink-500); margin: 0; }
+
+/* The three view wrappers: they hold no style of their own beyond a name. */
+.q-out, .q-monthv, .q-dist2 { display: block; }
+
 /* OUTSTANDING: grouped by what is unresolved, in the order a booking resolves it. */
 .q-out-group + .q-out-group { border-top: 1px solid var(--q-color-ink-100); }
 .q-out-head { padding: 11px 18px; background: var(--q-color-paper-subtle); border-bottom: 1px solid var(--q-color-ink-100); font-size: 0.83rem; color: var(--q-color-ink-600); }
@@ -3050,6 +3120,8 @@ a.q-board-head:hover .q-board-word { color: var(--q-color-accent); }
 .q-card:hover { transform: translateY(-2px); border-color: var(--q-color-ink-200); box-shadow: var(--q-shadow-md); }
 .q-card:active { transform: translateY(0); }
 .q-card-now { border-color: var(--q-color-accent); background: linear-gradient(160deg, var(--q-color-accent-soft), var(--q-color-paper-elevated) 70%); }
+/* A card with something unresolved on it: the words say so, this only weights them. */
+.q-card-needs .q-card-name { color: var(--q-color-ink-900); }
 .q-card-name { font-size: 0.84rem; font-weight: 600; color: var(--q-color-ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-card-what { font-size: 0.72rem; color: var(--q-color-ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-card-when { font-family: var(--q-font-mono); font-size: 0.66rem; letter-spacing: 0.02em; color: var(--q-color-ink-600); margin-top: 3px; }
@@ -3086,7 +3158,7 @@ a.q-board-head:hover .q-board-word { color: var(--q-color-accent); }
 .q-day-occasions { display: flex; align-items: flex-start; justify-content: center; position: relative; min-height: 0; }
 .q-day-line { background: var(--q-color-ink-200); }
 .q-day-bar { display: block; width: 100%; max-width: 9px; border-radius: 2px 2px 0 0; background: var(--q-color-ink-600); height: calc(max(var(--q-share, 0), 22) * 1%); }
-.q-day-occasions .q-day-bar { border-radius: 0 0 2px 2px; background: none; border: 1px solid var(--q-color-ink-400); border-top: 0; }
+.q-day-occasions .q-day-bar, .q-day-bar-occasion { border-radius: 0 0 2px 2px; background: none; border: 1px solid var(--q-color-ink-400); border-top: 0; }
 .q-day-col-now .q-day-bar { background: var(--q-color-accent); }
 .q-day-n { position: absolute; top: -11px; font-family: var(--q-font-mono); font-size: 0.56rem; color: var(--q-color-ink-500); }
 .q-day-occasions .q-day-n { top: auto; bottom: -11px; }
