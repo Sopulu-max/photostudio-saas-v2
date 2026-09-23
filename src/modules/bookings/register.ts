@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { readBookingsSheet, type BookingsSheet, type SheetBooking, type Period } from './sheet';
+import { readBookingsDashboard } from './dashboard';
 
 /**
  * THE REGISTER - every booking a row, every fact from the inventory a column.
@@ -48,9 +49,28 @@ export type BookingsRegister = {
   rows: RegisterRow[];
 };
 
-export async function readBookingsRegister(period: Period = 30): Promise<BookingsRegister> {
-  const { orgId } = await getAuthOrgId();
+/**
+ * THE PAGE'S ONE READ.
+ *
+ * The register and the dashboard are two derivations of the same sheet, and the
+ * page needs both. Called separately they each read the sheet, so every query
+ * behind it ran twice on every navigation - measured at 1.3 to 8.6 seconds of
+ * application code for a page whose data had not changed. The sheet is read
+ * once here and handed to both.
+ */
+export async function readBookingsPage(period: Period = 30) {
   const sheet = await readBookingsSheet(period);
+  const register = await readBookingsRegister(period, sheet);
+  // The crew the register already read for the whole book, so the dashboard asks for none.
+  const crew: Record<string, string[]> = {};
+  for (const r of register.rows) if (r.personnel.length > 0) crew[r.id] = r.personnel;
+  const dashboard = await readBookingsDashboard(period, sheet, crew);
+  return { sheet, rows: register.rows, dashboard };
+}
+
+export async function readBookingsRegister(period: Period = 30, given?: BookingsSheet): Promise<BookingsRegister> {
+  const { orgId } = await getAuthOrgId();
+  const sheet = given ?? await readBookingsSheet(period);
   const rows = sheet.bands.flatMap((b) => b.rows);
   const ids = rows.map((r) => r.id);
   if (ids.length === 0) return { sheet, rows: [] };

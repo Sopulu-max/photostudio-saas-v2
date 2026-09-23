@@ -192,7 +192,22 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   const dimensionAsks = new Map(studioDimensions.map((d) => [d.id, d.question ?? null] as const));
   // What each package on the book leaves open: a dimension it allows more than one value of.
   const packageIds = [...new Set(rows.flatMap((r) => r.packageIds))];
-  const narrowings: Map<string, Map<string, Set<string>>> = packageIds.length > 0 ? await packageNarrowingsFor(orgId, packageIds) : new Map();
+  /*
+   * WHAT THE PACKAGES NARROW and WHERE THE WORK IS are asked at the same time.
+   *
+   * They were sequential, and neither waits on the other: one reads the
+   * packages on the book, the other resolves the tasks of the live bookings.
+   * On this studio's connection a round trip costs between a fifth and two
+   * thirds of a second, so every await in series is another wait the operator
+   * sits through. Ordering them only where one truly needs the other is most
+   * of what makes a page feel like an app rather than a website.
+   */
+  const { resolveBookingTasks } = await import('@/modules/production/interface');
+  const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
+  const [narrowings, tasksByBooking]: [Map<string, Map<string, Set<string>>>, Awaited<ReturnType<typeof resolveBookingTasks>>] = await Promise.all([
+    packageIds.length > 0 ? packageNarrowingsFor(orgId, packageIds) : Promise.resolve(new Map()),
+    resolveBookingTasks(orgId, live.map((r) => r.id)),
+  ]);
   const agreedEvents = stageEvents.filter((e) => e.payload.kind === 'booked');
   const stageSinceOf = new Map<string, string>();
   for (const e of stageEvents) stageSinceOf.set(e.entityId, e.at);
@@ -207,10 +222,6 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     const had = remindersOf.get(n.aboutId);
     remindersOf.set(n.aboutId, { count: (had?.count ?? 0) + 1, earliest: had && had.earliest < n.remindAt ? had.earliest : n.remindAt });
   }
-
-  const { resolveBookingTasks } = await import('@/modules/production/interface');
-  const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
-  const tasksByBooking = await resolveBookingTasks(orgId, live.map((r) => r.id));
 
   const sheetRows: SheetBooking[] = rows.map((r) => {
     const closed = Boolean(r.stage && (r.stage.kind === 'completed' || r.stage.kind === 'cancelled'));

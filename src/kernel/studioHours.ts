@@ -82,3 +82,32 @@ export async function studioTimezone(orgId: string): Promise<string> {
     .from('organizations').select('timezone').eq('id', orgId).maybeSingle();
   return (data?.timezone as string) || 'UTC';
 }
+
+/**
+ * The hours this studio keeps on every day of a span, in one question.
+ *
+ * A calendar needs an answer for each day it draws, and asking per day meant
+ * thirty-five round trips for one month. The database resolves the span by
+ * calling studio_hours_for for each date, so the precedence stays written in
+ * exactly one place and this adds no second reading of the rules.
+ */
+export async function studioHoursInRange(
+  orgId: string,
+  from: string,
+  to: string,
+): Promise<Map<string, StudioDayHours>> {
+  const { data, error } = await supabaseAdmin
+    .rpc('studio_hours_in_range', { p_org: orgId, p_from: from, p_to: to });
+  if (error) console.error('Failed to resolve the studio hours for a span:', error);
+
+  const byDay = new Map<string, StudioDayHours>();
+  for (const row of ((data || []) as any[])) {
+    byDay.set(String(row.on_day).slice(0, 10), {
+      opensAt: row.opens_at ? String(row.opens_at).slice(0, 5) : null,
+      closesAt: row.closes_at ? String(row.closes_at).slice(0, 5) : null,
+      closed: !!row.closed,
+      label: row.label ?? null,
+    });
+  }
+  return byDay;
+}

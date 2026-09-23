@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { cardNeeds, sayDay, plural } from '@/modules/bookings/say';
+import { Menu } from './Workspace';
 import type { LensGroup } from '@/kernel/lenses';
 import type { RegisterRow } from '@/modules/bookings/interface';
 
@@ -19,17 +20,16 @@ import type { RegisterRow } from '@/modules/bookings/interface';
  * rows (kernel/lenses) - a new stage, role or dimension appears with no change
  * here.
  *
- * THE CUT IS NOT ITS BUSINESS. The axes set in the URL are applied by the page
- * before any view draws (CutBar owns them, every view shares them); what
- * belongs to a table alone stays here - the search box, the grouping and the
- * sort - and each of those is in the URL too, so a reading is a link.
+ * THE CUT IS NOT ITS BUSINESS: the rows arrive already cut, because the cut
+ * belongs to the page and every view shares it. What belongs to a table alone
+ * stays here - the search box, the grouping and the sort - and all three are
+ * held in the browser, so none of them is a request: the grouping redraws rows
+ * that are already in hand.
  *
  * Subtotals sit on the group heading; the totals row sums each column OVER THE
  * CUT, not over the book - with fifteen rows shown, "44 edited photographs" is
  * what those fifteen owe.
  */
-
-type Query = Record<string, string | undefined>;
 
 type Column = {
   key: string;
@@ -146,34 +146,28 @@ const COLUMNS: Column[] = [
       : <span className="q-reg-none">—</span> },
 ];
 
-export function Register({ rows, lenses, q, today }: {
+export function Register({ rows, lenses, today, group, onGroup, sort: sortKey, onSort }: {
   rows: RegisterRow[];
   lenses: LensGroup[];
-  q: Query;
   today: string;
+  /** The axis rows are grouped under, or none - the operator's, held by the page. */
+  group: string | null;
+  onGroup: (group: string | null) => void;
+  sort: string;
+  onSort: (sort: string) => void;
 }) {
   const [search, setSearch] = React.useState('');
-  const [openMenu, setOpenMenu] = React.useState<string | null>(null);
   const now = React.useMemo(() => Date.now(), []);
-
-  /** One URL shape for every control here: patch what changes, keep the rest. */
-  const href = (patch: Record<string, string | null>) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
-    for (const [k, v] of Object.entries(patch)) { if (v) p.set(k, v); else p.delete(k); }
-    const s = p.toString();
-    return `/bookings${s ? `?${s}` : ''}`;
-  };
 
   const narrowed = search.trim()
     ? rows.filter((r) => [r.title, r.clientName, ...r.packages, ...r.personnel]
         .join(' ').toLowerCase().includes(search.trim().toLowerCase()))
     : rows;
 
-  const sort = SORTS.find((s) => s.key === q.sort) ?? SORTS[0];
+  const sort = SORTS.find((s) => s.key === sortKey) ?? SORTS[0];
   const ordered = [...narrowed].sort(sort.compare);
 
-  const groupBy = q.group ? lenses.find((g) => g.key === q.group) ?? null : null;
+  const groupBy = group ? lenses.find((g) => g.key === group) ?? null : null;
   const groups = groupBy
     ? [
         ...groupBy.items.map((it) => ({
@@ -190,37 +184,18 @@ export function Register({ rows, lenses, q, today }: {
   const grid = { gridTemplateColumns: COLUMNS.map((c) => `${c.width}px`).join(' ') } as React.CSSProperties;
   const width = COLUMNS.reduce((n, c) => n + c.width, 0) + COLUMNS.length * 12 + 32;
 
-  const menu = (key: string, label: string, items: { label: string; href: string; on: boolean }[]) => (
-    <span className="q-reg-menu">
-      <button type="button" className={openMenu === key ? 'q-reg-btn q-reg-btn-open' : 'q-reg-btn'}
-              onClick={() => setOpenMenu(openMenu === key ? null : key)} aria-expanded={openMenu === key}>
-        {label}<i className="q-reg-caret" aria-hidden="true">▾</i>
-      </button>
-      {openMenu === key && (
-        <span className="q-reg-pop">
-          {items.map((it) => (
-            <Link key={it.href + it.label} href={it.href} className={it.on ? 'q-reg-pop-item q-reg-pop-on' : 'q-reg-pop-item'}
-                  onClick={() => setOpenMenu(null)}>
-              {it.label}
-            </Link>
-          ))}
-        </span>
-      )}
-    </span>
-  );
-
   return (
     <section className="q-reg">
       <div className="q-reg-bar">
         <input className="q-reg-search" value={search} onChange={(e) => setSearch(e.target.value)}
                placeholder="Search client, package, personnel" aria-label="Search the register" />
-        {menu('group', groupBy ? `Group: ${groupBy.label}` : 'Group', [
-          { label: 'No grouping', href: href({ group: null }), on: !groupBy },
-          ...lenses.map((g) => ({ label: g.label, href: href({ group: g.key }), on: q.group === g.key })),
-        ])}
-        {menu('sort', `Sort: ${sort.label}`, SORTS.map((s) => ({
-          label: s.label, href: href({ sort: s.key === 'oldest' ? null : s.key }), on: sort.key === s.key,
-        })))}
+        <Menu label={groupBy ? `Group: ${groupBy.label}` : 'Group'} items={[
+          { label: 'No grouping', on: !groupBy, act: () => onGroup(null) },
+          ...lenses.map((g) => ({ label: g.label, on: group === g.key, act: () => onGroup(g.key) })),
+        ]} />
+        <Menu label={`Sort: ${sort.label}`} items={SORTS.map((s) => ({
+          label: s.label, on: sort.key === s.key, act: () => onSort(s.key),
+        }))} />
         {search.trim() && (
           <span className="q-reg-count">{ordered.length} of {plural(rows.length, 'booking')} match the search</span>
         )}

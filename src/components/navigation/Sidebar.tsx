@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { NavItem } from './NavItem';
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -113,29 +114,8 @@ export function Sidebar({ studioName, studioLogo }: { studioName?: string; orgSl
             </div>
             {section.items.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-              const Icon = item.icon;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    textDecoration: 'none',
-                    fontSize: '0.875rem',
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? 'var(--q-color-ink-900)' : 'var(--q-color-ink-600)',
-                    backgroundColor: isActive ? 'var(--q-color-ink-100)' : 'transparent',
-                    marginBottom: '1px',
-                    transition: 'background-color 0.1s, color 0.1s',
-                  }}
-                >
-                  <Icon size={16} style={{ flexShrink: 0 }} />
-                  {item.label}
-                </Link>
+                <NavItem key={item.href} href={item.href} label={item.label} active={isActive} icon={item.icon} />
               );
             })}
           </div>

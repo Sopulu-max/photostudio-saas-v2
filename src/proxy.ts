@@ -1,6 +1,32 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+/**
+ * ROUTING, NOT AUTHORISATION - and the difference is worth a round trip.
+ *
+ * This runs in front of every request in the app. It used to call
+ * supabase.auth.getUser(), which asks the auth service over the network
+ * whether the token is good: 220 to 280 milliseconds on a healthy connection,
+ * and twice today it took twenty-one seconds, in front of a page whose own
+ * work took two. Every click in the app paid it.
+ *
+ * All this needs to decide is WHERE to send the request: to /login when there
+ * is no session at all, to /create-studio when the session names no studio,
+ * and otherwise onwards. getSession reads and decodes the session cookie
+ * locally, with no network call, which answers both questions.
+ *
+ * WHY THAT IS SAFE. A decoded cookie is not proof - it is what the browser
+ * claims - so nothing here is allowed to grant access. Every page and every
+ * server action resolves the user again on the server with a VERIFIED
+ * getUser() before it reads or writes anything (lib/supabase/authOrg, now once
+ * per request), and every query is scoped to the organisation that verified
+ * answer names. A forged cookie therefore gets past this redirect and then
+ * fails at the only place that matters, with no data returned.
+ *
+ * What this file must never become is the thing that decides a request MAY
+ * read a studio's rows. It decides which page to show. The page decides
+ * whether the reader is who they say they are.
+ */
 export async function proxy(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     if (!request.nextUrl.pathname.startsWith('/login')) {
@@ -38,9 +64,12 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  /*
+   * Local: decodes the cookie and refreshes it when the access token has
+   * expired. No call to the auth service, and therefore none of its latency.
+   */
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   if (
     !user &&

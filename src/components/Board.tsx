@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import type { LensGroup, Takes } from '@/kernel/lenses';
@@ -51,17 +53,22 @@ export function Board({
   axis,
   cards,
   axes,
-  hrefFor,
-  cutFor,
+  onCard,
+  onColumn,
   max = 7,
 }: {
   axis: LensGroup;
   cards: BoardCard[];
-  /** The axes this board can be read by - the operator's choice, as links. */
-  axes: { key: string; label: string; href: string; on: boolean }[];
-  hrefFor: (card: BoardCard) => string;
-  /** The rows level, cut to one column. */
-  cutFor: (itemKey: string) => string;
+  /**
+   * The axes this board can be read by - the operator's choice. Choosing one
+   * regroups the cards in the browser: the same rows, a different question, no
+   * navigation.
+   */
+  axes: { key: string; label: string; on: boolean; act: () => void }[];
+  /** A card opens its booking, which IS a navigation - a different page. */
+  onCard: (id: string) => string;
+  /** A column head narrows the cut to that column, in place. */
+  onColumn: (itemKey: string) => void;
   max?: number;
 }) {
   const columns = [
@@ -80,7 +87,8 @@ export function Board({
       <div className="q-board-by">
         <span className="q-board-by-word">Grouped by</span>
         {axes.map((a) => (
-          <Link key={a.key} href={a.href} className={a.on ? 'q-board-by-axis q-board-by-on' : 'q-board-by-axis'}>{a.label}</Link>
+          <button key={a.key} type="button" onClick={a.act}
+                  className={a.on ? 'q-board-by-axis q-board-by-on' : 'q-board-by-axis'}>{a.label}</button>
         ))}
       </div>
 
@@ -90,7 +98,7 @@ export function Board({
           const shown = rows.slice(0, max);
           return (
             <section key={col.key} className={col.now ? 'q-board-col q-board-col-now' : 'q-board-col'}>
-              <Link href={cutFor(col.key)} className="q-board-head">
+              <button type="button" onClick={() => onColumn(col.key)} className="q-board-head">
                 <span className="q-board-head-top">
                   {col.color && <i className={`q-board-dot q-dist-c-${col.color}`} />}
                   <span className="q-board-word">{col.label}</span>
@@ -99,11 +107,11 @@ export function Board({
                 {/* The column's share of the book, so height is not the only reading. */}
                 <span className="q-board-weight"><i style={share(Math.round((col.count / tallest) * 100))} /></span>
                 {col.note && <span className="q-board-note">{col.note}</span>}
-              </Link>
+              </button>
 
               <div className="q-board-stack">
                 {shown.map((c) => (
-                  <Link key={c.id} href={hrefFor(c)} className={['q-card', c.now ? 'q-card-now' : '', c.needs ? 'q-card-needs' : ''].filter(Boolean).join(' ')}>
+                  <Link key={c.id} href={onCard(c.id)} className={['q-card', c.now ? 'q-card-now' : '', c.needs ? 'q-card-needs' : ''].filter(Boolean).join(' ')}>
                     <span className="q-card-name">{c.name}</span>
                     {c.what && <span className="q-card-what">{c.what}</span>}
                     <span className={c.behind ? 'q-card-when q-card-behind' : 'q-card-when'}>{c.when}</span>
@@ -117,7 +125,9 @@ export function Board({
                   </Link>
                 ))}
                 {rows.length > shown.length && (
-                  <Link href={cutFor(col.key)} className="q-board-more">{rows.length - shown.length} more here →</Link>
+                  <button type="button" onClick={() => onColumn(col.key)} className="q-board-more">
+                    {rows.length - shown.length} more here →
+                  </button>
                 )}
               </div>
             </section>

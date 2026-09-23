@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { stageBadgeClass } from '@/components/stageBadge';
@@ -8,8 +10,12 @@ import type { MonthDay } from '@/modules/bookings/month';
 import type { LensGroup } from '@/kernel/lenses';
 
 /**
- * THREE OF THE FIVE VIEWS - the ones that only draw, so they stay on the
- * server: Outstanding, Calendar and Distribution.
+ * THREE OF THE FIVE VIEWS: Outstanding, Calendar and Distribution.
+ *
+ * They only draw - every fact arrives decided - but they draw in the BROWSER,
+ * because switching to them and narrowing what they show are questions about
+ * rows the page already holds. A row still links to its booking, which is a
+ * real navigation to a different page; nothing else here asks the server.
  *
  * Each is the presentation its own reading justifies (12-BOOKINGS_READABILITY
  * §3): an absence is a worklist in the order a booking resolves it; a point in
@@ -91,16 +97,16 @@ export function Outstanding({ rows, today }: { rows: RegisterRow[]; today: strin
  * day with nothing booked. Above, the same reading over the window; beneath,
  * the bookings that fall on no day at all, which is the fact about them.
  */
-export function Calendar({ month, rows, strip, weeks, undated, undatedHref, previousHref, nextHref, todayHref }: {
-  month: { label: string; days: MonthDay[]; today: string };
+export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, onNarrowUndated }: {
+  month: { label: string; days: MonthDay[]; today: string; previous: string; next: string };
   rows: RegisterRow[];
   strip: { day: string; sessions: string[]; occasions: string[]; today: boolean; behind: boolean }[];
   weeks: { from: string; label: string; count: number }[];
   undated: number;
-  undatedHref: string;
-  previousHref: string;
-  nextHref: string;
-  todayHref: string;
+  /** Another month is being fetched: its hours are the studio's own and live in the database. */
+  busy: boolean;
+  onMonth: (month: string) => void;
+  onNarrowUndated: () => void;
 }) {
   // What falls on a day, from the rows already in hand.
   type Item = { id: string; who: string; said: string; tone: 'time' | 'held' | 'lapsed' | 'occasion' };
@@ -132,10 +138,11 @@ export function Calendar({ month, rows, strip, weeks, undated, undatedHref, prev
       <div className="q-monthv-bar">
         <span className="q-monthv-label">{month.label}</span>
         <span className="q-monthv-nav">
-          <Link href={previousHref} className="q-monthv-step" aria-label="The month before">←</Link>
-          <Link href={nextHref} className="q-monthv-step" aria-label="The month after">→</Link>
+          <button type="button" onClick={() => onMonth(month.previous)} className="q-monthv-step" aria-label="The month before" disabled={busy}>←</button>
+          <button type="button" onClick={() => onMonth(month.next)} className="q-monthv-step" aria-label="The month after" disabled={busy}>→</button>
         </span>
-        <Link href={todayHref} className="q-reg-btn">Today</Link>
+        <button type="button" onClick={() => onMonth(month.today.slice(0, 7))} className="q-reg-btn" disabled={busy}>Today</button>
+        {busy && <span className="q-monthv-busy">Reading the studio&apos;s hours…</span>}
         <span className="q-monthv-note">
           Studio hours from the studio&apos;s own record, including the days it keeps differently
         </span>
@@ -206,7 +213,7 @@ export function Calendar({ month, rows, strip, weeks, undated, undatedHref, prev
       </div>
 
       {undated > 0 && (
-        <Link href={undatedHref} className="q-monthv-tray">
+        <button type="button" onClick={onNarrowUndated} className="q-monthv-tray">
           <b>{undated}</b>
           <span>
             {undated === 1 ? 'booking has' : 'bookings have'} no session date and {undated === 1 ? 'appears' : 'appear'} on no day above
@@ -216,7 +223,7 @@ export function Calendar({ month, rows, strip, weeks, undated, undatedHref, prev
             })()}
           </span>
           <span className="q-monthv-tray-go">Narrow to them →</span>
-        </Link>
+        </button>
       )}
     </div>
   );
@@ -227,14 +234,15 @@ export function Calendar({ month, rows, strip, weeks, undated, undatedHref, prev
  * trend. Every share carries its own word, count and percentage, so no bar
  * needs a key, and every axis is the studio's own.
  */
-export function Distribution({ rows, lenses, figures, months, series, periodDays, narrowTo, committed }: {
+export function Distribution({ rows, lenses, figures, months, series, periodDays, onNarrow, committed }: {
   rows: RegisterRow[];
   lenses: LensGroup[];
   figures: Figure[];
   months: string[];
   series: { key: string; label: string; points: number[] }[];
   periodDays: number;
-  narrowTo: Record<string, string>;
+  /** A value on an axis narrows the cut in place - every view then reads that cut. */
+  onNarrow: (axis: string, value: string) => void;
   committed: { deliverable: string; quantity: number; extra: number; undecided: number }[];
 }) {
   const axes = lenses
@@ -276,12 +284,12 @@ export function Distribution({ rows, lenses, figures, months, series, periodDays
           </div>
           <div className="q-dist2-keys">
             {counted.map((i) => (
-              <Link key={i.key} href={narrowTo[`${g.key}:${i.key}`] ?? '/bookings'} className="q-dist2-key">
+              <button key={i.key} type="button" onClick={() => onNarrow(g.key, i.key)} className="q-dist2-key">
                 <i className={i.colour ? `q-dist2-dot q-dist-c-${i.colour}` : 'q-dist2-dot'} />
                 <span>{i.label}</span>
                 <b>{i.count}</b>
                 <em>{Math.round((i.count / Math.max(1, total)) * 100)}%</em>
-              </Link>
+              </button>
             ))}
           </div>
         </section>

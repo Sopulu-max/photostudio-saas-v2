@@ -1,5 +1,5 @@
 import { getAuthOrgId } from '@/lib/supabase/getOrgId';
-import { studioHoursFor, studioTimezone, type StudioDayHours } from '@/kernel/studioHours';
+import { studioHoursInRange, studioTimezone, type StudioDayHours } from '@/kernel/studioHours';
 import { calendarIn } from '@/kernel/bands';
 
 /**
@@ -11,11 +11,13 @@ import { calendarIn } from '@/kernel/bands';
  * one. What falls on a day is the bookings the page already has in hand, so
  * nothing about a booking is read twice.
  *
- * The hours come from the kernel one date at a time, because the precedence
- * between a named date, an nth weekday, the ordinary week and the studio's
- * usual hours is written once, in Postgres (kernel/studioHours). Asking it
- * thirty-five times in parallel is cheaper than keeping a second copy of those
- * rules here and eventually disagreeing with it.
+ * The hours come from the kernel in ONE question for the whole span. They were
+ * asked day by day at first - thirty-five round trips to draw one month, which
+ * put twenty-six to fifty-six seconds in front of a page whose own work took
+ * one second - so the kernel gained a range reader that resolves each day
+ * through the same function. The precedence between a named date, an nth
+ * weekday, the ordinary week and the studio's usual hours is still written
+ * once, in Postgres, and there is still no second copy of it here.
  */
 
 export type MonthDay = {
@@ -71,7 +73,7 @@ export async function readBookingsMonth(month?: string): Promise<BookingsMonth> 
     days.push({ day: iso(d), date: d.getUTCDate(), inMonth: monthOf(d) === asked });
   }
 
-  const hours = await Promise.all(days.map((d) => studioHoursFor(orgId, d.day)));
+  const hours = await studioHoursInRange(orgId, days[0].day, days[days.length - 1].day);
 
   const step = (by: number) => {
     const d = new Date(Date.UTC(y, m - 1 + by, 1));
@@ -84,11 +86,11 @@ export async function readBookingsMonth(month?: string): Promise<BookingsMonth> 
     previous: step(-1),
     next: step(1),
     today,
-    days: days.map((d, i) => ({
+    days: days.map((d) => ({
       ...d,
       today: d.day === today,
       behind: d.day < today,
-      hours: hours[i],
+      hours: hours.get(d.day) ?? { opensAt: null, closesAt: null, closed: false, label: null },
     })),
   };
 }

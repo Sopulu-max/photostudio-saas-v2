@@ -2,7 +2,6 @@ import { listRecentActivity } from '@/kernel/events';
 import { readBookingsSheet, MISSING, type BookingsSheet, type SheetBooking, type Period, type MissingKey } from './sheet';
 import { getLineConfigurationForm } from './domain';
 import { sayDatedSession, sayDatedOccasion, sayTotal, type Say } from './say';
-import { getBookingTeam } from '@/modules/production/interface';
 
 /**
  * THE BOOKINGS DASHBOARD - the day's questions about bookings, each
@@ -172,8 +171,16 @@ export type BookingsDashboard = {
 const daysBetween = (a: string, b: string) => Math.max(0, Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000));
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-export async function readBookingsDashboard(period: Period = 30): Promise<BookingsDashboard> {
-  const [sheet, events] = await Promise.all([readBookingsSheet(period), listRecentActivity(6, 'booking')]);
+/**
+ * `sheet` is passed in when the caller has already read it, which the bookings
+ * page always has. Reading it again would double every query behind it - and
+ * did, until the page was measured.
+ */
+export async function readBookingsDashboard(period: Period = 30, given?: BookingsSheet, crew?: Record<string, string[]>): Promise<BookingsDashboard> {
+  const [sheet, events] = await Promise.all([
+    given ?? readBookingsSheet(period),
+    listRecentActivity(6, 'booking'),
+  ]);
   const rows = sheet.bands.flatMap((b) => b.rows);
   const live = rows.filter((r) => r.band !== 'closed');
   const { today } = sheet;
@@ -212,12 +219,13 @@ export async function readBookingsDashboard(period: Period = 30): Promise<Bookin
     const forms = await Promise.all(r.lineIds.map((id) => getLineConfigurationForm(id).catch(() => [] as any[])));
     unansweredOf.set(r.id, forms.flat().filter((x: any) => x.asked && (x.value === null || x.value === undefined || x.value === '')).map((x: any) => x.label as string));
   }));
-  // The declared crew, for the sessions ahead: the fact a session row needs that the steps do not carry.
-  const crewOf = new Map<string, string[]>();
-  await Promise.all(shownAhead.map(async (r) => {
-    const team = await getBookingTeam(r.id).catch(() => null);
-    crewOf.set(r.id, (team?.roles ?? []).flatMap((role: any) => (role.covering ?? []).map((p: any) => `${p.name} (${role.roleName ?? 'no role'})`)));
-  }));
+  /*
+   * THE DECLARED CREW used to be read here, one query per session shown, on
+   * top of the register's single query for the whole book. It is the same
+   * fact, so the page passes the register's reading in and this asks for
+   * nothing (modules/bookings/register: personnel).
+   */
+  const crewOf = new Map<string, string[]>(crew ? Object.entries(crew) : []);
   const next = (r: SheetBooking): NextRow => ({
     booking: r,
     crew: crewOf.get(r.id) ?? [],

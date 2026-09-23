@@ -1854,6 +1854,34 @@ body::before {
  */
 a { color: inherit; text-decoration: none; }
 
+/*
+ * AND A BUTTON IS NOT A BROWSER BUTTON.
+ *
+ * The same lesson as the anchor above, learned the same way. Controls that act
+ * on the page without leaving it - a tab, a saved cut, a chip, a column head -
+ * must be <button> so the keyboard and the screen reader treat them as the
+ * actions they are. The moment they became buttons they took the browser's
+ * grey bevel, its own font and its own border, because the stylesheet reset
+ * that per class rather than once. The tabs looked like a dialog from another
+ * decade.
+ *
+ * So the reset lives here: a button carries no appearance of its own and
+ * inherits the page's type and colour. The ones that ARE meant to look like
+ * buttons say so - .q-btn, .q-reg-btn, .q-monthv-step - and set their own
+ * background, border and padding on top of this.
+ */
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: inherit;
+  cursor: pointer;
+}
+button:disabled { cursor: default; }
+
 /* Kept because several surfaces name it, and it now says what it already gets. */
 .q-plain-link { text-decoration: none; color: inherit; }
 
@@ -2882,6 +2910,68 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-lines { padding: 6px 24px 10px; }
 .q-lines-under { border-top: 1px solid var(--q-color-ink-100); background: var(--q-color-paper-subtle); }
 .q-line { font-size: 0.86rem; color: var(--q-color-ink-600); margin: 0; padding: 6px 0; line-height: 1.55; max-width: 92ch; }
+
+/*
+ * THE SIDEBAR ITEM, and the half-second that decides whether this is an app.
+ *
+ * Its look used to be inline styles inside Sidebar.tsx - against the law of
+ * centralisation, and unreachable from here when the one thing it needed was a
+ * pressed state. The item now answers the moment it is pressed
+ * (navigation/NavItem, useLinkStatus): it takes the active weight immediately
+ * and shows a small moving mark until the page it asked for arrives.
+ */
+.q-side-item {
+  display: block;
+  border-radius: 7px;
+  margin-bottom: 1px;
+  color: var(--q-color-ink-600);
+  transition: background-color var(--q-dur-2) var(--q-ease), color var(--q-dur-2) var(--q-ease);
+}
+.q-side-item:hover { background-color: var(--q-color-paper-subtle); color: var(--q-color-ink-900); }
+.q-side-item-on { background-color: var(--q-color-ink-100); color: var(--q-color-ink-900); }
+.q-side-item-on .q-side-label { font-weight: 600; }
+.q-side-inner { display: flex; align-items: center; gap: 10px; padding: 8px 10px; font-size: 0.875rem; }
+/* Pressed: the item takes the active look before the page has arrived. */
+.q-side-inner-going { background-color: var(--q-color-accent-soft); border-radius: 7px; color: var(--q-color-accent); }
+.q-side-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-side-going {
+  width: 12px; height: 12px; margin-left: auto; flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--q-color-accent);
+  border-top-color: transparent;
+  animation: q-turn 0.7s linear infinite;
+}
+@keyframes q-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .q-side-going { animation: none; border-top-color: var(--q-color-accent); opacity: 0.5; }
+}
+
+/*
+ * WAITING, WHEN A NAVIGATION REALLY NEEDS THE SERVER (app/(app)/loading.tsx).
+ *
+ * A shape rather than a spinner: the frame of a page, so the eye is already
+ * where the content will be. It breathes rather than spins, because a pulse
+ * says "working" without implying progress nobody is measuring.
+ */
+.q-wait { display: flex; flex-direction: column; gap: 14px; padding: 4px 0; }
+.q-wait-said { font-size: 0.8rem; color: var(--q-color-ink-400); }
+.q-wait-title { display: block; width: 8.5em; height: 28px; border-radius: 9px; background: var(--q-color-ink-100); }
+.q-wait-bar { display: block; width: 100%; max-width: 34em; height: 34px; border-radius: 11px; background: var(--q-color-ink-100); }
+.q-wait-rows { display: flex; flex-direction: column; gap: 9px; border: 1px solid var(--q-color-ink-100); border-radius: 13px; padding: 14px; background: var(--q-color-paper-elevated); }
+.q-wait-row { display: block; height: 18px; border-radius: 7px; background: var(--q-color-ink-100); }
+.q-wait-row:nth-child(2) { width: 92%; }
+.q-wait-row:nth-child(3) { width: 78%; }
+.q-wait-row:nth-child(4) { width: 86%; }
+.q-wait-row:nth-child(5) { width: 70%; }
+.q-wait-row:nth-child(6) { width: 81%; }
+.q-wait-title, .q-wait-bar, .q-wait-row { animation: q-breathe 1.4s var(--q-ease) infinite; }
+@keyframes q-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  .q-wait-title, .q-wait-bar, .q-wait-row { animation: none; }
+}
+
+/* The calendar tells the operator when it is fetching a month's hours. */
+.q-monthv-busy { font-size: 0.74rem; color: var(--q-color-ink-400); }
 
 /*
  * BOOKINGS: one set of rows, one cut, five presentations.
