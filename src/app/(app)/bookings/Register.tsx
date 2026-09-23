@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { stageBadgeClass } from '@/components/stageBadge';
 import { useActed } from '@/components/useActed';
 import { wallClockIn } from '@/kernel/wallClock';
-import { cardNeeds, sayDay, plural } from '@/modules/bookings/say';
+import { sayDay, plural } from '@/modules/bookings/say';
 import { setBookingStage, updateBookingRecord } from '@/modules/bookings/interface';
 import { addToBookingTeam, removeFromBookingTeam } from '@/modules/production/interface';
 import { Menu } from './Workspace';
@@ -58,7 +58,6 @@ import type { RegisterRow, Crew } from '@/modules/bookings/interface';
 
 type Ctx = {
   today: string;
-  now: number;
   /** The studio's own stages, read off the axes - never a list written here. */
   stages: { key: string; label: string; look: { kind: string | null; color: string | null } | null }[];
   timeZone: string;
@@ -87,13 +86,6 @@ const SORTS: { key: string; label: string; compare: (a: RegisterRow, b: Register
   { key: 'client', label: 'By client', compare: (a, b) => (a.clientName ?? '￿').localeCompare(b.clientName ?? '￿') },
   { key: 'activity', label: 'Last moved', compare: (a, b) => (b.lastActivity?.at ?? '').localeCompare(a.lastActivity?.at ?? '') },
 ];
-
-const ago = (iso: string, now: number) => {
-  const m = Math.round((now - new Date(iso).getTime()) / 60_000);
-  if (m < 60) return `${Math.max(1, m)}m`;
-  const h = Math.round(m / 60);
-  return h < 24 ? `${h}h` : `${Math.round(h / 24)}d`;
-};
 
 /**
  * A commitment, said.
@@ -348,7 +340,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
       } },
     { key: 'booking', label: 'Booking', width: 190,
       cell: (r) => <span title={r.title}>{r.title}</span> },
-    { key: 'package', label: 'Package', width: 200,
+    { key: 'package', label: 'Packages', width: 200,
       cell: (r) => r.packages.length > 0
         ? <span title={r.packages.join(' · ')}>{r.packages.join(' · ')}</span>
         : none('No package'),
@@ -362,7 +354,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
         const n = rs.filter((r) => !r.day).length;
         return n > 0 ? <span className="q-reg-warm">{n} not scheduled</span> : null;
       } },
-    { key: 'decision', label: 'Decision', width: 110,
+    { key: 'decision', label: 'Contract', width: 110,
       cell: (r) => r.hasContract && !r.proposalOut ? <span>Agreed</span>
         : r.proposalOut ? <span>Issued</span>
         : <span className="q-reg-warm">Not issued</span>,
@@ -370,7 +362,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
         const issued = rs.filter((r) => r.proposalOut).length;
         return issued > 0 ? <span>{issued} issued</span> : null;
       } },
-    { key: 'personnel', label: 'Personnel', width: 180, cell: (r, c) => <PersonnelCell r={r} c={c} />,
+    { key: 'personnel', label: 'Crew', width: 180, cell: (r, c) => <PersonnelCell r={r} c={c} />,
       total: (rs) => {
         const short = rs.filter((r) => r.personnel.length === 0).length;
         return short > 0 ? <span className="q-reg-warm">{short} unassigned</span> : null;
@@ -390,7 +382,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
         const all = rs.reduce((n, r) => n + (r.work?.total ?? 0), 0);
         return all > 0 ? <span>{done} of {all} done</span> : null;
       } },
-    { key: 'needs', label: 'Roles needed', width: 150,
+    { key: 'needs', label: 'Roles', width: 150,
       cell: (r) => r.needs.length > 0
         ? <span className="q-reg-warm">{r.needs.map((n) => n.name).join(' · ')}</span>
         : none('Nobody needed'),
@@ -398,7 +390,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
         const n = rs.filter((r) => r.needs.length > 0).length;
         return n > 0 ? <span className="q-reg-warm">{n} short</span> : null;
       } },
-    { key: 'reminders', label: 'Reminders due', width: 130,
+    { key: 'reminders', label: 'Notes', width: 130,
       cell: (r) => r.reminders
         ? <span className="q-reg-warm">{plural(r.reminders.count, 'reminder')} due</span>
         : none('None due'),
@@ -406,23 +398,6 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
         const n = rs.reduce((t, r) => t + (r.reminders?.count ?? 0), 0);
         return n > 0 ? <span className="q-reg-warm">{plural(n, 'reminder')} due</span> : null;
       } },
-    { key: 'outstanding', label: 'Outstanding', width: 160,
-      cell: (r) => {
-        const need = cardNeeds(r);
-        return need ? <span className="q-reg-warm">{need}</span> : none('Nothing');
-      },
-      total: (rs) => {
-        const n = rs.filter((r) => cardNeeds(r)).length;
-        return n > 0 ? <span className="q-reg-warm">{n} outstanding</span> : null;
-      } },
-    { key: 'instage', label: 'In stage', width: 78, align: 'right',
-      cell: (r, c) => <span className="q-reg-mono">{ago(r.stageSince, c.now)}</span> },
-    { key: 'age', label: 'Age', width: 64, align: 'right',
-      cell: (r, c) => <span className="q-reg-mono">{ago(r.createdAt, c.now)}</span> },
-    { key: 'activity', label: 'Last moved', width: 100, align: 'right',
-      cell: (r, c) => r.lastActivity
-        ? <span className="q-reg-mono" title={`${r.lastActivity.action.replace(/_/g, ' ')} · ${new Date(r.lastActivity.at).toLocaleString('en-GB')}`}>{ago(r.lastActivity.at, c.now)} ago</span>
-        : none('Never moved') },
   ];
 
   // ---- one column per dimension the studio classifies bookings by
@@ -553,7 +528,6 @@ export function Register({ rows, lenses, today, timeZone, roles, employees, grou
   const router = useRouter();
   const [search, setSearch] = React.useState('');
   const [editing, setEditing] = React.useState<string | null>(null);
-  const now = React.useMemo(() => Date.now(), []);
 
   // A cell settles the moment it is chosen; the record catches up behind it.
   const { shown, act, isBusy } = useActed(rows, (r) => r.id);
@@ -564,7 +538,7 @@ export function Register({ rows, lenses, today, timeZone, roles, employees, grou
     [lenses],
   );
 
-  const ctx: Ctx = { today, now, stages, timeZone, roles, employees, editing, setEditing, act, isBusy };
+  const ctx: Ctx = { today, stages, timeZone, roles, employees, editing, setEditing, act, isBusy };
 
   const narrowed = search.trim()
     ? shown.filter((r) => [r.title, r.clientName, ...r.packages, ...r.personnel.map((p) => p.said)]
