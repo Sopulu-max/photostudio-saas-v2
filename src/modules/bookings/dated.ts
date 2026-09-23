@@ -107,12 +107,3 @@ export function datedFrom(rows: SheetBooking[], today: string): Dated {
     ahead: live.filter((r) => r.day !== null && r.day >= today && within(r.day)).length,
   };
 }
-
-/** Said for the strip's own caption: this week's load, and the quiet that follows. */
-export function sayLoad(dated: Dated, today: string) {
-  const thisWeek = dated.weeks.find((w) => w.label.startsWith('this week'))?.count ?? 0;
-  const quiet = dated.weeks.filter((w) => w.from > today && w.count === 0).length;
-  return quiet > 0
-    ? `${thisWeek} this week, none in ${plural(quiet, 'week')} after`
-    : `${thisWeek} this week`;
-}

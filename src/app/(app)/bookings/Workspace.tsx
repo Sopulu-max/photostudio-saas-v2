@@ -235,8 +235,6 @@ export function Workspace({
           <Calendar
             month={month}
             rows={live}
-            strip={dated.columns}
-            weeks={dated.weeks}
             undated={dated.undated}
             busy={monthBusy}
             onMonth={goToMonth}

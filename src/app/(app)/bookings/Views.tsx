@@ -103,15 +103,18 @@ export function Outstanding({ rows, today }: { rows: RegisterRow[]; today: strin
  * is the fact, and not the app's remark about the date.
  *
  * The hours come from the studio's own record, so a day it is shut says so
- * rather than looking like a day with nothing booked. Above, the same reading
- * over the window; beneath, the bookings that fall on no day at all, which is
- * the fact about them.
+ * rather than looking like a day with nothing booked. Beneath, the bookings
+ * that fall on no day at all, which is the fact about them and the one thing
+ * a calendar structurally cannot draw.
+ *
+ * There was a sixty-day strip of bars above the grid. It drew the same
+ * sessions the grid below already places on their days, at a scale where no
+ * single day could be identified - a second, vaguer answer to the question the
+ * grid answers exactly.
  */
-export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, onNarrowUndated }: {
+export function Calendar({ month, rows, undated, busy, onMonth, onNarrowUndated }: {
   month: { label: string; days: MonthDay[]; today: string; previous: string; next: string };
   rows: RegisterRow[];
-  strip: { day: string; sessions: string[]; occasions: string[]; today: boolean; behind: boolean }[];
-  weeks: { from: string; label: string; count: number }[];
   undated: number;
   /** Another month is being fetched: its hours are the studio's own and live in the database. */
   busy: boolean;
@@ -142,7 +145,6 @@ export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, on
     }
   }
 
-  const most = Math.max(1, ...strip.map((c) => c.sessions.length), ...strip.map((c) => c.occasions.length));
 
   return (
     <div className="q-monthv">
@@ -157,35 +159,6 @@ export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, on
         <span className="q-monthv-note">
           Studio hours from the studio&apos;s own record, including the days it keeps differently
         </span>
-      </div>
-
-      {/* The window: the same reading, zoomed out, where a quiet fortnight shows at once. */}
-      <div className="q-monthv-strip">
-        <div className="q-monthv-strip-said">
-          <span>Sixty days either side of today — sessions above the line, the occasions they are for below</span>
-          <span className="q-monthv-quiet">
-            {weeks.find((w) => w.label.startsWith('this week'))?.count ?? 0} this week
-            {(() => {
-              const after = weeks.filter((w) => w.from > month.today);
-              const quiet = after.filter((w) => w.count === 0).length;
-              return quiet > 0 ? `, none in ${plural(quiet, 'week')} after` : '';
-            })()}
-          </span>
-        </div>
-        <div className="q-days-strip">
-          {strip.map((c) => (
-            <span key={c.day} className={['q-day-col', c.today ? 'q-day-col-now' : '', c.behind ? 'q-day-col-behind' : ''].filter(Boolean).join(' ')}
-                  title={[c.day, ...c.sessions, ...c.occasions].join(' · ')}>
-              <span className="q-day-sessions">
-                {c.sessions.length > 0 && <i className="q-day-bar" style={{ '--q-share': Math.round((c.sessions.length / most) * 100) } as React.CSSProperties} />}
-              </span>
-              <span className="q-day-line" />
-              <span className="q-day-occasions">
-                {c.occasions.length > 0 && <i className="q-day-bar q-day-bar-occasion" style={{ '--q-share': Math.round((c.occasions.length / most) * 100) } as React.CSSProperties} />}
-              </span>
-            </span>
-          ))}
-        </div>
       </div>
 
       <div className="q-monthv-grid">
