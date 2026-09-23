@@ -377,9 +377,27 @@ export async function createInvoiceForBooking(input: {
   if (!input.allowOverInvoicing) {
     const billing = await getBookingBilling(input.bookingId);
     if (billing.leftToInvoice <= 0 && billing.booked > 0) {
+      /*
+       * THE DISCOUNT IS WHAT MAKES THIS TRUE, so it is said.
+       *
+       * This read "already invoiced in full (150000 of 200000)", which is
+       * arithmetic nonsense on its face: fifty thousand is plainly missing. The
+       * missing fifty thousand was DISCOUNTED - billed plus given away is what
+       * has been accounted for (see getBookingBilling above, which says the
+       * same thing about the panels) - and a refusal that omits the only figure
+       * explaining itself reads as a bug in the app rather than a fact about
+       * the booking. The figures are said in the studio's own currency, since
+       * a bare 150000 is not a sum of money.
+       */
+      const { formatMoney } = await import('@/kernel/currency');
+      const money = (n: number) => formatMoney(n, billing.currency);
       throw new Error(
-        `This booking is already invoiced in full (${billing.invoiced} of ${billing.booked}). ` +
-        'Withdraw an existing invoice first, or add what else is being billed to the booking.',
+        billing.discounted > 0
+          ? `This booking is fully accounted for: ${money(billing.invoiced)} invoiced and `
+            + `${money(billing.discounted)} discounted, against ${money(billing.booked)}. `
+            + 'Withdraw an existing invoice first, or add what else is being billed to the booking.'
+          : `This booking is already invoiced in full: ${money(billing.invoiced)} of ${money(billing.booked)}. `
+            + 'Withdraw an existing invoice first, or add what else is being billed to the booking.',
       );
     }
   }

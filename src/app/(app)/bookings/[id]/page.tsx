@@ -558,7 +558,9 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
                   : `${money.invoices.length} ${money.invoices.length === 1 ? 'invoice' : 'invoices'} raised · fully invoiced.`}
             </span>
             {/* What makes a booking billable is a price on it - decided in the read. */}
-            <GenerateInvoiceButton bookingId={bookingId} canBill={money.canBill} />
+            <GenerateInvoiceButton bookingId={bookingId} canBill={money.canBill}
+                                                   leftToInvoice={money.leftToInvoice}
+                                                   discounted={money.figures?.discounted ?? 0} currency={money.currency} />
           </div>
 
           {money.invoices.length > 0 && (
