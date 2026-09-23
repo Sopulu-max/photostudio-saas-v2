@@ -33,36 +33,42 @@ export default async function NewPackagePage(props: { searchParams: Promise<{ va
     listDimensionsByDomain(),
   ]);
 
-  const allVariables = await listVariablesForServices((allServices as any[]).map(s => s.id));
   /*
-   * And what the studio's questions say follows from their answers.
+   * THE SECOND WAIT, AND THERE IS NO THIRD.
    *
-   * An Occasion has a date. Every dimension the studio asks contributes its
-   * variables here, so a package classified by Occasion can fix that date or
-   * leave it to the client, exactly as it does with a service's own variables.
-   * Loaded for every dimension rather than only the ones in play: which
-   * dimensions apply depends on what the operator bundles, and that changes
-   * while the form is open.
+   * Each of these three needs an answer from the batch above - the services,
+   * the studio's dimensions, the deliverables - and none of them needs
+   * anything from the other two, yet they were asked one after another. Three
+   * waits became one.
    */
-  const dimensionVariables = await listVariablesForDimensions(
-    Object.values(dimensionsByDomain).flat().map((d: any) => d.id),
-  );
-
-  /*
-   * And what the deliverables themselves need settling.
-   *
-   * A framed print has a size; an album has a cover material. Declared once on
-   * the KIND, so every package promising one is asked — the same arrangement a
-   * classification's variables already have, because it is the same mechanism
-   * with a third owner rather than a third mechanism.
-   *
-   * Loaded for every deliverable rather than only the promised ones: what a
-   * package promises changes while this form is open.
-   */
-  const deliverableVariables = await listVariablesForDeliverables(
-    (allDeliverables as any[]).map((d) => d.id),
-  );
-
+  const [allVariables, dimensionVariables, deliverableVariables] = await Promise.all([
+    listVariablesForServices((allServices as any[]).map((s) => s.id)),
+    /*
+     * What the studio's questions say follows from their answers.
+     *
+     * An Occasion has a date. Every dimension the studio asks contributes its
+     * variables here, so a package classified by Occasion can fix that date or
+     * leave it to the client, exactly as it does with a service's own
+     * variables. Loaded for every dimension rather than only the ones in play:
+     * which dimensions apply depends on what the operator bundles, and that
+     * changes while the form is open.
+     */
+    listVariablesForDimensions(
+      Object.values(dimensionsByDomain).flat().map((d: any) => d.id),
+    ),
+    /*
+     * And what the deliverables themselves need settling.
+     *
+     * A framed print has a size; an album has a cover material. Declared once
+     * on the KIND, so every package promising one is asked - the same
+     * arrangement a classification's variables already have, because it is the
+     * same mechanism with a third owner rather than a third mechanism.
+     *
+     * Loaded for every deliverable rather than only the promised ones: what a
+     * package promises changes while this form is open.
+     */
+    listVariablesForDeliverables((allDeliverables as any[]).map((d) => d.id)),
+  ]);
 
   return (
     <div className="q-page-narrow">

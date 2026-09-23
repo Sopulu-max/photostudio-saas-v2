@@ -30,8 +30,11 @@ export default async function NewServicePage(props: {
     redirect('/login');
   }
 
-  const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, roles] = await Promise.all([
-    listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(), listServices(), listRoles()
+  // The currency was awaited inside the markup, so the page was assembled and
+  // then stopped to ask what money the studio counts in. It is one of the set.
+  const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, roles, currencyCode] = await Promise.all([
+    listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(), listServices(), listRoles(),
+    getStudioCurrency(),
   ]);
 
   // The knowledge the form arrives with. Built from the curated library plus
@@ -45,7 +48,7 @@ export default async function NewServicePage(props: {
 
   return (
     <TemplatePicker
-      currencyCode={await getStudioCurrency()}
+      currencyCode={currencyCode}
       startFrom={sp.domain || sp.value ? {
         serviceDomain: sp.domain || '',
         dimensions: sp.dimension && sp.value ? [{ name: sp.dimension, values: [sp.value] }] : [],

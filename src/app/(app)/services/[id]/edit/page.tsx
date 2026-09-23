@@ -27,13 +27,27 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
     redirect('/login');
   }
 
-  const service = await getService(params.id);
-  if (!service) notFound();
-
-  const [domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain, services, variables, roles] = await Promise.all([
+  /*
+   * EVERYTHING THE ADDRESS ALONE ANSWERS, in one wait.
+   *
+   * The service, the studio's vocabulary and what this service already says it
+   * does need nothing from each other - only the id in the address - so asking
+   * for them one after another just added waits. The currency was worse: it was
+   * awaited inside the markup at the bottom of the page, so the whole editor
+   * was assembled and then stopped to ask what money the studio counts in.
+   */
+  const [
+    service, domains, outputTypesByDomain, dimensionsByDomain, workflowsByDomain,
+    services, variables, roles, capabilities, currencyCode, everyDeliverable,
+  ] = await Promise.all([
+    getService(params.id),
     listServiceDomains(), listDeliverablesByDomain(), listDimensionsByDomain(), listWorkflowsByDomain(),
-    listServices(), listServiceVariables(params.id), listRoles()
+    listServices(), listServiceVariables(params.id), listRoles(),
+    listServiceCapabilities(params.id),
+    getStudioCurrency(),
+    listDeliverables(),
   ]);
+  if (!service) notFound();
 
   /*
    * WHAT THIS SERVICE COULD NARROW.
@@ -43,17 +57,16 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
    * because it is three reads across two modules, and a client component that
    * fetched them itself would do it on every keystroke.
    */
-  const capabilities = await listServiceCapabilities(params.id);
-  const deliverableQuestions = await listVariablesForDeliverables(
-    capabilities.map((c) => c.deliverableId),
-  );
-  const permitted = await listServiceDeliverableOptions(
-    capabilities.map((c) => c.serviceDeliverableId),
-  );
+  // Both of these are read off what the service already does, and neither is
+  // read off the other.
+  const [deliverableQuestions, permitted] = await Promise.all([
+    listVariablesForDeliverables(capabilities.map((c) => c.deliverableId)),
+    listServiceDeliverableOptions(capabilities.map((c) => c.serviceDeliverableId)),
+  ]);
   // The unit it is counted in travels with the kind, so a service shows it
   // rather than leaving an operator to look it up elsewhere.
   const deliverableUnits = Object.fromEntries(
-    (await listDeliverables())
+    everyDeliverable
       .filter((d) => capabilities.some((c) => c.deliverableId === d.id))
       .map((d) => [d.id, d.default_unit]),
   );
@@ -131,7 +144,7 @@ export default async function ServiceEditPage(props: { params: Promise<{ id: str
         variableSuggestions={variableSuggestions}
         outputTypesByDomain={outputTypesByDomain}
         inherits={inherits}
-        currencyCode={await getStudioCurrency()}
+        currencyCode={currencyCode}
         dimensionsByDomain={dimensionsByDomain}
         workflowsByDomain={workflowsByDomain}
         roleOptions={roleOptions}

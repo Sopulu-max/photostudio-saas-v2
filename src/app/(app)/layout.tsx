@@ -17,14 +17,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // -out visitor gets the shell rather than an exception.
   const authOrg = await getOptionalAuthOrgId();
   if (authOrg?.orgId) {
-    const org = await getStudio();
+    /*
+     * BOTH AT ONCE, because this is paid on every move.
+     *
+     * Whose studio this is and what is waiting are unrelated questions, and
+     * they were asked one after the other. This is the chrome around every
+     * page in the app, and it is read again on a fresh load and after any
+     * action that refreshes the page - so a wait here is a wait added to
+     * everything, not to one screen.
+     *
+     * The notifications are as fresh as the page around them, which is the
+     * honest ceiling of a pull model: they update when you move, not while
+     * you sit still.
+     */
+    const [org, waiting] = await Promise.all([getStudio(), listNotifications(20)]);
     if (org?.name) studioName = org.name;
     if (org?.slug) orgSlug = org.slug;
     if ((org?.metadata as any)?.logo_url) studioLogo = (org?.metadata as any).logo_url;
-    // The chrome is force-dynamic, so this is as fresh as the page around it.
-    // That is the honest ceiling of a pull model: it updates when you move,
-    // not while you sit still.
-    notifications = await listNotifications(20);
+    notifications = waiting;
   }
 
   const unreadCount = notifications.filter((n) => n.unread).length;
