@@ -2173,6 +2173,17 @@ export async function createStage(input: { name: string; kind: StageKind }) {
 
   await logEvent({ organizationId: orgId, entityType: 'booking_stage', entityId: stage.id, action: 'created', actorId: actorId ?? undefined, payload: { name, kind: input.kind } });
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { stageId: stage.id };
 }
 
@@ -2189,6 +2200,17 @@ export async function renameStage(input: { stageId: string; name: string }) {
   if (error) throw new Error('Failed to rename (does that name already exist?)');
 
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { ok: true };
 }
 
@@ -2222,6 +2244,17 @@ export async function deleteStage(stageId: string) {
   }
 
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { ok: true };
 }
 
@@ -2592,6 +2625,17 @@ export async function setStageColor(input: { stageId: string; color: string | nu
   if (error) throw new Error('Failed to set the colour');
 
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { ok: true };
 }
 
@@ -2619,6 +2663,17 @@ export async function updateStage(input: { stageId: string; name?: string; color
   if (error) throw new Error('Failed to save the stage (does that name already exist?)');
 
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { ok: true };
 }
 
@@ -2636,6 +2691,17 @@ export async function setDefaultStage(stageId: string) {
   if (error) throw new Error('Failed to set the starting stage');
 
   revalidateStageSurfaces();
+  /*
+   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
+   * it has to be read again. Without this, adding a stage left the register's
+   * editor, the board and the axes offering the old list until a hard reload -
+   * the definition had changed and the app was still answering from the page
+   * it had already sent.
+   */
+  revalidatePath('/bookings');
+  revalidatePath('/bookings/settings');
+  revalidatePath('/calendar');
+
   return { ok: true };
 }
 

@@ -174,7 +174,7 @@ export function Workspace({
       <header className="q-page-header">
         <div><h1 className="q-page-title">Bookings</h1></div>
         <div className="q-row q-row-sm">
-          <Link href="/bookings/settings/stages" className="q-btn q-btn-ghost">Stages</Link>
+          <Link href="/bookings/settings" className="q-btn q-btn-ghost">Stages</Link>
           <Link href="/bookings/new" className="q-btn q-btn-primary">New booking</Link>
         </div>
       </header>

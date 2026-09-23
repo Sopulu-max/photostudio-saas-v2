@@ -355,7 +355,7 @@ describe('The bookings page says something, and keeps saying it', () => {
      */
     const withPackage = reg.rows.find((r) => r.id === todayId)!;
     expect(withPackage.committed).toEqual([
-      { deliverable: 'Edited photographs', unit: null, quantity: 4, extra: 0, undecided: false },
+      { deliverableId: expect.any(String), deliverable: 'Edited photographs', unit: null, quantity: 4, extra: 0, undecided: false },
     ]);
     /*
      * And the tally carries the noun the STUDIO counts the thing in, so a
@@ -365,7 +365,12 @@ describe('The bookings page says something, and keeps saying it', () => {
      * something said blankly.
      */
     for (const r of reg.rows) {
-      for (const c of r.committed) expect(c).toHaveProperty('unit');
+      // The identity is the kind, not the word: nothing may match a commitment
+      // by the studio's name for it.
+      for (const c of r.committed) {
+        expect(c).toHaveProperty('unit');
+        expect(c.deliverableId).toBeTruthy();
+      }
     }
     const bare = reg.rows.find((r) => r.id === bareId)!;
     expect(bare.committed).toEqual([]);

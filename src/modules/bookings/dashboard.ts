@@ -337,6 +337,7 @@ export async function readBookingsDashboard(period: Period = 30, given?: Booking
   };
 
   // ---- What the book has sold: packages by the live jobs that carry them.
+  // ---- What the book has sold: packages by the live jobs that carry them.
   const pkgCount = new Map<string, number>();
   for (const r of live) for (const name of new Set(r.packages)) pkgCount.set(name, (pkgCount.get(name) ?? 0) + 1);
 
@@ -359,7 +360,13 @@ export async function readBookingsDashboard(period: Period = 30, given?: Booking
         const day = a.value.slice(0, 10);
         if (day >= today) q.dates.push({ bookingId: r.id, name: r.clientName ?? r.title, day });
       }
-      const said = r.facts.find((f) => f.label === a.label)?.text ?? null;
+      /*
+       * The fact that answers THIS answer, found by the pair (variable, line)
+       * and not by the label. The label is per booking by design above, so
+       * matching on it can pick the wrong line's fact on a booking that
+       * carries the same package twice.
+       */
+      const said = r.facts.find((f) => f.variableId === a.variableId && f.lineId === a.lineId)?.text ?? null;
       q.only = q.jobs.size === 1 ? said : null;
     }
   }

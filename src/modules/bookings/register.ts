@@ -27,6 +27,8 @@ import { readBookingsSheet, type BookingsSheet, type SheetBooking, type Period }
  */
 
 export type Committed = {
+  /** Which kind of thing this is owed of - the identity, so nothing has to match on the word. */
+  deliverableId: string;
   /** The studio's own word for what is made, with what this booking owes of it. */
   deliverable: string;
   /**
@@ -121,7 +123,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
   if (events.error) console.error('Failed to read when bookings last moved:', events.error);
 
   // ---- committed, per booking, per deliverable
-  type Tally = { name: string; unit: string | null; quantity: number; extra: number; undecided: boolean };
+  type Tally = { id: string; name: string; unit: string | null; quantity: number; extra: number; undecided: boolean };
   const byBooking = new Map<string, Map<string, Tally>>();
   const lineOwner = new Map<string, string>();
   for (const l of ((promised.data || []) as any[])) {
@@ -133,6 +135,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
         const d = pd.deliverable;
         if (!d?.id) continue;
         const had = tallies.get(d.id) ?? {
+          id: d.id as string,
           name: d.name as string,
           unit: (d.default_unit ?? null) as string | null,
           quantity: 0, extra: 0, undecided: false,
@@ -151,7 +154,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
     const had = tallies?.get(e.ref_id as string);
     // An extra of a deliverable the packages never promised still counts, named by its own label.
     if (had) had.extra += Number(e.units ?? 0);
-    else tallies?.set(e.ref_id as string, { name: String(e.label ?? 'Added on this booking'), unit: null, quantity: 0, extra: Number(e.units ?? 0), undecided: false });
+    else tallies?.set(e.ref_id as string, { id: e.ref_id as string, name: String(e.label ?? 'Added on this booking'), unit: null, quantity: 0, extra: Number(e.units ?? 0), undecided: false });
   }
 
   // ---- the declared crew, in the studio's role names
@@ -184,7 +187,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
     rows: rows.map((r) => ({
       ...r,
       committed: [...(byBooking.get(r.id)?.values() ?? [])]
-        .map((t) => ({ deliverable: t.name, unit: t.unit, quantity: t.quantity, extra: t.extra, undecided: t.undecided }))
+        .map((t) => ({ deliverableId: t.id, deliverable: t.name, unit: t.unit, quantity: t.quantity, extra: t.extra, undecided: t.undecided }))
         .sort((a, b) => b.quantity + b.extra - (a.quantity + a.extra) || a.deliverable.localeCompare(b.deliverable)),
       personnel: personnelOf.get(r.id) ?? [],
       lastActivity: lastOf.get(r.id) ?? null,

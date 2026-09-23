@@ -45,7 +45,14 @@ export type SheetBooking = BookingListRow & {
    * the day, a number a quantity. Dates first, then the rest, in the order
    * the package asked them.
    */
-  facts: { label: string; kind: string; text: string; day: string | null }[];
+  /*
+   * A fact carries the id of the question it answers and the line it was asked
+   * on, not only its label. The engine must never tell two questions apart by
+   * their words: a studio renaming one would split its history in two, and two
+   * questions that happen to share a label would collapse into one. The label
+   * is for printing; the identity is the pair (variable, line).
+   */
+  facts: { variableId: string; lineId: string; label: string; kind: string; text: string; day: string | null }[];
   /** When it entered its current stage - the last stage_changed event, else when it was made. */
   stageSince: string;
   /** Reminders on this booking now due, and the earliest of them. */
@@ -308,7 +315,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     for (const c of r.classification) (takes[`dim:${c.dimensionId}`] ??= []).push(c.valueId);
     const facts = [...r.answers]
       .sort((a, b) => Number(b.kind === 'date') - Number(a.kind === 'date'))
-      .map((a) => ({ label: a.label, kind: a.kind, text: sayAnswer(a), day: a.kind === 'date' && typeof a.value === 'string' ? a.value.slice(0, 10) : null }));
+      .map((a) => ({ variableId: a.variableId, lineId: a.lineId, label: a.label, kind: a.kind, text: sayAnswer(a), day: a.kind === 'date' && typeof a.value === 'string' ? a.value.slice(0, 10) : null }));
 
     // ---- The planes this row sits on.
     const offset = (d: string) => Math.round((new Date(`${d}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
