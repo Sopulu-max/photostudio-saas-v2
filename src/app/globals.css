@@ -3268,25 +3268,8 @@ a.q-board-head:hover .q-board-word { color: var(--q-color-accent); }
  */
 
 /* Days: one column per day, sessions above the line, the occasions they are for below it. */
-.q-days { padding: 14px 24px 4px; }
-.q-days-strip { display: grid; grid-template-columns: repeat(61, minmax(0, 1fr)); gap: 1px; align-items: stretch; height: 74px; }
-.q-day-col { display: grid; grid-template-rows: 1fr 1px 1fr; min-width: 0; border-radius: 3px; }
-.q-day-col-behind { opacity: 0.62; }
-.q-day-col-now { background: var(--q-color-accent-soft); }
-.q-day-sessions { display: flex; align-items: flex-end; justify-content: center; position: relative; min-height: 0; }
-.q-day-occasions { display: flex; align-items: flex-start; justify-content: center; position: relative; min-height: 0; }
-.q-day-line { background: var(--q-color-ink-200); }
-.q-day-bar { display: block; width: 100%; max-width: 9px; border-radius: 2px 2px 0 0; background: var(--q-color-ink-600); height: calc(max(var(--q-share, 0), 22) * 1%); }
-.q-day-occasions .q-day-bar, .q-day-bar-occasion { border-radius: 0 0 2px 2px; background: none; border: 1px solid var(--q-color-ink-400); border-top: 0; }
-.q-day-col-now .q-day-bar { background: var(--q-color-accent); }
-.q-day-n { position: absolute; top: -11px; font-family: var(--q-font-mono); font-size: 0.56rem; color: var(--q-color-ink-500); }
-.q-day-occasions .q-day-n { top: auto; bottom: -11px; }
 
 /* The same window by week, each labelled with its own dates and count. */
-.q-days-weeks { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 1px; padding-top: 7px; border-top: 1px solid var(--q-color-ink-100); margin-top: 6px; }
-.q-days-week { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding-right: 6px; }
-.q-days-week-when { font-family: var(--q-font-mono); font-size: 0.58rem; letter-spacing: 0.04em; color: var(--q-color-ink-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-days-week-n { font-size: 0.72rem; color: var(--q-color-ink-600); }
 
 /* Share: the shape of the whole, each part carrying its word, count and percentage. */
 .q-share { padding: 14px 24px 4px; }
@@ -3339,21 +3322,11 @@ a.q-counts-row:hover .q-counts-said { color: var(--q-color-accent); }
 .q-measure-value { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; color: var(--q-color-ink-900); font-variant-numeric: tabular-nums; }
 
 @media (max-width: 52em) {
-  .q-days-strip { height: 58px; }
-  .q-days-weeks { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 1px; }
   .q-counts-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
   .q-measure { border-right: 0; border-bottom: 1px solid var(--q-color-ink-100); }
 }
 
 /* When everything is: a day, and what happens on it. */
-.q-day { display: grid; grid-template-columns: minmax(0, 215px) minmax(0, 1fr); gap: 20px; align-items: baseline; padding: 11px 24px; border-bottom: 1px solid var(--q-color-ink-100); }
-.q-day:last-of-type { border-bottom: 0; }
-.q-day-now { background: linear-gradient(90deg, var(--q-color-accent-soft), transparent 55%); }
-.q-day-when { font-size: 0.82rem; color: var(--q-color-ink-500); }
-.q-day-now .q-day-when { color: var(--q-color-accent); font-weight: 550; }
-.q-day-lines { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.q-day-line { font-size: 0.86rem; color: var(--q-color-ink-600); text-decoration: none; line-height: 1.5; max-width: 88ch; }
-.q-day-line:hover { color: var(--q-color-accent); }
 
 /* What the book is for: one dimension, its values counted. */
 .q-dim { padding: 13px 24px; border-bottom: 1px solid var(--q-color-ink-100); }
@@ -3366,7 +3339,6 @@ a.q-counts-row:hover .q-counts-said { color: var(--q-color-accent); }
 .q-headline-door { color: var(--q-color-accent); white-space: nowrap; }
 
 @media (max-width: 40em) {
-  .q-day { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .q-job { flex-direction: column; gap: 8px; }
   .q-job-tail { align-self: flex-start; }
 }

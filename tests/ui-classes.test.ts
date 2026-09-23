@@ -101,8 +101,11 @@ describe('Every class a component writes has a rule', () => {
       'q-tabs', 'q-tab', 'q-tab-on',
       'q-cut', 'q-cut-saved', 'q-cut-view', 'q-cut-bar', 'q-cut-chip', 'q-cut-count',
       'q-out-head', 'q-out-row', 'q-out-who', 'q-out-state',
-      'q-monthv-grid', 'q-monthv-cell', 'q-monthv-item', 'q-monthv-tray', 'q-monthv-strip',
-      'q-board-cols', 'q-board-col', 'q-card', 'q-days-strip', 'q-day-col',
+      // The sixty-day strip above the calendar is gone: it drew the same
+      // sessions the grid places on their own days, at a scale where no day
+      // could be identified. Its classes went with it.
+      'q-monthv-grid', 'q-monthv-cell', 'q-monthv-item', 'q-monthv-tray',
+      'q-board-cols', 'q-board-col', 'q-card',
       'q-dist2-axis', 'q-dist2-bar', 'q-dist2-keys', 'q-dist2-measures',
     ];
     expect(must.filter((cls) => !defined.has(cls))).toEqual([]);
