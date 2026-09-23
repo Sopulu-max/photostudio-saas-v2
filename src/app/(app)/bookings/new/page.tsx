@@ -62,10 +62,6 @@ export default async function NewBookingPage(
    *   AND SAY THEY HAVE, because a crew list that is empty because of a
    *   timeout looks exactly like a studio with no crew.
    */
-  const [clientRows, packageRows, activeServices, dimensionsByDomain, allDeliverables] = await Promise.all([
-    listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(), listDeliverables(),
-  ]);
-
   const degraded: string[] = [];
   const orEmpty = async <T,>(what: string, load: () => Promise<T>, fallback: T): Promise<T> => {
     try {
@@ -77,34 +73,47 @@ export default async function NewBookingPage(
     }
   };
 
-  const [roles, currencyCode, employees, termsTemplate] = await Promise.all([
+  /*
+   * ONE WAIT, then the one thing that is read off an answer.
+   *
+   * This asked in six rounds - the catalogue, then the enriching reads, then
+   * the tax rate, then the timezone, then which values mean the studio's own
+   * building - and only the last of them needed anything from the others. This
+   * is the form an operator opens to take a booking while a client is on the
+   * phone, so every wait in series was one they sat through.
+   */
+  const [
+    clientRows, packageRows, activeServices, dimensionsByDomain, allDeliverables,
+    roles, currencyCode, employees, termsTemplate, taxRate, timeZone, premisesValues,
+  ] = await Promise.all([
+    listClients(), listPackages(), listActiveServices(), listDimensionsByDomain(), listDeliverables(),
     orEmpty('team roles', listRoles, [] as any[]),
     getStudioCurrency(),
     // Who the studio has, so a booking can be staffed while it is being taken
     // rather than only afterwards.
     orEmpty('the team', listEmployees, [] as any[]),
+    // What the studio asks for up front, so the contract field opens on it
+    // rather than on nothing.
     orEmpty('the contract wording', getContractTermsTemplate, null as any),
+    /*
+     * What the studio charges on top.
+     *
+     * The form used to show the sum of its package prices and call that the
+     * invoice. createInvoiceForBooking snapshots this rate onto the document
+     * and writes tax_amount, so a studio on 7.5% read ₦200,000 here and sent
+     * the client ₦215,000 — the form quoting one figure and the invoice
+     * demanding another, with nothing anywhere saying so.
+     */
+    getTaxRate(),
+    // Whose clock the date field and the day's other bookings are on.
+    studioTimezone(orgId),
+    // Which of the studio's own values mean its building, so the date field
+    // only mentions opening hours when they apply to what is being booked.
+    premisesValueIds(),
   ]);
 
-  // What the studio asks for up front, so the contract field opens on it rather
-  // than on nothing.
-
-  /*
-   * What the studio charges on top.
-   *
-   * The form used to show the sum of its package prices and call that the
-   * invoice. createInvoiceForBooking snapshots this rate onto the document and
-   * writes tax_amount, so a studio on 7.5% read ₦200,000 here and sent the
-   * client ₦215,000 — the form quoting one figure and the invoice demanding
-   * another, with nothing anywhere saying so.
-   */
-  const taxRate = await getTaxRate();
-  // Whose clock the date field and the day's other bookings are on.
-  const timeZone = await studioTimezone(orgId);
-  // Which of the studio's own values mean its building, so the date field only
-  // mentions opening hours when they apply to what is being booked.
-  const premisesValues = await premisesValueIds();
-
+  // The only read that needs an answer from above: the questions belonging to
+  // the services the studio actually offers.
   const allVariables = (await listVariablesForServices(activeServices.map((s: any) => s.id)))
     .map((v: any) => {
       const sName = (activeServices as any[]).find(s => s.id === v.serviceId)?.name || 'Service';
