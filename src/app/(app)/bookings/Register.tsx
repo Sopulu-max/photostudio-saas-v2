@@ -19,21 +19,19 @@ import type { RegisterRow, Crew } from '@/modules/bookings/interface';
  * Every booking a row, every fact a booking carries a column, and three verbs
  * only: narrow, group, sort.
  *
- * THE COLUMNS ARE READ OFF THE ROWS, NOT NAMED HERE. They were a fixed list of
- * twelve with their headings written into this file, which meant two things
- * that cannot stand in a product sold to many studios: a studio asking its own
- * questions saw none of them, and the headings were the app's paraphrase rather
- * than the studio's own word. So the columns a studio sees are now derived -
- * one per dimension its bookings are classified by, one per question its
- * packages ask, one per deliverable its bookings commit - and each is titled
- * with the name the data itself carries, verbatim. Define a dimension called
- * Occasion and a column called Occasion appears; rename it and the column is
- * renamed. Nothing about any one studio is written here.
+ * THE COLUMNS ARE ONLY WHAT EVERY BOOKING HAS. Client, Booking, Packages,
+ * Stage, Session, Contract, Crew, Steps, Roles, Notes - the facts a booking
+ * carries by definition, so a column is a claim that holds for every row.
  *
- * WHAT IS NOT DERIVED is only what every booking has by definition - who it is
- * for, what is on it, where it stands, when the session is, who is on it, how
- * far the work has got, how long it has been waiting. Those are the app's own
- * connective words, which is the one vocabulary the app is allowed to supply.
+ * WHAT A STUDIO NAMES IS NOT HERE, and that is the point. Its dimensions, the
+ * questions its packages leave open, the deliverables it commits - those were
+ * columns for a while, titled with the studio's own words, and the table was
+ * measured: ten of them carried something for three bookings or fewer out of
+ * twenty-nine, because what a booking is asked follows from the packages on it
+ * and no two bookings need be asked the same things. A column asserts that its
+ * fact applies to every row, so a column per question was an assertion the
+ * data does not support. They belong to the booking's own page, where each one
+ * sits under the package that asked it.
  *
  * MONEY IS NOT HERE, by ruling: what a booking is worth and what is settled are
  * Finances' to report, so `owed` is deliberately not a column although the row
@@ -86,32 +84,6 @@ const SORTS: { key: string; label: string; compare: (a: RegisterRow, b: Register
   { key: 'client', label: 'By client', compare: (a, b) => (a.clientName ?? '￿').localeCompare(b.clientName ?? '￿') },
   { key: 'activity', label: 'Last moved', compare: (a, b) => (b.lastActivity?.at ?? '').localeCompare(a.lastActivity?.at ?? '') },
 ];
-
-/**
- * A commitment, said.
- *
- * The numeral never appears alone: it is said with the noun the STUDIO counts
- * the thing in (the deliverable's own unit), falling back to the studio's name
- * for the thing itself, verbatim - never lowercased or pluralised, because
- * inflecting a studio's vocabulary is the app rewriting it. And "+?" was a code
- * that needed a legend (Law 1), so what it stood for is now said: a package
- * left the number to somebody.
- */
-const saidCommitted = (c: { unit: string | null; quantity: number; extra: number; undecided: boolean }) => {
-  const n = c.quantity + c.extra;
-  /*
-   * The unit is said when the studio declared one, because then it tells the
-   * reader something the column's own title does not. Where the studio declared
-   * none, the title already carries its word for the thing and repeating it in
-   * every cell beneath would be a noun printed ninety times that informs nobody
-   * (Law 7) - and a bare numeral is honest here, where the operator chose to
-   * tabulate and the header is a restatement rather than a decoder.
-   */
-  const parts = [c.unit ? `${n} ${c.unit}${n === 1 ? '' : 's'}` : `${n}`];
-  if (c.extra > 0) parts.push(`${c.extra} added`);
-  if (c.undecided) parts.push('a number left open');
-  return parts.join(' · ');
-};
 
 const none = (what: string) => <span className="q-reg-none">{what}</span>;
 
@@ -326,7 +298,7 @@ function PersonnelCell({ r, c }: { r: RegisterRow; c: Ctx }) {
  * booking in ninety carries does not lead - which is a property of the data,
  * not a preference written here.
  */
-function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
+function columnsFor(): Column[] {
   const fixed: Column[] = [
     { key: 'client', label: 'Client', width: 150,
       cell: (r) => (
@@ -400,116 +372,7 @@ function columnsFor(rows: RegisterRow[], lenses: LensGroup[]): Column[] {
       } },
   ];
 
-  // ---- one column per dimension the studio classifies bookings by
-  const dims = new Map<string, { name: string; rows: number }>();
-  for (const r of rows) {
-    for (const cl of r.classification) {
-      const had = dims.get(cl.dimensionId) ?? { name: cl.dimensionName, rows: 0 };
-      had.rows += 1;
-      dims.set(cl.dimensionId, had);
-    }
-  }
-  /*
-   * A dimension a studio asks but no booking in this cut has answered still
-   * gets its column, because "not stated" is a fact worth reading (Law 6) and
-   * the axes already know the dimension exists.
-   */
-  for (const g of lenses) {
-    if (!g.key.startsWith('dim:')) continue;
-    const id = g.key.slice(4);
-    if (!dims.has(id)) dims.set(id, { name: g.label, rows: 0 });
-  }
-  const dimensionColumns: Column[] = [...dims.entries()]
-    .sort((a, b) => b[1].rows - a[1].rows || a[1].name.localeCompare(b[1].name))
-    .map(([id, d]) => ({
-      key: `dim:${id}`,
-      label: d.name,
-      width: 150,
-      cell: (r: RegisterRow) => {
-        const mine = r.classification.filter((c) => c.dimensionId === id);
-        return mine.length > 0 ? <span>{mine.map((c) => c.valueName).join(' · ')}</span> : none('Not stated');
-      },
-      total: (rs: RegisterRow[]) => {
-        const n = rs.filter((r) => !r.classification.some((c) => c.dimensionId === id)).length;
-        return n > 0 ? <span>{n} not stated</span> : null;
-      },
-    }));
-
-  /*
-   * ---- one column per question the studio's packages ask
-   *
-   * THE KIND TRAVELS WITH THE NAME. A studio defines these on its services and
-   * deliverables and its packages leave them open, so the column has to read
-   * not just what the question is CALLED but what it IS: a number is counted
-   * and belongs against the right-hand edge with its kin, a date is a point in
-   * time, a yes-or-no is a word. The text itself is already said by the kind
-   * that declared it (sheet.ts sayAnswer) and is NOT re-read here - parsing it
-   * back into a number to sum would be the app second-guessing a value the
-   * studio's own unit already settled.
-   *
-   * Where two questions share a name but not a kind, they are two columns: the
-   * name is not the identity, the pair is.
-   */
-  const asked = new Map<string, { label: string; kind: string; rows: number }>();
-  for (const r of rows) {
-    for (const f of r.facts) {
-      const id = `${f.label}\u0000${f.kind}`;
-      const had = asked.get(id) ?? { label: f.label, kind: f.kind, rows: 0 };
-      had.rows += 1;
-      asked.set(id, had);
-    }
-  }
-  const counted = (kind: string) => kind === 'number' || kind === 'size';
-  const factColumns: Column[] = [...asked.entries()]
-    .sort((a, b) => b[1].rows - a[1].rows || a[1].label.localeCompare(b[1].label))
-    .map(([, q]) => ({
-      key: `fact:${q.label}:${q.kind}`,
-      label: q.label,
-      width: q.kind === 'boolean' ? 110 : counted(q.kind) ? 124 : 155,
-      align: counted(q.kind) ? ('right' as const) : undefined,
-      cell: (r: RegisterRow) => {
-        const mine = r.facts.filter((f) => f.label === q.label && f.kind === q.kind);
-        if (mine.length === 0) return none('Unanswered');
-        const said = mine.map((f) => f.text).join(' · ');
-        return <span className={counted(q.kind) ? 'q-reg-mono' : undefined} title={said}>{said}</span>;
-      },
-      total: (rs: RegisterRow[]) => {
-        const n = rs.filter((r) => !r.facts.some((f) => f.label === q.label && f.kind === q.kind)).length;
-        return n > 0 ? <span>{n} unanswered</span> : null;
-      },
-    }));
-
-  // ---- one column per deliverable the studio's bookings commit
-  const owes = new Map<string, number>();
-  for (const r of rows) for (const cm of r.committed) owes.set(cm.deliverable, (owes.get(cm.deliverable) ?? 0) + 1);
-  const committedColumns: Column[] = [...owes.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([deliverable]) => ({
-      key: `owes:${deliverable}`,
-      label: deliverable,
-      width: 150,
-      align: 'right' as const,
-      cell: (r: RegisterRow) => {
-        const mine = r.committed.find((c) => c.deliverable === deliverable);
-        return mine
-          ? <span className="q-reg-mono" title={saidCommitted(mine)}>{saidCommitted(mine)}</span>
-          : none('None owed');
-      },
-      total: (rs: RegisterRow[]) => {
-        let n = 0;
-        let unit: string | null = null;
-        for (const r of rs) {
-          const mine = r.committed.find((c) => c.deliverable === deliverable);
-          if (!mine) continue;
-          n += mine.quantity + mine.extra;
-          unit = mine.unit;
-        }
-        if (n === 0) return null;
-        return <span className="q-reg-mono">{unit ? `${n} ${unit}${n === 1 ? '' : 's'}` : n}</span>;
-      },
-    }));
-
-  return [...fixed, ...dimensionColumns, ...factColumns, ...committedColumns];
+  return fixed;
 }
 
 export function Register({ rows, lenses, today, timeZone, roles, employees, group, onGroup, sort: sortKey, onSort }: {
@@ -532,7 +395,7 @@ export function Register({ rows, lenses, today, timeZone, roles, employees, grou
   // A cell settles the moment it is chosen; the record catches up behind it.
   const { shown, act, isBusy } = useActed(rows, (r) => r.id);
 
-  const COLUMNS = React.useMemo(() => columnsFor(shown, lenses), [shown, lenses]);
+  const COLUMNS = React.useMemo(() => columnsFor(), []);
   const stages = React.useMemo(
     () => (lenses.find((g) => g.key === 'stage')?.items ?? []).map((i) => ({ key: i.key, label: i.label, look: i.look ?? null })),
     [lenses],
