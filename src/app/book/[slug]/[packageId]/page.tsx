@@ -82,7 +82,39 @@ export default async function BookingPage(props: {
   const org = await getStudioBySlug(params.slug);
   if (!org) notFound();
 
-  const pkg = await getPackagePublic(org.id, params.packageId);
+  /*
+   * ONE WAIT, once the studio is known.
+   *
+   * This is the page a client sees, and it asked in five waits: the package,
+   * then what it leaves open, then the classifications it has not settled,
+   * then what it narrows to - each waiting on the one before although none of
+   * them needs its answer. All four are questions about this package and this
+   * studio, both of which are known from the address, so all four are asked
+   * together. A family package returns before three of them are read, which
+   * costs three queries it will not use and saves the client two waits; on a
+   * public page that is the right way round.
+   */
+  const [pkg, openVariables, openClassifications, premisesValues, packageValues] = await Promise.all([
+    getPackagePublic(org.id, params.packageId),
+    // What this package deliberately left open becomes the questions asked below.
+    getOpenVariablesForPackagePublic(org.id, params.packageId),
+    /*
+     * And the classifications this package has not settled.
+     *
+     * A package offering Birthday, Anniversary and Convocation is offering a
+     * choice, not describing three simultaneous facts - a booking of it is for
+     * exactly one. Narrowed to a single value the studio has already answered,
+     * and nothing is asked.
+     */
+    getOpenClassificationsForPackagePublic(org.id, params.packageId),
+    /*
+     * Whether booking THIS package needs the studio's building, so the date
+     * field only mentions opening hours when they apply. A wedding at the
+     * client's own venue has nothing to do with when the office is open.
+     */
+    premisesValueIdsFor(org.id),
+    packageNarrowingValueIds(org.id, params.packageId),
+  ]);
   if (!pkg) notFound();
 
   const currencyCode = org.currency;
@@ -145,28 +177,6 @@ export default async function BookingPage(props: {
       </div>
     );
   }
-
-  // What this package deliberately left open becomes the questions asked below.
-  const openVariables = await getOpenVariablesForPackagePublic(org.id, params.packageId);
-  /*
-   * And the classifications this package has not settled.
-   *
-   * A package offering Birthday, Anniversary and Convocation is offering a
-   * choice, not describing three simultaneous facts — a booking of it is for
-   * exactly one. Narrowed to a single value the studio has already answered,
-   * and nothing is asked.
-   */
-  const openClassifications = await getOpenClassificationsForPackagePublic(org.id, params.packageId);
-
-  /*
-   * Whether booking THIS package needs the studio's building, so the date field
-   * only mentions opening hours when they apply. A wedding at the client's own
-   * venue has nothing to do with when the office is open.
-   */
-  const [premisesValues, packageValues] = await Promise.all([
-    premisesValueIdsFor(org.id),
-    packageNarrowingValueIds(org.id, params.packageId),
-  ]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--q-color-paper-subtle)', padding: 'clamp(32px, 6vw, 80px) 24px' }}>

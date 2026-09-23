@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import { checkIn, checkOut } from '@/modules/team/interface';
 import type { AttendanceToday } from '@/modules/team/interface';
 import { ContactAvatar } from '@/components/ContactAvatar';
+import { useActed } from '@/components/useActed';
 import { WEEKDAYS } from '@/modules/team/weekdays';
-import { toast, readableError } from '@/components/Toast';
 
 /**
  * The attendance register.
@@ -68,7 +67,7 @@ const exactly = (iso: string | null, timezone: string) =>
     : '';
 
 export function AttendanceBoard({
-  roster, workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel,
+  roster: given, workDate, timezone, isoWeekday, opensAt, closesAt, closed, openingLabel,
 }: {
   roster: AttendanceToday[];
   workDate: string;
@@ -85,9 +84,21 @@ export function AttendanceBoard({
   /** Why today differs — "Sanitation", "Public holiday". Null on an ordinary day. */
   openingLabel: string | null;
 }) {
-  const [, startTransition] = useTransition();
-  const [busy, setBusy] = useState<string | null>(null);
-  const router = useRouter();
+  /*
+   * The board is a shared device by the door, and whoever is standing at it
+   * watches for their own name to move. It stayed where it was until the
+   * server had answered and the whole board had been read again, so the
+   * acknowledgement said "saving" while the row still said they were expected.
+   * The row moves on the press now.
+   *
+   * WHICH GROUP THEY ARE IN, and not what time it is. The time they typed is
+   * resolved against the studio's own clock by the server, and that resolution
+   * lives there; guessing at it here would be a second reading of the same rule
+   * and could show a minute the record never holds. So the amendment is the one
+   * fact the press settles - they are here, or they have left - and the
+   * confirmed time arrives with the record.
+   */
+  const { shown: roster, act, isBusy } = useActed(given, (r) => r.employeeId);
 
   /*
    * Pressing the button asks for the time before recording anything.
@@ -150,28 +161,26 @@ export function AttendanceBoard({
    * acknowledgement when the server answers. `setConfirmation` stays outside the
    * transition so it is not held behind the board reloading afterwards.
    */
-  const run = async (
+  const run = (
     person: AttendanceToday,
     fn: () => Promise<{ at?: string; alreadyIn?: boolean } | unknown>,
     kind: 'in' | 'out',
   ) => {
-    setBusy(person.employeeId);
     setConfirmation({ name: person.name, kind: 'saving', at: null });
-    try {
-      const result = (await fn()) as { at?: string; alreadyIn?: boolean } | undefined;
-      setConfirmation({
-        name: person.name,
-        kind: kind === 'in' && result?.alreadyIn ? 'already' : kind,
-        at: result?.at ?? null,
-      });
-      setAsking(null);
-      startTransition(() => { router.refresh(); });
-    } catch (e: any) {
-      setConfirmation(null);
-      toast.bad(readableError(e, 'The change could not be saved.'));
-    } finally {
-      setBusy(null);
-    }
+    setAsking(null);
+    act(
+      person.employeeId,
+      { state: kind },
+      async () => {
+        const result = (await fn()) as { at?: string; alreadyIn?: boolean } | undefined;
+        setConfirmation({
+          name: person.name,
+          kind: kind === 'in' && result?.alreadyIn ? 'already' : kind,
+          at: result?.at ?? null,
+        });
+      },
+      'The change could not be saved.',
+    );
   };
 
   const present = roster.filter((r) => r.state === 'in');
@@ -250,7 +259,7 @@ export function AttendanceBoard({
     );
 
   const Row = ({ person }: { person: AttendanceToday }) => {
-    const working = busy === person.employeeId;
+    const working = isBusy(person.employeeId);
     const arrived = timeOf(person.checkedInAt, timezone);
     const left = timeOf(person.checkedOutAt, timezone);
     const arrivedOn = dateOf(person.checkedInAt, timezone);

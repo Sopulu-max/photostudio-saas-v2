@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast, readableError } from '@/components/Toast';
+import React, { useState } from 'react';
 import { useArrivals } from '@/components/useArrivals';
+import { useActed } from '@/components/useActed';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import {
   setTaskRole, addBookingTask, removeBookingTask,
@@ -56,21 +55,19 @@ export function BookingTasks({
   employees: Employee[];
   roles: { id: string; name: string }[];
 }) {
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
+  /*
+   * The tick appears when it is clicked, not when the server answers, and only
+   * the row acted on looks busy - the rest of the list stays live, because
+   * marking off a morning's work is a run of clicks, not one (useActed).
+   */
+  const { shown, act, actOnList, working, isBusy } = useActed(tasks, keyOf);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRoleId, setNewRoleId] = useState('');
   const [notice, setNotice] = useState('');
   // A task added here lands in a list that may already be twenty long. This is
   // what points at the one that just arrived.
-  const arrived = useArrivals(tasks.map(keyOf));
-
-  const run = (fn: () => Promise<unknown>, whenFailed: string) =>
-    startTransition(async () => {
-      // The list is a reading; after an action the page is read again.
-      try { await fn(); router.refresh(); } catch (e: any) { toast.bad(readableError(e, whenFailed)); }
-    });
+  const arrived = useArrivals(shown.map(keyOf));
 
   /** Only people who hold what this task needs. No role set means anyone. */
   const eligibleFor = (roleId: string | null) =>
@@ -78,11 +75,11 @@ export function BookingTasks({
       ? employees.filter((e) => (e.employee_roles || []).some((er) => er.role?.id === roleId))
       : employees;
 
-  const unstaffed = tasks.filter((t) => !t.assignee && !t.done).length;
+  const unstaffed = shown.filter((t) => !t.assignee && !t.done).length;
 
   return (
     <div className="q-stack q-stack-md">
-      {tasks.length === 0 ? (
+      {shown.length === 0 ? (
         <p className="q-meta">
           No tasks. The work comes from the workflows of the services in this booking&rsquo;s
           packages, as they stand now; work specific to this booking can be added below.
@@ -96,7 +93,7 @@ export function BookingTasks({
           </p>
 
           <div className="q-stack" style={{ gap: '6px' }}>
-            {tasks.map((t) => (
+            {shown.map((t) => (
               <div
                 key={keyOf(t)}
                 // The row treatment is q-line's now — the same one the new
@@ -109,9 +106,11 @@ export function BookingTasks({
                   <button
                     type="button"
                     className="q-btn q-btn-xs"
-                    disabled={isPending}
+                    disabled={isBusy(keyOf(t))}
                     title={t.done ? 'Mark as not complete' : 'Mark as complete'}
-                    onClick={() => run(
+                    onClick={() => act(
+                      keyOf(t),
+                      { done: !t.done } as Partial<BookingTask>,
                       () => toggleTaskDone({ bookingId, task: t.ref }),
                       'Could not change that task.')}
                     style={{
@@ -139,10 +138,15 @@ export function BookingTasks({
                     className="q-select"
                     style={{ minWidth: '140px' }}
                     value={t.roleOverridden || !t.workflowRoleName ? (t.roleId ?? '') : ''}
-                    disabled={isPending}
+                    disabled={isBusy(keyOf(t))}
                     onChange={(e) => {
                       const roleId = e.target.value || null;
-                      run(async () => {
+                      const named = roles.find((r) => r.id === roleId) ?? null;
+                      act(keyOf(t), {
+                        roleId,
+                        roleName: named?.name ?? null,
+                        roleOverridden: true,
+                      } as Partial<BookingTask>, async () => {
                         const r = await setTaskRole({ bookingId, task: t.ref, roleId });
                         if (r?.standDown) {
                           setNotice(`${t.assignee?.name} was removed from “${t.name}”: they do not hold this role.`);
@@ -161,10 +165,17 @@ export function BookingTasks({
                     className="q-select"
                     style={{ minWidth: '160px' }}
                     value={t.assignee?.id ?? ''}
-                    disabled={isPending}
+                    disabled={isBusy(keyOf(t))}
                     onChange={(e) => {
                       const employeeId = e.target.value;
-                      run(
+                      const chosen = employees.find((p) => (p.contact?.id || p.id) === employeeId);
+                      act(
+                        keyOf(t),
+                        {
+                          assignee: employeeId
+                            ? { id: employeeId, name: chosen?.contact?.display_name || 'Unnamed' }
+                            : null,
+                        } as Partial<BookingTask>,
                         () => employeeId
                           ? assignToTask({ bookingId, task: t.ref, employeeId })
                           : unassignTask({ bookingId, task: t.ref }),
@@ -184,10 +195,10 @@ export function BookingTasks({
                   {t.own && t.id && (
                     <ConfirmButton
                       className="q-btn-ghost q-btn-xs"
-                      disabled={isPending}
+                      disabled={isBusy(keyOf(t))}
                       title={`Remove “${t.name}”`}
                       confirmLabel="Remove?"
-                      onConfirm={() => run(
+                      onConfirm={() => actOnList(
                         () => removeBookingTask({ bookingId, taskId: t.id! }),
                         'Could not remove that task.')}
                     >
@@ -224,19 +235,19 @@ export function BookingTasks({
           <button
             type="button"
             className="q-btn q-btn-primary q-btn-sm"
-            aria-busy={isPending}
-            disabled={isPending || !newName.trim()}
-            onClick={() => run(async () => {
+            aria-busy={working}
+            disabled={working || !newName.trim()}
+            onClick={() => actOnList(async () => {
               await addBookingTask({ bookingId, name: newName, roleId: newRoleId || null });
               setNewName(''); setNewRoleId(''); setAdding(false);
             }, 'Could not add that task.')}
           >
-            {isPending ? 'Adding…' : 'Add'}
+            {working ? 'Adding…' : 'Add'}
           </button>
           <button
             type="button"
             className="q-btn q-btn-secondary q-btn-sm"
-            disabled={isPending}
+            disabled={working}
             onClick={() => { setAdding(false); setNewName(''); setNewRoleId(''); }}
           >
             Cancel
