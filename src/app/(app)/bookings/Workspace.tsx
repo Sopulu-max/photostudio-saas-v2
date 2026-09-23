@@ -53,11 +53,16 @@ const VIEWS: { key: View; label: string }[] = [
 ];
 
 export function Workspace({
-  rows, lenses, today, figures, months, series, periodDays, month: firstMonth, initial,
+  rows, lenses, today, timeZone, roles, employees, figures, months, series, periodDays, month: firstMonth, initial,
 }: {
   rows: RegisterRow[];
   lenses: LensGroup[];
   today: string;
+  /** Whose wall clock a session is said and entered on. */
+  timeZone: string;
+  /** The studio's own role names and people, so the register can alter a crew in place. */
+  roles: { id: string; name: string }[];
+  employees: { id: string; name: string; roleIds: string[] }[];
   figures: Figure[];
   months: string[];
   series: { key: string; label: string; points: number[] }[];
@@ -218,6 +223,7 @@ export function Workspace({
       <section className="q-view">
         {view === 'register' && (
           <Register rows={inCut} lenses={lenses} today={today}
+                    timeZone={timeZone} roles={roles} employees={employees}
                     group={group} onGroup={setGroup} sort={sort} onSort={setSort} />
         )}
 

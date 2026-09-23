@@ -128,6 +128,8 @@ export type BookingsSheet = {
   lenses: LensGroup[];
   /** Today, as the studio reads it - the sheet's headings are dated from it. */
   today: string;
+  /** Whose wall clock a session is said and entered on. Read here already. */
+  timeZone: string;
   period: { days: Period; from: string; to: string; beforeFrom: string; beforeTo: string };
   figures: Figure[];
   series: { months: string[]; lines: SeriesLine[] };
@@ -374,7 +376,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
     axisOf(sheetRows, 'missing', 'Missing', MISSING.map((m) => ({ key: m.key, label: m.label, due: true })), { none: 'Nothing missing' }),
     // Every dimension the studio classifies bookings by, its values by name.
     ...[...dimensions.entries()].map(([id, d]) =>
-      axisOf(sheetRows, `dim:${id}`, d.name, valuesSeen(sheetRows, `dim:${id}`, (k) => d.values.get(k) ?? k), { none: `No ${d.name.toLowerCase()}` })),
+      axisOf(sheetRows, `dim:${id}`, d.name, valuesSeen(sheetRows, `dim:${id}`, (k) => d.values.get(k) ?? k), { none: `No ${d.name}` })),
   ].filter((g) => g.items.length > 0);
 
   // Within a band, soonest first; undated and closed by when they were made, newest first.
@@ -439,7 +441,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
   ];
 
   return {
-    bands, lenses, today,
+    bands, lenses, today, timeZone: timezone,
     period: { days: periodDays, from, to: today, beforeFrom, beforeTo },
     figures, series, byStage,
   };

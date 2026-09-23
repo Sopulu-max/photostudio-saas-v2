@@ -29,6 +29,14 @@ import { readBookingsSheet, type BookingsSheet, type SheetBooking, type Period }
 export type Committed = {
   /** The studio's own word for what is made, with what this booking owes of it. */
   deliverable: string;
+  /**
+   * WHAT IT IS COUNTED IN, as the studio declared it on the kind - "print",
+   * "photograph", "hour". A quantity has to be said with the noun it counts
+   * (12-BOOKINGS_READABILITY Law 2), and the studio is the only one who knows
+   * that noun, so it travels with the tally rather than being guessed at or
+   * derived from the deliverable's name.
+   */
+  unit: string | null;
   quantity: number;
   /** Units added on this booking beyond what its packages promise. */
   extra: number;
@@ -36,10 +44,27 @@ export type Committed = {
   undecided: boolean;
 };
 
+/**
+ * One declared crew member on a booking.
+ *
+ * Said in the studio's own role names, and carrying the ids a change needs: an
+ * assignment is what a removal names, an employee is what an addition names.
+ * The register alters the crew in place, so a row has to hold what the change
+ * is about and not only what it reads as.
+ */
+export type Crew = {
+  assignmentId: string;
+  employeeId: string;
+  who: string;
+  roleId: string | null;
+  roleName: string | null;
+  /** "Name (Role)", or the name alone where no role was set. */
+  said: string;
+};
+
 export type RegisterRow = SheetBooking & {
   committed: Committed[];
-  /** Declared crew, as "Name (Role)" in the studio's role names. */
-  personnel: string[];
+  personnel: Crew[];
   lastActivity: { at: string; action: string } | null;
 };
 
@@ -67,7 +92,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
      */
     supabaseAdmin
       .from('booking_lines')
-      .select('id, booking_id, package_id, package:packages(package_services(package_deliverables(quantity, decided_by, deliverable:deliverables(id, name))))')
+      .select('id, booking_id, package_id, package:packages(package_services(package_deliverables(quantity, decided_by, deliverable:deliverables(id, name, default_unit))))')
       .eq('organization_id', orgId)
       .in('booking_id', ids),
     // More of a promise, added on this booking: kind 'promise', ref_id = the deliverable.
@@ -78,7 +103,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
       .in('booking_line_id', lineIds.length > 0 ? lineIds : ['00000000-0000-0000-0000-000000000000']),
     supabaseAdmin
       .from('assignments')
-      .select('booking_id, role:roles(name), employee:employees(contact:contacts(display_name))')
+      .select('id, booking_id, role:roles(id, name), employee:employees(id, contact:contacts(display_name))')
       .eq('organization_id', orgId)
       .in('booking_id', ids),
     supabaseAdmin
@@ -96,7 +121,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
   if (events.error) console.error('Failed to read when bookings last moved:', events.error);
 
   // ---- committed, per booking, per deliverable
-  type Tally = { name: string; quantity: number; extra: number; undecided: boolean };
+  type Tally = { name: string; unit: string | null; quantity: number; extra: number; undecided: boolean };
   const byBooking = new Map<string, Map<string, Tally>>();
   const lineOwner = new Map<string, string>();
   for (const l of ((promised.data || []) as any[])) {
@@ -107,7 +132,11 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
       for (const pd of (ps.package_deliverables ?? [])) {
         const d = pd.deliverable;
         if (!d?.id) continue;
-        const had = tallies.get(d.id) ?? { name: d.name as string, quantity: 0, extra: 0, undecided: false };
+        const had = tallies.get(d.id) ?? {
+          name: d.name as string,
+          unit: (d.default_unit ?? null) as string | null,
+          quantity: 0, extra: 0, undecided: false,
+        };
         if (pd.quantity === null || pd.quantity === undefined) had.undecided = true;
         else had.quantity += Number(pd.quantity);
         tallies.set(d.id, had);
@@ -122,18 +151,24 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
     const had = tallies?.get(e.ref_id as string);
     // An extra of a deliverable the packages never promised still counts, named by its own label.
     if (had) had.extra += Number(e.units ?? 0);
-    else tallies?.set(e.ref_id as string, { name: String(e.label ?? 'Added on this booking'), quantity: 0, extra: Number(e.units ?? 0), undecided: false });
+    else tallies?.set(e.ref_id as string, { name: String(e.label ?? 'Added on this booking'), unit: null, quantity: 0, extra: Number(e.units ?? 0), undecided: false });
   }
 
   // ---- the declared crew, in the studio's role names
-  const personnelOf = new Map<string, string[]>();
+  const personnelOf = new Map<string, Crew[]>();
   for (const a of ((crew.data || []) as any[])) {
     const who = a.employee?.contact?.display_name as string | undefined;
     if (!who) continue;
-    const role = a.role?.name as string | undefined;
-    const said = role ? `${who} (${role})` : who;
+    const roleName = (a.role?.name ?? null) as string | null;
     const had = personnelOf.get(a.booking_id) ?? [];
-    if (!had.includes(said)) had.push(said);
+    had.push({
+      assignmentId: a.id as string,
+      employeeId: (a.employee?.id ?? '') as string,
+      who,
+      roleId: (a.role?.id ?? null) as string | null,
+      roleName,
+      said: roleName ? `${who} (${roleName})` : who,
+    });
     personnelOf.set(a.booking_id, had);
   }
 
@@ -149,7 +184,7 @@ export async function readBookingsRegister(period: Period = 30, given?: Bookings
     rows: rows.map((r) => ({
       ...r,
       committed: [...(byBooking.get(r.id)?.values() ?? [])]
-        .map((t) => ({ deliverable: t.name, quantity: t.quantity, extra: t.extra, undecided: t.undecided }))
+        .map((t) => ({ deliverable: t.name, unit: t.unit, quantity: t.quantity, extra: t.extra, undecided: t.undecided }))
         .sort((a, b) => b.quantity + b.extra - (a.quantity + a.extra) || a.deliverable.localeCompare(b.deliverable)),
       personnel: personnelOf.get(r.id) ?? [],
       lastActivity: lastOf.get(r.id) ?? null,

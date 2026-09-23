@@ -114,6 +114,6 @@ export type { MissingKey } from './sheet';
 export { readBookingsDashboard } from './dashboard';
 export type { BookingsDashboard, Attention, NextRow, WorkRow, Position, PipelineStage, RecentRow, Dated, DatedDay, Sold, ForDimension, Decision } from './dashboard';
 export { readBookingsRegister } from './register';
-export type { BookingsRegister, RegisterRow, Committed } from './register';
+export type { BookingsRegister, RegisterRow, Committed, Crew } from './register';
 export { sayNeeds, sayWait, saySession, sayWork, sayPositions, sayProgress, sayReadyToClose, sayDay, sayAge, plural, flat, cardName, cardWhat, cardWhen, cardNeeds } from './say';
 export type { Say, Part } from './say';

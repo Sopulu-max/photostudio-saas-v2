@@ -120,7 +120,7 @@ export function InvoicesClient({
                   ) : (
                     <span className="q-price">{formatMoney(inv.total, currency)}</span>
                   )}
-                  <span className={badgeFor(state)}>{state.toLowerCase()}</span>
+                  <span className={badgeFor(state)}>{state}</span>
                 </div>
               </Link>
             );

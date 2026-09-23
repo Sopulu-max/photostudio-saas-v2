@@ -304,7 +304,7 @@ export function Distribution({ rows, lenses, figures, months, series, periodDays
           <div className="q-dist2-lines">
             {committed.map((c) => (
               <p key={c.deliverable} className="q-dist2-line">
-                <b>{c.quantity + c.extra}</b> {c.deliverable.toLowerCase()}
+                <b>{c.quantity + c.extra}</b> {c.deliverable}
                 {c.extra > 0 && <span className="q-dist2-quiet"> including {c.extra} added as extras</span>}
                 {c.undecided > 0 && <span className="q-said-warm"> · {plural(c.undecided, 'commitment')} with no quantity recorded</span>}
               </p>

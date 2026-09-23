@@ -50,7 +50,7 @@ export default async function ContractDetailsPage(props: { params: Promise<{ id:
           </div>
           <div className="q-row">
             <span className={`q-badge ${isActive ? 'q-badge-success' : 'q-badge-neutral'}`}>
-              {contract.status.toUpperCase()}
+              {contract.status}
             </span>
             {!isTerminal && <CancelContractButton contractId={contract.id} />}
           </div>

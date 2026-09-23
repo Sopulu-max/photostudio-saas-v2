@@ -370,7 +370,7 @@ export function DimensionManager({
                 <span className="q-eyebrow">Required information</span>
                 {(vars[d.id] || []).length === 0 && (
                   <span className="q-meta-sm">
-                    Nothing yet. If knowing {d.name.toLowerCase()} means you also need something — an
+                    Nothing yet. If knowing {d.name} means you also need something — an
                     occasion has a date, a context has an address — say so here, once, and every
                     package classified this way asks for it.
                   </span>

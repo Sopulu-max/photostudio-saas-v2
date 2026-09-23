@@ -180,7 +180,7 @@ export function Analysis<R extends AnalysisRow>({
 
       {axis && view === 'graph' && basis.length > 0 && (
         /* The grouped axis's breakdown drawn twice: the shape of the whole, and the values by name. Pressing a bar narrows, as the legend does. */
-        <div className="q-charts" role="group" aria-label={`By ${axis.label.toLowerCase()}, as a graph`}>
+        <div className="q-charts" role="group" aria-label={`By ${axis.label}, as a graph`}>
           <Donut slices={breakdown.map((g) => ({ key: g.key, label: g.label, value: g.all.length, color: g.color }))} noun={noun} />
           <HBars
             slices={breakdown.map((g) => ({ key: g.key, label: g.label, value: g.all.length, color: g.color, on: chosen[axis.key] === g.key }))}
@@ -190,7 +190,7 @@ export function Analysis<R extends AnalysisRow>({
       )}
 
       {axis && view !== 'graph' && basis.length > 0 && (
-        <div className="q-dist" role="group" aria-label={`By ${axis.label.toLowerCase()}`}>
+        <div className="q-dist" role="group" aria-label={`By ${axis.label}`}>
           <div className="q-dist-bar" aria-hidden="true">
             {breakdown.map((g) => (
               <span key={g.key} className={`q-dist-seg q-dist-c-${g.color}`} style={shareVar(g.all.length)} title={`${g.label}: ${g.all.length}`} />

@@ -3,6 +3,7 @@ import { getAuthOrgId } from '@/lib/supabase/getOrgId';
 import { readBookingsRegister } from '@/modules/bookings/register';
 import { readBookingsMonth } from '@/modules/bookings/month';
 import { PERIODS, type Period } from '@/modules/bookings/interface';
+import { listRoles, listEmployees } from '@/modules/team/interface';
 import { Workspace } from './Workspace';
 
 export const dynamic = 'force-dynamic';
@@ -42,9 +43,21 @@ export default async function BookingsPage(props: { searchParams: Promise<Record
   for (const [k, v] of Object.entries(params)) if (typeof v === 'string' && v) initial[k] = v;
 
   const periodDays = (PERIODS.find((p) => String(p.days) === initial.period)?.days ?? 30) as Period;
-  const [{ sheet, rows }, month] = await Promise.all([
+  /*
+   * The book, the month, and who the studio has.
+   *
+   * The register alters a booking's stage, its session and its crew in the
+   * cell, so it needs the studio's people and role names to offer. They are
+   * two small reads in the same wait as the book - not a wait of their own,
+   * and not a request when a cell is opened, because an editor that has to
+   * fetch before it can offer anything is the pause this page was built to
+   * remove.
+   */
+  const [{ sheet, rows }, month, roles, employees] = await Promise.all([
     readBookingsRegister(periodDays),
     readBookingsMonth(initial.month),
+    listRoles(),
+    listEmployees(),
   ]);
 
   return (
@@ -57,6 +70,15 @@ export default async function BookingsPage(props: { searchParams: Promise<Record
       series={sheet.series.lines}
       periodDays={sheet.period.days}
       month={month}
+      timeZone={sheet.timeZone}
+      roles={(roles as any[]).map((r) => ({ id: r.id as string, name: r.name as string }))}
+      employees={(employees as any[])
+        .filter((e) => e.status !== 'archived' && e.contact?.id)
+        .map((e) => ({
+          id: e.id as string,
+          name: (e.contact?.display_name ?? 'Unnamed') as string,
+          roleIds: ((e.employee_roles || []) as any[]).map((er) => er.role?.id).filter(Boolean) as string[],
+        }))}
       initial={initial}
     />
   );

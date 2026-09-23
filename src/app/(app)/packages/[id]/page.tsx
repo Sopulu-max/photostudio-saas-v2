@@ -284,7 +284,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   {settledQuestions.map((q) => (
                     <div key={q.name} className="q-take" style={{ cursor: 'default' }}>
                       <span className="q-sheet-name">{q.name}</span>
-                      <span className="q-sheet-cap">{[...q.values.values()][0].toUpperCase()}</span>
+                      <span className="q-sheet-cap">{[...q.values.values()][0]}</span>
                     </div>
                   ))}
                 </div>
@@ -299,7 +299,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   {kept.map((v) => (
                     <div key={v.key} className="q-take" style={{ cursor: 'default' }}>
                       <span className="q-sheet-name">{v.label}</span>
-                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ')}</span>
                       <div className="q-meta-sm" style={{ marginTop: '6px', color: 'var(--q-color-ink-600)' }}>
                         {v.state === 'fixed' ? v.value : v.state === 'member' ? 'Member decides' : <span className="q-absent">Undecided</span>}
                       </div>
@@ -326,7 +326,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   {asked.map((v) => (
                     <div key={v.key} className="q-take" style={{ cursor: 'default' }}>
                       <span className="q-sheet-name">{v.label}</span>
-                      <span className="q-sheet-cap">{v.from.join(', ').toUpperCase()}</span>
+                      <span className="q-sheet-cap">{v.from.join(', ')}</span>
                       <div className="q-meta-sm" style={{ marginTop: '6px' }}>Free answer</div>
                     </div>
                   ))}
@@ -387,7 +387,7 @@ export default async function PackageDetailsPage(props: { params: Promise<{ id: 
                   {work.map((x: any, i: number) => (
                     <div key={x.id} className="q-take" style={{ cursor: 'default' }}>
                       <span className="q-sheet-name" style={{ textDecoration: x.isActive ? 'none' : 'line-through' }}>{i + 1}. {x.name}</span>
-                      <span className="q-sheet-cap">{x.from.toUpperCase()}</span>
+                      <span className="q-sheet-cap">{x.from}</span>
                       {(x.roleName || !x.workflowTaskId) && (
                         <div className="q-meta-sm" style={{ marginTop: '6px' }}>
                           {[x.roleName, !x.workflowTaskId ? 'this package only' : null].filter(Boolean).join(' · ')}

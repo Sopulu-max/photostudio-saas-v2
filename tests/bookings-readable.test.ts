@@ -355,8 +355,18 @@ describe('The bookings page says something, and keeps saying it', () => {
      */
     const withPackage = reg.rows.find((r) => r.id === todayId)!;
     expect(withPackage.committed).toEqual([
-      { deliverable: 'Edited photographs', quantity: 4, extra: 0, undecided: false },
+      { deliverable: 'Edited photographs', unit: null, quantity: 4, extra: 0, undecided: false },
     ]);
+    /*
+     * And the tally carries the noun the STUDIO counts the thing in, so a
+     * quantity can be said without the app guessing a unit or inflecting the
+     * studio's own word for the thing. This studio declared none on the kind,
+     * which is null and not an empty string: nothing was said, as opposed to
+     * something said blankly.
+     */
+    for (const r of reg.rows) {
+      for (const c of r.committed) expect(c).toHaveProperty('unit');
+    }
     const bare = reg.rows.find((r) => r.id === bareId)!;
     expect(bare.committed).toEqual([]);
     expect(bare.packages).toEqual([]);

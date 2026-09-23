@@ -914,7 +914,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
         <PickMany
           values={chosenNames}
           options={values.map((v: any) => v.name)}
-          placeholder={`Choose or type a ${String(dim.name).toLowerCase()}`}
+          placeholder={`Choose or type a ${String(dim.name)}`}
           allowCreate={Boolean(dim.domainId)}
           onChange={(next) => {
             const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();

@@ -32,7 +32,7 @@ export function TransactionActions({
     return (
       <div className="q-note q-note-bad q-stack q-stack-sm">
         <span className="q-meta-plain">
-          Withdraw this {kindLabel.toLowerCase()}? It stays in the books marked void, so the
+          Withdraw this {kindLabel}? It stays in the books marked void, so the
           record shows it was raised and taken back.
         </span>
         <div className="q-row">
