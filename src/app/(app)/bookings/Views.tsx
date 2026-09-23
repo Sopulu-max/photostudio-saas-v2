@@ -92,10 +92,20 @@ export function Outstanding({ rows, today }: { rows: RegisterRow[]; today: strin
 
 /* ─────────────────────────── CALENDAR ───────────────────────────
  * The studio's own days. What falls on each is said in words - a time, "shot",
- * "date passed", "occasion" - so the grid needs no key. The hours come from the
- * studio's own record, so a day it is shut says so rather than looking like a
- * day with nothing booked. Above, the same reading over the window; beneath,
- * the bookings that fall on no day at all, which is the fact about them.
+ * the studio's own status, "occasion" - so the grid needs no key.
+ *
+ * NOTHING SAYS WHAT THE GRID ALREADY SAYS. A session before today used to be
+ * marked "date passed", which is the one thing a calendar cannot fail to show:
+ * the cell is to the left of today, and today is marked. The word informed
+ * nobody (12-BOOKINGS_READABILITY Law 7). What the grid genuinely cannot show
+ * is that the date went by and the booking never progressed - so that line
+ * carries the studio's own name for the status it is still sitting in, which
+ * is the fact, and not the app's remark about the date.
+ *
+ * The hours come from the studio's own record, so a day it is shut says so
+ * rather than looking like a day with nothing booked. Above, the same reading
+ * over the window; beneath, the bookings that fall on no day at all, which is
+ * the fact about them.
  */
 export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, onNarrowUndated }: {
   month: { label: string; days: MonthDay[]; today: string; previous: string; next: string };
@@ -119,7 +129,8 @@ export function Calendar({ month, rows, strip, weeks, undated, busy, onMonth, on
       const lapsed = held && r.stage?.kind !== 'booked';
       add(r.day, {
         id: r.id, who,
-        said: lapsed ? 'date passed'
+        // Its status, verbatim: the calendar has already said the date is behind us.
+        said: lapsed ? (r.stage?.name ?? 'session')
           : held ? 'shot'
           : r.scheduledFor ? new Date(r.scheduledFor).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
           : 'session',
