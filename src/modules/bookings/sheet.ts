@@ -130,6 +130,16 @@ export type BookingsSheet = {
   today: string;
   /** Whose wall clock a session is said and entered on. Read here already. */
   timeZone: string;
+  /**
+   * EVERY STAGE THE STUDIO HAS DEFINED, in the order it arranged them.
+   *
+   * Not the same list as the `stage` axis. An axis offers only values some
+   * booking actually takes, because a filter that matches nothing is noise -
+   * but a stage nothing is in yet is exactly where a booking needs to be moved
+   * TO. Taking the editor's list from the axis meant a studio could only ever
+   * move a booking into a stage it had already used.
+   */
+  stages: { id: string; name: string; kind: string | null; color: string | null }[];
   period: { days: Period; from: string; to: string; beforeFrom: string; beforeTo: string };
   figures: Figure[];
   series: { months: string[]; lines: SeriesLine[] };
@@ -442,6 +452,7 @@ export async function readBookingsSheet(periodDays: Period = 30): Promise<Bookin
 
   return {
     bands, lenses, today, timeZone: timezone,
+    stages: stages as { id: string; name: string; kind: string | null; color: string | null }[],
     period: { days: periodDays, from, to: today, beforeFrom, beforeTo },
     figures, series, byStage,
   };

@@ -56,8 +56,8 @@ import type { RegisterRow, Crew } from '@/modules/bookings/interface';
 
 type Ctx = {
   today: string;
-  /** The studio's own stages, read off the axes - never a list written here. */
-  stages: { key: string; label: string; look: { kind: string | null; color: string | null } | null }[];
+  /** Every stage the studio has defined, in its own order - not only the ones in use. */
+  stages: { id: string; name: string; kind: string | null; color: string | null }[];
   timeZone: string;
   roles: { id: string; name: string }[];
   employees: { id: string; name: string; roleIds: string[] }[];
@@ -193,22 +193,22 @@ function StageCell({ r, c }: { r: RegisterRow; c: Ctx }) {
         <span className="q-reg-choices">
           {c.stages.map((st) => (
             <button
-              key={st.key}
+              key={st.id}
               type="button"
-              className={r.stage?.id === st.key ? 'q-reg-choice q-reg-choice-on' : 'q-reg-choice'}
+              className={r.stage?.id === st.id ? 'q-reg-choice q-reg-choice-on' : 'q-reg-choice'}
               disabled={c.isBusy(r.id)}
               onClick={() => {
                 close();
-                if (r.stage?.id === st.key) return;
+                if (r.stage?.id === st.id) return;
                 c.act(
                   r.id,
-                  { stage: { id: st.key, name: st.label, kind: st.look?.kind ?? '', color: st.look?.color ?? null } },
-                  () => setBookingStage({ bookingId: r.id, stageId: st.key }),
+                  { stage: { id: st.id, name: st.name, kind: st.kind ?? '', color: st.color } },
+                  () => setBookingStage({ bookingId: r.id, stageId: st.id }),
                   'That booking could not be moved.',
                 );
               }}
             >
-              {st.label}
+              {st.name}
             </button>
           ))}
         </span>
@@ -435,11 +435,12 @@ function columnsFor(): Column[] {
   return fixed;
 }
 
-export function Register({ rows, lenses, today, timeZone, roles, employees, group, onGroup, sort: sortKey, onSort }: {
+export function Register({ rows, lenses, today, timeZone, stages, roles, employees, group, onGroup, sort: sortKey, onSort }: {
   rows: RegisterRow[];
   lenses: LensGroup[];
   today: string;
   timeZone: string;
+  stages: { id: string; name: string; kind: string | null; color: string | null }[];
   roles: { id: string; name: string }[];
   employees: { id: string; name: string; roleIds: string[] }[];
   /** The axis rows are grouped under, or none - the operator's, held by the page. */
@@ -456,11 +457,6 @@ export function Register({ rows, lenses, today, timeZone, roles, employees, grou
   const { shown, act, isBusy } = useActed(rows, (r) => r.id);
 
   const COLUMNS = React.useMemo(() => columnsFor(), []);
-  const stages = React.useMemo(
-    () => (lenses.find((g) => g.key === 'stage')?.items ?? []).map((i) => ({ key: i.key, label: i.label, look: i.look ?? null })),
-    [lenses],
-  );
-
   const ctx: Ctx = { today, stages, timeZone, roles, employees, editing, setEditing, act, isBusy };
 
   const narrowed = search.trim()

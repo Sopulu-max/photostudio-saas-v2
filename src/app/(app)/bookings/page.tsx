@@ -71,6 +71,7 @@ export default async function BookingsPage(props: { searchParams: Promise<Record
       periodDays={sheet.period.days}
       month={month}
       timeZone={sheet.timeZone}
+      stages={sheet.stages}
       roles={(roles as any[]).map((r) => ({ id: r.id as string, name: r.name as string }))}
       employees={(employees as any[])
         .filter((e) => e.status !== 'archived' && e.contact?.id)
