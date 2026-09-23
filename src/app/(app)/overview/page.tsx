@@ -5,19 +5,12 @@ import { getStudio } from '@/kernel/organizations';
 import { formatMoney } from '@/kernel/currency';
 import { listRecentActivity } from '@/kernel/events';
 import { listBookings, listBookingsInRange } from '@/modules/bookings/interface';
-import { listTransactions } from '@/modules/finances/interface';
+import { listTransactions, listInvoices, settlementOf } from '@/modules/finances/interface';
 import { listContracts } from '@/modules/contracts/interface';
 import { listServices } from '@/modules/services/interface';
 import { listPackages } from '@/modules/packages/interface';
 
 export const dynamic = 'force-dynamic';
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 function fmtDay(iso: string) {
   const d = new Date(iso);
@@ -49,7 +42,7 @@ async function getOverviewData() {
     // Look ahead 7 days for the schedule
     const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7).toISOString();
 
-    const [org, recentEvents, allBookings, transactions, weekShoots, services, packages, contracts, taskDeadlines] = await Promise.all([
+    const [org, recentEvents, allBookings, transactions, weekShoots, services, packages, contracts, taskDeadlines, invoices] = await Promise.all([
       getStudio(),
       listRecentActivity(10),
       listBookings(),
@@ -59,6 +52,10 @@ async function getOverviewData() {
       listPackages(),
       listContracts(),
       Promise.resolve([]),
+      // Last in the array because `invoices` is last in the destructuring
+      // above: inserting a read in the middle silently shifts every name after
+      // it, which is how weekShoots came to hold thirty invoices.
+      listInvoices(),
     ]);
     if (!org) return null;
 
@@ -73,15 +70,35 @@ async function getOverviewData() {
       .filter((c) => c.status === 'proposed' || c.status === 'modified')
       .slice(0, 5);
 
-    // Pending invoices: money left on the table
+    /*
+     * WHAT IS STILL OWED, which is not the same as a pending payment record.
+     *
+     * Both money figures were counted from financial_transactions with a
+     * pending status - payments somebody had begun to record. Money simply not
+     * yet received has no transaction row at all, so a studio owed fifty
+     * thousand naira on a part-paid invoice read "Outstanding 0" on the most
+     * prominent screen it has. A headline figure saying nothing is owed while
+     * something is owed is worse than no figure.
+     *
+     * An invoice is owed what it has not been paid, and settlementOf is the
+     * rule Finances already applies on the booking page - refunds un-pay,
+     * unsettled payments do not count, a zero-total invoice is not "paid".
+     * Called here rather than reckoned again.
+     */
+    const live = (invoices as any[]).filter((i) => i.status !== 'void' && i.status !== 'draft');
+    const owing = live
+      .map((i) => ({ invoice: i, owed: settlementOf(i.total, i.payments || []).outstanding }))
+      .filter((x) => x.owed > 0);
+
+    // Still shown beneath: the payments somebody has begun recording.
     const pendingPayments = (transactions as any[])
       .filter((t) => t.status === 'pending')
       .slice(0, 5);
 
     // === STATS ===
     const activeBookings = allBookings.filter((b) => b.stage?.kind === 'enquiry' || b.stage?.kind === 'booked');
-    const totalPendingAmount = pendingPayments.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
-    const pendingCurrency = pendingPayments[0]?.currency || 'NGN';
+    const totalPendingAmount = owing.reduce((sum, x) => sum + x.owed, 0);
+    const pendingCurrency = owing[0]?.invoice.currency || pendingPayments[0]?.currency || 'NGN';
 
     // === SCHEDULE ===
     // Tasks due this week that are not yet completed
@@ -105,7 +122,8 @@ async function getOverviewData() {
       bookedBookings,
       stats: {
         activeBookings: activeBookings.length,
-        pendingInvoices: pendingPayments.length,
+        // Invoices with money still on them, not payment records in progress.
+        pendingInvoices: owing.length,
         pendingAmount: totalPendingAmount,
         pendingCurrency,
         thisWeekShoots: weekShoots.length,
@@ -136,8 +154,11 @@ export default async function OverviewPage() {
     <div>
       <header className="q-page-header">
         <div>
+          {/* The heading says what the page is and the sections say what they
+              hold, so a subtitle had nothing left to tell anyone: it greeted
+              the reader by the hour and then announced the page it was already
+              on (Law 7, and the app does not address the operator). */}
           <h1 className="q-page-title">Command Center</h1>
-          <p className="q-page-subtitle">{greeting()}. Here is what needs your attention.</p>
         </div>
         <Link href="/bookings/new" className="q-btn q-btn-primary">+ New booking</Link>
       </header>

@@ -115,7 +115,18 @@ describe('the app prints the studio\'s words as the studio wrote them', () => {
       fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
         const t = line.trim();
         if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
-        for (const m of line.matchAll(/>([^<>{}]{4,140})<|"([^"]{4,140})"|'([^']{4,140})'/g)) {
+        /*
+         * A TEXT NODE WITH AN EXPRESSION IN IT IS STILL TEXT.
+         *
+         * This missed the most prominent sentence in the app -
+         * `{greeting()}. Here is what needs your attention.` on the Command
+         * Center - because the pattern for a JSX text node refused braces, so
+         * a line carrying any interpolation was skipped whole. The
+         * interpolations are blanked out and what is left is read as the prose
+         * it is.
+         */
+        const prose = line.replace(/\{[^{}]*\}/g, ' ');
+        for (const m of prose.matchAll(/>([^<>]{4,140})<|"([^"]{4,140})"|'([^']{4,140})'/g)) {
           const said = (m[1] ?? m[2] ?? m[3] ?? '').trim();
           if (second.test(said)) guilty.push(`${file}:${i + 1}  ${said.slice(0, 90)}`);
         }
