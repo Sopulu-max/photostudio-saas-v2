@@ -49,27 +49,79 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
   if (!booking) notFound();
 
   const lineIds = booking.lines.map((l: any) => l.id);
-  const [clientRows, packageRows, suggestedMinutes, currencyCode, work, enquiry, timeZone, dimensionsByDomain] = await Promise.all([
+  const lines = booking.lines as any[];
+  const packaged = lines.filter((l) => l.package_id);
+
+  /*
+   * ONE WAIT FOR EVERYTHING THAT DOES NOT DEPEND ON ANOTHER ANSWER.
+   *
+   * This page used to ask in eleven waves, three of them once per line: the
+   * line's configuration, then the questions its package leaves open, then the
+   * package itself, then the same package again for the editor - each waiting
+   * for the line before it. A booking of three packages therefore waited
+   * seventeen times in series, and a booking of six waited twice that, so the
+   * editor got slower the more a client bought. None of those answers is
+   * needed to ask for another, and a line knows nothing of its neighbours, so
+   * they are all asked at once. Only what is genuinely derived waits: whether
+   * the studio's own building is needed, which is read from what the packages
+   * narrow to.
+   */
+  const [
+    clientRows, packageRows, suggestedMinutes, currencyCode, enquiry, timeZone, dimensionsByDomain,
+    classification, coverage, editorCatalogs, invoices, bookingWork, team,
+    narrowedPerLine, configPerLine, questionsPerLine, deepPerLine, editorPerLine,
+  ] = await Promise.all([
     listClients(),
     listPackages(),
     suggestedDurationForBooking(booking.id),
     getStudioCurrency(),
-    Promise.resolve({} as Record<string, any>),
     getEnquiryForBooking(booking.id),
     // Whose wall clock the date field shows and sends.
     studioTimezone(orgId),
     // What the catalogue can be narrowed by — the studio's own vocabulary.
     listDimensionsByDomain(),
+    /*
+     * WHAT THE STUDIO UNDERSTANDS THIS BOOKING TO BE FOR.
+     *
+     * Its own fact, seeded from the client's answers and correctable — as
+     * opposed to what they submitted, which stays in metadata as the record.
+     * The editor needs both: one to show, one to compare against.
+     */
+    getBookingClassification(booking.id),
+    // Whether what they asked for is answered by what is on the booking - the
+    // set test, not a flag.
+    readRequestCoverage(booking.id),
+    // The catalogues the package editor is handed, loaded once for the page.
+    loadPackageEditorCatalogs(),
+    listInvoicesForBooking(booking.id),
+    getBookingWork(booking.id),
+    getBookingTeam(booking.id),
+    Promise.all(packaged.map((l) => packageNarrowingValueIds(orgId, l.package_id))),
+    // Configuration is per line, and so are the questions its package left
+    // open, which is what the operator answers here.
+    Promise.all(lines.map((l) => getLineConfigurationForm(l.id))),
+    Promise.all(packaged.map((l) => getOpenQuestionsForPackage(l.package_id)
+      .catch(() => ({ variables: [], classifications: [], formSchema: [] })))),
+    // Each line's package as the booking reads it, for the extras it may take.
+    Promise.all(packaged.map((l) => getPackage(l.package_id).catch(() => null))),
+    /*
+     * And what each line's package actually IS. The instance behind each line
+     * is read per line, because that is what the editor edits. A line whose
+     * package has been removed simply gets no editor rather than an empty one.
+     */
+    Promise.all(packaged.map((l) => loadPackageForEditor(l.package_id))),
   ]);
+  const work = {} as Record<string, any>;
+  const contracts = ((booking as any).contracts || []) as any[];
 
-  /*
-   * WHAT THE STUDIO UNDERSTANDS THIS BOOKING TO BE FOR.
-   *
-   * Its own fact, seeded from the client's answers and correctable — as
-   * opposed to what they submitted, which stays in metadata as the record.
-   * The editor needs both: one to show, one to compare against.
-   */
-  const classification = await getBookingClassification(booking.id);
+  const configByLine: Record<string, any[]> = Object.fromEntries(lines.map((l, i) => [l.id, configPerLine[i]]));
+  const questionsByLine: Record<string, any> = Object.fromEntries(packaged.map((l, i) => [l.id, questionsPerLine[i]]));
+  const deepByLine: Record<string, any> = Object.fromEntries(packaged.map((l, i) => [l.id, deepPerLine[i]]));
+  const packageByLine: Record<string, any> = Object.fromEntries(
+    packaged.flatMap((l, i) => (editorPerLine[i] ? [[l.id, editorPerLine[i]] as const] : [])),
+  );
+  const intakeAnswers = (((booking as any).metadata?.form_responses ?? {}) as Record<string, any>);
+
   const understoodByDimension = Object.fromEntries(
     classification.map((c) => [c.dimensionId, c.valueId]),
   ) as Record<string, string>;
@@ -88,61 +140,12 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
    * else's venue, so the date field only mentions them when they apply.
    */
   const bookedValueIds = [
-    ...(await Promise.all(
-      (booking.lines as any[]).filter((l) => l.package_id)
-        .map((l) => packageNarrowingValueIds(orgId, l.package_id)),
-    )).flat(),
+    ...narrowedPerLine.flat(),
     ...Object.values(
       ((booking as any).metadata?.form_responses?.dimensions ?? {}) as Record<string, string>,
     ).filter(Boolean),
   ];
   const atPremises = await needsPremises(bookedValueIds);
-
-  // Configuration is per line, so it's fetched per line - and so are the
-  // questions its package left open, which is what the operator answers here.
-  const configByLine: Record<string, any[]> = {};
-  const questionsByLine: Record<string, any> = {};
-  for (const l of booking.lines as any[]) {
-    configByLine[l.id] = await getLineConfigurationForm(l.id);
-    if (l.package_id) {
-      questionsByLine[l.id] = await getOpenQuestionsForPackage(l.package_id)
-        .catch(() => ({ variables: [], classifications: [], formSchema: [] }));
-    }
-  }
-  const intakeAnswers = (((booking as any).metadata?.form_responses ?? {}) as Record<string, any>);
-
-  // Whether what they asked for is answered by what is on the booking - the
-  // set test, not a flag - and each line's package as the booking reads it,
-  // for the extras it may take.
-  const coverage = await readRequestCoverage(booking.id);
-  const deepByLine: Record<string, any> = {};
-  for (const l of booking.lines as any[]) {
-    if (l.package_id) deepByLine[l.id] = await getPackage(l.package_id).catch(() => null);
-  }
-
-  // What follows from the record - done on the booking, summarised here so
-  // the page reads in the same order it was written.
-  const [invoices, bookingWork, team, contracts] = await Promise.all([
-    listInvoicesForBooking(booking.id),
-    getBookingWork(booking.id),
-    getBookingTeam(booking.id),
-    Promise.resolve(((booking as any).contracts || []) as any[]),
-  ]);
-
-  /*
-   * And what each line's package actually IS.
-   *
-   * The catalogues are loaded once for the page; the instance behind each line
-   * is read per line, because that is what the editor edits. A line whose
-   * package has been removed simply gets no editor rather than an empty one.
-   */
-  const editorCatalogs = await loadPackageEditorCatalogs();
-  const packageByLine: Record<string, any> = {};
-  for (const l of booking.lines as any[]) {
-    if (!l.package_id) continue;
-    const loaded = await loadPackageForEditor(l.package_id);
-    if (loaded) packageByLine[l.id] = loaded;
-  }
 
   // Archived clients aren't offered for a new assignment — same rule as retired packages.
   // Phone and email come along, because they are how an operator tells two

@@ -13,10 +13,29 @@ import { type MemberAnswer } from './familyShape';
 
 /** The package whose bundle rows hold this package's structure: the family's for a member, its own otherwise. */
 export async function structureIdOf(orgId: string, packageId: string): Promise<string> {
+  return (await structureIdsOf(orgId, [packageId])).get(packageId) ?? packageId;
+}
+
+/**
+ * The same question for many packages, in one asking.
+ *
+ * A reader that walks a booking's packages asked it one at a time, which on a
+ * connection costing half a second a round trip made a page's wait a function
+ * of how many packages the studio had sold. The rule is unchanged and still
+ * lives only here: a member's structure is its family's, everything else is
+ * its own.
+ */
+export async function structureIdsOf(orgId: string, packageIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = [...new Set(packageIds)];
+  if (ids.length === 0) return out;
   const { data } = await supabaseAdmin
-    .from('packages').select('member_of')
-    .eq('id', packageId).eq('organization_id', orgId).maybeSingle();
-  return (data?.member_of as string | null) ?? packageId;
+    .from('packages').select('id, member_of')
+    .eq('organization_id', orgId).in('id', ids);
+  for (const r of ((data || []) as any[])) out.set(r.id as string, (r.member_of as string | null) ?? (r.id as string));
+  // A package the studio cannot see stands for itself, as it did one at a time.
+  for (const id of ids) if (!out.has(id)) out.set(id, id);
+  return out;
 }
 
 export async function memberAnswersOf(orgId: string, memberIds: string[]): Promise<Record<string, MemberAnswer[]>> {

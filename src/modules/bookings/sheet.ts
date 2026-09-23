@@ -171,43 +171,52 @@ export const MISSING = [
 export type MissingKey = (typeof MISSING)[number]['key'];
 
 export async function readBookingsSheet(periodDays: Period = 30): Promise<BookingsSheet> {
+  /*
+   * TWO WAITS, NOT THREE.
+   *
+   * What this read costs is very nearly the number of times it waits, times
+   * how long the database is away - so the only question that matters is which
+   * of these questions truly depends on the answer to another. Three do: the
+   * reminder window is stated in the studio's own days, and what the packages
+   * narrow and where the work stands are both asked about the bookings on the
+   * book. Everything else is independent, and so is asked at once.
+   */
   const { orgId } = await getAuthOrgId();
-  const [rows, stages, timezone] = await Promise.all([listBookings(), listStages(), studioTimezone(orgId)]);
+  const { resolveBookingTasks } = await import('@/modules/production/interface');
+  const nowIso = new Date().toISOString();
+
+  const [rows, stages, timezone, stageEvents, studioDimensions] = await Promise.all([
+    listBookings(),
+    listStages(),
+    studioTimezone(orgId),
+    // Transitions are events. Every stage change, oldest first: the latest per
+    // booking says when it entered its stage; those into a booked stage are the
+    // agreements the period figures and the series count.
+    listEventsSince('booking', 'stage_changed', '1970-01-01'),
+    listStudioDimensions(),
+  ]);
 
   const cal = calendarIn(timezone);
   const { today } = cal;
-  // Transitions are events. Every stage change, oldest first: the latest per
-  // booking says when it entered its stage; those into a booked stage are the
-  // agreements the period figures and the series count.
-  const nowIso = new Date().toISOString();
-  const [stageEvents, allReminders, studioDimensions] = await Promise.all([
-    listEventsSince('booking', 'stage_changed', '1970-01-01'),
+  const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
+  // What each package on the book leaves open: a dimension it allows more than one value of.
+  const packageIds = [...new Set(rows.flatMap((r) => r.packageIds))];
+
+  const [allReminders, narrowings, tasksByBooking]: [
+    Awaited<ReturnType<typeof listNoteRemindersInRange>>,
+    Map<string, Map<string, Set<string>>>,
+    Awaited<ReturnType<typeof resolveBookingTasks>>,
+  ] = await Promise.all([
     // Every reminder on a booking, past and ahead: a dated obligation, warm once it is past.
     listNoteRemindersInRange('1970-01-01', addDays(today, 60) + 'T23:59:59Z'),
-    listStudioDimensions(),
+    packageIds.length > 0 ? packageNarrowingsFor(orgId, packageIds) : Promise.resolve(new Map()),
+    resolveBookingTasks(orgId, live.map((r) => r.id)),
   ]);
+
   const dueReminders = allReminders.filter((n) => n.remindAt && n.remindAt <= nowIso);
   const dimensionName = new Map(studioDimensions.map((d) => [d.id, d.name] as const));
   // A dimension's own question, so an unanswered one can be asked in the studio's words.
   const dimensionAsks = new Map(studioDimensions.map((d) => [d.id, d.question ?? null] as const));
-  // What each package on the book leaves open: a dimension it allows more than one value of.
-  const packageIds = [...new Set(rows.flatMap((r) => r.packageIds))];
-  /*
-   * WHAT THE PACKAGES NARROW and WHERE THE WORK IS are asked at the same time.
-   *
-   * They were sequential, and neither waits on the other: one reads the
-   * packages on the book, the other resolves the tasks of the live bookings.
-   * On this studio's connection a round trip costs between a fifth and two
-   * thirds of a second, so every await in series is another wait the operator
-   * sits through. Ordering them only where one truly needs the other is most
-   * of what makes a page feel like an app rather than a website.
-   */
-  const { resolveBookingTasks } = await import('@/modules/production/interface');
-  const live = rows.filter((r) => !r.stage || r.stage.kind === 'enquiry' || r.stage.kind === 'booked');
-  const [narrowings, tasksByBooking]: [Map<string, Map<string, Set<string>>>, Awaited<ReturnType<typeof resolveBookingTasks>>] = await Promise.all([
-    packageIds.length > 0 ? packageNarrowingsFor(orgId, packageIds) : Promise.resolve(new Map()),
-    resolveBookingTasks(orgId, live.map((r) => r.id)),
-  ]);
   const agreedEvents = stageEvents.filter((e) => e.payload.kind === 'booked');
   const stageSinceOf = new Map<string, string>();
   for (const e of stageEvents) stageSinceOf.set(e.entityId, e.at);
