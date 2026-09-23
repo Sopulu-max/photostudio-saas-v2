@@ -69,6 +69,8 @@ export type BookingPageData = {
     owed: Money | null;
   };
   formAnswers: any[];
+  /** The studio's own classification of this booking - its dimensions, in its words. */
+  classifications: { dimensionId: string; dimensionName: string; question: string | null; valueId: string; valueName: string }[];
   lines: BookingPageLine[];
   total: Money | null;
   /** The client's request, and whether what is on the booking answers it. */
@@ -127,6 +129,7 @@ export async function readBookingPage(bookingId: string): Promise<BookingPageDat
   const { getBookingTeam, getBookingTasks, getBookingWork } = await import('@/modules/production/interface');
   const { listInvoicesForBooking, getBookingBilling } = await import('@/modules/finances/interface');
   const { listNotesAbout } = await import('@/modules/notes/interface');
+  const { getBookingClassification } = await import('./domain');
   const { listEmployees, listRoles } = await import('@/modules/team/interface');
 
   const lines: any[] = booking.lines || [];
@@ -134,7 +137,7 @@ export async function readBookingPage(bookingId: string): Promise<BookingPageDat
 
   const [
     packages, configs, deliveries, stages, formAnswers, enquiry, coverage, suggestedMinutes, studioCurrency,
-    fulfilment, team, tasks, employees, roles, positions, invoices, billing, notes,
+    fulfilment, team, tasks, employees, roles, positions, invoices, billing, notes, classifications,
   ] = await Promise.all([
     Promise.all(packageIds.map(async (id) => [id, await getPackage(id).catch(() => null)] as const)),
     Promise.all(lines.map(async (l) => [l.id as string, await getLineConfigurationForm(l.id)] as const)),
@@ -154,6 +157,15 @@ export async function readBookingPage(bookingId: string): Promise<BookingPageDat
     listInvoicesForBooking(bookingId),
     getBookingBilling(bookingId),
     listNotesAbout({ type: 'booking', id: bookingId }),
+    /*
+     * WHAT THE STUDIO UNDERSTANDS THIS BOOKING TO BE FOR.
+     *
+     * Its own classification (booking_dimension_values), which is a different
+     * fact from what a package narrows to - those are read per line below.
+     * This was visible only inside the editor, so a booking's own reading of
+     * itself could be set and then never seen again.
+     */
+    getBookingClassification(bookingId),
   ]);
   const packageById = new Map<string, any>(packages.filter(([, p]) => p) as [string, any][]);
   const configByLine = new Map<string, any[]>(configs);
@@ -255,6 +267,7 @@ export async function readBookingPage(bookingId: string): Promise<BookingPageDat
       owed: pending > 0 ? { amount: pending, currency } : null,
     },
     formAnswers,
+    classifications,
     lines: pageLines,
     total: pageLines.length > 0 ? { amount: booked, currency } : null,
     request: { enquiry, covered: coverage.covered },

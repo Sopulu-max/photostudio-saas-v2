@@ -175,6 +175,23 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
 
         {/* What the client filled in. Named after the form it came from, so the
             thing a studio builds and the thing it reads back carry one name. */}
+        {/* What the studio understands this booking to be for - its own reading,
+            as opposed to what a package narrows to, which is read per package
+            below. Shown when there is one: a booking nothing classifies has no
+            absence to state here, because nothing asked it. */}
+        {page.classifications.length > 0 && (
+          <Section title="Classifications">
+            <div className="q-stack q-stack-sm">
+              {page.classifications.map((c) => (
+                <div key={c.dimensionId + c.valueId} className="q-tile q-row q-row-between">
+                  <strong className="q-strong">{c.dimensionName}</strong>
+                  <span className="q-meta-plain">{c.valueName}</span>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
         {page.formAnswers.length > 0 && (
           <Section title="Booking form answers">
             <div className="q-stack q-stack-sm">
