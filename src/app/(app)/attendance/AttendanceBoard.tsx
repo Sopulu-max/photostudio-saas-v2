@@ -194,7 +194,7 @@ export function AttendanceBoard({
   if (roster.length === 0) {
     return (
       <p className="q-empty">
-        No employees yet — <a className="q-accent" href="/team">add your team</a> to begin recording attendance.
+        No employees yet — <a className="q-accent" href="/team">add the team</a> to begin recording attendance.
       </p>
     );
   }

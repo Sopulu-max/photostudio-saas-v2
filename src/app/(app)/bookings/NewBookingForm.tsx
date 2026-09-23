@@ -2490,12 +2490,12 @@ export function NewBookingForm({
           />
           <span className="q-meta-sm">
             {termsTemplate.trim() === ''
-              ? <>You have no standard terms yet, so this starts blank. <a href="/contracts/settings" className="q-plain-link q-strong">Write them once</a> and every booking after this one opens on them.</>
+              ? <>No standard terms are set, so this starts blank. <a href="/contracts/settings" className="q-plain-link q-strong">Write them once</a> and every booking after this one opens on them.</>
               : agreementText.trim() === ''
                 ? 'Empty, so this contract would go out with the figures and no wording.'
                 : agreementText === termsTemplate
-                  ? 'Your standard terms. Edit them here to change this contract only.'
-                  : 'Changed for this booking. Your standard terms are untouched.'}
+                  ? 'The standard terms. Edit here to change this contract only.'
+                  : 'Changed for this booking. The standard terms are untouched.'}
           </span>
         </div>
 

@@ -86,6 +86,44 @@ describe('the app prints the studio\'s words as the studio wrote them', () => {
     expect(guilty, 'these rewrite a studio\'s own word before printing it').toEqual([]);
   });
 
+  /**
+   * THE OPERATOR IS NOT ADDRESSED.
+   *
+   * The app's own copy reads like professional business software: labels are
+   * names for things, helper text states a fact. "Who you work with" became
+   * "Everyone the studio works with"; "The hours you keep" became "The hours
+   * the studio keeps". Corrected by hand three times over two months, so it is
+   * a test now.
+   *
+   * CLIENT-FACING SURFACES ARE EXEMPT, and deliberately so. The public booking
+   * form, the signing portal, the document a client receives and the marketing
+   * page all speak TO their reader - "Your details" is correct on a form a
+   * client fills in. The rule is about the studio's own instrument.
+   */
+  it('never addresses the operator', () => {
+    const exempt = [
+      `app${path.sep}book${path.sep}`,
+      `app${path.sep}portal${path.sep}`,
+      `app${path.sep}page.tsx`,
+      'BookingDocument',
+      'DocumentDetailsForm',
+    ];
+    const second = /\b(you|your|yours|yourself)\b/i;
+    const guilty: string[] = [];
+    for (const file of files.filter((f) => f.endsWith('.tsx'))) {
+      if (exempt.some((e) => file.includes(e))) continue;
+      fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+        const t = line.trim();
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+        for (const m of line.matchAll(/>([^<>{}]{4,140})<|"([^"]{4,140})"|'([^']{4,140})'/g)) {
+          const said = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+          if (second.test(said)) guilty.push(`${file}:${i + 1}  ${said.slice(0, 90)}`);
+        }
+      });
+    }
+    expect([...new Set(guilty)], 'the app states facts; it does not address the operator').toEqual([]);
+  });
+
   it('never shortens a word the studio defined to make it fit', () => {
     // A name cut to fit a box ("Location Address" printed as "Location") is the
     // layout editing the studio's vocabulary. Narrow columns get a title

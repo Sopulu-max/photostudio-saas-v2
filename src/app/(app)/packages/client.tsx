@@ -383,7 +383,7 @@ export function PackagesClient({
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Packages</h1>
-          <p className="q-page-subtitle">What your studio sells — built from the services it actually runs.</p>
+          <p className="q-page-subtitle">What the studio sells — built from the services it actually runs.</p>
         </div>
         <div className="q-row">
           {/* Straight to where the vocabulary actually lives. The button used
@@ -401,7 +401,7 @@ export function PackagesClient({
       {storefrontSlug && (
         <div className="q-card" style={{ marginBottom: '24px' }}>
           <div className="q-row q-row-between" style={{ marginBottom: '10px', alignItems: 'baseline' }}>
-            <strong className="q-strong">Your storefront</strong>
+            <strong className="q-strong">The storefront</strong>
             <span className="q-meta-sm">Everyone active above, in one link — hand this out instead of a single package&rsquo;s.</span>
           </div>
           <StorefrontLink slug={storefrontSlug} />
@@ -442,7 +442,7 @@ export function PackagesClient({
           ) : (
             <>
               <h3 className="q-section-title">No packages yet</h3>
-              <p className="q-meta">A package bundles one or more services into something a client can buy. Create your services first, then bundle them here.</p>
+              <p className="q-meta">A package bundles one or more services into something a client can buy. Create the services first, then bundle them here.</p>
               <Link href="/packages/new" className="q-btn q-btn-primary">Build package</Link>
             </>
           )}

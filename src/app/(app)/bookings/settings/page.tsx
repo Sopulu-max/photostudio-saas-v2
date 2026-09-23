@@ -25,7 +25,7 @@ export default async function BookingSettingsPage() {
         <div>
           <Link href="/bookings" className="q-back">&larr; Back to Bookings</Link>
           <h1 className="q-page-title">Booking settings</h1>
-          <p className="q-page-subtitle">How your studio runs a job, in your own words.</p>
+          <p className="q-page-subtitle">How the studio runs a job, in its own words.</p>
         </div>
       </header>
 

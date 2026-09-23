@@ -220,7 +220,7 @@ export default async function EditBookingPage(props: { params: Promise<{ id: str
 
           {booking.lines.length === 0 ? (
             <div className="q-stack q-stack-sm">
-              <p className="q-empty">Nothing on this booking yet — add a package whenever you know what they want.</p>
+              <p className="q-empty">Nothing on this booking yet — add a package once the client's choice is known.</p>
             </div>
           ) : (
             <div className="q-stack">

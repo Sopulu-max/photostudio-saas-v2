@@ -44,7 +44,7 @@ export default async function SettingsPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Settings</h1>
-          <p className="q-page-subtitle">Things true of your whole studio.</p>
+          <p className="q-page-subtitle">Things true of the whole studio.</p>
         </div>
       </header>
 
@@ -52,7 +52,7 @@ export default async function SettingsPage() {
 
         <section className="q-card q-section">
           <h2 className="q-section-title">Studio</h2>
-          <p className="q-meta" style={{ marginBottom: '16px' }}>Your name and the handle your public links use.</p>
+          <p className="q-meta" style={{ marginBottom: '16px' }}>The studio's name and the handle its public links use.</p>
           <StudioForm 
             name={org.name} 
             slug={org.slug || ''} 
@@ -78,7 +78,7 @@ export default async function SettingsPage() {
           </p>
           <TimezoneForm current={(org as any).timezone || 'UTC'} />
 
-          <h3 className="q-section-title" style={{ marginTop: '24px' }}>The hours you keep</h3>
+          <h3 className="q-section-title" style={{ marginTop: '24px' }}>The hours the studio keeps</h3>
           <p className="q-meta" style={{ marginBottom: '16px' }}>
             Which day a morning belongs to comes from the timezone above; whether an arrival was late
             comes from these. Describe the week, then any day that breaks it. Leave a day unstated and
@@ -134,28 +134,28 @@ export default async function SettingsPage() {
             <Link href="/bookings/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
                 <strong className="q-strong">Booking statuses</strong>
-                <div className="q-meta">The steps a job moves through, in your words</div>
+                <div className="q-meta">The steps a job moves through, in the studio's words</div>
               </div>
               <span className="q-meta-sm">Bookings &rarr;</span>
             </Link>
             <Link href="/services/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
                 <strong className="q-strong">Groups, workflows &amp; defaults</strong>
-                <div className="q-meta">How your catalogue is arranged, and what a new service starts with</div>
+                <div className="q-meta">How the catalogue is arranged, and what a new service starts with</div>
               </div>
               <span className="q-meta-sm">Services &rarr;</span>
             </Link>
             <Link href="/team" className="q-tile q-row q-row-between q-plain-link">
               <div>
                 <strong className="q-strong">Roles</strong>
-                <div className="q-meta">The roles your productions need</div>
+                <div className="q-meta">The roles productions need</div>
               </div>
               <span className="q-meta-sm">Team &rarr;</span>
             </Link>
             <Link href="/contracts/settings" className="q-tile q-row q-row-between q-plain-link">
               <div>
                 <strong className="q-strong">Contract terms</strong>
-                <div className="q-meta">The standard terms your contracts start from</div>
+                <div className="q-meta">The standard terms contracts start from</div>
               </div>
               <span className="q-meta-sm">Contracts &rarr;</span>
             </Link>

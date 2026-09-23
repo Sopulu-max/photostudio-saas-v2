@@ -23,7 +23,7 @@ export default async function ClientsPage() {
       <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 className="q-page-title">Clients</h1>
-          <p className="q-page-subtitle">Who you work with — every booking starts with one of these.</p>
+          <p className="q-page-subtitle">Everyone the studio works with — every booking starts with one of these.</p>
         </div>
         <NewClientForm />
       </header>

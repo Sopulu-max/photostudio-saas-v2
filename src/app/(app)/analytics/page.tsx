@@ -39,7 +39,7 @@ export default async function AnalyticsPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Analytics</h1>
-          <p className="q-page-subtitle">Business intelligence and operational insights for your studio.</p>
+          <p className="q-page-subtitle">Business intelligence and operational insights for the studio.</p>
         </div>
       </header>
 

@@ -25,7 +25,7 @@ export default async function ContractSettingsPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Contract settings</h1>
-          <p className="q-page-subtitle">The standard terms your contracts start from.</p>
+          <p className="q-page-subtitle">The standard terms contracts start from.</p>
         </div>
       </header>
 

@@ -25,7 +25,7 @@ export default async function FinanceSettingsPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Finance settings</h1>
-          <p className="q-page-subtitle">How money is calculated on the documents you send.</p>
+          <p className="q-page-subtitle">How money is calculated on the documents the studio sends.</p>
         </div>
       </header>
 

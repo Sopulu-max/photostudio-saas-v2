@@ -73,7 +73,7 @@ export function TemplatePicker({
             <p className="q-page-subtitle">
               {startFrom?.dimensions?.[0]?.values?.[0]
                 ? `Starting from ${startFrom.dimensions[0].values[0]} — everything else is yours to fill in.`
-                : 'Nothing filled in for you — start entirely from your own words.'}
+                : 'Nothing filled in — start from a blank service.'}
             </p>
           </div>
         </header>
@@ -153,7 +153,7 @@ export function TemplatePicker({
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">New service</h1>
-          <p className="q-page-subtitle">Pick the closest starting point — everything about it is yours to change.</p>
+          <p className="q-page-subtitle">Pick the closest starting point — everything about it can be changed.</p>
         </div>
         <button className="q-btn q-btn-secondary" onClick={() => setCustom(true)}>None of these — create a custom service</button>
       </header>

@@ -117,7 +117,7 @@ export function NewDeliverableForm({
     try {
       if (kind === 'container') {
         await createDeliveryContainerAction(name.trim());
-        toast.ok(name.trim() + ' is now one of your delivery containers.');
+        toast.ok(name.trim() + ' is now one of the delivery containers.');
         router.push('/deliverables');
         return;
       }
@@ -141,7 +141,7 @@ export function NewDeliverableForm({
           });
       toast.ok(name.trim() + ' added to ' + domainName + '.');
       if (refused.length > 0) {
-        toast.bad('Could not declare ' + refused.join(' or ') + '. You can add that on its page.');
+        toast.bad('Could not declare ' + refused.join(' or ') + '. That can be added on its page.');
       }
       if (onCreated) {
         onCreated({ id, name: name.trim() });
@@ -326,7 +326,7 @@ export function NewDeliverableForm({
           <span className="q-meta-sm">
             {questions.length > 0
               ? 'It will be asked for ' + questions.map((q) => q.label).join(' and ') + '.'
-              : 'You can add what it needs settling later, on its own page.'}
+              : 'What it needs settling can be added later, on its own page.'}
           </span>
         )}
       </div>

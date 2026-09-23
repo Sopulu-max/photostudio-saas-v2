@@ -28,7 +28,7 @@ const SECTIONS = [
     label: 'Cockpit',
     jewel: 'q-bg-jewel-indigo',
     apps: [
-      { label: 'Command Center', href: '/overview', desc: 'What needs your attention', icon: LayoutDashboard },
+      { label: 'Command Center', href: '/overview', desc: 'What needs attention', icon: LayoutDashboard },
       { label: 'Calendar', href: '/calendar', desc: "What's coming up", icon: CalendarDays },
       { label: 'Tasks', href: '/tasks', desc: 'Who is doing what, across every booking', icon: CheckSquare },
       { label: 'Notes', href: '/notes', desc: 'What the studio needs to remember', icon: StickyNote },
@@ -43,7 +43,7 @@ const SECTIONS = [
     apps: [
       { label: 'Bookings', href: '/bookings', desc: 'Every job in one place', icon: CalendarCheck },
       { label: 'Galleries', href: '/galleries', desc: 'Finished work, handed to clients', icon: Images },
-      { label: 'Clients', href: '/clients', desc: 'Who you work with', icon: Users },
+      { label: 'Clients', href: '/clients', desc: 'Everyone the studio works with', icon: Users },
       { label: 'Contracts', href: '/contracts', desc: 'Proposals and contracts', icon: FileSignature },
       { label: 'Finances', href: '/finances', desc: 'The money ledger', icon: DollarSign },
     ],
@@ -54,7 +54,7 @@ const SECTIONS = [
     apps: [
       { label: 'Services', href: '/services', desc: 'What this studio knows how to do', icon: Layers },
       { label: 'Packages', href: '/packages', desc: 'What clients can book', icon: Package },
-      { label: 'Deliverables', href: '/deliverables', desc: 'The kinds of thing you produce', icon: Box },
+      { label: 'Deliverables', href: '/deliverables', desc: 'The kinds of thing the studio produces', icon: Box },
       { label: 'Team', href: '/team', desc: 'Employees and roles', icon: Users },
     ],
   },
@@ -69,7 +69,7 @@ const SECTIONS = [
 ];
 
 export default async function LaunchpadPage() {
-  let orgName = 'Your studio';
+  let orgName = 'The studio';
   try {
     await getAuthOrgId();
     const org = await getStudio();
@@ -83,7 +83,7 @@ export default async function LaunchpadPage() {
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">{orgName}</h1>
-          <p className="q-page-subtitle">Everything your studio runs on, in one place.</p>
+          <p className="q-page-subtitle">Everything the studio runs on, in one place.</p>
         </div>
       </header>
 

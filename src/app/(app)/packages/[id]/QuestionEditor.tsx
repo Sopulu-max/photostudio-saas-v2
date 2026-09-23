@@ -70,7 +70,7 @@ export function QuestionEditor({
   return (
     <div className="q-stack q-stack-md">
       {questions.length === 0 && (
-        <p className="q-empty">No questions yet. Name, email and phone are always collected — add anything else you need to know.</p>
+        <p className="q-empty">No questions yet. Name, email and phone are always collected — add anything else the studio needs to know.</p>
       )}
 
       {questions.map((q, i) => {
@@ -79,7 +79,7 @@ export function QuestionEditor({
         return (
           <div key={q.id} className="q-tile q-stack q-stack-sm">
             <div className="q-row">
-              <input className="q-input q-fill" placeholder="What do you want to ask? e.g. Event date" value={q.label} onChange={(e) => patch(q.id, { label: e.target.value })} />
+              <input className="q-input q-fill" placeholder="What should be asked? e.g. Event date" value={q.label} onChange={(e) => patch(q.id, { label: e.target.value })} />
               <select className="q-select" value={q.type} disabled={isLocked} title={isLocked ? 'A client has answered this — type is locked' : undefined}
                 onChange={(e) => patch(q.id, { type: e.target.value as any, options: undefined })} style={{ minWidth: '10rem' }}>
                 {FIELD_TYPE_LIST.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
@@ -106,7 +106,7 @@ export function QuestionEditor({
               <input className="q-input" placeholder="Choices, comma separated — e.g. Indoor, Outdoor, Both"
                 value={(q.options || []).join(', ')} onChange={(e) => patch(q.id, { options: e.target.value.split(',').map((o) => o.trim()) })} />
             )}
-            {isLocked && <span className="q-meta-sm">A client has already answered this, so its type is fixed. You can still rename it or make it optional.</span>}
+            {isLocked && <span className="q-meta-sm">A client has already answered this, so its type is fixed. It can still be renamed or made optional.</span>}
           </div>
         );
       })}
@@ -125,7 +125,7 @@ export function QuestionEditor({
           </>
         )}
       </div>
-      <span className="q-meta-sm">Removing a question doesn&rsquo;t erase answers already given — past bookings keep what the client told you.</span>
+      <span className="q-meta-sm">Removing a question doesn&rsquo;t erase answers already given — past bookings keep what the client told the studio.</span>
     </div>
   );
 }

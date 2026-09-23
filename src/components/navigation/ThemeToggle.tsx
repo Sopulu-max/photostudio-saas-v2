@@ -68,10 +68,10 @@ export function ThemeToggle() {
 
   // Identical on the server and on the first client render.
   const label =
-    systemTheme === null ? 'Light, dark, or follow your system'
+    systemTheme === null ? 'Light, dark, or follow the system'
     : choice === 'system' ? `Following your system (${systemTheme}) — switch to light`
     : choice === 'light' ? 'Light — switch to dark'
-    : 'Dark — follow your system';
+    : 'Dark — follow the system';
 
   return (
     <button

@@ -54,7 +54,7 @@ export function SendInvoice({
   return (
     <div className="q-note q-stack q-stack-sm q-noprint">
       <span className="q-meta-sm">
-        Sent from you, not from the app — so it arrives where {clientName || 'your client'} already talks to you.
+        Sent from you, not from the app — so it arrives where {clientName || 'the client'} already talks to you.
       </span>
       <div className="q-row">
         <a className="q-btn q-btn-secondary q-btn-sm" href={whatsapp} target="_blank" rel="noreferrer">

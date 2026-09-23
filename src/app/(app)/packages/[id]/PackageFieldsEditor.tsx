@@ -1516,7 +1516,7 @@ export const PackageFieldsEditor = forwardRef(function PackageFieldsEditor({
                 <input className="q-input" value={effectiveName}
                   onFocus={() => { if (!nameTouched) setName(composed); }}
                   onChange={(e) => { setNameTouched(true); setName(e.target.value); }} />
-                <span className="q-meta-sm">{nameTouched ? 'Your own name.' : 'Composed from what you bundled below — type here to give it a name of your own.'}</span>
+                <span className="q-meta-sm">{nameTouched ? 'A name of its own.' : 'Composed from what is bundled below — type here to give it a name of its own.'}</span>
               </div>
               {/*
                 * TWO DESCRIPTIONS, BECAUSE THEY DO TWO JOBS.

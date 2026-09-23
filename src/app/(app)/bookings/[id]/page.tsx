@@ -698,8 +698,8 @@ export default async function BookingDetailPage(props: { params: Promise<{ id: s
             <div>
               <div className="q-muted">
                 {contract.contracts.length === 0
-                  ? "No contract yet — this booking runs fine without one. Add terms whenever you're ready."
-                  : 'Every contract on this booking is closed out — draft a new one whenever you need to.'}
+                  ? "No contract yet — this booking runs fine without one. Terms can be added at any time."
+                  : 'Every contract on this booking is closed out — a new one can be drafted at any time.'}
               </div>
               {/* Offered only once the booking can supply a scope and a price;
                   why it cannot yet is the read's to say. */}

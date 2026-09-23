@@ -48,9 +48,9 @@ export function FramePreview({
       >
         <div className="q-frame-mat">
           {imageUrl ? (
-            <img className="q-frame-photo" src={imageUrl} alt={imageName || 'Your picture'} />
+            <img className="q-frame-photo" src={imageUrl} alt={imageName || 'The picture'} />
           ) : (
-            <div className="q-frame-photo-empty">Your picture, once you add one</div>
+            <div className="q-frame-photo-empty">The picture, once one is added</div>
           )}
         </div>
       </div>

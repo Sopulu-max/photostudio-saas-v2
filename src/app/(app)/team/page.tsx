@@ -31,7 +31,7 @@ export default async function TeamPage() {
       <header className="q-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 className="q-page-title">Team</h1>
-          <p className="q-page-subtitle">Who does the work — and the roles your studio defines for it.</p>
+          <p className="q-page-subtitle">Who does the work — and the roles the studio defines for it.</p>
         </div>
         <AddEmployeeForm roles={roles.map((r: any) => ({ id: r.id, name: r.name }))} />
       </header>

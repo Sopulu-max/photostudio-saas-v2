@@ -42,7 +42,7 @@ export function PackageContractClient({
   };
 
   const handleRevert = async () => {
-    if (!window.confirm('Revert to the default inherited terms? Your custom text will be lost.')) return;
+    if (!window.confirm('Revert to the default inherited terms? The custom text will be lost.')) return;
     setIsPending(true);
     setError(null);
     try {

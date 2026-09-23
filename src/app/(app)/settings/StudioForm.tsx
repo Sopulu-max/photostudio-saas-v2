@@ -25,14 +25,14 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
       <div className="q-field">
         <label className="q-label">Studio name</label>
         <input className="q-input" value={name} onChange={(e) => setName(e.target.value)} />
-        <span className="q-meta-sm">Shown to clients on proposals, galleries and your booking page.</span>
+        <span className="q-meta-sm">Shown to clients on proposals, galleries and the booking page.</span>
       </div>
 
       <div className="q-field">
         <label className="q-label">Public handle</label>
         <input className="q-input q-mono" value={slug} onChange={(e) => setSlug(e.target.value)} />
         <span className="q-meta-sm">
-          Your booking links look like <code>/book/{slug || 'your-studio'}/…</code>
+          Your booking links look like <code>/book/{slug || 'studio-name'}/…</code>
         </span>
       </div>
       
@@ -48,7 +48,7 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
           onUploaded={setLogoUrl}
           onCleared={() => setLogoUrl('')}
         />
-        <span className="q-meta-sm" style={{ marginTop: '8px', display: 'block' }}>Shown on your storefront, dashboard, and invoices.</span>
+        <span className="q-meta-sm" style={{ marginTop: '8px', display: 'block' }}>Shown on the storefront, dashboard, and invoices.</span>
       </div>
 
       <div className="q-field">
@@ -64,7 +64,7 @@ export function StudioForm({ name: initialName, slug: initialSlug, logoUrl: init
           onUploaded={setCoverUrl}
           onCleared={() => setCoverUrl('')}
         />
-        <span className="q-meta-sm">URL of a banner image for your booking storefront.</span>
+        <span className="q-meta-sm">URL of a banner image for the booking storefront.</span>
       </div>
 
       {slugChanged && (

@@ -28,7 +28,7 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
               name="email"
               type="email"
               required
-              placeholder="you@studio.com"
+              placeholder="name@studio.com"
               style={{
                 padding: '10px 12px',
                 borderRadius: '8px',

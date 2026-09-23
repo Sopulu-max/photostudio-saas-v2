@@ -10,7 +10,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           Welcome back
         </h1>
         <p className="q-page-subtitle" style={{ fontSize: '0.875rem', marginBottom: '24px', textAlign: 'center' }}>
-          Log in to your Weave account
+          Log in to Weave
         </p>
 
         {params.error && (
@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               name="email"
               type="email"
               required
-              placeholder="you@studio.com"
+              placeholder="name@studio.com"
               style={{
                 padding: '10px 12px',
                 borderRadius: '8px',
