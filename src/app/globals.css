@@ -3078,7 +3078,7 @@ a.q-total-said:hover .q-said-strong { color: var(--q-color-accent); }
 .q-reg-said-open { background: var(--q-color-paper-elevated); box-shadow: inset 0 0 0 1px var(--q-color-accent); }
 
 /* Opened in place, over the row it belongs to rather than in a dialogue. */
-.q-reg-cellpop { position: absolute; top: calc(100% + 6px); left: -6px; z-index: 40; display: block; padding: 7px; border: 1px solid var(--q-color-ink-200); border-radius: 10px; background: var(--q-color-paper-elevated); box-shadow: var(--q-shadow-lg); animation: q-reg-settle var(--q-dur-2) var(--q-spring); }
+.q-reg-cellpop { position: fixed; z-index: 400; display: block; padding: 7px; border: 1px solid var(--q-color-ink-200); border-radius: 10px; background: var(--q-color-paper-elevated); box-shadow: var(--q-shadow-lg); animation: q-reg-settle var(--q-dur-2) var(--q-spring); }
 @keyframes q-reg-settle { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
 .q-reg-choices { display: flex; flex-direction: column; align-items: stretch; gap: 4px; max-height: 19em; overflow-y: auto; }
 .q-reg-choice { font-size: 0.78rem; text-align: left; padding: 6px 9px; border-radius: 7px; color: var(--q-color-ink-700); cursor: pointer; white-space: nowrap; transition: background var(--q-dur-1) var(--q-ease); }

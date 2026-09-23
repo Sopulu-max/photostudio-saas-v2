@@ -104,18 +104,78 @@ function Editable({ cellKey, said, c, children, width }: {
   children: (close: () => void) => React.ReactNode;
 }) {
   const open = c.editing === cellKey;
+  const said_ref = React.useRef<HTMLButtonElement | null>(null);
+  const [at, setAt] = React.useState<{ top: number; left: number } | null>(null);
+
+  /*
+   * ANCHORED TO THE VIEWPORT, NOT TO THE CELL.
+   *
+   * It was absolutely positioned inside the cell, which put it inside
+   * .q-reg-scroll - and a table that scrolls sideways has overflow set, so the
+   * browser clipped the menu at the table's edge. On every row but the first
+   * one it opened somewhere nobody could see it, which reads exactly like a
+   * cell that cannot be edited. So its position is measured off the pressed
+   * statement and it is drawn against the window, where nothing can clip it.
+   */
+  const pop_ref = React.useRef<HTMLSpanElement | null>(null);
+  /*
+   * Below the statement, unless the window has no room - then above it. A row
+   * near the foot of the screen is exactly where an operator works, so opening
+   * off the bottom edge is the same bug again in a different direction.
+   */
+  const place = () => {
+    const box = said_ref.current?.getBoundingClientRect();
+    if (!box) return;
+    const pop = pop_ref.current?.getBoundingClientRect();
+    const h = pop?.height ?? 0;
+    const w = pop?.width ?? 0;
+    let top = box.bottom + 6;
+    if (h && top + h > window.innerHeight - 8) top = Math.max(8, box.top - h - 6);
+    let left = box.left - 6;
+    if (w && left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
+    setAt((had) => (had && had.top === top && had.left === left ? had : { top, left }));
+  };
+
+  React.useLayoutEffect(() => { if (open && at) place(); }, [open, at?.top, at?.left]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    place();
+    // A menu that will not close is as broken as one that never opened.
+    const away = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-editable]')) c.setEditing(null);
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') c.setEditing(null); };
+    // The table scrolls under it, so it follows what it is anchored to.
+    window.addEventListener('mousedown', away);
+    window.addEventListener('keydown', key);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('mousedown', away);
+      window.removeEventListener('keydown', key);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
+
   return (
     <span className="q-reg-edit" data-editable="true">
       <button
+        ref={said_ref}
         type="button"
         className={open ? 'q-reg-said q-reg-said-open' : 'q-reg-said'}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); c.setEditing(open ? null : cellKey); }}
       >
         {said}
       </button>
-      {open && (
-        <span className="q-reg-cellpop" style={width ? { minWidth: `${width}px` } : undefined}
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+      {open && at && (
+        <span
+          ref={pop_ref}
+          className="q-reg-cellpop"
+          style={{ top: `${at.top}px`, left: `${at.left}px`, ...(width ? { minWidth: `${width}px` } : {}) }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        >
           {children(() => c.setEditing(null))}
         </span>
       )}
