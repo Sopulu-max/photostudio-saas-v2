@@ -2173,16 +2173,6 @@ export async function createStage(input: { name: string; kind: StageKind }) {
 
   await logEvent({ organizationId: orgId, entityType: 'booking_stage', entityId: stage.id, action: 'created', actorId: actorId ?? undefined, payload: { name, kind: input.kind } });
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { stageId: stage.id };
 }
@@ -2200,37 +2190,75 @@ export async function renameStage(input: { stageId: string; name: string }) {
   if (error) throw new Error('Failed to rename (does that name already exist?)');
 
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { ok: true };
 }
 
 /** Remove a stage. Bookings sitting on it move to the default stage. */
 export async function deleteStage(stageId: string) {
-  const { orgId } = await getAuthOrgId();
+  const { orgId, personId: actorId } = await getAuthOrgId();
 
   const { data: stages } = await supabaseAdmin
     .from('booking_stages')
-    .select('id, is_default, position')
+    .select('id, name, kind, is_default, position')
     .eq('organization_id', orgId)
     .order('position');
   if ((stages || []).length <= 1) throw new Error('Keep at least one stage.');
 
   const fallback = (stages || []).find((s: any) => s.is_default && s.id !== stageId) || (stages || []).find((s: any) => s.id !== stageId);
   if (!fallback) throw new Error('No stage left to move bookings to.');
+  const removed = (stages || []).find((s: any) => s.id === stageId) as any;
+
+  /*
+   * WHICH BOOKINGS THIS IS ABOUT TO MOVE, asked before it moves them.
+   *
+   * Deleting a stage reassigns every booking sitting in it, and that happened
+   * with no record of any kind: thirty of this studio's bookings were moved in
+   * one statement and nothing anywhere said so. The bookings' own histories
+   * showed no transition, "last moved" did not change, and there was no way to
+   * tell afterwards which ones had been where - the only reason it was
+   * recoverable at all was that each booking's PREVIOUS stage_changed event
+   * still existed.
+   *
+   * A studio must be able to see what an irreversible action did, so each
+   * move is now recorded against the booking it happened to.
+   */
+  const { data: moving } = await supabaseAdmin
+    .from('bookings')
+    .select('id')
+    .eq('organization_id', orgId)
+    .eq('stage_id', stageId);
+  const moved = ((moving || []) as any[]).map((b) => b.id as string);
 
   await supabaseAdmin.from('bookings').update({ stage_id: fallback.id }).eq('organization_id', orgId).eq('stage_id', stageId);
   const { error } = await supabaseAdmin.from('booking_stages').delete().eq('id', stageId).eq('organization_id', orgId);
   if (error) throw new Error('Failed to remove the stage');
+
+  /*
+   * A DIFFERENT ACTION FROM A STAGE CHANGE, deliberately.
+   *
+   * Nobody decided these bookings had advanced - the stage they were in ceased
+   * to exist. Logging them as `stage_changed` would put them among the studio's
+   * real transitions, and since an agreement is derived from a stage_changed
+   * into a booked kind (modules/bookings/sheet), a deletion into a booked stage
+   * would have invented agreements that never happened.
+   */
+  for (const bookingId of moved) {
+    await logEvent({
+      organizationId: orgId, entityType: 'booking', entityId: bookingId, action: 'stage_reassigned',
+      actorId: actorId ?? undefined,
+      payload: {
+        from: { id: stageId, name: removed?.name ?? null, kind: removed?.kind ?? null },
+        to: { id: fallback.id, name: (fallback as any).name ?? null, kind: (fallback as any).kind ?? null },
+        because: 'the stage was removed',
+      },
+    });
+  }
+  await logEvent({
+    organizationId: orgId, entityType: 'booking_stage', entityId: stageId, action: 'deleted',
+    actorId: actorId ?? undefined,
+    payload: { name: removed?.name ?? null, kind: removed?.kind ?? null, bookingsMoved: moved.length },
+  });
 
   // Removing the default would leave the studio without one — promote the
   // stage its bookings just moved to.
@@ -2244,16 +2272,6 @@ export async function deleteStage(stageId: string) {
   }
 
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { ok: true };
 }
@@ -2625,16 +2643,6 @@ export async function setStageColor(input: { stageId: string; color: string | nu
   if (error) throw new Error('Failed to set the colour');
 
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { ok: true };
 }
@@ -2663,16 +2671,6 @@ export async function updateStage(input: { stageId: string; name?: string; color
   if (error) throw new Error('Failed to save the stage (does that name already exist?)');
 
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { ok: true };
 }
@@ -2691,16 +2689,6 @@ export async function setDefaultStage(stageId: string) {
   if (error) throw new Error('Failed to set the starting stage');
 
   revalidateStageSurfaces();
-  /*
-   * A STAGE IS THE STUDIO'S VOCABULARY, so every surface that prints or offers
-   * it has to be read again. Without this, adding a stage left the register's
-   * editor, the board and the axes offering the old list until a hard reload -
-   * the definition had changed and the app was still answering from the page
-   * it had already sent.
-   */
-  revalidatePath('/bookings');
-  revalidatePath('/bookings/settings');
-  revalidatePath('/calendar');
 
   return { ok: true };
 }
