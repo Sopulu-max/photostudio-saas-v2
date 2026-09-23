@@ -1830,7 +1830,27 @@ body::before {
 .q-kv-value { font-weight: 550; }
 .q-amount   { font-size: 2rem; font-weight: 640; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .q-btn-block{ width: 100%; padding: 15px 24px; font-size: 1.05rem; }
+/*
+ * AN ANCHOR IS NOT A WORD IN A SENTENCE HERE.
+ *
+ * Almost every <a> in this app is a row, a card, a chip, a tab or a cell -
+ * something you press, not something you read - so the app's default is no
+ * underline and the surrounding colour. The stylesheet used to opt OUT per
+ * class (.q-plain-link, and a text-decoration: none in each new component),
+ * which meant every new surface had to remember, and the bookings page's tabs,
+ * saved cuts and table rows all arrived underlined because it did not.
+ *
+ * Prose opts IN below: a link inside written text SHOULD look like a link,
+ * and that is the one place it should.
+ */
+a { color: inherit; text-decoration: none; }
+
+/* Kept because several surfaces name it, and it now says what it already gets. */
 .q-plain-link { text-decoration: none; color: inherit; }
+
+/* Written text: a link in a note or a brief is a link, and reads like one. */
+.q-prose a { color: var(--q-color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.q-prose a:hover { text-decoration-thickness: 2px; }
 .q-btn-ghost  { border: none; background: transparent; cursor: pointer; padding: 6px 10px; font-weight: 500; }
 .q-empty-icon { width: 54px; height: 54px; border-radius: 15px; background: var(--q-color-accent-soft); color: var(--q-color-accent); display: flex; align-items: center; justify-content: center; }
 /* .q-fill is declared once, above, with the min-width: 0 that lets a flex child
