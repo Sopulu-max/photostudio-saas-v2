@@ -4,10 +4,13 @@ import { readJob } from '@/weave/jobs/actions';
 import { whoIsAsking } from '@/weave/studio';
 import { COLUMNS } from '@/weave/jobs/shape';
 import { occasionsForJob, listPeople } from '@/weave/occasions/actions';
+import { headers } from 'next/headers';
 import { filesForJob } from '@/weave/files/actions';
+import { galleriesForJob } from '@/weave/galleries/actions';
 import { JobAmend } from './JobAmend';
 import { Occasions } from './Occasions';
 import { Files } from './Files';
+import { Galleries } from './Galleries';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,11 +56,19 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
    * draw one page is how an app starts feeling like a website, and none of
    * these three answers depends on another.
    */
-  const [occasions, people, files] = await Promise.all([
+  const [occasions, people, files, galleries, head] = await Promise.all([
     occasionsForJob(id),
     listPeople(),
     filesForJob(id),
+    galleriesForJob(id),
+    headers(),
   ]);
+
+  // The address the studio is actually on, so a copied link works from wherever
+  // this is being served rather than from a guess baked in at build time.
+  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
+  const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  const origin = `${scheme}://${host}`;
 
   // Local calendar day, not UTC — "today" means the studio's today, and at
   // half past midnight in Lagos a UTC date is still yesterday.
@@ -80,6 +91,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <Occasions jobId={job.id} occasions={occasions} people={people} today={today} />
 
       <Files jobId={job.id} files={files} />
+
+      <Galleries jobId={job.id} galleries={galleries} origin={origin} />
 
       <section className="q-card q-stack q-stack-sm">
         <h2 className="q-section-title">What has happened</h2>
