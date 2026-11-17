@@ -328,10 +328,24 @@ export function Viewer({
             >
               Order prints
             </button>}
+            {/*
+              * The slideshow belongs in this row, not in a second one below
+              * it. Two rows of the same buttons with a band of nothing between
+              * them read as a gap where something had failed to load.
+              */}
+            {!slideshow && (
+              <button type="button" className="q-btn q-btn-ghost q-btn-sm" onClick={() => {
+                setSlideIndex(0);
+                setSlideshow(true);
+              }}>
+                Play slideshow
+              </button>
+            )}
           </div>
         )}
 
-        {gallery.files.length > 0 && !slideshow && (
+        {/* Before anyone has said who they are there is still a slideshow. */}
+        {gallery.files.length > 0 && !slideshow && !(forSale || visitorEmail) && (
           <div className="q-gal-modes">
             <button type="button" className="q-btn q-btn-ghost q-btn-sm" onClick={() => {
               setSlideIndex(0);

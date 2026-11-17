@@ -7,6 +7,11 @@ import { money, orderTotal, sayOrder, standingOf, type Order } from '@/weave/sto
 /**
  * What was ordered, and what is left to do about it.
  *
+ * An order is a receipt, so it is set as one: the names on the left, the
+ * figures ruled to the right edge in tabular numerals, the total under a line.
+ * Nothing here is a form — the two marks a studio makes on an order wait until
+ * the order is reached for, as they do on the board.
+ *
  * Paid and made are marked by hand because no payment processor is wired - a
  * decision carried over deliberately, and how this studio already works. When
  * one arrives it writes the same column and nothing here changes.
@@ -29,45 +34,52 @@ export function OrderList({ orders }: { orders: Order[] }) {
   }
 
   return (
-    <div className="q-stack q-stack-sm">
+    <div className="q-stack q-stack-md">
       {orders.map((o) => {
         const standing = standingOf(o);
         return (
-          <section key={o.id} className="q-card q-stack q-stack-xs">
-            <div className="q-row q-row-between">
-              <strong className="q-strong">{o.who ?? 'Somebody'}</strong>
-              <span className={standing === 'done' ? 'q-meta' : 'q-meta q-warm'}>
+          <article key={o.id} className="q-receipt" data-busy={working ? 'yes' : undefined}>
+            <header className="q-receipt-head">
+              <div className="q-receipt-who">
+                <strong className="q-receipt-name">{o.who ?? 'Somebody'}</strong>
+                <span className="q-meta-sm">
+                  {new Date(o.placedAt).toLocaleString('en-GB', {
+                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <span className={standing === 'done' ? 'q-standing' : 'q-standing q-standing-open'}>
                 {sayOrder(o)}
               </span>
-            </div>
+            </header>
 
-            <span className="q-meta-sm">
-              {new Date(o.placedAt).toLocaleString('en-GB', {
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-              })}
-            </span>
-
-            <div className="q-stack q-stack-xs">
+            <div className="q-sheet">
               {o.lines.map((l) => (
-                <div key={l.id} className="q-row q-row-between">
-                  <span className="q-text-body">
+                <div key={l.id} className="q-ware-head">
+                  <span className="q-ware-name">
                     {l.quantity > 1 ? `${l.quantity} × ` : ''}{l.name}
                     {l.variantName && <span className="q-meta"> · {l.variantName}</span>}
                     {l.fileName && <span className="q-meta"> &middot; {l.fileName}</span>}
                   </span>
-                  <span className="q-num">{money(l.unitPrice * l.quantity, o.currency)}</span>
+                  <span className="q-ware-rule" aria-hidden="true" />
+                  <span className="q-num q-ware-price">
+                    {money(l.unitPrice * l.quantity, o.currency)}
+                  </span>
                 </div>
               ))}
-              <div className="q-row q-row-between">
-                <span className="q-strong">Total</span>
-                <strong className="q-num">{money(orderTotal(o.lines), o.currency)}</strong>
-              </div>
             </div>
 
-            {o.shipTo && <span className="q-meta">Send to: {o.shipTo}</span>}
-            {o.note && <span className="q-meta">They said: {o.note}</span>}
+            <div className="q-receipt-total">
+              <span className="q-section-title">Total</span>
+              <strong className="q-num q-receipt-sum">
+                {money(orderTotal(o.lines), o.currency)}
+              </strong>
+            </div>
 
-            <div className="q-row q-row-sm">
+            {o.shipTo && <p className="q-meta">Send to: {o.shipTo}</p>}
+            {o.note && <p className="q-meta">They said: {o.note}</p>}
+
+            <div className="q-receipt-acts">
               <button
                 type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                 onClick={() => run(() => markOrder({ orderId: o.id, paid: !o.paidAt }))}
@@ -84,11 +96,11 @@ export function OrderList({ orders }: { orders: Order[] }) {
                 <a className="q-btn q-btn-ghost q-btn-xs" href={`/jobs/${o.jobId}`}>The job</a>
               )}
             </div>
-          </section>
+          </article>
         );
       })}
 
-      {problem && <p className="q-meta">{problem}</p>}
+      {problem && <p className="q-note q-note-bad">{problem}</p>}
     </div>
   );
 }

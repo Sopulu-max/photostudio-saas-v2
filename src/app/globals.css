@@ -391,8 +391,18 @@ select.q-input { cursor: pointer; }
     width: 100%; min-width: 0; height: auto; position: static;
     border-right: 0; border-bottom: 1px solid var(--line);
   }
-  .q-side-head, .q-side-foot { display: none; }
-  .q-side-nav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 10px; }
+  /*
+   * The studio's name stays. Hiding it to save a line left an operator with
+   * no answer to "whose studio am I in", which in a multi-tenant app is the
+   * one question the chrome exists to answer.
+   */
+  .q-side-head { padding: 18px 20px 2px; }
+  .q-side-name { font-size: 1.05rem; }
+  .q-side-foot { display: none; }
+  .q-side-nav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 8px 10px 10px; }
+  /* It scrolls, but a scrollbar under the nav is chrome about chrome. */
+  .q-side-nav { scrollbar-width: none; }
+  .q-side-nav::-webkit-scrollbar { display: none; }
   .q-side-item { white-space: nowrap; }
   .q-shell-main { padding: 28px 20px 72px; }
   .q-page-header { flex-direction: column; margin-bottom: 30px; }
@@ -416,9 +426,20 @@ select.q-input { cursor: pointer; }
 .q-gal-ask .q-input::placeholder { letter-spacing: 0.02em; }
 
 .q-gal-modes {
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center;
   gap: 4px; margin: 10px 0 44px;
+  /*
+   * On a phone the row slides rather than wrapping: a label broken across two
+   * lines reads as a mistake, and these are the studio's words, said whole.
+   *
+   * `safe` is the whole point — plain `center` centres the overflow too, which
+   * puts the first word off the left edge where it cannot be scrolled back to.
+   */
+  justify-content: safe center;
+  overflow-x: auto; scrollbar-width: none;
 }
+.q-gal-modes::-webkit-scrollbar { display: none; }
+.q-gal-modes .q-btn { white-space: nowrap; flex: none; }
 .q-gal-modes .q-btn {
   border-radius: 0; border: 0; border-bottom: 1px solid transparent;
   background: transparent; color: var(--ink-faint);
@@ -537,4 +558,223 @@ select.q-input { cursor: pointer; }
   .q-lb-stage { padding: 0 44px 8px; }
   .q-lb-nav { width: 44px; }
   .q-lb-foot { flex-direction: column; align-items: stretch; gap: 12px; }
+}
+
+/* ---- Starting a job: a line until it is wanted -------------------------- */
+
+.q-start-line {
+  display: block; width: 100%;
+  padding: 18px 2px; margin-bottom: 30px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  text-align: left; cursor: pointer;
+  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.q-start-line:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+.q-start {
+  padding: 0 0 20px; margin-bottom: 30px;
+  border-bottom: 1px solid var(--line);
+  align-items: flex-end;
+}
+.q-start .q-input { flex: 1 1 180px; }
+
+/* ---- A job on the board ------------------------------------------------- */
+
+.q-job { position: relative; }
+.q-job[data-busy] { opacity: 0.45; }
+
+/*
+ * The move control waits until the card is reached for. A select inside every
+ * card turned a board of work into a page of form fields.
+ */
+.q-job-move {
+  position: absolute; right: 12px; bottom: 12px;
+  background: var(--paper-2); color: var(--ink-dim);
+  border: 1px solid var(--line); border-radius: var(--pill);
+  padding: 4px 10px; cursor: pointer;
+  font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.12em;
+  opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.q-job:hover .q-job-move,
+.q-job-move:focus-visible { opacity: 1; }
+@media (hover: none) { .q-job-move { opacity: 1; } }
+
+/* A card on the board carries no fill; the hairline and the air are enough. */
+.q-board-stack .q-card { background: transparent; }
+.q-board-stack .q-card:hover { background: var(--card); }
+
+/* ---- A form that waits to be wanted ------------------------------------- */
+/*
+ * The same line everywhere: adding a product, writing a follow-up, minting a
+ * code. One rule, so every screen opens the same way.
+ */
+
+.q-reveal-line {
+  align-self: flex-start;
+  padding: 7px 0; background: transparent; border: 0;
+  border-bottom: 1px solid transparent;
+  text-align: left; cursor: pointer;
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.q-reveal-line:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.q-reveal-end { align-self: flex-end; }
+
+.q-reveal {
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 9px;
+  padding: 16px 0 4px;
+  animation: q-appear var(--fast) var(--ease) both;
+}
+.q-reveal > form { flex: 1 1 320px; }
+.q-reveal-form { align-items: stretch; }
+.q-self-start { align-self: flex-start; }
+
+/* ---- A ruled sheet: what a thing is, and what it costs ------------------ */
+/*
+ * A price list and a receipt are the same object read twice, so they are set
+ * the same way — the name on the left, a leader rule, the figure flush right
+ * in tabular numerals so the columns of figures line up down the page.
+ */
+
+.q-sheet { display: flex; flex-direction: column; }
+.q-ware { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.q-sheet > .q-ware:first-child { padding-top: 4px; }
+.q-sheet > .q-ware-head { padding: 11px 0; border-bottom: 1px solid var(--line); }
+
+.q-ware-head { display: flex; align-items: baseline; gap: 12px; }
+.q-ware-name { font-size: 0.94rem; color: var(--ink); }
+.q-ware-rule {
+  flex: 1 1 auto; min-width: 20px;
+  border-bottom: 1px dotted var(--line);
+  transform: translateY(-3px);
+}
+.q-ware-price { color: var(--ink); white-space: nowrap; }
+
+.q-ware-kind {
+  display: block; margin-top: 3px;
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.16em;
+  color: var(--ink-faint);
+}
+
+.q-ware-option { margin-top: 9px; padding-left: 18px; }
+.q-ware-option .q-ware-name { font-size: 0.86rem; color: var(--ink-dim); }
+.q-ware-option .q-ware-price { color: var(--ink-dim); }
+
+/* Removing is rare and permanent, so it stays out of the way until reached. */
+.q-ware-drop {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  opacity: 0; transition: opacity var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.q-ware-head:hover .q-ware-drop,
+.q-ware-drop:focus-visible { opacity: 1; }
+.q-ware-drop:hover { color: var(--bad); }
+@media (hover: none) { .q-ware-drop { opacity: 1; } }
+
+.q-list-name {
+  margin: 0; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.5rem; letter-spacing: -0.01em; color: var(--ink);
+}
+.q-code {
+  font-family: var(--mono); font-size: 0.82rem; letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+/* ---- An order, set as the receipt it is --------------------------------- */
+
+.q-receipt {
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--card); padding: 26px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+  transition: opacity var(--fast) var(--ease);
+}
+.q-receipt[data-busy] { opacity: 0.45; }
+
+.q-receipt-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+}
+.q-receipt-who { display: flex; flex-direction: column; gap: 4px; }
+.q-receipt-name {
+  font-family: var(--font-display); font-weight: 400; font-size: 1.3rem;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+
+/* Standing is a word, not a colour-coded pill; the warm one is the one left. */
+.q-standing {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.16em;
+  color: var(--ink-faint); white-space: nowrap; padding-top: 6px;
+}
+.q-standing-open { color: var(--warn); }
+
+.q-receipt-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding-top: 12px;
+}
+.q-receipt-sum { font-size: 1.05rem; color: var(--ink); }
+
+/* The marks wait for the order to be reached for, as moves do on the board. */
+.q-receipt-acts {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.q-receipt:hover .q-receipt-acts,
+.q-receipt:focus-within .q-receipt-acts { opacity: 1; }
+@media (hover: none) { .q-receipt-acts { opacity: 1; } }
+
+/* ---- A due message, shown as the letter it is --------------------------- */
+
+.q-letter {
+  border-left: 2px solid var(--accent);
+  padding: 4px 0 4px 22px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.q-letter-head { display: flex; flex-direction: column; gap: 2px; }
+.q-letter-to {
+  font-family: var(--font-display); font-weight: 400; font-size: 1.15rem;
+  color: var(--ink);
+}
+.q-letter-subject { margin: 0; font-size: 0.94rem; font-weight: 500; color: var(--ink); }
+/*
+ * The body is set in the reading face at reading width, because a studio is
+ * judging words a client will read in a mail client, not inspecting a field.
+ */
+.q-letter-body {
+  margin: 0; white-space: pre-wrap; max-width: 54ch;
+  font-size: 0.94rem; line-height: 1.7; color: var(--ink-dim);
+}
+.q-letter-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; padding-top: 4px;
+}
+
+/* ---- A follow-up rule, read across ------------------------------------- */
+
+.q-rule {
+  display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.q-rule-off { opacity: 0.55; }
+.q-rule-main { flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px; }
+.q-rule-when {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em;
+  color: var(--ink-faint);
+}
+/* The code is part of the same sentence, so it is set in the same voice. */
+.q-rule-when .q-meta-sm { font-size: inherit; letter-spacing: inherit; }
+.q-rule-acts {
+  display: flex; gap: 9px;
+  opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.q-rule:hover .q-rule-acts,
+.q-rule:focus-within .q-rule-acts { opacity: 1; }
+@media (hover: none) { .q-rule-acts { opacity: 1; } }
+
+@media (max-width: 640px) {
+  .q-receipt { padding: 20px 18px; }
+  .q-letter { padding-left: 16px; }
 }

@@ -34,14 +34,20 @@ export function JobCardRow({ job }: { job: JobCard }) {
     : 'No date yet';
 
   return (
-    <div className="q-card" style={{ opacity: working ? 0.5 : 1 }}>
+    <div className="q-card q-job" data-busy={working ? 'yes' : undefined}>
       <Link href={`/jobs/${job.id}`} className="q-plain-link q-stack q-stack-xs">
         <strong className="q-card-name">{job.clientName ?? 'Nobody named yet'}</strong>
         <span className="q-card-what">{job.wants ?? 'Nothing written down yet'}</span>
         <span className="q-card-when">{when}</span>
       </Link>
+
+      {/*
+        * Moving a job is occasional, so the control waits until the card is
+        * reached for. A select sitting inside every card turned a board of
+        * work into a page of form fields.
+        */}
       <select
-        className="q-input q-input-sm"
+        className="q-job-move"
         value={job.turn}
         onChange={(e) => move(e.target.value)}
         disabled={working}
