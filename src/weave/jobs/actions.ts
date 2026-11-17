@@ -133,6 +133,107 @@ export async function createJob(input: {
   return { id: job.id };
 }
 
+/**
+ * One job, with everything that has happened to it.
+ *
+ * The history is read from the log rather than reconstructed from the row,
+ * because the row only knows where the job ended up. What a studio needs when
+ * something has gone wrong is the sequence, and a row cannot tell you that.
+ */
+export type JobDetail = {
+  id: string;
+  clientName: string | null;
+  wants: string | null;
+  expectedOn: string | null;
+  turn: Turn;
+  startedAt: string;
+  history: { id: string; action: string; at: string; payload: Record<string, unknown> }[];
+};
+
+export async function readJob(id: string): Promise<JobDetail | null> {
+  const who = await whoIsAsking();
+  if (!who) return null;
+
+  const [job, log] = await Promise.all([
+    db.from('jobs')
+      .select('id, wants, expected_on, turn, created_at, client:people(name)')
+      .eq('id', id)
+      .eq('studio_id', who.studioId)
+      .maybeSingle(),
+    db.from('events')
+      .select('id, action, at, payload')
+      .eq('studio_id', who.studioId)
+      .eq('subject_type', 'job')
+      .eq('subject_id', id)
+      .order('at', { ascending: false }),
+  ]);
+
+  if (job.error) {
+    console.error('Failed to read the job:', job.error);
+    throw new Error('Could not read that job');
+  }
+  if (!job.data) return null;
+
+  const row = job.data as unknown as {
+    id: string; wants: string | null; expected_on: string | null;
+    turn: Turn; created_at: string; client: { name: string } | null;
+  };
+
+  return {
+    id: row.id,
+    clientName: row.client?.name ?? null,
+    wants: row.wants,
+    expectedOn: row.expected_on,
+    turn: row.turn,
+    startedAt: row.created_at,
+    history: (log.data ?? []) as JobDetail['history'],
+  };
+}
+
+/**
+ * Change what a job says.
+ *
+ * Both fields may be emptied again — a date that turns out to be wrong is
+ * worse than no date, and the system should not make somebody keep a thing
+ * they know to be untrue.
+ */
+export async function amendJob(input: {
+  jobId: string;
+  wants?: string | null;
+  expectedOn?: string | null;
+}): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+
+  const patch: Record<string, string | null> = {};
+  if (input.wants !== undefined) patch.wants = input.wants?.trim() || null;
+  if (input.expectedOn !== undefined) patch.expected_on = input.expectedOn || null;
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await db
+    .from('jobs')
+    .update(patch)
+    .eq('id', input.jobId)
+    .eq('studio_id', who.studioId);
+
+  if (error) {
+    console.error('Failed to amend the job:', error);
+    throw new Error('Could not save that');
+  }
+
+  await db.from('events').insert({
+    studio_id: who.studioId,
+    subject_type: 'job',
+    subject_id: input.jobId,
+    action: 'amended',
+    actor_id: who.personId,
+    payload: patch,
+  });
+
+  revalidatePath('/');
+  revalidatePath(`/jobs/${input.jobId}`);
+}
+
 /** Move a job to another column. The database records the transition itself. */
 export async function moveJob(input: { jobId: string; turn: Turn }): Promise<void> {
   const who = await whoIsAsking();
@@ -150,4 +251,5 @@ export async function moveJob(input: { jobId: string; turn: Turn }): Promise<voi
   }
 
   revalidatePath('/');
+  revalidatePath(`/jobs/${input.jobId}`);
 }

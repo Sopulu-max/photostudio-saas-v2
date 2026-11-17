@@ -60,12 +60,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </button>
         </form>
 
-        <div className="q-meta q-center-text">
-          Don't have an account?{' '}
-          <Link className="q-accent q-strong" href="/signup">
-            Sign up
-          </Link>
-        </div>
+        {/*
+          * No sign-up link. There is one studio on this system and its operator
+          * already has a login; an invitation flow belongs here when a second
+          * studio does, not before.
+          */}
       </div>
     </div>
   );

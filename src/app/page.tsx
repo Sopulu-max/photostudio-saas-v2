@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { readBoard } from '@/weave/jobs/actions';
+import { occasionsBetween } from '@/weave/occasions/actions';
+import { sayWhen, sayCrew } from '@/weave/occasions/shape';
 import { whoIsAsking } from '@/weave/studio';
 import { NewJob } from './NewJob';
 import { JobCardRow } from './JobCardRow';
@@ -17,7 +19,8 @@ export default async function BoardPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const board = await readBoard();
+  const today = new Date().toLocaleDateString('en-CA');
+  const [board, todays] = await Promise.all([readBoard(), occasionsBetween(today, today)]);
   const tallest = Math.max(1, ...board.map((c) => c.jobs.length));
   const live = board
     .filter((c) => c.turn !== 'done')
@@ -35,6 +38,32 @@ export default async function BoardPage() {
           </p>
         </div>
       </header>
+
+      {/*
+        * Today, above the board.
+        *
+        * The board answers what is outstanding; this answers what is actually
+        * on, which is the first thing anybody opening this at eight in the
+        * morning wants. Said even when empty, because "nothing is on today" is
+        * a fact worth knowing and a blank space is not.
+        */}
+      <section className="q-card q-stack q-stack-sm">
+        <h2 className="q-section-title">Today</h2>
+        {todays.length === 0 ? (
+          <p className="q-empty">Nothing is happening today.</p>
+        ) : (
+          todays.map((o) => (
+            <div key={o.id} className="q-row q-row-between">
+              <span className="q-text-body">
+                {o.what ?? 'Not said what it is'} &middot; {sayWhen(o)}
+              </span>
+              <span className={o.crew.length === 0 ? 'q-meta q-warm' : 'q-meta'}>
+                {sayCrew(o)}
+              </span>
+            </div>
+          ))
+        )}
+      </section>
 
       <NewJob />
 

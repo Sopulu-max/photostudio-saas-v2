@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 /**
  * The board, tested against the real database.
@@ -12,7 +13,17 @@ import { createClient } from '@supabase/supabase-js';
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { db: { schema: 'weave' }, auth: { persistSession: false } },
+  {
+    db: { schema: 'weave' },
+    auth: { persistSession: false },
+    /*
+     * supabase-js builds a realtime socket whether or not anything subscribes,
+     * and on Node 20 there is no native WebSocket for it to use — the client
+     * refuses to construct at all. Nothing here listens for realtime; this is
+     * only so the constructor can finish.
+     */
+    realtime: { transport: WebSocket as unknown as never },
+  },
 );
 
 let studioId: string;

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTransition } from 'react';
 import { moveJob } from '@/weave/jobs/actions';
 import { COLUMNS, type JobCard } from '@/weave/jobs/shape';
@@ -34,9 +35,11 @@ export function JobCardRow({ job }: { job: JobCard }) {
 
   return (
     <div className="q-card" style={{ opacity: working ? 0.5 : 1 }}>
-      <strong className="q-card-name">{job.clientName ?? 'Nobody named yet'}</strong>
-      <span className="q-card-what">{job.wants ?? 'Nothing written down yet'}</span>
-      <span className="q-card-when">{when}</span>
+      <Link href={`/jobs/${job.id}`} className="q-plain-link q-stack q-stack-xs">
+        <strong className="q-card-name">{job.clientName ?? 'Nobody named yet'}</strong>
+        <span className="q-card-what">{job.wants ?? 'Nothing written down yet'}</span>
+        <span className="q-card-when">{when}</span>
+      </Link>
       <select
         className="q-input q-input-sm"
         value={job.turn}
