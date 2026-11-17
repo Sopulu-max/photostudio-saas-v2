@@ -287,7 +287,7 @@ export function Viewer({
 
       <main className="q-gal-main q-stack q-stack-md">
         {!visitorEmail && (
-          <form className="q-card q-row q-row-sm" onSubmit={remember}>
+          <form className="q-gal-ask" onSubmit={remember}>
             <input
               className="q-input" type="email"
               placeholder="Your email, to keep your picks"
@@ -298,7 +298,7 @@ export function Viewer({
         )}
 
         {gallery.files.length > 0 && (forSale || visitorEmail) && (
-          <div className="q-row q-row-sm">
+          <div className="q-gal-modes">
             <button
               type="button"
               className={mode === 'keep' ? 'q-btn q-btn-secondary q-btn-sm' : 'q-btn q-btn-ghost q-btn-sm'}
@@ -326,12 +326,14 @@ export function Viewer({
         )}
 
         {gallery.files.length > 0 && !slideshow && (
-          <button type="button" className="q-btn q-btn-ghost q-btn-sm" onClick={() => {
-            setSlideIndex(0);
-            setSlideshow(true);
-          }}>
-            Play slideshow
-          </button>
+          <div className="q-gal-modes">
+            <button type="button" className="q-btn q-btn-ghost q-btn-sm" onClick={() => {
+              setSlideIndex(0);
+              setSlideshow(true);
+            }}>
+              Play slideshow
+            </button>
+          </div>
         )}
 
         {slideshow && activeSlide && (

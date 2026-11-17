@@ -63,6 +63,26 @@ async function assertVisitorCanAccessGallery(gallery: GalleryVisitorGate): Promi
   }
 }
 
+/** A role-limited section must protect actions as well as the visible grid. */
+export async function assertVisitorCanUseGalleryFile(
+  gallery: GalleryVisitorGate,
+  fileId: string,
+): Promise<void> {
+  const { data } = await db.from('gallery_files')
+    .select('id, section:gallery_sections(visible_to_clients, audience_role)')
+    .eq('gallery_id', gallery.id).eq('file_id', fileId).maybeSingle();
+  const member = data as unknown as {
+    id: string;
+    section: { visible_to_clients: boolean; audience_role: 'main_client' | 'guest' | 'vendor' | null } | null;
+  } | null;
+  if (!member?.section?.visible_to_clients) throw new Error('That picture is not available to you');
+  if (!member.section.audience_role) return;
+  const participant = await invitedParticipantForGallery(gallery);
+  if (participant?.role !== member.section.audience_role) {
+    throw new Error('That picture is not available to you');
+  }
+}
+
 /** The galleries made from one job. */
 export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> {
   const who = await whoIsAsking();
@@ -509,6 +529,13 @@ export async function setSectionAudience(input: {
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
+  if (input.audienceRole) {
+    const { data: gallery } = await db.from('galleries').select('access_mode')
+      .eq('id', input.galleryId).eq('studio_id', who.studioId).maybeSingle();
+    if (!gallery || gallery.access_mode !== 'invite') {
+      throw new Error('Use invited-people-only access before limiting a section by role');
+    }
+  }
   const { error } = await db.from('gallery_sections').update({ audience_role: input.audienceRole })
     .eq('id', input.sectionId).eq('gallery_id', input.galleryId).eq('studio_id', who.studioId);
   if (error) throw new Error('Could not change section access');
@@ -593,6 +620,16 @@ export async function setGalleryAccess(input: {
   const code = input.code?.trim() ?? '';
   if (input.mode === 'code' && code.length < 6) {
     throw new Error('An access code needs at least 6 characters');
+  }
+  if (input.mode !== 'invite') {
+    const { count, error: audienceError } = await db.from('gallery_sections')
+      .select('id', { count: 'exact', head: true })
+      .eq('gallery_id', input.galleryId).eq('studio_id', who.studioId)
+      .not('audience_role', 'is', null);
+    if (audienceError) throw new Error('Could not check section access');
+    if ((count ?? 0) > 0) {
+      throw new Error('Return role-limited sections to everyone before changing gallery access');
+    }
   }
   const { error } = await db.from('galleries').update({
     access_mode: input.mode,
@@ -814,6 +851,7 @@ export async function prepareGalleryDownload(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery || !gallery.may_download) throw new Error('Downloads are not enabled for this gallery');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
+  await assertVisitorCanUseGalleryFile(gallery as GalleryVisitorGate, input.fileId);
   const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: member } = await db.from('gallery_files')
     .select('file:files(name, storage_path)').eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
@@ -837,13 +875,11 @@ export async function commentOnGalleryFile(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery) throw new Error('That gallery is not available');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
+  await assertVisitorCanUseGalleryFile(gallery as GalleryVisitorGate, input.fileId);
   const body = input.body.trim();
   if (!body) throw new Error('Write a comment first');
   if (body.length > 2_000) throw new Error('Keep a comment under 2,000 characters');
   const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
-  const { data: member } = await db.from('gallery_files').select('id')
-    .eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
-  if (!member) throw new Error('That picture is not in this gallery');
   const { error } = await db.from('gallery_comments').insert({
     studio_id: gallery.studio_id, gallery_id: gallery.id, file_id: input.fileId, person_id: personId, body,
   });
@@ -956,6 +992,7 @@ export async function toggleCollectionFile(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery) throw new Error('That gallery is not available');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
+  await assertVisitorCanUseGalleryFile(gallery as GalleryVisitorGate, input.fileId);
   const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: collection } = await db.from('gallery_collections')
     .select('id, kind, max_items, due_on, submitted_at')
@@ -965,10 +1002,6 @@ export async function toggleCollectionFile(input: {
   if (collection.due_on && collection.due_on < new Date().toISOString().slice(0, 10)) {
     throw new Error('That selection request has expired');
   }
-
-  const { data: member } = await db.from('gallery_files').select('id')
-    .eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
-  if (!member) throw new Error('That picture is not in this gallery');
 
   if (input.on) {
     if (collection.max_items) {
@@ -1050,15 +1083,7 @@ export async function favourite(input: {
   if (!gallery) throw new Error('That gallery is not available');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
 
-  // The file has to be IN this gallery. Without this check a visitor holding
-  // one token could favourite any file in the studio by id.
-  const { data: inIt } = await db
-    .from('gallery_files')
-    .select('id')
-    .eq('gallery_id', gallery.id)
-    .eq('file_id', input.fileId)
-    .maybeSingle();
-  if (!inIt) throw new Error('That picture is not in this gallery');
+  await assertVisitorCanUseGalleryFile(gallery as GalleryVisitorGate, input.fileId);
 
   const personId = await visitorPersonForGallery(
     gallery as GalleryVisitorGate & { studio_id: string }, input.email, input.name,

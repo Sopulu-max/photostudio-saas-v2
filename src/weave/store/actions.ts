@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
-import { visitorCanAccessGallery, visitorPersonForGallery, type GalleryVisitorGate } from '@/weave/galleries/actions';
+import {
+  assertVisitorCanUseGalleryFile, visitorCanAccessGallery, visitorPersonForGallery, type GalleryVisitorGate,
+} from '@/weave/galleries/actions';
 import type { BasketLine, Order, PriceList, ProductKind } from './shape';
 
 /* ------------------------------------------------------------ the studio's */
@@ -220,6 +222,8 @@ export async function placeOrder(input: {
     throw new Error('That gallery is not available');
   }
   if (!gallery.price_list_id) throw new Error('Nothing is for sale in this gallery');
+  await Promise.all([...new Set(input.lines.flatMap((line) => line.fileId ? [line.fileId] : []))]
+    .map((fileId) => assertVisitorCanUseGalleryFile(gallery as GalleryVisitorGate, fileId)));
 
   const email = input.email.trim().toLowerCase();
   if (!email.includes('@')) throw new Error('An email is needed to send the order');

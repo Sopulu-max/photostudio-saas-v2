@@ -1,9 +1,30 @@
 import './globals.css';
 import type { Metadata } from 'next';
-// Mounted at the true root so it covers the dashboard, the client portal and
-// the public booking page alike — an action reports itself the same way
-// wherever it was taken from.
+import { Playfair_Display, Inter } from 'next/font/google';
+// Mounted at the true root so it covers the studio and the client's gallery
+// alike — an action reports itself the same way wherever it was taken from.
 import { Toaster } from '@/components/Toast';
+
+/*
+ * Two faces, and the split between them is the whole typographic idea: a
+ * high-contrast serif for the things a client reads as a title, and a plain
+ * humanist sans for everything that is interface.
+ *
+ * Self-hosted by next/font rather than fetched from a font CDN, so a gallery
+ * opens at the same speed on a phone in a car park as it does here, and no
+ * third party learns who is looking at a studio's work.
+ */
+const display = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--display',
+  display: 'swap',
+});
+
+const sans = Inter({
+  subsets: ['latin'],
+  variable: '--sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Weave',
@@ -16,9 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-
-      <body className="q-bg-surface-base q-text-body">
+    <html lang="en" className={`${display.variable} ${sans.variable}`}>
+      <body>
         {children}
         <Toaster />
       </body>

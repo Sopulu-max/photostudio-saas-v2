@@ -117,7 +117,7 @@ function GalleryControls({
               {section.visibleToClients ? 'Hide' : 'Show'}
             </button>
             <select className="q-input q-input-sm" aria-label={`${section.name} audience`} value={section.audienceRole ?? ''}
-              disabled={working} onChange={(event) => run(() => setSectionAudience({
+              disabled={working || gallery.accessMode !== 'invite'} onChange={(event) => run(() => setSectionAudience({
                 galleryId: gallery.id, jobId, sectionId: section.id,
                 audienceRole: (event.target.value || null) as 'main_client' | 'guest' | 'vendor' | null,
               }))}>
