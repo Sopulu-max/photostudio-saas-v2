@@ -6063,3 +6063,31 @@ button.q-md-box:focus-visible {
   text-decoration: none;
 }
 .q-window-only:hover { text-decoration: underline; }
+
+/* ---- Files on a job ------------------------------------------------------ */
+/*
+ * A frame somebody chose.
+ *
+ * The mark sits ON the picture, because the picture is the thing that was
+ * chosen; a tick in a column beside it makes the eye travel twice to answer
+ * one question. The outline is inset so a chosen frame does not grow and
+ * shunt its neighbours.
+ */
+.q-gal-tile-chosen { outline: 3px solid var(--q-color-accent); outline-offset: -3px; }
+.q-gal-mark {
+  position: absolute; top: 8px; right: 8px;
+  padding: 3px 9px; border-radius: 999px;
+  font-family: var(--q-font-mono); font-size: 0.66rem;
+  background: var(--q-color-accent); color: var(--q-color-paper-base);
+}
+/* Where files are dropped. Dashed while empty, as everywhere else in Lumen. */
+.q-drop {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 22px; width: 100%;
+  border: 1px dashed var(--q-color-ink-300); border-radius: 12px;
+  background: var(--q-color-ink-50); color: var(--q-color-ink-500);
+  font: inherit; font-size: 0.9rem; cursor: pointer;
+  transition: border-color var(--q-dur-2) var(--q-ease), background var(--q-dur-2) var(--q-ease);
+}
+.q-drop:hover, .q-drop-over { border-color: var(--q-color-accent); background: var(--q-color-paper-elevated); }
+.q-drop:disabled { cursor: default; opacity: 0.6; }

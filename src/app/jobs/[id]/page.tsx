@@ -4,8 +4,10 @@ import { readJob } from '@/weave/jobs/actions';
 import { whoIsAsking } from '@/weave/studio';
 import { COLUMNS } from '@/weave/jobs/shape';
 import { occasionsForJob, listPeople } from '@/weave/occasions/actions';
+import { filesForJob } from '@/weave/files/actions';
 import { JobAmend } from './JobAmend';
 import { Occasions } from './Occasions';
+import { Files } from './Files';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,9 +53,10 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
    * draw one page is how an app starts feeling like a website, and none of
    * these three answers depends on another.
    */
-  const [occasions, people] = await Promise.all([
+  const [occasions, people, files] = await Promise.all([
     occasionsForJob(id),
     listPeople(),
+    filesForJob(id),
   ]);
 
   // Local calendar day, not UTC — "today" means the studio's today, and at
@@ -75,6 +78,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <JobAmend job={job} />
 
       <Occasions jobId={job.id} occasions={occasions} people={people} today={today} />
+
+      <Files jobId={job.id} files={files} />
 
       <section className="q-card q-stack q-stack-sm">
         <h2 className="q-section-title">What has happened</h2>
