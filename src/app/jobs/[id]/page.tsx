@@ -11,7 +11,7 @@ import { JobAmend } from './JobAmend';
 import { Occasions } from './Occasions';
 import { Files } from './Files';
 import { Galleries } from './Galleries';
-import { StudioNav } from '../../StudioNav';
+import { StudioShell } from '../../StudioShell';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +79,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const today = new Date().toLocaleDateString('en-CA');
 
   return (
+    <StudioShell here="board" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -87,7 +88,6 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             {job.wants ?? 'Nothing written down about what they want yet.'}
           </p>
         </div>
-        <StudioNav here="board" />
       </header>
 
       <JobAmend job={job} />
@@ -116,5 +116,6 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         )}
       </section>
     </div>
+    </StudioShell>
   );
 }

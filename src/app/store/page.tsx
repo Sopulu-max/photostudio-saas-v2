@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { StudioNav } from '../StudioNav';
+import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { priceLists } from '@/weave/store/actions';
 import { PriceLists } from './PriceLists';
@@ -13,6 +13,7 @@ export default async function StorePage() {
   const lists = await priceLists();
 
   return (
+    <StudioShell here="store" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -23,10 +24,10 @@ export default async function StorePage() {
               : `${lists.length} price ${lists.length === 1 ? 'list' : 'lists'}.`}
           </p>
         </div>
-        <StudioNav here="store" />
       </header>
 
       <PriceLists lists={lists} />
     </div>
+    </StudioShell>
   );
 }

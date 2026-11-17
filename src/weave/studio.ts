@@ -15,7 +15,9 @@ import { weave } from './db';
  * work. So an email is honoured only when it names exactly ONE studio. No
  * studio is recoverable; the wrong studio is not.
  */
-export type Who = { userId: string; personId: string; studioId: string } | null;
+export type Who = {
+  userId: string; personId: string; studioId: string; studioName: string;
+} | null;
 
 async function resolve(): Promise<Who> {
   const supabase = await createClient();
@@ -24,24 +26,34 @@ async function resolve(): Promise<Who> {
 
   const { data: linked } = await weave
     .from('people')
-    .select('id, studio_id')
+    .select('id, studio_id, studio:studios(name)')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
-  if (linked) return { userId: user.id, personId: linked.id, studioId: linked.studio_id };
+  if (linked) {
+    const row = linked as unknown as { id: string; studio_id: string; studio: { name: string } | null };
+    return {
+      userId: user.id, personId: row.id, studioId: row.studio_id,
+      studioName: row.studio?.name ?? 'Studio',
+    };
+  }
 
   if (!user.email) return null;
 
   const { data: byEmail } = await weave
     .from('people')
-    .select('id, studio_id')
+    .select('id, studio_id, studio:studios(name)')
     .eq('email', user.email);
 
-  const rows = byEmail ?? [];
+  const rows = (byEmail ?? []) as unknown as
+    { id: string; studio_id: string; studio: { name: string } | null }[];
   const studios = [...new Set(rows.map((r) => r.studio_id))];
 
   if (studios.length === 1) {
-    return { userId: user.id, personId: rows[0].id, studioId: studios[0] };
+    return {
+      userId: user.id, personId: rows[0].id, studioId: studios[0],
+      studioName: rows[0].studio?.name ?? 'Studio',
+    };
   }
   if (studios.length > 1) {
     console.error(

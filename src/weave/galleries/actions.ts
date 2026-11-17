@@ -1,6 +1,6 @@
 'use server';
 
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { weave as db } from '@/weave/db';
@@ -12,10 +12,11 @@ import type {
 const BUCKET = 'weave-files';
 
 export type GalleryVisitorGate = {
+  id: string;
   token: string;
   shared_at: string | null;
   expires_on: string | null;
-  access_mode: 'link' | 'code';
+  access_mode: 'link' | 'code' | 'invite';
   access_code_hash: string | null;
 };
 
@@ -31,13 +32,29 @@ function galleryHasExpired(expiresOn: string | null): boolean {
   return !!expiresOn && expiresOn < new Date().toISOString().slice(0, 10);
 }
 
+async function invitedParticipantForGallery(gallery: GalleryVisitorGate): Promise<{
+  person_id: string; role: 'main_client' | 'guest' | 'vendor';
+} | null> {
+  const cookie = (await cookies()).get(accessCookieName(gallery.token))?.value;
+  if (!cookie?.startsWith('invite:')) return null;
+  const { data } = await db.from('gallery_participants').select('person_id, role')
+    .eq('gallery_id', gallery.id)
+    .eq('access_token_hash', cookie.slice('invite:'.length)).eq('status', 'approved').maybeSingle();
+  return data;
+}
+
 /** Shared is not sufficient: a gallery can be deliberately time-bound. */
 export async function visitorCanAccessGallery(gallery: GalleryVisitorGate): Promise<boolean> {
   if (!gallery.shared_at || galleryHasExpired(gallery.expires_on)) return false;
   if (gallery.access_mode === 'link') return true;
-  if (!gallery.access_code_hash) return false;
   const cookie = (await cookies()).get(accessCookieName(gallery.token))?.value;
-  return !!cookie && cookie === gallery.access_code_hash;
+  if (gallery.access_mode === 'code') return !!cookie && !!gallery.access_code_hash
+    && (cookie === gallery.access_code_hash || cookie === `code:${gallery.access_code_hash}`);
+  if (!cookie?.startsWith('invite:')) return false;
+  const { data } = await db.from('gallery_participants').select('id')
+    .eq('gallery_id', gallery.id).eq('access_token_hash', cookie.slice('invite:'.length))
+    .eq('status', 'approved').maybeSingle();
+  return !!data;
 }
 
 async function assertVisitorCanAccessGallery(gallery: GalleryVisitorGate): Promise<void> {
@@ -55,10 +72,11 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     .from('galleries')
     .select('id, name, token, shared_at, expires_on, access_mode, may_download, cover_file_id, price_list_id, '
       + 'gallery_files(file_id, section_id, file:files(name, mime_type)), '
-      + 'sections:gallery_sections(id, name, position, visible_to_clients, gallery_files(id)), '
+      + 'sections:gallery_sections(id, name, position, visible_to_clients, audience_role, gallery_files(id)), '
       + 'collections:gallery_collections(id, name, kind, max_items, due_on, submitted_at, '
       + 'person:people(name, email), items:gallery_collection_files(id)), '
-      + 'comments:gallery_comments(id, body, created_at, person:people(name), file:files(name))')
+      + 'comments:gallery_comments(id, body, created_at, person:people(name), file:files(name)), '
+      + 'participants:gallery_participants(id, role, status, person:people(name, email))')
     .eq('studio_id', who.studioId)
     .eq('job_id', jobId)
     .order('created_at', { ascending: false });
@@ -70,11 +88,12 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
 
   return ((data ?? []) as unknown as {
     id: string; name: string; token: string; shared_at: string | null;
-    expires_on: string | null; access_mode: 'link' | 'code'; may_download: boolean;
+    expires_on: string | null; access_mode: 'link' | 'code' | 'invite'; may_download: boolean;
     cover_file_id: string | null; price_list_id: string | null;
     gallery_files: { file_id: string; section_id: string; file: { name: string; mime_type: string | null } | null }[];
     sections: {
       id: string; name: string; position: number; visible_to_clients: boolean;
+      audience_role: 'main_client' | 'guest' | 'vendor' | null;
       gallery_files: { id: string }[];
     }[];
     collections: {
@@ -86,6 +105,10 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     comments: {
       id: string; body: string; created_at: string;
       person: { name: string } | null; file: { name: string } | null;
+    }[];
+    participants: {
+      id: string; role: 'main_client' | 'guest' | 'vendor'; status: 'invited' | 'approved' | 'revoked';
+      person: { name: string; email: string | null } | null;
     }[];
   }[]).map((g) => ({
     id: g.id,
@@ -102,6 +125,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
       name: section.name,
       position: section.position,
       visibleToClients: section.visible_to_clients,
+      audienceRole: section.audience_role,
       howMany: (section.gallery_files ?? []).length,
     })),
     members: (g.gallery_files ?? []).flatMap((member) => member.file ? [{
@@ -127,6 +151,13 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
       authorName: comment.person?.name ?? 'A visitor',
       fileName: comment.file?.name ?? 'A picture',
       createdAt: comment.created_at,
+    })),
+    participants: (g.participants ?? []).map((participant) => ({
+      id: participant.id,
+      name: participant.person?.name ?? 'Unknown person',
+      email: participant.person?.email ?? null,
+      role: participant.role,
+      status: participant.status,
     })),
     priceListId: g.price_list_id,
   }));
@@ -471,6 +502,24 @@ export async function setSectionVisibility(input: {
   revalidatePath(`/jobs/${input.jobId}`);
 }
 
+/** Limit one gallery section to a named invitation role, or return it to everyone. */
+export async function setSectionAudience(input: {
+  galleryId: string; jobId: string; sectionId: string;
+  audienceRole: 'main_client' | 'guest' | 'vendor' | null;
+}): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  const { error } = await db.from('gallery_sections').update({ audience_role: input.audienceRole })
+    .eq('id', input.sectionId).eq('gallery_id', input.galleryId).eq('studio_id', who.studioId);
+  if (error) throw new Error('Could not change section access');
+  await db.from('events').insert({
+    studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
+    action: 'section_audience_changed', actor_id: who.personId,
+    payload: { section: input.sectionId, audienceRole: input.audienceRole },
+  });
+  revalidatePath(`/jobs/${input.jobId}`);
+}
+
 /** Put a gallery member in a section without changing the gallery's promised set. */
 export async function moveGalleryFile(input: {
   galleryId: string; jobId: string; fileId: string; sectionId: string;
@@ -537,7 +586,7 @@ export async function setGalleryExpiry(input: {
 }
 
 export async function setGalleryAccess(input: {
-  galleryId: string; jobId: string; mode: 'link' | 'code'; code?: string;
+  galleryId: string; jobId: string; mode: 'link' | 'code' | 'invite'; code?: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -558,6 +607,51 @@ export async function setGalleryAccess(input: {
   revalidatePath(`/jobs/${input.jobId}`);
 }
 
+/** Invite a named participant with a revocable, opaque link. */
+export async function inviteGalleryParticipant(input: {
+  galleryId: string; jobId: string; email: string; name?: string;
+  role: 'main_client' | 'guest' | 'vendor';
+}): Promise<{ invite: string }> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  const { data: gallery } = await db.from('galleries').select('id')
+    .eq('id', input.galleryId).eq('studio_id', who.studioId).maybeSingle();
+  if (!gallery) throw new Error('That gallery is not in this studio');
+  const personId = await findOrCreateGalleryPerson({
+    studioId: who.studioId, email: input.email, name: input.name,
+  });
+  const invite = randomBytes(24).toString('hex');
+  const { error } = await db.from('gallery_participants').upsert({
+    studio_id: who.studioId, gallery_id: gallery.id, person_id: personId, role: input.role,
+    status: 'invited', access_token_hash: codeHash(invite), invited_at: new Date().toISOString(),
+    approved_at: null, revoked_at: null,
+  }, { onConflict: 'gallery_id,person_id' });
+  if (error) throw new Error('Could not create that invitation');
+  await db.from('events').insert({
+    studio_id: who.studioId, subject_type: 'gallery', subject_id: gallery.id,
+    action: 'participant_invited', actor_id: who.personId,
+    payload: { email: input.email.trim().toLowerCase(), role: input.role },
+  });
+  revalidatePath(`/jobs/${input.jobId}`);
+  return { invite };
+}
+
+export async function revokeGalleryParticipant(input: {
+  galleryId: string; jobId: string; participantId: string;
+}): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  const { error } = await db.from('gallery_participants').update({
+    status: 'revoked', revoked_at: new Date().toISOString(),
+  }).eq('id', input.participantId).eq('gallery_id', input.galleryId).eq('studio_id', who.studioId);
+  if (error) throw new Error('Could not revoke that access');
+  await db.from('events').insert({
+    studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
+    action: 'participant_revoked', actor_id: who.personId, payload: { participant: input.participantId },
+  });
+  revalidatePath(`/jobs/${input.jobId}`);
+}
+
 /**
  * The gallery as the client meets it — by token, with no session.
  *
@@ -569,7 +663,7 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
     .from('galleries')
     .select('id, name, token, shared_at, expires_on, access_mode, access_code_hash, may_download, '
       + 'cover_file_id, studio:studios(name), '
-      + 'sections:gallery_sections(id, name, position, visible_to_clients, '
+      + 'sections:gallery_sections(id, name, position, visible_to_clients, audience_role, '
       + 'items:gallery_files(position, file:files(id, name, storage_path, mime_type)))')
     .eq('token', token)
     .maybeSingle();
@@ -582,10 +676,11 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
 
   const g = data as unknown as {
     id: string; name: string; token: string; shared_at: string | null;
-    expires_on: string | null; access_mode: 'link' | 'code'; access_code_hash: string | null;
+    expires_on: string | null; access_mode: 'link' | 'code' | 'invite'; access_code_hash: string | null;
     may_download: boolean; cover_file_id: string | null; studio: { name: string } | null;
     sections: {
       id: string; name: string; position: number; visible_to_clients: boolean;
+      audience_role: 'main_client' | 'guest' | 'vendor' | null;
       items: { position: number; file: { id: string; name: string; storage_path: string; mime_type: string | null } | null }[];
     }[];
   };
@@ -594,9 +689,11 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
   if (!await visitorCanAccessGallery(g)) {
     return { locked: true, name: g.name, token: g.token, studioName: g.studio?.name ?? 'The studio' };
   }
+  const participant = await invitedParticipantForGallery(g);
 
   const sections = (g.sections ?? [])
-    .filter((section) => section.visible_to_clients)
+    .filter((section) => section.visible_to_clients
+      && (!section.audience_role || section.audience_role === participant?.role))
     .sort((a, b) => a.position - b.position)
     .map((section) => ({
       id: section.id,
@@ -639,7 +736,7 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
 /** Prove an access code once, then keep only its hash in an HTTP-only cookie. */
 export async function unlockGallery(input: { token: string; code: string }): Promise<void> {
   const { data } = await db.from('galleries')
-    .select('token, shared_at, expires_on, access_mode, access_code_hash')
+    .select('id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', input.token).maybeSingle();
   const gallery = data as GalleryVisitorGate | null;
   if (!gallery || !gallery.shared_at || galleryHasExpired(gallery.expires_on)) {
@@ -682,13 +779,22 @@ async function findOrCreateGalleryPerson(input: {
   return made.id;
 }
 
+/** An invite identifies its participant; links and codes fall back to declared email. */
+export async function visitorPersonForGallery(
+  gallery: GalleryVisitorGate & { studio_id: string }, email: string, name?: string,
+): Promise<string> {
+  const invited = await invitedParticipantForGallery(gallery);
+  if (invited) return invited.person_id;
+  return findOrCreateGalleryPerson({ studioId: gallery.studio_id, email, name });
+}
+
 /** A declared visitor opening a gallery is an event, not a counter to maintain. */
 export async function recordGalleryView(input: { token: string; email: string }): Promise<void> {
   const { data: gallery } = await db.from('galleries')
     .select('id, studio_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', input.token).maybeSingle();
   if (!gallery || !await visitorCanAccessGallery(gallery as GalleryVisitorGate)) return;
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   await db.from('events').insert({
     studio_id: gallery.studio_id, subject_type: 'gallery', subject_id: gallery.id,
     action: 'viewed', actor_id: personId, payload: {},
@@ -708,7 +814,7 @@ export async function prepareGalleryDownload(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery || !gallery.may_download) throw new Error('Downloads are not enabled for this gallery');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: member } = await db.from('gallery_files')
     .select('file:files(name, storage_path)').eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
   const file = (member as unknown as { file: { name: string; storage_path: string } | null } | null)?.file;
@@ -734,7 +840,7 @@ export async function commentOnGalleryFile(input: {
   const body = input.body.trim();
   if (!body) throw new Error('Write a comment first');
   if (body.length > 2_000) throw new Error('Keep a comment under 2,000 characters');
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: member } = await db.from('gallery_files').select('id')
     .eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
   if (!member) throw new Error('That picture is not in this gallery');
@@ -791,15 +897,20 @@ export async function collectionsForVisitor(input: {
     .select('id, studio_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', input.token).maybeSingle();
   if (!gallery || !await visitorCanAccessGallery(gallery as GalleryVisitorGate)) return [];
-  const email = input.email.trim().toLowerCase();
-  if (!email.includes('@')) return [];
-  const { data: person } = await db.from('people').select('id')
-    .eq('studio_id', gallery.studio_id).eq('email', email).maybeSingle();
-  if (!person) return [];
+  const invited = await invitedParticipantForGallery(gallery as GalleryVisitorGate);
+  let personId = invited?.person_id ?? null;
+  if (!personId) {
+    const email = input.email.trim().toLowerCase();
+    if (!email.includes('@')) return [];
+    const { data: person } = await db.from('people').select('id')
+      .eq('studio_id', gallery.studio_id).eq('email', email).maybeSingle();
+    personId = person?.id ?? null;
+  }
+  if (!personId) return [];
 
   const { data, error } = await db.from('gallery_collections')
     .select('id, name, kind, max_items, due_on, submitted_at, items:gallery_collection_files(file_id)')
-    .eq('gallery_id', gallery.id).eq('person_id', person.id).order('created_at', { ascending: true });
+    .eq('gallery_id', gallery.id).eq('person_id', personId).order('created_at', { ascending: true });
   if (error) throw new Error('Could not read your collections');
   return ((data ?? []) as unknown as {
     id: string; name: string; kind: 'collection' | 'selection'; max_items: number | null;
@@ -821,7 +932,7 @@ export async function createVisitorCollection(input: {
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
   const name = input.name.trim();
   if (!name) throw new Error('Give this collection a name');
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: made, error } = await db.from('gallery_collections').insert({
     studio_id: gallery.studio_id, gallery_id: gallery.id, person_id: personId, name,
   }).select('id, name, kind, max_items, due_on, submitted_at').single();
@@ -845,7 +956,7 @@ export async function toggleCollectionFile(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery) throw new Error('That gallery is not available');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: collection } = await db.from('gallery_collections')
     .select('id, kind, max_items, due_on, submitted_at')
     .eq('id', input.collectionId).eq('gallery_id', gallery.id).eq('person_id', personId).maybeSingle();
@@ -892,7 +1003,7 @@ export async function submitGallerySelection(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery) throw new Error('That gallery is not available');
   await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
-  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const personId = await visitorPersonForGallery(gallery as GalleryVisitorGate & { studio_id: string }, input.email);
   const { data: collection } = await db.from('gallery_collections')
     .select('id, kind, max_items, due_on, submitted_at').eq('id', input.collectionId)
     .eq('gallery_id', gallery.id).eq('person_id', personId).maybeSingle();
@@ -918,10 +1029,10 @@ export async function submitGallerySelection(input: {
 /**
  * A visitor favouriting a frame.
  *
- * They identify by email, which finds or makes a person in the studio's own
- * books. That is the point: the client's favourites land in the SAME table as
- * the studio's selects, attributed to a real person, so "are these the ones
- * they want" has an answer rather than a guess.
+ * An invitation identifies its participant; open links identify by email.
+ * Either way, favourites land in the SAME table as the studio's selects,
+ * attributed to a real person, so "are these the ones they want" has an
+ * answer rather than a guess.
  */
 export async function favourite(input: {
   token: string;
@@ -949,30 +1060,9 @@ export async function favourite(input: {
     .maybeSingle();
   if (!inIt) throw new Error('That picture is not in this gallery');
 
-  const email = input.email.trim().toLowerCase();
-  if (!email) throw new Error('An email is needed to keep your picks');
-
-  const { data: found } = await db
-    .from('people')
-    .select('id')
-    .eq('studio_id', gallery.studio_id)
-    .eq('email', email)
-    .maybeSingle();
-
-  let personId = found?.id ?? null;
-  if (!personId) {
-    const { data: made, error } = await db
-      .from('people')
-      .insert({
-        studio_id: gallery.studio_id,
-        name: input.name?.trim() || email,
-        email,
-      })
-      .select('id')
-      .single();
-    if (error) throw new Error('Could not keep your picks');
-    personId = made.id;
-  }
+  const personId = await visitorPersonForGallery(
+    gallery as GalleryVisitorGate & { studio_id: string }, input.email, input.name,
+  );
 
   if (input.on) {
     const { error } = await db.from('choices').insert({
@@ -1004,12 +1094,17 @@ export async function picksOf(input: {
     .eq('token', input.token).maybeSingle();
   if (!gallery || !await visitorCanAccessGallery(gallery as GalleryVisitorGate)) return [];
 
-  const { data: person } = await db
-    .from('people').select('id')
-    .eq('studio_id', gallery.studio_id)
-    .eq('email', input.email.trim().toLowerCase())
-    .maybeSingle();
-  if (!person) return [];
+  const invited = await invitedParticipantForGallery(gallery as GalleryVisitorGate);
+  let personId = invited?.person_id ?? null;
+  if (!personId) {
+    const { data: person } = await db
+      .from('people').select('id')
+      .eq('studio_id', gallery.studio_id)
+      .eq('email', input.email.trim().toLowerCase())
+      .maybeSingle();
+    personId = person?.id ?? null;
+  }
+  if (!personId) return [];
 
   const { data } = await db
     .from('gallery_files')
@@ -1019,8 +1114,82 @@ export async function picksOf(input: {
   const ids = ((data ?? []) as unknown as {
     file_id: string; choices: { choices: { person_id: string }[] } | null;
   }[])
-    .filter((r) => (r.choices?.choices ?? []).some((c) => c.person_id === person.id))
+    .filter((r) => (r.choices?.choices ?? []).some((c) => c.person_id === personId))
     .map((r) => r.file_id);
 
   return ids;
+}
+
+/**
+ * Every gallery in the studio, newest first, with a cover to look at.
+ *
+ * A studio thinks in galleries as much as in jobs - "where is the Okafor set" -
+ * so they get an index of their own rather than only existing inside the job
+ * that produced them.
+ */
+export async function allGalleries(): Promise<{
+  id: string; name: string; token: string; jobId: string | null;
+  clientName: string | null; sharedAt: string | null; expiresOn: string | null;
+  howMany: number; coverUrl: string | null; orders: number;
+}[]> {
+  const who = await whoIsAsking();
+  if (!who) return [];
+
+  const { data, error } = await db
+    .from('galleries')
+    .select('id, name, token, job_id, shared_at, expires_on, cover_file_id, '
+      + 'job:jobs(client:people(name)), '
+      + 'items:gallery_files(file:files(id, storage_path, mime_type)), '
+      + 'orders:orders(id)')
+    .eq('studio_id', who.studioId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to read the galleries:', error);
+    throw new Error('Could not read the galleries');
+  }
+
+  const rows = (data ?? []) as unknown as {
+    id: string; name: string; token: string; job_id: string | null;
+    shared_at: string | null; expires_on: string | null; cover_file_id: string | null;
+    job: { client: { name: string } | null } | null;
+    items: { file: { id: string; storage_path: string; mime_type: string | null } | null }[];
+    orders: { id: string }[];
+  }[];
+
+  /*
+   * One signing call for every cover rather than one per gallery. Signing is a
+   * round trip and an index of forty galleries would otherwise be forty of them
+   * before the page could draw.
+   */
+  const covers = rows.map((g) => {
+    const pictures = (g.items ?? [])
+      .map((i) => i.file)
+      .filter((f): f is NonNullable<typeof f> => !!f && (f.mime_type ?? '').startsWith('image/'));
+    const chosen = pictures.find((f) => f.id === g.cover_file_id) ?? pictures[0] ?? null;
+    return { id: g.id, path: chosen?.storage_path ?? null };
+  });
+
+  const paths = covers.map((c) => c.path).filter((p): p is string => !!p);
+  const urlFor = new Map<string, string>();
+  if (paths.length > 0) {
+    const { data: signed } = await db.storage
+      .from('weave-files').createSignedUrls(paths, 60 * 60);
+    for (const s of signed ?? []) {
+      if (s.path && s.signedUrl) urlFor.set(s.path, s.signedUrl);
+    }
+  }
+
+  return rows.map((g, i) => ({
+    id: g.id,
+    name: g.name,
+    token: g.token,
+    jobId: g.job_id,
+    clientName: g.job?.client?.name ?? null,
+    sharedAt: g.shared_at,
+    expiresOn: g.expires_on,
+    howMany: (g.items ?? []).length,
+    coverUrl: ((path) => (path ? urlFor.get(path) ?? null : null))(covers[i].path),
+    orders: (g.orders ?? []).length,
+  }));
 }

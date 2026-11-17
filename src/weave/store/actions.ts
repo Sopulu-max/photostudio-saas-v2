@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
-import { visitorCanAccessGallery, type GalleryVisitorGate } from '@/weave/galleries/actions';
+import { visitorCanAccessGallery, visitorPersonForGallery, type GalleryVisitorGate } from '@/weave/galleries/actions';
 import type { BasketLine, Order, PriceList, ProductKind } from './shape';
 
 /* ------------------------------------------------------------ the studio's */
@@ -155,7 +155,7 @@ export async function sellFrom(input: {
 export async function whatIsForSale(token: string): Promise<PriceList | null> {
   const { data: gallery } = await db
     .from('galleries')
-    .select('price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
+    .select('id, price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', token)
     .maybeSingle();
 
@@ -243,19 +243,9 @@ export async function placeOrder(input: {
 
   if (lines.length === 0) throw new Error('Nothing in that basket is for sale here');
 
-  const { data: found } = await db
-    .from('people').select('id')
-    .eq('studio_id', gallery.studio_id).eq('email', email).maybeSingle();
-
-  let personId = found?.id ?? null;
-  if (!personId) {
-    const { data: made, error } = await db
-      .from('people')
-      .insert({ studio_id: gallery.studio_id, name: input.name?.trim() || email, email })
-      .select('id').single();
-    if (error) throw new Error('Could not take that order');
-    personId = made.id;
-  }
+  const personId = await visitorPersonForGallery(
+    gallery as GalleryVisitorGate & { studio_id: string }, email, input.name,
+  );
 
   /*
    * The discount is worked out HERE, from the studio's own row, and never from

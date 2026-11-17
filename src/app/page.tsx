@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { StudioNav } from './StudioNav';
+import { StudioShell } from './StudioShell';
 import { readBoard } from '@/weave/jobs/actions';
 import { occasionsBetween } from '@/weave/occasions/actions';
 import { sayWhen, sayCrew } from '@/weave/occasions/shape';
@@ -28,6 +28,7 @@ export default async function BoardPage() {
     .reduce((n, c) => n + c.jobs.length, 0);
 
   return (
+    <StudioShell here="board" studioName={who.studioName}>
     <div className="q-page">
       <header className="q-page-header">
         <div>
@@ -38,7 +39,6 @@ export default async function BoardPage() {
               : `${live} ${live === 1 ? 'job is' : 'jobs are'} open.`}
           </p>
         </div>
-        <StudioNav here="board" />
       </header>
 
       {/*
@@ -93,5 +93,6 @@ export default async function BoardPage() {
         </div>
       </div>
     </div>
+    </StudioShell>
   );
 }

@@ -11,7 +11,7 @@ export type GallerySummary = {
   token: string;
   sharedAt: string | null;
   expiresOn: string | null;
-  accessMode: 'link' | 'code';
+  accessMode: 'link' | 'code' | 'invite';
   mayDownload: boolean;
   howMany: number;
   coverFileId: string | null;
@@ -19,6 +19,7 @@ export type GallerySummary = {
   members: GalleryMemberSummary[];
   collections: GalleryCollectionSummary[];
   comments: GalleryCommentSummary[];
+  participants: GalleryParticipantSummary[];
   /** Null means nothing is for sale in it, which is most galleries. */
   priceListId: string | null;
 };
@@ -28,6 +29,7 @@ export type GallerySectionSummary = {
   name: string;
   position: number;
   visibleToClients: boolean;
+  audienceRole: 'main_client' | 'guest' | 'vendor' | null;
   howMany: number;
 };
 
@@ -56,6 +58,14 @@ export type GalleryCommentSummary = {
   authorName: string;
   fileName: string;
   createdAt: string;
+};
+
+export type GalleryParticipantSummary = {
+  id: string;
+  name: string;
+  email: string | null;
+  role: 'main_client' | 'guest' | 'vendor';
+  status: 'invited' | 'approved' | 'revoked';
 };
 
 export type ClientGalleryCollection = {

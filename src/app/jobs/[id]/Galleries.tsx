@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import {
   addGallerySection, allowDownload, fillGallery, makeGallery, moveGalleryFile,
-  requestGallerySelection, saveGalleryAsTemplate, setGalleryAccess, setGalleryCover, setGalleryExpiry, setSectionVisibility, shareGallery,
+  inviteGalleryParticipant, requestGallerySelection, revokeGalleryParticipant, saveGalleryAsTemplate,
+  setGalleryAccess, setGalleryCover, setGalleryExpiry, setSectionAudience, setSectionVisibility, shareGallery,
 } from '@/weave/galleries/actions';
 import { sellFrom } from '@/weave/store/actions';
 import { sayGallery, type GalleryActivity, type GallerySummary, type GalleryTemplate } from '@/weave/galleries/shape';
@@ -13,9 +14,10 @@ type Run = (fn: () => Promise<unknown>) => void;
 
 /** The operating controls for one gallery; every setting changes live delivery. */
 function GalleryControls({
-  gallery, activity, jobId, lists, copied, copy, working, run,
+  gallery, activity, jobId, origin, lists, copied, copy, working, run,
 }: {
   gallery: GallerySummary; activity: GalleryActivity | undefined; jobId: string; lists: PriceList[];
+  origin: string;
   copied: string | null; copy: (token: string) => Promise<void>; working: boolean; run: Run;
 }) {
   const [sectionName, setSectionName] = useState('');
@@ -27,6 +29,9 @@ function GalleryControls({
   const [selectionMax, setSelectionMax] = useState('20');
   const [selectionDueOn, setSelectionDueOn] = useState('');
   const [templateName, setTemplateName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'main_client' | 'guest' | 'vendor'>('guest');
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
 
   const addSection = (event: React.FormEvent) => {
     event.preventDefault();
@@ -59,6 +64,17 @@ function GalleryControls({
       setSelectionEmail('');
       setSelectionName('');
       setSelectionDueOn('');
+    });
+  };
+
+  const invite = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      const { invite: token } = await inviteGalleryParticipant({
+        galleryId: gallery.id, jobId, email: inviteEmail, role: inviteRole,
+      });
+      setInviteLink(`${origin}/g/${gallery.token}/access/${token}`);
+      setInviteEmail('');
     });
   };
 
@@ -100,6 +116,16 @@ function GalleryControls({
               }))}>
               {section.visibleToClients ? 'Hide' : 'Show'}
             </button>
+            <select className="q-input q-input-sm" aria-label={`${section.name} audience`} value={section.audienceRole ?? ''}
+              disabled={working} onChange={(event) => run(() => setSectionAudience({
+                galleryId: gallery.id, jobId, sectionId: section.id,
+                audienceRole: (event.target.value || null) as 'main_client' | 'guest' | 'vendor' | null,
+              }))}>
+              <option value="">Everyone with gallery access</option>
+              <option value="main_client">Main client only</option>
+              <option value="guest">Guests only</option>
+              <option value="vendor">Vendors only</option>
+            </select>
           </div>
         ))}
         <div className="q-row q-row-sm">
@@ -212,6 +238,39 @@ function GalleryControls({
         ))}
       </details>
 
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Gallery access</summary>
+        {gallery.participants.length === 0 ? (
+          <p className="q-empty">No named participants yet.</p>
+        ) : gallery.participants.map((participant) => (
+          <div className="q-row q-row-between" key={participant.id}>
+            <span className="q-text-body">{participant.name} <span className="q-meta">· {participant.role} · {participant.status}</span></span>
+            {participant.status !== 'revoked' && (
+              <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+                onClick={() => run(() => revokeGalleryParticipant({
+                  galleryId: gallery.id, jobId, participantId: participant.id,
+                }))}>
+                Revoke
+              </button>
+            )}
+          </div>
+        ))}
+        <form className="q-row q-row-sm" onSubmit={invite}>
+          <input className="q-input q-input-sm" type="email" placeholder="Participant email" value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)} disabled={working} />
+          <select className="q-input q-input-sm" value={inviteRole} disabled={working}
+            onChange={(event) => setInviteRole(event.target.value as typeof inviteRole)}>
+            <option value="main_client">Main client</option>
+            <option value="guest">Guest</option>
+            <option value="vendor">Vendor</option>
+          </select>
+          <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !inviteEmail.includes('@')}>
+            Make invite link
+          </button>
+        </form>
+        {inviteLink && <span className="q-meta-sm">{inviteLink}</span>}
+      </details>
+
       <form className="q-row q-row-sm" onSubmit={(event) => {
         event.preventDefault();
         run(async () => {
@@ -234,16 +293,22 @@ function GalleryControls({
           <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working}>Save</button>
         </form>
         {gallery.accessMode === 'link' ? (
-          <form className="q-row q-row-sm" onSubmit={requireCode}>
-            <input className="q-input q-input-sm" type="password" placeholder="Set a private access code" value={code}
-              onChange={(event) => setCode(event.target.value)} disabled={working} />
-            <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || code.length < 6}>
-              Require code
+          <div className="q-row q-row-sm">
+            <form className="q-row q-row-sm" onSubmit={requireCode}>
+              <input className="q-input q-input-sm" type="password" placeholder="Set a private access code" value={code}
+                onChange={(event) => setCode(event.target.value)} disabled={working} />
+              <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || code.length < 6}>
+                Require code
+              </button>
+            </form>
+            <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+              onClick={() => run(() => setGalleryAccess({ galleryId: gallery.id, jobId, mode: 'invite' }))}>
+              Invited people only
             </button>
-          </form>
+          </div>
         ) : (
           <div className="q-row q-row-sm">
-            <span className="q-meta">Access code required</span>
+            <span className="q-meta">{gallery.accessMode === 'invite' ? 'Named invitations required' : 'Access code required'}</span>
             <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
               onClick={() => run(() => setGalleryAccess({ galleryId: gallery.id, jobId, mode: 'link' }))}>
               Use link only
@@ -314,7 +379,7 @@ export function Galleries({
                 <span className={gallery.sharedAt ? 'q-meta' : 'q-meta q-warm'}>{sayGallery(gallery)}</span>
               </div>
               {gallery.sharedAt && <span className="q-meta-sm">{origin}/g/{gallery.token}</span>}
-              <GalleryControls gallery={gallery} activity={activity.find((entry) => entry.galleryId === gallery.id)} jobId={jobId} lists={lists}
+              <GalleryControls gallery={gallery} activity={activity.find((entry) => entry.galleryId === gallery.id)} jobId={jobId} origin={origin} lists={lists}
                 copied={copied} copy={copy} working={working} run={run} />
             </div>
           ))}
