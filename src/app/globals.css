@@ -6096,6 +6096,35 @@ button.q-md-box:focus-visible {
   object-fit: cover;
   background: var(--q-color-ink-900);
 }
+.q-gal-slideshow {
+  position: relative;
+  overflow: hidden;
+  min-height: 320px;
+  border-radius: 14px;
+  background: var(--q-color-ink-900);
+  box-shadow: var(--q-shadow-lg);
+}
+.q-gal-slideshow-media {
+  display: block;
+  width: 100%;
+  max-height: min(72vh, 720px);
+  min-height: 320px;
+  object-fit: contain;
+}
+.q-gal-slideshow-bar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  color: var(--q-gal-on-cover);
+  background: var(--q-gal-veil);
+  font-family: var(--q-font-mono);
+  font-size: 0.72rem;
+}
 .q-gal-section-title {
   margin: 0;
   color: var(--q-gal-on-cover);

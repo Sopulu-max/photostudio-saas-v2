@@ -54,6 +54,8 @@ export function Viewer({
   const [note, setNote] = useState('');
   const [placed, setPlaced] = useState(false);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [slideshow, setSlideshow] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [commentFileId, setCommentFileId] = useState(gallery.files[0]?.id ?? '');
   const [commentBody, setCommentBody] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -76,6 +78,14 @@ export function Viewer({
     void recordGalleryView({ token: gallery.token, email: visitorEmail });
     return () => { alive = false; };
   }, [visitorEmail, gallery.token]);
+
+  useEffect(() => {
+    if (!slideshow || gallery.files.length < 2) return;
+    const timer = window.setInterval(() => {
+      setSlideIndex((current) => (current + 1) % gallery.files.length);
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [slideshow, gallery.files.length]);
 
   const remember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,6 +265,7 @@ export function Viewer({
   const cover = gallery.coverFileId
     ? gallery.files.find((file) => file.id === gallery.coverFileId && (file.mimeType ?? '').startsWith('image/')) ?? null
     : null;
+  const activeSlide = gallery.files[slideIndex] ?? null;
 
   return (
     <div className="q-gallery">
@@ -312,6 +323,42 @@ export function Viewer({
               Order prints
             </button>}
           </div>
+        )}
+
+        {gallery.files.length > 0 && !slideshow && (
+          <button type="button" className="q-btn q-btn-ghost q-btn-sm" onClick={() => {
+            setSlideIndex(0);
+            setSlideshow(true);
+          }}>
+            Play slideshow
+          </button>
+        )}
+
+        {slideshow && activeSlide && (
+          <section className="q-gal-slideshow" aria-label="Gallery slideshow">
+            {(activeSlide.mimeType ?? '').startsWith('video/') ? (
+              <video className="q-gal-slideshow-media" src={activeSlide.url ?? undefined} muted autoPlay playsInline loop />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img className="q-gal-slideshow-media" src={activeSlide.url ?? undefined} alt={activeSlide.name} />
+            )}
+            <div className="q-gal-slideshow-bar">
+              <span>{slideIndex + 1} / {gallery.files.length}</span>
+              <span className="q-row q-row-sm">
+                <button type="button" className="q-btn q-btn-ghost q-btn-xs"
+                  onClick={() => setSlideIndex((current) => (current - 1 + gallery.files.length) % gallery.files.length)}>
+                  Previous
+                </button>
+                <button type="button" className="q-btn q-btn-ghost q-btn-xs"
+                  onClick={() => setSlideIndex((current) => (current + 1) % gallery.files.length)}>
+                  Next
+                </button>
+                <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => setSlideshow(false)}>
+                  Close
+                </button>
+              </span>
+            </div>
+          </section>
         )}
 
         {visitorEmail && (
