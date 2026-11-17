@@ -4,7 +4,9 @@ import { useState, useTransition } from 'react';
 import {
   makeGallery, fillGallery, shareGallery, allowDownload,
 } from '@/weave/galleries/actions';
+import { sellFrom } from '@/weave/store/actions';
 import { sayGallery, type GallerySummary } from '@/weave/galleries/shape';
+import type { PriceList } from '@/weave/store/shape';
 
 /**
  * The galleries made from this job.
@@ -15,11 +17,12 @@ import { sayGallery, type GallerySummary } from '@/weave/galleries/shape';
  * reach into a gallery the client is already looking at.
  */
 export function Galleries({
-  jobId, galleries, origin,
+  jobId, galleries, origin, lists,
 }: {
   jobId: string;
   galleries: GallerySummary[];
   origin: string;
+  lists: PriceList[];
 }) {
   const [name, setName] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
@@ -108,6 +111,27 @@ export function Galleries({
                   {g.mayDownload ? 'Stop downloads' : 'Allow downloads'}
                 </button>
               </div>
+
+              {/*
+                * Most galleries are a delivery and not a shop, so selling is
+                * off until a list is chosen rather than on by default.
+                */}
+              <label className="q-row q-row-sm">
+                <span className="q-meta">Sells from</span>
+                <select
+                  className="q-input q-input-sm"
+                  value={g.priceListId ?? ''}
+                  disabled={working || lists.length === 0}
+                  onChange={(e) => run(() => sellFrom({
+                    galleryId: g.id, jobId, priceListId: e.target.value || null,
+                  }))}
+                >
+                  <option value="">Nothing — just the pictures</option>
+                  {lists.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           ))}
         </div>

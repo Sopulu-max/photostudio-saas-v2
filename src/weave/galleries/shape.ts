@@ -12,6 +12,8 @@ export type GallerySummary = {
   sharedAt: string | null;
   mayDownload: boolean;
   howMany: number;
+  /** Null means nothing is for sale in it, which is most galleries. */
+  priceListId: string | null;
 };
 
 export type PublicGallery = {

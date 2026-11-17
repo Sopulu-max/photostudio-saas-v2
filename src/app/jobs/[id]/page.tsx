@@ -7,10 +7,12 @@ import { occasionsForJob, listPeople } from '@/weave/occasions/actions';
 import { headers } from 'next/headers';
 import { filesForJob } from '@/weave/files/actions';
 import { galleriesForJob } from '@/weave/galleries/actions';
+import { priceLists } from '@/weave/store/actions';
 import { JobAmend } from './JobAmend';
 import { Occasions } from './Occasions';
 import { Files } from './Files';
 import { Galleries } from './Galleries';
+import { StudioNav } from '../../StudioNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,11 +58,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
    * draw one page is how an app starts feeling like a website, and none of
    * these three answers depends on another.
    */
-  const [occasions, people, files, galleries, head] = await Promise.all([
+  const [occasions, people, files, galleries, lists, head] = await Promise.all([
     occasionsForJob(id),
     listPeople(),
     filesForJob(id),
     galleriesForJob(id),
+    priceLists(),
     headers(),
   ]);
 
@@ -83,7 +86,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             {job.wants ?? 'Nothing written down about what they want yet.'}
           </p>
         </div>
-        <Link href="/" className="q-btn q-btn-secondary q-btn-sm">The board</Link>
+        <StudioNav here="board" />
       </header>
 
       <JobAmend job={job} />
@@ -92,7 +95,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
       <Files jobId={job.id} files={files} />
 
-      <Galleries jobId={job.id} galleries={galleries} origin={origin} />
+      <Galleries jobId={job.id} galleries={galleries} origin={origin} lists={lists} />
 
       <section className="q-card q-stack q-stack-sm">
         <h2 className="q-section-title">What has happened</h2>

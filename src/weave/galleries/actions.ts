@@ -14,7 +14,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
 
   const { data, error } = await db
     .from('galleries')
-    .select('id, name, token, shared_at, may_download, gallery_files(id)')
+    .select('id, name, token, shared_at, may_download, price_list_id, gallery_files(id)')
     .eq('studio_id', who.studioId)
     .eq('job_id', jobId)
     .order('created_at', { ascending: false });
@@ -26,7 +26,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
 
   return ((data ?? []) as unknown as {
     id: string; name: string; token: string; shared_at: string | null;
-    may_download: boolean; gallery_files: { id: string }[];
+    may_download: boolean; price_list_id: string | null; gallery_files: { id: string }[];
   }[]).map((g) => ({
     id: g.id,
     name: g.name,
@@ -34,6 +34,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     sharedAt: g.shared_at,
     mayDownload: g.may_download,
     howMany: (g.gallery_files ?? []).length,
+    priceListId: g.price_list_id,
   }));
 }
 

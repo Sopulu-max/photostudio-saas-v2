@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { StudioNav } from './StudioNav';
 import { readBoard } from '@/weave/jobs/actions';
 import { occasionsBetween } from '@/weave/occasions/actions';
 import { sayWhen, sayCrew } from '@/weave/occasions/shape';
@@ -37,6 +38,7 @@ export default async function BoardPage() {
               : `${live} ${live === 1 ? 'job is' : 'jobs are'} open.`}
           </p>
         </div>
+        <StudioNav here="board" />
       </header>
 
       {/*
