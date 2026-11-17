@@ -127,7 +127,7 @@ describe('how a gallery says itself', () => {
   const g = (over: Partial<GallerySummary> = {}): GallerySummary => ({
     id: 'a', name: 'Selects', token: 't', sharedAt: null, expiresOn: null,
     accessMode: 'link', mayDownload: true, howMany: 12, coverFileId: null,
-    sections: [], members: [], collections: [], priceListId: null, ...over,
+    sections: [], members: [], collections: [], comments: [], priceListId: null, ...over,
   });
 
   it('distinguishes empty from unsent', () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, useTransition } from 'react';
 import {
-  collectionsForVisitor, createVisitorCollection, favourite, picksOf,
+  collectionsForVisitor, commentOnGalleryFile, createVisitorCollection, favourite, picksOf,
   prepareGalleryDownload, recordGalleryView, submitGallerySelection, toggleCollectionFile,
 } from '@/weave/galleries/actions';
 import { placeOrder } from '@/weave/store/actions';
@@ -54,6 +54,8 @@ export function Viewer({
   const [note, setNote] = useState('');
   const [placed, setPlaced] = useState(false);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [commentFileId, setCommentFileId] = useState(gallery.files[0]?.id ?? '');
+  const [commentBody, setCommentBody] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
 
@@ -183,6 +185,22 @@ export function Viewer({
         setProblem(error instanceof Error ? error.message : 'Could not prepare that download');
       } finally {
         setDownloadingFileId(null);
+      }
+    });
+  };
+
+  const comment = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!visitorEmail || !commentFileId || !commentBody.trim()) return;
+    setProblem(null);
+    start(async () => {
+      try {
+        await commentOnGalleryFile({
+          token: gallery.token, email: visitorEmail, fileId: commentFileId, body: commentBody,
+        });
+        setCommentBody('');
+      } catch (error) {
+        setProblem(error instanceof Error ? error.message : 'Could not save that comment');
       }
     });
   };
@@ -325,6 +343,21 @@ export function Viewer({
               </button>
             </form>
           </section>
+        )}
+
+        {visitorEmail && gallery.files.length > 0 && (
+          <form className="q-card q-stack q-stack-xs" onSubmit={comment}>
+            <h2 className="q-section-title">Leave a comment</h2>
+            <select className="q-input q-input-sm" value={commentFileId}
+              onChange={(event) => setCommentFileId(event.target.value)} disabled={working}>
+              {gallery.files.map((file) => <option key={file.id} value={file.id}>{file.name}</option>)}
+            </select>
+            <textarea className="q-textarea" placeholder="What would you like the studio to know?" value={commentBody}
+              onChange={(event) => setCommentBody(event.target.value)} disabled={working} />
+            <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !commentBody.trim()}>
+              Add comment
+            </button>
+          </form>
         )}
 
         {gallery.files.length === 0 ? (

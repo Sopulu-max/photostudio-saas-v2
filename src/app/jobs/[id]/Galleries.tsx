@@ -152,6 +152,7 @@ function GalleryControls({
         <div className="q-row q-row-sm q-meta">
           <span>{activity?.opens ?? 0} views</span>
           <span>{activity?.downloads ?? 0} downloads</span>
+          <span>{activity?.comments ?? 0} comments</span>
           <span>{activity?.favourites ?? 0} favourites</span>
           <span>{activity?.collectionAdds ?? 0} collection adds</span>
           <span>{activity?.selectionsSubmitted ?? 0} selections sent</span>
@@ -197,6 +198,18 @@ function GalleryControls({
             </button>
           </div>
         </form>
+      </details>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Client comments</summary>
+        {gallery.comments.length === 0 ? (
+          <p className="q-empty">No client comments yet.</p>
+        ) : gallery.comments.map((comment) => (
+          <div className="q-stack q-stack-xs" key={comment.id}>
+            <span className="q-meta">{comment.authorName} · {comment.fileName}</span>
+            <span className="q-text-body">{comment.body}</span>
+          </div>
+        ))}
       </details>
 
       <form className="q-row q-row-sm" onSubmit={(event) => {

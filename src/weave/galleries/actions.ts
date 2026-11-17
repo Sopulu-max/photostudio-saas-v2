@@ -722,6 +722,33 @@ export async function prepareGalleryDownload(input: {
   return { url: signed.signedUrl, name: file.name };
 }
 
+/** Put a visitor's words beside the one gallery file they are about. */
+export async function commentOnGalleryFile(input: {
+  token: string; email: string; fileId: string; body: string;
+}): Promise<void> {
+  const { data: gallery } = await db.from('galleries')
+    .select('id, studio_id, token, shared_at, expires_on, access_mode, access_code_hash')
+    .eq('token', input.token).maybeSingle();
+  if (!gallery) throw new Error('That gallery is not available');
+  await assertVisitorCanAccessGallery(gallery as GalleryVisitorGate);
+  const body = input.body.trim();
+  if (!body) throw new Error('Write a comment first');
+  if (body.length > 2_000) throw new Error('Keep a comment under 2,000 characters');
+  const personId = await findOrCreateGalleryPerson({ studioId: gallery.studio_id, email: input.email });
+  const { data: member } = await db.from('gallery_files').select('id')
+    .eq('gallery_id', gallery.id).eq('file_id', input.fileId).maybeSingle();
+  if (!member) throw new Error('That picture is not in this gallery');
+  const { error } = await db.from('gallery_comments').insert({
+    studio_id: gallery.studio_id, gallery_id: gallery.id, file_id: input.fileId, person_id: personId, body,
+  });
+  if (error) throw new Error('Could not save that comment');
+  await db.from('events').insert({
+    studio_id: gallery.studio_id, subject_type: 'gallery', subject_id: gallery.id,
+    action: 'file_commented', actor_id: personId, payload: { file: input.fileId },
+  });
+  revalidatePath(`/g/${input.token}`);
+}
+
 /** The studio asks one identified client for a bounded, submit-able selection. */
 export async function requestGallerySelection(input: {
   galleryId: string; jobId: string; email: string; name: string; maxItems: number; dueOn?: string | null;
