@@ -8,6 +8,7 @@ import {
 import { placeOrder } from '@/weave/store/actions';
 import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
 import { money, orderTotal, type BasketLine, type PriceList } from '@/weave/store/shape';
+import { Lightbox } from './Lightbox';
 
 const REMEMBERED = 'weave.visitor.email';
 
@@ -54,6 +55,7 @@ export function Viewer({
   const [note, setNote] = useState('');
   const [placed, setPlaced] = useState(false);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
   const [slideshow, setSlideshow] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
   const [commentFileId, setCommentFileId] = useState(gallery.files[0]?.id ?? '');
@@ -214,6 +216,10 @@ export function Viewer({
       }
     });
   };
+
+  const allFiles = gallery.sections.length > 0
+    ? gallery.sections.flatMap((section) => section.files)
+    : gallery.files;
 
   const products = forSale?.products ?? [];
   const productById = new Map(products.map((p) => [p.id, p]));
@@ -421,29 +427,40 @@ export function Viewer({
               const kept = picks.has(f.id);
               const collected = collectionFileIds.has(f.id);
               return (
-                <button
-                  key={f.id}
-                  type="button"
-                  className={(kept && mode === 'keep') || (collected && mode === 'collect')
-                    ? 'q-gal-tile q-gal-tile-chosen' : 'q-gal-tile'}
-                  title={f.name}
-                  disabled={mode === 'keep' ? (!visitorEmail || working)
-                    : mode === 'collect' ? (!visitorEmail || !activeCollection || !!activeCollection.submittedAt || working)
-                      : false}
-                  onClick={() => (mode === 'keep' ? toggle(f.id) : mode === 'collect' ? toggleCollected(f.id) : setBuying(f.id))}
-                >
-                  {f.url && (f.mimeType ?? '').startsWith('video/') ? (
-                    <video className="q-gal-video" src={f.url} muted playsInline loop autoPlay preload="metadata" />
-                  ) : f.url && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={f.url} alt={f.name}
-                      onLoad={(e) => e.currentTarget.classList.add('q-gal-loaded')}
-                    />
-                  )}
-                  {kept && mode === 'keep' && <span className="q-gal-mark">Kept</span>}
-                  {collected && mode === 'collect' && <span className="q-gal-mark">Added</span>}
-                </button>
+                <div key={f.id} className="q-gal-cell">
+                  {/*
+                    * Pressing the picture OPENS it. Keeping it is its own
+                    * control, because a tap that sometimes views and sometimes
+                    * marks is a tap nobody trusts - and looking is what a
+                    * client came to do.
+                    */}
+                  <button
+                    type="button"
+                    className={(kept && mode === 'keep') || (collected && mode === 'collect')
+                      ? 'q-gal-tile q-gal-tile-chosen' : 'q-gal-tile'}
+                    title={f.name}
+                    onClick={() => setViewing(allFiles.findIndex((x) => x.id === f.id))}
+                  >
+                    {f.url && (f.mimeType ?? '').startsWith('video/') ? (
+                      <video className="q-gal-video" src={f.url} muted playsInline loop autoPlay preload="metadata" />
+                    ) : f.url && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={f.url} alt={f.name} />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={(kept && mode === 'keep') || (collected && mode === 'collect')
+                      ? 'q-gal-keep q-gal-keep-on' : 'q-gal-keep'}
+                    disabled={mode === 'keep' ? (!visitorEmail || working)
+                      : mode === 'collect' ? (!visitorEmail || !activeCollection || !!activeCollection.submittedAt || working)
+                        : false}
+                    onClick={() => (mode === 'keep' ? toggle(f.id) : mode === 'collect' ? toggleCollected(f.id) : setBuying(f.id))}
+                  >
+                    {mode === 'buy' ? 'Order' : mode === 'collect' ? (collected ? 'Added' : 'Add') : (kept ? 'Kept' : 'Keep')}
+                  </button>
+                </div>
               );
                   })}
                 </div>
@@ -555,6 +572,20 @@ export function Viewer({
               </div>
             ))}
           </div>
+        )}
+
+        {viewing !== null && (
+          <Lightbox
+            files={allFiles}
+            index={viewing}
+            kept={picks.has(allFiles[viewing]?.id ?? '')}
+            canKeep={!!visitorEmail && mode !== 'buy'}
+            canBuy={!!forSale}
+            onClose={() => setViewing(null)}
+            onMove={setViewing}
+            onToggleKeep={(id: string) => toggle(id)}
+            onBuy={(id: string) => { setViewing(null); setMode('buy'); setBuying(id); }}
+          />
         )}
 
         {problem && <p className="q-meta">{problem}</p>}
