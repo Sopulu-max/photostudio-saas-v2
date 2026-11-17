@@ -91,7 +91,7 @@ export function Sidebar({ studioName, studioLogo }: { studioName?: string; orgSl
             <div style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '-0.02em', color: 'var(--q-color-ink-900)' }}>
               {studioName || 'Studio OS'}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--q-color-ink-400)', marginTop: '2px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            <div className="q-eyebrow" style={{ marginTop: '2px' }}>
               Studio Operating System
             </div>
           </div>
@@ -102,14 +102,7 @@ export function Sidebar({ studioName, studioLogo }: { studioName?: string; orgSl
       <nav style={{ flex: 1, padding: '8px 8px' }}>
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} style={{ marginBottom: '8px' }}>
-            <div style={{
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              color: 'var(--q-color-ink-400)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              padding: '12px 8px 4px',
-            }}>
+            <div className="q-eyebrow" style={{ padding: '12px 8px 4px' }}>
               {section.label}
             </div>
             {section.items.map((item) => {

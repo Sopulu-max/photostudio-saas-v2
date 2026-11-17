@@ -1043,13 +1043,13 @@ export function BookingForm({
                   <div className="q-card" style={{ backgroundColor: 'var(--q-color-ink-50)', marginBottom: '32px' }}>
 
                     <div style={{ marginBottom: '24px' }}>
-                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Your Details</div>
+                      <div className="q-eyebrow" style={{ marginBottom: '8px' }}>Your Details</div>
                       <div style={{ fontSize: '1.1rem', fontWeight: 500 }}>{firstName} {lastName}</div>
                       <div style={{ color: 'var(--q-color-ink-600)' }}>{email}{phone ? ` • ${phone}` : ''}</div>
                     </div>
 
                     <div style={{ marginBottom: '24px' }}>
-                      <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>Booking</div>
+                      <div className="q-eyebrow" style={{ marginBottom: '8px' }}>Booking</div>
                       <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{displayPackageName}</div>
                       {isCustom && !resolvedPackageName && (
                         <div style={{ fontSize: '0.85rem', color: 'var(--q-color-ink-400)', marginTop: '2px' }}>We&rsquo;ll match you to the right package.</div>
@@ -1092,7 +1092,7 @@ export function BookingForm({
 
                       return (
                         <div style={{ marginBottom: '24px' }}>
-                          <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>About your package</div>
+                          <div className="q-eyebrow" style={{ marginBottom: '8px' }}>About your package</div>
                           <div className="q-stack q-stack-xs">
                             {answered.map((a, i) => (
                               <div key={`${a.label}-${i}`} style={{ fontSize: '0.95rem', color: 'var(--q-color-ink-700)' }}>
@@ -1107,7 +1107,7 @@ export function BookingForm({
 
                     {isCustom && hasSelections && (
                       <div style={{ marginBottom: '24px' }}>
-                        <div className="q-meta" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: '8px' }}>What you described</div>
+                        <div className="q-eyebrow" style={{ marginBottom: '8px' }}>What you described</div>
                         <div className="q-stack q-stack-xs">
                           {Object.entries(dimensionSelections)
                             .filter(([, v]) => v)
@@ -1127,14 +1127,14 @@ export function BookingForm({
 
                     {scheduledFor && (
                       <div style={{ marginBottom: '24px' }}>
-                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>Requested Time</div>
+                        <div className="q-eyebrow" style={{ marginBottom: '8px' }}>Requested Time</div>
                         <div style={{ fontSize: '1.05rem' }}>{new Date(scheduledFor).toLocaleString()}</div>
                       </div>
                     )}
 
                     {hasVariant && tierIndex !== null && !isCustom && (
                       <div>
-                        <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--q-color-ink-400)', fontWeight: 600, marginBottom: '8px' }}>{variant!.axis_label}</div>
+                        <div className="q-eyebrow" style={{ marginBottom: '8px' }}>{variant!.axis_label}</div>
                         <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>{variant!.tiers[tierIndex].label} — {formatMoney(variant!.tiers[tierIndex].price, currencyCode)}</div>
                       </div>
                     )}

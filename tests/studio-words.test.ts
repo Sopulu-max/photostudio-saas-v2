@@ -73,6 +73,37 @@ describe('the app prints the studio\'s words as the studio wrote them', () => {
     ).toEqual([]);
   });
 
+  /*
+   * AND NOT FROM A COMPONENT EITHER.
+   *
+   * The rule above reads globals.css and nothing else, so for two months the
+   * stylesheet was locked and every component was wide open. Eight inline
+   * declarations grew up in that gap, and one of them uppercased a STUDIO'S
+   * OWN WORD - `variant.axis_label`, whatever they named the axis - on the
+   * public booking form, which is a page their clients see.
+   *
+   * That is the same fault as the forty CSS rules, in the one place the test
+   * for them could not look. A slot is a slot wherever it is declared, so both
+   * declaration sites are locked now. `.q-eyebrow` is the centralized answer
+   * for a small label - mono, letter-spaced, weighted, muted - and it leaves
+   * the word alone.
+   */
+  it('never rewrites case from a component', () => {
+    const guilty: string[] = [];
+    for (const file of files) {
+      fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+        if (!/textTransform\s*:/.test(line)) return;
+        if (/textTransform\s*:\s*['"]?(?:inherit|none)['"]?/.test(line)) return;
+        guilty.push(`${file}:${i + 1}  ${line.trim().slice(0, 100)}`);
+      });
+    }
+    expect(
+      guilty,
+      'text-transform rewrites the studio\'s own words wherever one lands in that slot. '
+      + 'Use .q-eyebrow, or the font, size, weight, colour or letter-spacing instead.',
+    ).toEqual([]);
+  });
+
   it('never re-cases a word the studio defined', () => {
     const guilty: string[] = [];
     for (const file of files) {

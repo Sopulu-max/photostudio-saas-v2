@@ -50,15 +50,50 @@ async function resolve(): Promise<AuthOrg> {
     if (contactByAuthId?.organization_id) orgId = contactByAuthId.organization_id;
   }
 
-  // Last resort: look up via contacts.email
+  /*
+   * Last resort: the email on a contact row.
+   *
+   * IDENTITY RUNS THROUGH contacts.auth_user_id. An email is a weaker claim,
+   * because the SAME ADDRESS CAN BE A CONTACT IN SEVERAL STUDIOS AT ONCE - a
+   * photographer who shoots for two of them, an address used to try the app
+   * against more than one, or a studio that holds its own operator as a client
+   * somewhere else. contacts is the one kernel table; clients and employees are
+   * modules sitting on top of it, so a row here does not even say the person
+   * works at that studio.
+   *
+   * This asked for `.limit(1)` and took whatever came back. With one matching
+   * row that is correct; with several, WHICH STUDIO AN OPERATOR LANDED IN WAS
+   * WHATEVER ORDER THE DATABASE HAPPENED TO RETURN, and the wrong answer opens
+   * another studio's book to them. Nothing announced it, because one studio's
+   * cockpit looks exactly like another's.
+   *
+   * So an email is honoured only when it names ONE studio. Where it names
+   * several the app genuinely does not know which is meant, and NO STUDIO is
+   * the only safe answer: it sends the operator to studio setup, which is
+   * recoverable, instead of into data that is not theirs, which is not.
+   * Linking auth_user_id on the contact is what retires this path entirely.
+   */
   if (!orgId && user.email) {
-    const { data: contactByEmail } = await supabaseAdmin
+    const { data: byEmail } = await supabaseAdmin
       .from('contacts')
       .select('organization_id')
       .eq('email', user.email)
-      .limit(1)
-      .maybeSingle();
-    if (contactByEmail?.organization_id) orgId = contactByEmail.organization_id;
+      .not('organization_id', 'is', null);
+
+    // Deduplicated by studio: the same address twice inside ONE studio is still
+    // one answer, and only a second STUDIO makes the claim ambiguous.
+    const studios = [...new Set(((byEmail || []) as { organization_id: string }[]).map((c) => c.organization_id))];
+
+    if (studios.length === 1) {
+      orgId = studios[0];
+    } else if (studios.length > 1) {
+      console.error(
+        `${user.email} is a contact in ${studios.length} studios and no contact row carries auth_user_id `
+        + `${user.id}. Refusing to guess which studio is meant; treating as no studio. `
+        + 'Set contacts.auth_user_id on the right row to resolve this.',
+      );
+      return null;
+    }
   }
 
   if (!orgId) return null;
