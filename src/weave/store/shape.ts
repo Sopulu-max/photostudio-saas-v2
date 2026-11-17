@@ -53,6 +53,8 @@ export type Order = {
   jobId: string | null;
   who: string | null;
   shipTo: string | null;
+  discountCode: string | null;
+  discountOff: number;
   note: string | null;
   currency: string;
   placedAt: string;
@@ -60,6 +62,13 @@ export type Order = {
   fulfilledAt: string | null;
   lines: OrderLine[];
 };
+
+/** What is actually owed: the lines, less whatever a code took off. */
+export function orderOwed(o: {
+  lines: { unitPrice: number; quantity: number }[]; discountOff: number;
+}): number {
+  return Math.max(0, orderTotal(o.lines) - (o.discountOff ?? 0));
+}
 
 export function orderTotal(lines: { unitPrice: number; quantity: number }[]): number {
   return lines.reduce((n, l) => n + l.unitPrice * l.quantity, 0);
@@ -92,7 +101,7 @@ export function standingOf(o: { paidAt: string | null; fulfilledAt: string | nul
 
 /** An order, as a sentence. */
 export function sayOrder(o: Order): string {
-  const total = money(orderTotal(o.lines), o.currency);
+  const total = money(orderOwed(o), o.currency);
   const items = o.lines.reduce((n, l) => n + l.quantity, 0);
   const many = `${items} ${items === 1 ? 'thing' : 'things'}`;
   const standing = standingOf(o);

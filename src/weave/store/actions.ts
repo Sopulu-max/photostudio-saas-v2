@@ -205,6 +205,7 @@ export async function placeOrder(input: {
   name?: string;
   shipTo?: string;
   note?: string;
+  code?: string;
   lines: BasketLine[];
 }): Promise<{ id: string }> {
   if (input.lines.length === 0) throw new Error('There is nothing in the basket');
@@ -256,6 +257,47 @@ export async function placeOrder(input: {
     personId = made.id;
   }
 
+  /*
+   * The discount is worked out HERE, from the studio's own row, and never from
+   * anything the basket said. A code is only ever a claim; what it is worth is
+   * the studio's to decide.
+   *
+   * What it took off is stored ON THE ORDER, not left to be recomputed from the
+   * code. Deleting or re-valuing a code next month must not rewrite what
+   * somebody was charged today - the same rule the lines already follow.
+   */
+  const gross = lines.reduce(
+    (n, { line, product, variant }) =>
+      n + (product.price + (variant?.price_delta ?? 0)) * line.quantity,
+    0,
+  );
+
+  let discountCode: string | null = null;
+  let discountOff = 0;
+  const claimed = input.code?.trim().toUpperCase();
+
+  if (claimed) {
+    const today = new Date().toLocaleDateString('en-CA');
+    const { data: found } = await db
+      .from('discounts')
+      .select('id, code, kind, value, expires_on, max_uses, times_used')
+      .eq('studio_id', gallery.studio_id)
+      .eq('code', claimed)
+      .maybeSingle();
+
+    if (!found) throw new Error('That code is not one of ours');
+    if (found.expires_on && found.expires_on < today) throw new Error('That code has expired');
+    if (found.max_uses !== null && found.times_used >= found.max_uses) {
+      throw new Error('That code has been used up');
+    }
+
+    const off = found.kind === 'percent'
+      ? Math.round((gross * found.value) / 100)
+      : found.value;
+    discountOff = Math.min(off, gross);
+    discountCode = found.code;
+  }
+
   const { data: order, error: orderError } = await db
     .from('orders')
     .insert({
@@ -266,6 +308,8 @@ export async function placeOrder(input: {
       ship_to: input.shipTo?.trim() || null,
       note: input.note?.trim() || null,
       currency: lines[0].product.currency,
+      discount_code: discountCode,
+      discount_off: discountOff,
     })
     .select('id')
     .single();
@@ -296,6 +340,18 @@ export async function placeOrder(input: {
     await db.from('orders').delete().eq('id', order.id);
     console.error('Failed to record the order lines:', itemsError);
     throw new Error('Could not take that order');
+  }
+
+  // Counted only once the order and its lines are both down, so an order that
+  // failed halfway does not silently consume somebody's code.
+  if (discountCode) {
+    const { data: current } = await db
+      .from('discounts').select('id, times_used')
+      .eq('studio_id', gallery.studio_id).eq('code', discountCode).maybeSingle();
+    if (current) {
+      await db.from('discounts')
+        .update({ times_used: current.times_used + 1 }).eq('id', current.id);
+    }
   }
 
   await db.from('events').insert({
@@ -329,7 +385,8 @@ export async function allOrders(): Promise<Order[]> {
 async function readOrders(q: { studioId: string; jobId?: string }): Promise<Order[]> {
   let query = db
     .from('orders')
-    .select('id, gallery_id, job_id, ship_to, note, currency, placed_at, paid_at, fulfilled_at, '
+    .select('id, gallery_id, job_id, ship_to, note, currency, discount_code, discount_off, '
+      + 'placed_at, paid_at, fulfilled_at, '
       + 'person:people(name, email), '
       + 'items:order_items(id, name, variant_name, kind, unit_price, quantity, file_id, file:files(name))')
     .eq('studio_id', q.studioId)
@@ -346,6 +403,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
   return ((data ?? []) as unknown as {
     id: string; gallery_id: string | null; job_id: string | null;
     ship_to: string | null; note: string | null; currency: string;
+    discount_code: string | null; discount_off: number;
     placed_at: string; paid_at: string | null; fulfilled_at: string | null;
     person: { name: string; email: string | null } | null;
     items: {
@@ -360,6 +418,8 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
     shipTo: o.ship_to,
     note: o.note,
     currency: o.currency,
+    discountCode: o.discount_code,
+    discountOff: o.discount_off ?? 0,
     placedAt: o.placed_at,
     paidAt: o.paid_at,
     fulfilledAt: o.fulfilled_at,

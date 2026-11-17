@@ -7,11 +7,14 @@ import Link from 'next/link';
  * share that layout and neither should carry the studio's navigation. A page
  * nothing links to is a page nobody finds, so every studio screen renders this.
  */
-export function StudioNav({ here }: { here: 'board' | 'orders' | 'store' }) {
-  const items: { key: 'board' | 'orders' | 'store'; href: string; label: string }[] = [
+type Where = 'board' | 'orders' | 'store' | 'automations';
+
+export function StudioNav({ here }: { here: Where }) {
+  const items: { key: Where; href: string; label: string }[] = [
     { key: 'board', href: '/', label: 'The board' },
     { key: 'orders', href: '/orders', label: 'Orders' },
     { key: 'store', href: '/store', label: 'What you sell' },
+    { key: 'automations', href: '/automations', label: 'Following up' },
   ];
 
   return (

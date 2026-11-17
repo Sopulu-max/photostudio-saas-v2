@@ -102,6 +102,7 @@ describe('the store', () => {
 describe('how an order says itself', () => {
   const order = (over: Partial<Order> = {}): Order => ({
     id: 'o', galleryId: null, jobId: null, who: 'Ada', shipTo: null, note: null,
+    discountCode: null, discountOff: 0,
     currency: 'NGN', placedAt: '', paidAt: null, fulfilledAt: null,
     lines: [{
       id: 'l', name: '8x10', variantName: null, kind: 'physical', unitPrice: 500000,
