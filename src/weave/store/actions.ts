@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
+import { visitorCanAccessGallery, type GalleryVisitorGate } from '@/weave/galleries/actions';
 import type { BasketLine, Order, PriceList, ProductKind } from './shape';
 
 /* ------------------------------------------------------------ the studio's */
@@ -13,7 +14,7 @@ export async function priceLists(): Promise<PriceList[]> {
 
   const { data, error } = await db
     .from('price_lists')
-    .select('id, name, is_default, products(id, name, kind, price, currency, position)')
+    .select('id, name, is_default, products(id, name, kind, price, currency, position, variants:product_variants(id, name, price_delta, position))')
     .eq('studio_id', who.studioId)
     .order('created_at', { ascending: true });
 
@@ -24,12 +25,20 @@ export async function priceLists(): Promise<PriceList[]> {
 
   return ((data ?? []) as unknown as {
     id: string; name: string; is_default: boolean;
-    products: { id: string; name: string; kind: ProductKind; price: number; currency: string; position: number }[];
+    products: {
+      id: string; name: string; kind: ProductKind; price: number; currency: string; position: number;
+      variants: { id: string; name: string; price_delta: number; position: number }[];
+    }[];
   }[]).map((l) => ({
     id: l.id,
     name: l.name,
     isDefault: l.is_default,
-    products: (l.products ?? []).sort((a, b) => a.position - b.position),
+    products: (l.products ?? []).sort((a, b) => a.position - b.position).map((product) => ({
+      ...product,
+      variants: (product.variants ?? []).sort((a, b) => a.position - b.position).map((variant) => ({
+        id: variant.id, name: variant.name, priceDelta: variant.price_delta, position: variant.position,
+      })),
+    })),
   }));
 }
 
@@ -94,6 +103,35 @@ export async function removeProduct(input: { productId: string }): Promise<void>
   revalidatePath('/store');
 }
 
+/** Add a sellable expression of one product, with a delta from its base price. */
+export async function addProductVariant(input: {
+  productId: string; name: string; priceDelta: number;
+}): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  const name = input.name.trim();
+  if (!name) throw new Error('A variant needs a name');
+  if (!Number.isFinite(input.priceDelta)) throw new Error('That price change is not a price');
+  const [{ data: product }, { count }] = await Promise.all([
+    db.from('products').select('id').eq('id', input.productId).eq('studio_id', who.studioId).maybeSingle(),
+    db.from('product_variants').select('id', { count: 'exact', head: true }).eq('product_id', input.productId),
+  ]);
+  if (!product) throw new Error('That product is not in this studio');
+  const { error } = await db.from('product_variants').insert({
+    studio_id: who.studioId, product_id: input.productId, name,
+    price_delta: Math.round(input.priceDelta), position: count ?? 0,
+  });
+  if (error) throw new Error('Could not add that variant');
+  revalidatePath('/store');
+}
+
+export async function removeProductVariant(input: { variantId: string }): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  await db.from('product_variants').delete().eq('id', input.variantId).eq('studio_id', who.studioId);
+  revalidatePath('/store');
+}
+
 /** Point a gallery at a price list, or take the shop out of it. */
 export async function sellFrom(input: {
   galleryId: string; jobId: string; priceListId: string | null;
@@ -117,15 +155,17 @@ export async function sellFrom(input: {
 export async function whatIsForSale(token: string): Promise<PriceList | null> {
   const { data: gallery } = await db
     .from('galleries')
-    .select('price_list_id, shared_at')
+    .select('price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', token)
     .maybeSingle();
 
-  if (!gallery?.shared_at || !gallery.price_list_id) return null;
+  if (!gallery || !gallery.price_list_id || !await visitorCanAccessGallery(gallery as GalleryVisitorGate)) {
+    return null;
+  }
 
   const { data, error } = await db
     .from('price_lists')
-    .select('id, name, is_default, products(id, name, kind, price, currency, position)')
+    .select('id, name, is_default, products(id, name, kind, price, currency, position, variants:product_variants(id, name, price_delta, position))')
     .eq('id', gallery.price_list_id)
     .maybeSingle();
 
@@ -133,14 +173,22 @@ export async function whatIsForSale(token: string): Promise<PriceList | null> {
 
   const l = data as unknown as {
     id: string; name: string; is_default: boolean;
-    products: { id: string; name: string; kind: ProductKind; price: number; currency: string; position: number }[];
+    products: {
+      id: string; name: string; kind: ProductKind; price: number; currency: string; position: number;
+      variants: { id: string; name: string; price_delta: number; position: number }[];
+    }[];
   };
 
   return {
     id: l.id,
     name: l.name,
     isDefault: l.is_default,
-    products: (l.products ?? []).sort((a, b) => a.position - b.position),
+    products: (l.products ?? []).sort((a, b) => a.position - b.position).map((product) => ({
+      ...product,
+      variants: (product.variants ?? []).sort((a, b) => a.position - b.position).map((variant) => ({
+        id: variant.id, name: variant.name, priceDelta: variant.price_delta, position: variant.position,
+      })),
+    })),
   };
 }
 
@@ -163,11 +211,13 @@ export async function placeOrder(input: {
 
   const { data: gallery } = await db
     .from('galleries')
-    .select('id, studio_id, job_id, price_list_id, shared_at')
+    .select('id, studio_id, job_id, price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', input.token)
     .maybeSingle();
 
-  if (!gallery?.shared_at) throw new Error('That gallery is not open');
+  if (!gallery || !await visitorCanAccessGallery(gallery as GalleryVisitorGate)) {
+    throw new Error('That gallery is not available');
+  }
   if (!gallery.price_list_id) throw new Error('Nothing is for sale in this gallery');
 
   const email = input.email.trim().toLowerCase();
@@ -177,13 +227,18 @@ export async function placeOrder(input: {
   // Taking a price from the request would let anybody buy at any figure.
   const { data: products } = await db
     .from('products')
-    .select('id, name, kind, price, currency')
+    .select('id, name, kind, price, currency, variants:product_variants(id, name, price_delta)')
     .eq('price_list_id', gallery.price_list_id);
 
   const byId = new Map((products ?? []).map((p) => [p.id, p]));
-  const lines = input.lines
-    .filter((l) => byId.has(l.productId) && l.quantity > 0)
-    .map((l) => ({ line: l, product: byId.get(l.productId)! }));
+  const lines = input.lines.flatMap((line) => {
+    const product = byId.get(line.productId);
+    if (!product || line.quantity <= 0) return [];
+    const variants = (product.variants ?? []) as { id: string; name: string; price_delta: number }[];
+    const variant = line.variantId ? variants.find((candidate) => candidate.id === line.variantId) ?? null : null;
+    if ((line.variantId && !variant) || product.price + (variant?.price_delta ?? 0) < 0) return [];
+    return [{ line, product, variant }];
+  });
 
   if (lines.length === 0) throw new Error('Nothing in that basket is for sale here');
 
@@ -221,14 +276,16 @@ export async function placeOrder(input: {
   }
 
   const { error: itemsError } = await db.from('order_items').insert(
-    lines.map(({ line, product }) => ({
+    lines.map(({ line, product, variant }) => ({
       studio_id: gallery.studio_id,
       order_id: order.id,
       product_id: product.id,
+      product_variant_id: variant?.id ?? null,
       file_id: line.fileId,
       name: product.name,
+      variant_name: variant?.name ?? null,
       kind: product.kind,
-      unit_price: product.price,
+      unit_price: product.price + (variant?.price_delta ?? 0),
       quantity: line.quantity,
     })),
   );
@@ -274,7 +331,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
     .from('orders')
     .select('id, gallery_id, job_id, ship_to, note, currency, placed_at, paid_at, fulfilled_at, '
       + 'person:people(name, email), '
-      + 'items:order_items(id, name, kind, unit_price, quantity, file_id, file:files(name))')
+      + 'items:order_items(id, name, variant_name, kind, unit_price, quantity, file_id, file:files(name))')
     .eq('studio_id', q.studioId)
     .order('placed_at', { ascending: false });
 
@@ -292,7 +349,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
     placed_at: string; paid_at: string | null; fulfilled_at: string | null;
     person: { name: string; email: string | null } | null;
     items: {
-      id: string; name: string; kind: ProductKind; unit_price: number;
+      id: string; name: string; variant_name: string | null; kind: ProductKind; unit_price: number;
       quantity: number; file_id: string | null; file: { name: string } | null;
     }[];
   }[]).map((o) => ({
@@ -309,6 +366,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
     lines: (o.items ?? []).map((i) => ({
       id: i.id,
       name: i.name,
+      variantName: i.variant_name,
       kind: i.kind,
       unitPrice: i.unit_price,
       quantity: i.quantity,

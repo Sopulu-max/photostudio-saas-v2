@@ -103,7 +103,10 @@ describe('how an order says itself', () => {
   const order = (over: Partial<Order> = {}): Order => ({
     id: 'o', galleryId: null, jobId: null, who: 'Ada', shipTo: null, note: null,
     currency: 'NGN', placedAt: '', paidAt: null, fulfilledAt: null,
-    lines: [{ id: 'l', name: '8x10', kind: 'physical', unitPrice: 500000, quantity: 2, fileId: null, fileName: null }],
+    lines: [{
+      id: 'l', name: '8x10', variantName: null, kind: 'physical', unitPrice: 500000,
+      quantity: 2, fileId: null, fileName: null,
+    }],
     ...over,
   });
 

@@ -38,6 +38,19 @@ afterAll(async () => {
   if (studioId) await db.from('studios').delete().eq('id', studioId);
 });
 
+/**
+ * Every member of a gallery belongs to a section — a gallery is a composed
+ * sequence, not one undifferentiated wall. These tests predate sections, so
+ * they make the one a new gallery would otherwise be given.
+ */
+async function sectionIn(galleryId: string): Promise<string> {
+  const { data } = await db
+    .from('gallery_sections')
+    .insert({ studio_id: studioId, gallery_id: galleryId, name: 'Gallery', position: 0 })
+    .select('id').single();
+  return data!.id;
+}
+
 describe('galleries', () => {
   it('gets an unguessable link without being asked', async () => {
     const { data, error } = await db
@@ -58,11 +71,15 @@ describe('galleries', () => {
       .insert({ studio_id: studioId, job_id: jobId, name: 'Twice' })
       .select('id').single();
 
+    const sectionId = await sectionIn(gallery!.id);
+
     const first = await db.from('gallery_files').insert({
-      studio_id: studioId, gallery_id: gallery!.id, file_id: fileId, position: 0,
+      studio_id: studioId, gallery_id: gallery!.id, section_id: sectionId,
+      file_id: fileId, position: 0,
     });
     const second = await db.from('gallery_files').insert({
-      studio_id: studioId, gallery_id: gallery!.id, file_id: fileId, position: 1,
+      studio_id: studioId, gallery_id: gallery!.id, section_id: sectionId,
+      file_id: fileId, position: 1,
     });
 
     expect(first.error).toBeNull();
@@ -79,7 +96,8 @@ describe('galleries', () => {
       storage_path: `${studioId}/${jobId}/fleeting.jpg`, name: 'fleeting.jpg',
     }).select('id').single();
     await db.from('gallery_files').insert({
-      studio_id: studioId, gallery_id: gallery!.id, file_id: file!.id,
+      studio_id: studioId, gallery_id: gallery!.id,
+      section_id: await sectionIn(gallery!.id), file_id: file!.id,
     });
 
     await db.from('files').delete().eq('id', file!.id);
@@ -107,14 +125,17 @@ describe('galleries', () => {
 
 describe('how a gallery says itself', () => {
   const g = (over: Partial<GallerySummary> = {}): GallerySummary => ({
-    id: 'a', name: 'Selects', token: 't', sharedAt: null,
-    mayDownload: true, howMany: 12, priceListId: null, ...over,
+    id: 'a', name: 'Selects', token: 't', sharedAt: null, expiresOn: null,
+    accessMode: 'link', mayDownload: true, howMany: 12, coverFileId: null,
+    sections: [], members: [], collections: [], priceListId: null, ...over,
   });
 
   it('distinguishes empty from unsent', () => {
     expect(sayGallery(g({ howMany: 0 }))).toBe('Empty, nothing to send yet');
     expect(sayGallery(g())).toBe('12 pictures, not sent yet');
     expect(sayGallery(g({ sharedAt: '2026-11-18T00:00:00Z' }))).toBe('12 pictures, open to the client');
+    expect(sayGallery(g({ sharedAt: '2026-11-18T00:00:00Z', expiresOn: '2026-12-01' })))
+      .toBe('12 pictures, open until 2026-12-01');
     expect(sayGallery(g({ howMany: 1 }))).toBe('1 picture, not sent yet');
   });
 });

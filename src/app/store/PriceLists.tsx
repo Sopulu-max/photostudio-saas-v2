@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { addPriceList, addProduct, removeProduct } from '@/weave/store/actions';
+import {
+  addPriceList, addProduct, addProductVariant, removeProduct, removeProductVariant,
+} from '@/weave/store/actions';
 import { money, type PriceList, type ProductKind } from '@/weave/store/shape';
 
 /**
@@ -15,6 +17,7 @@ import { money, type PriceList, type ProductKind } from '@/weave/store/shape';
 export function PriceLists({ lists }: { lists: PriceList[] }) {
   const [listName, setListName] = useState('');
   const [draft, setDraft] = useState<Record<string, { name: string; kind: ProductKind; price: string }>>({});
+  const [variantDraft, setVariantDraft] = useState<Record<string, { name: string; priceDelta: string }>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
 
@@ -30,6 +33,9 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
   const draftFor = (id: string) => draft[id] ?? { name: '', kind: 'physical' as ProductKind, price: '' };
   const setDraftFor = (id: string, patch: Partial<{ name: string; kind: ProductKind; price: string }>) =>
     setDraft((had) => ({ ...had, [id]: { ...draftFor(id), ...patch } }));
+  const variantFor = (id: string) => variantDraft[id] ?? { name: '', priceDelta: '' };
+  const setVariantFor = (id: string, patch: Partial<{ name: string; priceDelta: string }>) =>
+    setVariantDraft((had) => ({ ...had, [id]: { ...variantFor(id), ...patch } }));
 
   return (
     <div className="q-stack q-stack-md">
@@ -42,20 +48,53 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
           ) : (
             <div className="q-stack q-stack-xs">
               {list.products.map((p) => (
-                <div key={p.id} className="q-row q-row-between">
-                  <span className="q-text-body">
-                    {p.name}
-                    <span className="q-meta"> &middot; {p.kind === 'digital' ? 'a file' : 'made and sent'}</span>
-                  </span>
-                  <span className="q-row q-row-sm">
-                    <strong className="q-num">{money(p.price, p.currency)}</strong>
-                    <button
-                      type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
-                      onClick={() => run(() => removeProduct({ productId: p.id }))}
-                    >
-                      Remove
-                    </button>
-                  </span>
+                <div key={p.id} className="q-stack q-stack-xs">
+                  <div className="q-row q-row-between">
+                    <span className="q-text-body">
+                      {p.name}
+                      <span className="q-meta"> &middot; {p.kind === 'digital' ? 'a file' : 'made and sent'}</span>
+                    </span>
+                    <span className="q-row q-row-sm">
+                      <strong className="q-num">{money(p.price, p.currency)}</strong>
+                      <button
+                        type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+                        onClick={() => run(() => removeProduct({ productId: p.id }))}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  {p.variants.map((variant) => (
+                    <div className="q-row q-row-between" key={variant.id}>
+                      <span className="q-meta">{variant.name}</span>
+                      <span className="q-row q-row-sm">
+                        <span className="q-num">{money(p.price + variant.priceDelta, p.currency)}</span>
+                        <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+                          onClick={() => run(() => removeProductVariant({ variantId: variant.id }))}>
+                          Remove
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                  <form className="q-row q-row-sm" onSubmit={(event) => {
+                    event.preventDefault();
+                    const variant = variantFor(p.id);
+                    const delta = Number(variant.priceDelta);
+                    if (!variant.name.trim()) { setProblem('Give the option a name.'); return; }
+                    if (!Number.isFinite(delta) || p.price + Math.round(delta * 100) < 0) {
+                      setProblem('That option would make the price invalid.'); return;
+                    }
+                    run(async () => {
+                      await addProductVariant({ productId: p.id, name: variant.name, priceDelta: Math.round(delta * 100) });
+                      setVariantFor(p.id, { name: '', priceDelta: '' });
+                    });
+                  }}>
+                    <input className="q-input q-input-sm" placeholder="Option, e.g. 12 × 18" value={variantFor(p.id).name}
+                      onChange={(event) => setVariantFor(p.id, { name: event.target.value })} disabled={working} />
+                    <input className="q-input q-input-sm" type="number" step="0.01" placeholder="Price change" value={variantFor(p.id).priceDelta}
+                      onChange={(event) => setVariantFor(p.id, { priceDelta: event.target.value })} disabled={working} />
+                    <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working}>Add option</button>
+                  </form>
                 </div>
               ))}
             </div>

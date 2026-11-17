@@ -23,6 +23,10 @@ export function isImage(f: StudioFile): boolean {
   return (f.mimeType ?? '').startsWith('image/');
 }
 
+export function isVideo(f: Pick<StudioFile, 'mimeType'>): boolean {
+  return (f.mimeType ?? '').startsWith('video/');
+}
+
 /** Sizes said the way a person says them, not in bytes. */
 export function saySize(bytes: number | null): string {
   if (bytes === null) return 'Size unknown';

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { placeToPut, recordFile, chooseFile, removeFile } from '@/weave/files/actions';
-import { isImage, saySize, sayFiles, type StudioFile } from '@/weave/files/shape';
+import { isImage, isVideo, saySize, sayFiles, type StudioFile } from '@/weave/files/shape';
 
 /**
  * The files on a job.
@@ -75,7 +75,8 @@ export function Files({ jobId, files }: { jobId: string; files: StudioFile[] }) 
   };
 
   const pictures = files.filter(isImage);
-  const others = files.filter((f) => !isImage(f));
+  const videos = files.filter(isVideo);
+  const others = files.filter((f) => !isImage(f) && !isVideo(f));
 
   return (
     <section className="q-card q-stack q-stack-sm">
@@ -131,6 +132,25 @@ export function Files({ jobId, files }: { jobId: string; files: StudioFile[] }) 
                     {f.chosenBy.length === 1 ? f.chosenBy[0].name : `${f.chosenBy.length} chose`}
                   </span>
                 )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {videos.length > 0 && (
+        <div className="q-gal-grid">
+          {videos.map((file) => {
+            const chosen = file.chosenBy.length > 0;
+            return (
+              <button
+                key={file.id} type="button"
+                className={chosen ? 'q-gal-tile q-gal-tile-chosen' : 'q-gal-tile'}
+                disabled={working} title={file.name}
+                onClick={() => run(() => chooseFile({ fileId: file.id, jobId, chosen: !chosen }))}
+              >
+                {file.url && <video className="q-gal-video" src={file.url} muted playsInline loop autoPlay preload="metadata" />}
+                {chosen && <span className="q-gal-mark">{file.chosenBy.length === 1 ? file.chosenBy[0].name : `${file.chosenBy.length} chose`}</span>}
               </button>
             );
           })}

@@ -164,11 +164,19 @@ const { rows: galleries } = await client.query(
 );
 const gallery = galleries[0];
 
+// A gallery is a composed sequence of named sections, so its members need one.
+const { rows: sections } = await client.query(
+  `insert into weave.gallery_sections (studio_id, gallery_id, name, position)
+   values ($1, $2, 'Gallery', 0) returning id`,
+  [studioId, gallery.id],
+);
+const sectionId = sections[0].id;
+
 for (let i = 0; i < uploaded.length; i += 1) {
   await client.query(
-    `insert into weave.gallery_files (studio_id, gallery_id, file_id, position)
-     values ($1,$2,$3,$4) on conflict do nothing`,
-    [studioId, gallery.id, uploaded[i], i],
+    `insert into weave.gallery_files (studio_id, gallery_id, section_id, file_id, position)
+     values ($1,$2,$3,$4,$5) on conflict do nothing`,
+    [studioId, gallery.id, sectionId, uploaded[i], i],
   );
 }
 

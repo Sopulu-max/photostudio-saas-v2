@@ -8,6 +8,13 @@
 
 export type ProductKind = 'digital' | 'physical';
 
+export type ProductVariant = {
+  id: string;
+  name: string;
+  priceDelta: number;
+  position: number;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -15,6 +22,7 @@ export type Product = {
   price: number;
   currency: string;
   position: number;
+  variants: ProductVariant[];
 };
 
 export type PriceList = {
@@ -24,7 +32,9 @@ export type PriceList = {
   products: Product[];
 };
 
-export type BasketLine = { productId: string; fileId: string | null; quantity: number };
+export type BasketLine = {
+  productId: string; variantId: string | null; fileId: string | null; quantity: number;
+};
 
 export type OrderLine = {
   id: string;
@@ -34,6 +44,7 @@ export type OrderLine = {
   quantity: number;
   fileId: string | null;
   fileName: string | null;
+  variantName: string | null;
 };
 
 export type Order = {

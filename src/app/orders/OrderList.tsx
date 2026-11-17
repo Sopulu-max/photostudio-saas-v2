@@ -52,6 +52,7 @@ export function OrderList({ orders }: { orders: Order[] }) {
                 <div key={l.id} className="q-row q-row-between">
                   <span className="q-text-body">
                     {l.quantity > 1 ? `${l.quantity} × ` : ''}{l.name}
+                    {l.variantName && <span className="q-meta"> · {l.variantName}</span>}
                     {l.fileName && <span className="q-meta"> &middot; {l.fileName}</span>}
                   </span>
                   <span className="q-num">{money(l.unitPrice * l.quantity, o.currency)}</span>

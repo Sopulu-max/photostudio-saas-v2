@@ -2,47 +2,277 @@
 
 import { useState, useTransition } from 'react';
 import {
-  makeGallery, fillGallery, shareGallery, allowDownload,
+  addGallerySection, allowDownload, fillGallery, makeGallery, moveGalleryFile,
+  requestGallerySelection, saveGalleryAsTemplate, setGalleryAccess, setGalleryCover, setGalleryExpiry, setSectionVisibility, shareGallery,
 } from '@/weave/galleries/actions';
 import { sellFrom } from '@/weave/store/actions';
-import { sayGallery, type GallerySummary } from '@/weave/galleries/shape';
+import { sayGallery, type GalleryActivity, type GallerySummary, type GalleryTemplate } from '@/weave/galleries/shape';
 import type { PriceList } from '@/weave/store/shape';
 
-/**
- * The galleries made from this job.
- *
- * A gallery is a named set of pictures shown to somebody outside. It is seeded
- * from what the studio chose, because that is what choosing was for — but the
- * set is copied in rather than derived, so unchoosing a frame later cannot
- * reach into a gallery the client is already looking at.
- */
+type Run = (fn: () => Promise<unknown>) => void;
+
+/** The operating controls for one gallery; every setting changes live delivery. */
+function GalleryControls({
+  gallery, activity, jobId, lists, copied, copy, working, run,
+}: {
+  gallery: GallerySummary; activity: GalleryActivity | undefined; jobId: string; lists: PriceList[];
+  copied: string | null; copy: (token: string) => Promise<void>; working: boolean; run: Run;
+}) {
+  const [sectionName, setSectionName] = useState('');
+  const [targetSectionId, setTargetSectionId] = useState(gallery.sections[0]?.id ?? '');
+  const [expiry, setExpiry] = useState(gallery.expiresOn ?? '');
+  const [code, setCode] = useState('');
+  const [selectionEmail, setSelectionEmail] = useState('');
+  const [selectionName, setSelectionName] = useState('');
+  const [selectionMax, setSelectionMax] = useState('20');
+  const [selectionDueOn, setSelectionDueOn] = useState('');
+  const [templateName, setTemplateName] = useState('');
+
+  const addSection = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await addGallerySection({ galleryId: gallery.id, jobId, name: sectionName });
+      setSectionName('');
+    });
+  };
+
+  const saveExpiry = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(() => setGalleryExpiry({ galleryId: gallery.id, jobId, expiresOn: expiry || null }));
+  };
+
+  const requireCode = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await setGalleryAccess({ galleryId: gallery.id, jobId, mode: 'code', code });
+      setCode('');
+    });
+  };
+
+  const requestSelection = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await requestGallerySelection({
+        galleryId: gallery.id, jobId, email: selectionEmail, name: selectionName,
+        maxItems: Number(selectionMax), dueOn: selectionDueOn || null,
+      });
+      setSelectionEmail('');
+      setSelectionName('');
+      setSelectionDueOn('');
+    });
+  };
+
+  return (
+    <div className="q-stack q-stack-sm">
+      <div className="q-row q-row-sm">
+        <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+          onClick={() => run(() => shareGallery({ galleryId: gallery.id, jobId, shared: !gallery.sharedAt }))}>
+          {gallery.sharedAt ? 'Close it' : 'Send it'}
+        </button>
+        {gallery.sharedAt && (
+          <button type="button" className="q-btn q-btn-ghost q-btn-xs" onClick={() => void copy(gallery.token)}>
+            {copied === gallery.token ? 'Link copied' : 'Copy the link'}
+          </button>
+        )}
+        <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+          onClick={() => run(() => allowDownload({ galleryId: gallery.id, jobId, may: !gallery.mayDownload }))}>
+          {gallery.mayDownload ? 'Stop downloads' : 'Allow downloads'}
+        </button>
+      </div>
+
+      <label className="q-row q-row-sm">
+        <span className="q-meta">Sells from</span>
+        <select className="q-input q-input-sm" value={gallery.priceListId ?? ''} disabled={working || lists.length === 0}
+          onChange={(event) => run(() => sellFrom({ galleryId: gallery.id, jobId, priceListId: event.target.value || null }))}>
+          <option value="">Nothing — just the pictures</option>
+          {lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
+        </select>
+      </label>
+
+      <div className="q-stack q-stack-xs">
+        <span className="q-meta">Sections</span>
+        {gallery.sections.map((section) => (
+          <div className="q-row q-row-between" key={section.id}>
+            <span className="q-text-body">{section.name} <span className="q-meta">· {section.howMany}</span></span>
+            <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+              onClick={() => run(() => setSectionVisibility({
+                galleryId: gallery.id, jobId, sectionId: section.id, visible: !section.visibleToClients,
+              }))}>
+              {section.visibleToClients ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        ))}
+        <div className="q-row q-row-sm">
+          <select aria-label="Section for all remaining pictures" className="q-input q-input-sm" value={targetSectionId}
+            onChange={(event) => setTargetSectionId(event.target.value)} disabled={working || gallery.sections.length === 0}>
+            {gallery.sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+          </select>
+          <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working || !targetSectionId}
+            onClick={() => run(() => fillGallery({ galleryId: gallery.id, jobId, sectionId: targetSectionId }))}>
+            Add remaining
+          </button>
+        </div>
+        <form className="q-row q-row-sm" onSubmit={addSection}>
+          <input className="q-input q-input-sm" placeholder="Name a section" value={sectionName}
+            onChange={(event) => setSectionName(event.target.value)} disabled={working} />
+          <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !sectionName.trim()}>
+            Add section
+          </button>
+        </form>
+      </div>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Arrange pictures and cover</summary>
+        <label className="q-row q-row-sm">
+          <span className="q-meta">Cover</span>
+          <select className="q-input q-input-sm" value={gallery.coverFileId ?? ''} disabled={working}
+            onChange={(event) => run(() => setGalleryCover({
+              galleryId: gallery.id, jobId, fileId: event.target.value || null,
+            }))}>
+            <option value="">No cover</option>
+            {gallery.members.filter((member) => member.mimeType?.startsWith('image/'))
+              .map((member) => <option key={member.fileId} value={member.fileId}>{member.name}</option>)}
+          </select>
+        </label>
+        {gallery.members.map((member) => (
+          <label className="q-row q-row-sm" key={member.fileId}>
+            <span className="q-meta">{member.name}</span>
+            <select className="q-input q-input-sm" value={member.sectionId} disabled={working}
+              onChange={(event) => run(() => moveGalleryFile({
+                galleryId: gallery.id, jobId, fileId: member.fileId, sectionId: event.target.value,
+              }))}>
+              {gallery.sections.map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
+            </select>
+          </label>
+        ))}
+      </details>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Gallery activity</summary>
+        <div className="q-row q-row-sm q-meta">
+          <span>{activity?.opens ?? 0} views</span>
+          <span>{activity?.downloads ?? 0} downloads</span>
+          <span>{activity?.favourites ?? 0} favourites</span>
+          <span>{activity?.collectionAdds ?? 0} collection adds</span>
+          <span>{activity?.selectionsSubmitted ?? 0} selections sent</span>
+          <span>{activity?.orders ?? 0} orders</span>
+        </div>
+        {(activity?.recent.length ?? 0) === 0 ? (
+          <p className="q-empty">No client activity yet.</p>
+        ) : activity?.recent.map((event) => (
+          <div className="q-row q-row-between" key={event.id}>
+            <span className="q-meta">{event.who ?? 'A visitor'} · {event.action.replace(/_/g, ' ')}</span>
+            <span className="q-meta-sm">{new Date(event.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+          </div>
+        ))}
+      </details>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Client collections and selections</summary>
+        {gallery.collections.length === 0 ? (
+          <p className="q-empty">No client collections or selection requests yet.</p>
+        ) : gallery.collections.map((collection) => (
+          <div className="q-row q-row-between" key={collection.id}>
+            <span className="q-text-body">
+              {collection.name} <span className="q-meta">· {collection.ownerName} · {collection.howMany}
+                {collection.maxItems ? `/${collection.maxItems}` : ''}
+              </span>
+            </span>
+            <span className="q-meta">{collection.submittedAt ? 'Sent' : collection.kind === 'selection' ? 'Waiting' : 'Collecting'}</span>
+          </div>
+        ))}
+        <form className="q-stack q-stack-xs" onSubmit={requestSelection}>
+          <input className="q-input q-input-sm" type="email" placeholder="Client email" value={selectionEmail}
+            onChange={(event) => setSelectionEmail(event.target.value)} disabled={working} />
+          <input className="q-input q-input-sm" placeholder="Selection name, e.g. Album favourites" value={selectionName}
+            onChange={(event) => setSelectionName(event.target.value)} disabled={working} />
+          <div className="q-row q-row-sm">
+            <input className="q-input q-input-sm" type="number" min="1" value={selectionMax}
+              onChange={(event) => setSelectionMax(event.target.value)} disabled={working} aria-label="Maximum pictures" />
+            <input className="q-input q-input-sm" type="date" value={selectionDueOn}
+              onChange={(event) => setSelectionDueOn(event.target.value)} disabled={working} aria-label="Selection due date" />
+            <button className="q-btn q-btn-ghost q-btn-xs" type="submit"
+              disabled={working || !selectionEmail.includes('@') || !selectionName.trim() || Number(selectionMax) < 1}>
+              Request selection
+            </button>
+          </div>
+        </form>
+      </details>
+
+      <form className="q-row q-row-sm" onSubmit={(event) => {
+        event.preventDefault();
+        run(async () => {
+          await saveGalleryAsTemplate({ galleryId: gallery.id, jobId, name: templateName });
+          setTemplateName('');
+        });
+      }}>
+        <input className="q-input q-input-sm" placeholder="Save this structure as a template" value={templateName}
+          onChange={(event) => setTemplateName(event.target.value)} disabled={working} />
+        <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !templateName.trim()}>
+          Save template
+        </button>
+      </form>
+
+      <div className="q-stack q-stack-xs">
+        <form className="q-row q-row-sm" onSubmit={saveExpiry}>
+          <label className="q-meta" htmlFor={`gallery-expiry-${gallery.id}`}>Expires</label>
+          <input id={`gallery-expiry-${gallery.id}`} className="q-input q-input-sm" type="date" value={expiry}
+            onChange={(event) => setExpiry(event.target.value)} disabled={working} />
+          <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working}>Save</button>
+        </form>
+        {gallery.accessMode === 'link' ? (
+          <form className="q-row q-row-sm" onSubmit={requireCode}>
+            <input className="q-input q-input-sm" type="password" placeholder="Set a private access code" value={code}
+              onChange={(event) => setCode(event.target.value)} disabled={working} />
+            <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || code.length < 6}>
+              Require code
+            </button>
+          </form>
+        ) : (
+          <div className="q-row q-row-sm">
+            <span className="q-meta">Access code required</span>
+            <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+              onClick={() => run(() => setGalleryAccess({ galleryId: gallery.id, jobId, mode: 'link' }))}>
+              Use link only
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Galleries are explicit delivery promises, not a derived view of selects. */
 export function Galleries({
-  jobId, galleries, origin, lists,
+  jobId, galleries, activity, templates, origin, lists,
 }: {
   jobId: string;
   galleries: GallerySummary[];
+  activity: GalleryActivity[];
+  templates: GalleryTemplate[];
   origin: string;
   lists: PriceList[];
 }) {
   const [name, setName] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState('');
   const [working, start] = useTransition();
 
-  const run = (fn: () => Promise<unknown>) => {
+  const run: Run = (fn) => {
     setProblem(null);
     start(async () => {
-      try { await fn(); } catch (err) {
-        setProblem(err instanceof Error ? err.message : 'That did not work');
+      try { await fn(); } catch (error) {
+        setProblem(error instanceof Error ? error.message : 'That did not work');
       }
     });
   };
 
-  const make = (e: React.FormEvent) => {
-    e.preventDefault();
+  const make = (event: React.FormEvent) => {
+    event.preventDefault();
     if (!name.trim()) { setProblem('A gallery needs a name.'); return; }
     run(async () => {
-      await makeGallery({ jobId, name });
+      await makeGallery({ jobId, name, templateId: templateId || null });
       setName('');
     });
   };
@@ -60,96 +290,37 @@ export function Galleries({
   return (
     <section className="q-card q-stack q-stack-sm">
       <h2 className="q-section-title">Galleries</h2>
-
       {galleries.length === 0 ? (
         <p className="q-empty">No gallery made from this job yet.</p>
       ) : (
         <div className="q-stack q-stack-sm">
-          {galleries.map((g) => (
-            <div key={g.id} className="q-tile q-stack q-stack-xs">
+          {galleries.map((gallery) => (
+            <div key={gallery.id} className="q-tile q-stack q-stack-xs">
               <div className="q-row q-row-between">
-                <strong className="q-strong">{g.name}</strong>
-                <span className={g.sharedAt ? 'q-meta' : 'q-meta q-warm'}>{sayGallery(g)}</span>
+                <strong className="q-strong">{gallery.name}</strong>
+                <span className={gallery.sharedAt ? 'q-meta' : 'q-meta q-warm'}>{sayGallery(gallery)}</span>
               </div>
-
-              {g.sharedAt && (
-                <span className="q-meta-sm">{origin}/g/{g.token}</span>
-              )}
-
-              <div className="q-row q-row-sm">
-                <button
-                  type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
-                  onClick={() => run(() => shareGallery({
-                    galleryId: g.id, jobId, shared: !g.sharedAt,
-                  }))}
-                >
-                  {g.sharedAt ? 'Close it' : 'Send it'}
-                </button>
-
-                {g.sharedAt && (
-                  <button
-                    type="button" className="q-btn q-btn-ghost q-btn-xs"
-                    onClick={() => void copy(g.token)}
-                  >
-                    {copied === g.token ? 'Link copied' : 'Copy the link'}
-                  </button>
-                )}
-
-                <button
-                  type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
-                  onClick={() => run(() => fillGallery({ galleryId: g.id, jobId }))}
-                >
-                  Put everything in
-                </button>
-
-                <button
-                  type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
-                  onClick={() => run(() => allowDownload({
-                    galleryId: g.id, jobId, may: !g.mayDownload,
-                  }))}
-                >
-                  {g.mayDownload ? 'Stop downloads' : 'Allow downloads'}
-                </button>
-              </div>
-
-              {/*
-                * Most galleries are a delivery and not a shop, so selling is
-                * off until a list is chosen rather than on by default.
-                */}
-              <label className="q-row q-row-sm">
-                <span className="q-meta">Sells from</span>
-                <select
-                  className="q-input q-input-sm"
-                  value={g.priceListId ?? ''}
-                  disabled={working || lists.length === 0}
-                  onChange={(e) => run(() => sellFrom({
-                    galleryId: g.id, jobId, priceListId: e.target.value || null,
-                  }))}
-                >
-                  <option value="">Nothing — just the pictures</option>
-                  {lists.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
-              </label>
+              {gallery.sharedAt && <span className="q-meta-sm">{origin}/g/{gallery.token}</span>}
+              <GalleryControls gallery={gallery} activity={activity.find((entry) => entry.galleryId === gallery.id)} jobId={jobId} lists={lists}
+                copied={copied} copy={copy} working={working} run={run} />
             </div>
           ))}
         </div>
       )}
-
       <form className="q-row q-row-sm" onSubmit={make}>
-        <input
-          className="q-input"
-          placeholder="Name a new gallery"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={working}
-        />
+        <input className="q-input" placeholder="Name a new gallery" value={name}
+          onChange={(event) => setName(event.target.value)} disabled={working} />
+        {templates.length > 0 && (
+          <select className="q-input q-input-sm" value={templateId} disabled={working}
+            onChange={(event) => setTemplateId(event.target.value)}>
+            <option value="">Start with one section</option>
+            {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+          </select>
+        )}
         <button className="q-btn q-btn-secondary" type="submit" disabled={working}>
           {working ? 'Making' : 'Make one'}
         </button>
       </form>
-
       {problem && <p className="q-meta">{problem}</p>}
     </section>
   );

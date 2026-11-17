@@ -1,12 +1,26 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { favourite, picksOf } from '@/weave/galleries/actions';
+import { useEffect, useState, useSyncExternalStore, useTransition } from 'react';
+import {
+  collectionsForVisitor, createVisitorCollection, favourite, picksOf,
+  prepareGalleryDownload, recordGalleryView, submitGallerySelection, toggleCollectionFile,
+} from '@/weave/galleries/actions';
 import { placeOrder } from '@/weave/store/actions';
-import type { PublicGallery } from '@/weave/galleries/shape';
+import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
 import { money, orderTotal, type BasketLine, type PriceList } from '@/weave/store/shape';
 
 const REMEMBERED = 'weave.visitor.email';
+
+function subscribeToRememberedEmail(callback: () => void) {
+  window.addEventListener('storage', callback);
+  return () => window.removeEventListener('storage', callback);
+}
+
+function readRememberedEmail() {
+  try { return window.localStorage.getItem(REMEMBERED) ?? ''; } catch { return ''; }
+}
+
+function noRememberedEmail() { return ''; }
 
 /**
  * The client's side of a gallery: keeping pictures, and buying them.
@@ -23,33 +37,43 @@ export function Viewer({
   forSale: PriceList | null;
 }) {
   const [email, setEmail] = useState('');
+  const rememberedEmail = useSyncExternalStore(
+    subscribeToRememberedEmail, readRememberedEmail, noRememberedEmail,
+  );
+  const visitorEmail = email || rememberedEmail;
   const [typed, setTyped] = useState('');
   const [picks, setPicks] = useState<Set<string>>(new Set());
-  const [mode, setMode] = useState<'keep' | 'buy'>('keep');
+  const [mode, setMode] = useState<'keep' | 'collect' | 'buy'>('keep');
+  const [collections, setCollections] = useState<ClientGalleryCollection[]>([]);
+  const [collectionName, setCollectionName] = useState('');
+  const [collectingId, setCollectingId] = useState('');
   const [buying, setBuying] = useState<string | null>(null);
   const [basket, setBasket] = useState<BasketLine[]>([]);
   const [name, setName] = useState('');
   const [shipTo, setShipTo] = useState('');
   const [note, setNote] = useState('');
   const [placed, setPlaced] = useState(false);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
 
   useEffect(() => {
-    try {
-      const had = window.localStorage.getItem(REMEMBERED);
-      if (had) setEmail(had);
-    } catch { /* private window; it will ask again */ }
-  }, []);
-
-  useEffect(() => {
-    if (!email) return;
+    if (!visitorEmail) return;
     let alive = true;
-    picksOf({ token: gallery.token, email })
-      .then((ids) => { if (alive) setPicks(new Set(ids)); })
+    Promise.all([
+      picksOf({ token: gallery.token, email: visitorEmail }),
+      collectionsForVisitor({ token: gallery.token, email: visitorEmail }),
+    ])
+      .then(([ids, foundCollections]) => {
+        if (!alive) return;
+        setPicks(new Set(ids));
+        setCollections(foundCollections);
+        setCollectingId((current) => current || foundCollections.find((collection) => !collection.submittedAt)?.id || '');
+      })
       .catch(() => { /* no picks is the right fallback */ });
+    void recordGalleryView({ token: gallery.token, email: visitorEmail });
     return () => { alive = false; };
-  }, [email, gallery.token]);
+  }, [visitorEmail, gallery.token]);
 
   const remember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +85,7 @@ export function Viewer({
   };
 
   const toggle = (fileId: string) => {
-    if (!email) return;
+    if (!visitorEmail) return;
     const on = !picks.has(fileId);
     // Answer the press, reconcile after. Four hundred frames on a phone cannot
     // wait on the network at every tap.
@@ -73,7 +97,7 @@ export function Viewer({
     setProblem(null);
     start(async () => {
       try {
-        await favourite({ token: gallery.token, fileId, email, on });
+        await favourite({ token: gallery.token, fileId, email: visitorEmail, on });
       } catch (err) {
         setPicks((had) => {
           const next = new Set(had);
@@ -85,20 +109,103 @@ export function Viewer({
     });
   };
 
+  const activeCollection = collections.find((collection) => collection.id === collectingId) ?? null;
+  const collectionFileIds = new Set(activeCollection?.fileIds ?? []);
+
+  const createCollection = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!visitorEmail || !collectionName.trim()) return;
+    setProblem(null);
+    start(async () => {
+      try {
+        const collection = await createVisitorCollection({ token: gallery.token, email: visitorEmail, name: collectionName });
+        setCollections((had) => [...had, collection]);
+        setCollectingId(collection.id);
+        setCollectionName('');
+        setMode('collect');
+      } catch (error) {
+        setProblem(error instanceof Error ? error.message : 'Could not make that collection');
+      }
+    });
+  };
+
+  const toggleCollected = (fileId: string) => {
+    if (!visitorEmail || !activeCollection || activeCollection.submittedAt) return;
+    const on = !collectionFileIds.has(fileId);
+    setCollections((had) => had.map((collection) => collection.id !== activeCollection.id ? collection : {
+      ...collection,
+      fileIds: on ? [...collection.fileIds, fileId] : collection.fileIds.filter((id) => id !== fileId),
+    }));
+    setProblem(null);
+    start(async () => {
+      try {
+        await toggleCollectionFile({
+          token: gallery.token, email: visitorEmail, collectionId: activeCollection.id, fileId, on,
+        });
+      } catch (error) {
+        setCollections((had) => had.map((collection) => collection.id !== activeCollection.id ? collection : {
+          ...collection,
+          fileIds: on ? collection.fileIds.filter((id) => id !== fileId) : [...collection.fileIds, fileId],
+        }));
+        setProblem(error instanceof Error ? error.message : 'That picture did not save');
+      }
+    });
+  };
+
+  const submitSelection = () => {
+    if (!visitorEmail || !activeCollection || activeCollection.kind !== 'selection') return;
+    setProblem(null);
+    start(async () => {
+      try {
+        await submitGallerySelection({ token: gallery.token, email: visitorEmail, collectionId: activeCollection.id });
+        setCollections((had) => had.map((collection) => collection.id === activeCollection.id
+          ? { ...collection, submittedAt: new Date().toISOString() } : collection));
+      } catch (error) {
+        setProblem(error instanceof Error ? error.message : 'Could not send your selection');
+      }
+    });
+  };
+
+  const download = (fileId: string) => {
+    if (!visitorEmail) { setProblem('Your email is needed before a download can be prepared.'); return; }
+    setProblem(null);
+    setDownloadingFileId(fileId);
+    start(async () => {
+      try {
+        const handoff = await prepareGalleryDownload({ token: gallery.token, email: visitorEmail, fileId });
+        const link = document.createElement('a');
+        link.href = handoff.url;
+        link.download = handoff.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (error) {
+        setProblem(error instanceof Error ? error.message : 'Could not prepare that download');
+      } finally {
+        setDownloadingFileId(null);
+      }
+    });
+  };
+
   const products = forSale?.products ?? [];
   const productById = new Map(products.map((p) => [p.id, p]));
   const basketLines = basket
-    .map((l) => ({ line: l, product: productById.get(l.productId) }))
-    .filter((x): x is { line: BasketLine; product: NonNullable<typeof x.product> } => !!x.product);
+    .map((line) => {
+      const product = productById.get(line.productId);
+      const variant = line.variantId ? product?.variants.find((item) => item.id === line.variantId) ?? null : null;
+      return { line, product, variant };
+    })
+    .filter((item): item is { line: BasketLine; product: NonNullable<typeof item.product>; variant: typeof item.variant } =>
+      !!item.product && (!item.line.variantId || !!item.variant));
   const total = orderTotal(basketLines.map((x) => ({
-    unitPrice: x.product.price, quantity: x.line.quantity,
+    unitPrice: x.product.price + (x.variant?.priceDelta ?? 0), quantity: x.line.quantity,
   })));
   const currency = products[0]?.currency ?? 'NGN';
 
-  const addToBasket = (productId: string, fileId: string | null) => {
+  const addToBasket = (productId: string, variantId: string | null, fileId: string | null) => {
     setBasket((had) => {
-      const at = had.findIndex((l) => l.productId === productId && l.fileId === fileId);
-      if (at === -1) return [...had, { productId, fileId, quantity: 1 }];
+      const at = had.findIndex((line) => line.productId === productId && line.variantId === variantId && line.fileId === fileId);
+      if (at === -1) return [...had, { productId, variantId, fileId, quantity: 1 }];
       const next = [...had];
       next[at] = { ...next[at], quantity: next[at].quantity + 1 };
       return next;
@@ -108,12 +215,12 @@ export function Viewer({
 
   const order = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) { setProblem('An email is needed to send the order.'); return; }
+    if (!visitorEmail) { setProblem('An email is needed to send the order.'); return; }
     setProblem(null);
     start(async () => {
       try {
         await placeOrder({
-          token: gallery.token, email, name, shipTo, note, lines: basket,
+          token: gallery.token, email: visitorEmail, name, shipTo, note, lines: basket,
         });
         setBasket([]);
         setShipTo('');
@@ -127,10 +234,17 @@ export function Viewer({
 
   const fileName = (id: string | null) =>
     gallery.files.find((f) => f.id === id)?.name ?? null;
+  const cover = gallery.coverFileId
+    ? gallery.files.find((file) => file.id === gallery.coverFileId && (file.mimeType ?? '').startsWith('image/')) ?? null
+    : null;
 
   return (
     <div className="q-gallery">
       <header className="q-gal-head-plain q-stack q-stack-xs">
+        {cover?.url && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img className="q-gal-cover-image" src={cover.url} alt="" />
+        )}
         <span className="q-gal-studio">{gallery.studioName}</span>
         <h1 className="q-gal-title">{gallery.name}</h1>
         <p className="q-gal-sub">
@@ -143,7 +257,7 @@ export function Viewer({
       </header>
 
       <main className="q-gal-main q-stack q-stack-md">
-        {!email && (
+        {!visitorEmail && (
           <form className="q-card q-row q-row-sm" onSubmit={remember}>
             <input
               className="q-input" type="email"
@@ -154,7 +268,7 @@ export function Viewer({
           </form>
         )}
 
-        {forSale && gallery.files.length > 0 && (
+        {gallery.files.length > 0 && (forSale || visitorEmail) && (
           <div className="q-row q-row-sm">
             <button
               type="button"
@@ -163,32 +277,82 @@ export function Viewer({
             >
               Keep the ones you like
             </button>
-            <button
+            {visitorEmail && (
+              <button
+                type="button"
+                className={mode === 'collect' ? 'q-btn q-btn-secondary q-btn-sm' : 'q-btn q-btn-ghost q-btn-sm'}
+                onClick={() => { setMode('collect'); setBuying(null); }}
+              >
+                Add to a collection
+              </button>
+            )}
+            {forSale && <button
               type="button"
               className={mode === 'buy' ? 'q-btn q-btn-secondary q-btn-sm' : 'q-btn q-btn-ghost q-btn-sm'}
               onClick={() => setMode('buy')}
             >
               Order prints
-            </button>
+            </button>}
           </div>
+        )}
+
+        {visitorEmail && (
+          <section className="q-card q-stack q-stack-xs">
+            <div className="q-row q-row-between">
+              <h2 className="q-section-title">Your collections</h2>
+              {activeCollection && activeCollection.kind === 'selection' && !activeCollection.submittedAt && (
+                <button type="button" className="q-btn q-btn-secondary q-btn-xs" disabled={working} onClick={submitSelection}>
+                  Send selection
+                </button>
+              )}
+            </div>
+            {collections.length > 0 && (
+              <select className="q-input q-input-sm" value={collectingId} onChange={(event) => setCollectingId(event.target.value)}>
+                {collections.map((collection) => (
+                  <option key={collection.id} value={collection.id}>
+                    {collection.name} · {collection.fileIds.length}{collection.maxItems ? `/${collection.maxItems}` : ''}
+                    {collection.submittedAt ? ' · sent' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {activeCollection?.dueOn && <p className="q-meta">Selection due {activeCollection.dueOn}.</p>}
+            <form className="q-row q-row-sm" onSubmit={createCollection}>
+              <input className="q-input q-input-sm" placeholder="Name a new collection" value={collectionName}
+                onChange={(event) => setCollectionName(event.target.value)} disabled={working} />
+              <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !collectionName.trim()}>
+                New collection
+              </button>
+            </form>
+          </section>
         )}
 
         {gallery.files.length === 0 ? (
           <p className="q-empty-lg">The studio has not put anything in here yet.</p>
         ) : (
-          <div className="q-gal-grid">
-            {gallery.files.map((f) => {
+          <div className="q-stack q-stack-lg">
+            {gallery.sections.map((section) => (
+              <section key={section.id} className="q-stack q-stack-sm">
+                {gallery.sections.length > 1 && <h2 className="q-gal-section-title">{section.name}</h2>}
+                <div className="q-gal-grid">
+                  {section.files.map((f) => {
               const kept = picks.has(f.id);
+              const collected = collectionFileIds.has(f.id);
               return (
                 <button
                   key={f.id}
                   type="button"
-                  className={kept && mode === 'keep' ? 'q-gal-tile q-gal-tile-chosen' : 'q-gal-tile'}
+                  className={(kept && mode === 'keep') || (collected && mode === 'collect')
+                    ? 'q-gal-tile q-gal-tile-chosen' : 'q-gal-tile'}
                   title={f.name}
-                  disabled={mode === 'keep' ? (!email || working) : false}
-                  onClick={() => (mode === 'keep' ? toggle(f.id) : setBuying(f.id))}
+                  disabled={mode === 'keep' ? (!visitorEmail || working)
+                    : mode === 'collect' ? (!visitorEmail || !activeCollection || !!activeCollection.submittedAt || working)
+                      : false}
+                  onClick={() => (mode === 'keep' ? toggle(f.id) : mode === 'collect' ? toggleCollected(f.id) : setBuying(f.id))}
                 >
-                  {f.url && (
+                  {f.url && (f.mimeType ?? '').startsWith('video/') ? (
+                    <video className="q-gal-video" src={f.url} muted playsInline loop autoPlay preload="metadata" />
+                  ) : f.url && (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={f.url} alt={f.name}
@@ -196,9 +360,13 @@ export function Viewer({
                     />
                   )}
                   {kept && mode === 'keep' && <span className="q-gal-mark">Kept</span>}
+                  {collected && mode === 'collect' && <span className="q-gal-mark">Added</span>}
                 </button>
               );
-            })}
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
 
@@ -213,20 +381,23 @@ export function Viewer({
             {products.length === 0 ? (
               <p className="q-empty">Nothing is priced yet.</p>
             ) : products.map((p) => (
-              <div key={p.id} className="q-row q-row-between">
+              <div key={p.id} className="q-stack q-stack-xs">
                 <span className="q-text-body">
                   {p.name}
                   <span className="q-meta"> &middot; {p.kind === 'digital' ? 'a file' : 'made and sent'}</span>
                 </span>
-                <span className="q-row q-row-sm">
-                  <strong className="q-num">{money(p.price, p.currency)}</strong>
-                  <button
-                    type="button" className="q-btn q-btn-secondary q-btn-xs"
-                    onClick={() => addToBasket(p.id, p.kind === 'digital' ? buying : buying)}
-                  >
-                    Add
-                  </button>
-                </span>
+                {(p.variants.length === 0 ? [{ id: null, name: null, priceDelta: 0 }] : p.variants).map((variant) => (
+                  <span className="q-row q-row-between" key={variant.id ?? 'base'}>
+                    <span className="q-meta">{variant.name ?? 'Standard'}</span>
+                    <span className="q-row q-row-sm">
+                      <strong className="q-num">{money(p.price + variant.priceDelta, p.currency)}</strong>
+                      <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                        onClick={() => addToBasket(p.id, variant.id, buying)}>
+                        Add
+                      </button>
+                    </span>
+                  </span>
+                ))}
               </div>
             ))}
           </section>
@@ -235,16 +406,17 @@ export function Viewer({
         {basketLines.length > 0 && (
           <section className="q-card q-stack q-stack-sm">
             <h2 className="q-section-title">Your order</h2>
-            {basketLines.map(({ line, product }, i) => (
-              <div key={`${line.productId}-${line.fileId}-${i}`} className="q-row q-row-between">
+            {basketLines.map(({ line, product, variant }, i) => (
+              <div key={`${line.productId}-${line.variantId}-${line.fileId}-${i}`} className="q-row q-row-between">
                 <span className="q-text-body">
                   {line.quantity > 1 ? `${line.quantity} × ` : ''}{product.name}
+                  {variant && <span className="q-meta"> · {variant.name}</span>}
                   {fileName(line.fileId) && (
                     <span className="q-meta"> &middot; {fileName(line.fileId)}</span>
                   )}
                 </span>
                 <span className="q-row q-row-sm">
-                  <span className="q-num">{money(product.price * line.quantity, product.currency)}</span>
+                  <span className="q-num">{money((product.price + (variant?.priceDelta ?? 0)) * line.quantity, product.currency)}</span>
                   <button
                     type="button" className="q-btn q-btn-ghost q-btn-xs"
                     onClick={() => setBasket((had) => had.filter((_, j) => j !== i))}
@@ -294,11 +466,10 @@ export function Viewer({
             {gallery.files.map((f) => (
               <div key={f.id} className="q-gal-file">
                 <span className="q-gal-file-n">{f.name}</span>
-                {f.url && (
-                  <a className="q-btn q-btn-ghost q-btn-xs" href={f.url} download={f.name}>
-                    Download
-                  </a>
-                )}
+                <button type="button" className="q-btn q-btn-ghost q-btn-xs"
+                  disabled={working || downloadingFileId === f.id} onClick={() => download(f.id)}>
+                  {downloadingFileId === f.id ? 'Preparing' : 'Download'}
+                </button>
               </div>
             ))}
           </div>

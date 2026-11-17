@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { readJob } from '@/weave/jobs/actions';
 import { whoIsAsking } from '@/weave/studio';
@@ -6,7 +5,7 @@ import { COLUMNS } from '@/weave/jobs/shape';
 import { occasionsForJob, listPeople } from '@/weave/occasions/actions';
 import { headers } from 'next/headers';
 import { filesForJob } from '@/weave/files/actions';
-import { galleriesForJob } from '@/weave/galleries/actions';
+import { galleriesForJob, galleryActivityForJob, galleryTemplates } from '@/weave/galleries/actions';
 import { priceLists } from '@/weave/store/actions';
 import { JobAmend } from './JobAmend';
 import { Occasions } from './Occasions';
@@ -58,11 +57,13 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
    * draw one page is how an app starts feeling like a website, and none of
    * these three answers depends on another.
    */
-  const [occasions, people, files, galleries, lists, head] = await Promise.all([
+  const [occasions, people, files, galleries, galleryActivity, templates, lists, head] = await Promise.all([
     occasionsForJob(id),
     listPeople(),
     filesForJob(id),
     galleriesForJob(id),
+    galleryActivityForJob(id),
+    galleryTemplates(),
     priceLists(),
     headers(),
   ]);
@@ -95,7 +96,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
       <Files jobId={job.id} files={files} />
 
-      <Galleries jobId={job.id} galleries={galleries} origin={origin} lists={lists} />
+      <Galleries jobId={job.id} galleries={galleries} activity={galleryActivity} templates={templates} origin={origin} lists={lists} />
 
       <section className="q-card q-stack q-stack-sm">
         <h2 className="q-section-title">What has happened</h2>

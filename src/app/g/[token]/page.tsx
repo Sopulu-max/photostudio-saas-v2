@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { openGallery } from '@/weave/galleries/actions';
 import { whatIsForSale } from '@/weave/store/actions';
+import { AccessGate } from './AccessGate';
 import { Viewer } from './Viewer';
 
 /**
@@ -17,12 +18,14 @@ export default async function GalleryPage({
 }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const [gallery, forSale] = await Promise.all([
-    openGallery(token),
-    whatIsForSale(token),
-  ]);
+  const gallery = await openGallery(token);
 
   if (!gallery) notFound();
+  if ('locked' in gallery) {
+    return <AccessGate token={gallery.token} name={gallery.name} studioName={gallery.studioName} />;
+  }
+
+  const forSale = await whatIsForSale(token);
 
   return <Viewer gallery={gallery} forSale={forSale} />;
 }
