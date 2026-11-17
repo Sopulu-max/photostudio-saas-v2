@@ -129,7 +129,7 @@ export async function createJob(input: {
     payload: { client: name },
   });
 
-  revalidatePath('/board');
+  revalidatePath('/');
   return { id: job.id };
 }
 
@@ -149,5 +149,5 @@ export async function moveJob(input: { jobId: string; turn: Turn }): Promise<voi
     throw new Error('Could not move that job');
   }
 
-  revalidatePath('/board');
+  revalidatePath('/');
 }
