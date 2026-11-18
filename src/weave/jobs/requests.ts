@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
-import type { Request, StudioFront } from './shape';
+import type { AnsweredRequest, Request, StudioFront } from './shape';
 
 /**
  * Work arriving from outside.
@@ -102,6 +102,7 @@ export async function requestBooking(input: {
 
   revalidatePath('/');
   revalidatePath('/mobile');
+  revalidatePath('/bookings');
 }
 
 /** What is waiting for an answer, oldest first — somebody has been waiting longest. */
@@ -136,6 +137,48 @@ export async function requestsWaiting(): Promise<Request[]> {
 }
 
 /**
+ * What has already been answered, newest first.
+ *
+ * Only what arrived from outside — a job the studio started itself was never
+ * a request and would be noise in this reading.
+ */
+export async function requestsAnswered(limit = 25): Promise<AnsweredRequest[]> {
+  const who = await whoIsAsking();
+  if (!who) return [];
+
+  const { data, error } = await db.from('jobs')
+    .select('id, wants, expected_on, requested_at, created_at, accepted_at, declined_at, '
+      + 'declined_because, client:people(name, email)')
+    .eq('studio_id', who.studioId)
+    .not('requested_at', 'is', null)
+    .or('accepted_at.not.is.null,declined_at.not.is.null')
+    .order('requested_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Failed to read what was answered:', error);
+    return [];
+  }
+
+  return ((data ?? []) as unknown as {
+    id: string; wants: string | null; expected_on: string | null;
+    requested_at: string | null; created_at: string;
+    accepted_at: string | null; declined_at: string | null; declined_because: string | null;
+    client: { name: string; email: string | null } | null;
+  }[]).map((row) => ({
+    id: row.id,
+    wants: row.wants,
+    expectedOn: row.expected_on,
+    askedBy: row.client?.name ?? null,
+    askedByEmail: row.client?.email ?? null,
+    requestedAt: row.requested_at ?? row.created_at,
+    answer: row.accepted_at ? 'taken' : 'turned away',
+    answeredAt: (row.accepted_at ?? row.declined_at)!,
+    because: row.declined_because,
+  }));
+}
+
+/**
  * Take the work on. From here it is an ordinary job and the board carries it.
  *
  * A dated request becomes scheduled; an undated one still needs the studio,
@@ -166,6 +209,7 @@ export async function acceptRequest(input: { jobId: string }): Promise<void> {
 
   revalidatePath('/');
   revalidatePath('/mobile');
+  revalidatePath('/bookings');
   revalidatePath(`/jobs/${input.jobId}`);
 }
 
@@ -201,4 +245,5 @@ export async function declineRequest(input: { jobId: string; because?: string })
 
   revalidatePath('/');
   revalidatePath('/mobile');
+  revalidatePath('/bookings');
 }

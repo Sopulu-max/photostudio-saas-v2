@@ -16,7 +16,16 @@ import { sayRequests, type Request } from '@/weave/jobs/shape';
  * an operator do the subtraction and the answer to that subtraction is the
  * whole point.
  */
-export function Requests({ waiting }: { waiting: Request[] }) {
+export function Requests({ waiting, heading = true }: {
+  waiting: Request[];
+  /**
+   * Off where the page has already said it. On the board this band has to
+   * announce itself; on the Bookings page the title says the same sentence
+   * two lines above, and saying it twice reads as a stutter rather than
+   * emphasis.
+   */
+  heading?: boolean;
+}) {
   const [problem, setProblem] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [working, start] = useTransition();
@@ -35,7 +44,7 @@ export function Requests({ waiting }: { waiting: Request[] }) {
 
   return (
     <section className="q-asks">
-      <h2 className="q-section-title">{sayRequests(waiting)}</h2>
+      {heading && <h2 className="q-section-title">{sayRequests(waiting)}</h2>}
 
       {waiting.map((ask) => {
         const days = Math.floor(

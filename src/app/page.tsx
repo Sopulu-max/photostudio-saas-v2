@@ -4,8 +4,7 @@ import { readBoard } from '@/weave/jobs/actions';
 import { occasionsBetween } from '@/weave/occasions/actions';
 import { sayWhen, sayCrew } from '@/weave/occasions/shape';
 import { whoIsAsking } from '@/weave/studio';
-import { headers } from 'next/headers';
-import { myStudioFront, requestsWaiting } from '@/weave/jobs/requests';
+import { requestsWaiting } from '@/weave/jobs/requests';
 import { NewJob } from './NewJob';
 import { JobCardRow } from './JobCardRow';
 import { Requests } from './Requests';
@@ -23,14 +22,9 @@ export default async function BoardPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const head = await headers();
-  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
-  const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-  const origin = `${scheme}://${host}`;
-
   const today = new Date().toLocaleDateString('en-CA');
-  const [board, todays, waiting, front] = await Promise.all([
-    readBoard(), occasionsBetween(today, today), requestsWaiting(), myStudioFront(),
+  const [board, todays, waiting] = await Promise.all([
+    readBoard(), occasionsBetween(today, today), requestsWaiting(),
   ]);
   const tallest = Math.max(1, ...board.map((c) => c.jobs.length));
   const live = board
@@ -50,17 +44,6 @@ export default async function BoardPage() {
           </p>
         </div>
 
-        {/*
-          * The studio's own address. Needed rarely — copied once onto their
-          * website — but a slug nobody can find is a slug that does not exist,
-          * so it is shown rather than left for somebody to guess.
-          */}
-        {front && (
-          <div className="q-stack q-stack-xs">
-            <span className="q-label">Where people ask</span>
-            <span className="q-share">{origin}/s/{front.slug}</span>
-          </div>
-        )}
       </header>
 
       {/*

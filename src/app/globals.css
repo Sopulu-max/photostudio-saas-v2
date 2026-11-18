@@ -989,3 +989,23 @@ select.q-input { cursor: pointer; }
   font-size: 1.3rem; letter-spacing: -0.01em; color: var(--ink);
 }
 .q-auth-field textarea.q-input { resize: vertical; min-height: 92px; }
+
+/* ---- A request already answered ----------------------------------------- */
+/*
+ * The record of where work comes from, and what was turned away. Quieter than
+ * a waiting request, because nothing here needs doing — it is there to be
+ * looked back on.
+ */
+
+.q-answered {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.q-answered-main { flex: 1 1 260px; display: flex; flex-direction: column; gap: 3px; }
+.q-answer {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em;
+  color: var(--ink-faint); white-space: nowrap;
+}
+/* Refused is said in the warm tone, not a red one: it was a decision, not a fault. */
+.q-answer-no { color: var(--warn); }

@@ -47,6 +47,19 @@ export type Request = {
   requestedAt: string;
 };
 
+/**
+ * A request that has been answered — taken on, or turned away.
+ *
+ * Kept and read rather than cleared away: what a studio declined, and why, is
+ * a thing it has every reason to look back on, and the ones it took are the
+ * record of where its work comes from.
+ */
+export type AnsweredRequest = Request & {
+  answer: 'taken' | 'turned away';
+  answeredAt: string;
+  because: string | null;
+};
+
 /** What a studio shows the world at its own address. */
 export type StudioFront = {
   studioId: string;
