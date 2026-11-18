@@ -1300,3 +1300,29 @@ select.q-input { cursor: pointer; }
   .q-cal-day { min-height: 0; border-left: 1px solid var(--line); }
   .q-cal-away { display: none; }
 }
+
+/* ---- Who works here ------------------------------------------------------ */
+
+.q-mate {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+  padding: 15px 0; border-bottom: 1px solid var(--line);
+}
+.q-mate-who { flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px; }
+.q-mate-name {
+  font-family: var(--font-display); font-weight: 400; font-size: 1.15rem;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+/* What they are carrying, said plainly rather than as a badge. */
+.q-mate-load {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em;
+  color: var(--ink-faint); white-space: nowrap;
+}
+.q-mate-acts {
+  display: flex; align-items: center; gap: 10px;
+  opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.q-mate:hover .q-mate-acts,
+.q-mate:focus-within .q-mate-acts { opacity: 1; }
+@media (hover: none) { .q-mate-acts { opacity: 1; } }
+.q-mate-gone { opacity: 0.55; }

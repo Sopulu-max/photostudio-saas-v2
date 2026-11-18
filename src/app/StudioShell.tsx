@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus, CalendarDays,
+  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus, CalendarDays, Users,
 } from 'lucide-react';
 import { signOut } from '@/weave/account/actions';
 
@@ -15,8 +15,8 @@ import { signOut } from '@/weave/account/actions';
  * share that layout and neither should carry the studio's furniture.
  */
 export type Where =
-  | 'board' | 'calendar' | 'bookings' | 'orders' | 'store' | 'automations'
-  | 'galleries' | 'mobile';
+  | 'board' | 'calendar' | 'bookings' | 'team' | 'orders' | 'store'
+  | 'automations' | 'galleries' | 'mobile';
 
 const NAV: { key: Where; href: string; label: string; Icon: typeof LayoutGrid }[] = [
   { key: 'board', href: '/', label: 'The board', Icon: LayoutGrid },
@@ -25,6 +25,8 @@ const NAV: { key: Where; href: string; label: string; Icon: typeof LayoutGrid }[
   { key: 'calendar', href: '/calendar', label: 'Calendar', Icon: CalendarDays },
   // Where work arrives from outside. Second, because it comes before the work.
   { key: 'bookings', href: '/bookings', label: 'Bookings', Icon: CalendarPlus },
+  // Who works here. Crew on a shoot is drawn from this and nothing else.
+  { key: 'team', href: '/team', label: 'The team', Icon: Users },
   { key: 'galleries', href: '/galleries', label: 'Galleries', Icon: Images },
   { key: 'orders', href: '/orders', label: 'Orders', Icon: ShoppingBag },
   { key: 'store', href: '/store', label: 'What you sell', Icon: Tag },

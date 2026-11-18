@@ -239,6 +239,13 @@ export async function setCrew(input: {
 }
 
 /** Everyone the studio knows, for putting on an occasion. */
+/**
+ * Who can be put on a shoot: the people who work here, and only those.
+ *
+ * This used to return every person in the studio, which meant the crew picker
+ * offered a studio its own clients, its gallery guests and a wedding
+ * planner. Crew comes from the team.
+ */
 export async function listPeople(): Promise<{ id: string; name: string }[]> {
   const who = await whoIsAsking();
   if (!who) return [];
@@ -247,6 +254,8 @@ export async function listPeople(): Promise<{ id: string; name: string }[]> {
     .from('people')
     .select('id, name')
     .eq('studio_id', who.studioId)
+    .not('joined_at', 'is', null)
+    .is('left_at', null)
     .order('name');
 
   if (error) {
