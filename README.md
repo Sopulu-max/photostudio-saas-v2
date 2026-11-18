@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Weave
 
-## Getting Started
+A studio operating system: the software a photo studio runs its work on, and the
+software its clients meet it through.
 
-First, run the development server:
+## The spine
+
+A **job** is a piece of work for a client. **Occasions** are the things that
+happen on it — the shoot, the review, the delivery. **Files** come out of those
+occasions. A **gallery** is how files are shown to the people they are for. A
+**store** sells prints and downloads from a gallery. **Automations** follow up
+afterwards.
+
+Read it in that order and the system explains itself. Each lives under
+`src/weave/<module>`, with `shape.ts` for what a thing is and `actions.ts` for
+what may be done to it.
+
+Two interfaces sit on top: the studio's, behind a login, and the client's, at
+`/g/<token>`, which needs no account.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+It needs a `.env.local` with `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and
+`SUPABASE_PASSWORD`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx vitest run     # the tests run against the real database
+npx tsc --noEmit   # types
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## The database
 
-## Learn More
+Everything lives in the `weave` Postgres schema, inside a Supabase project.
+Migrations are in `supabase/migrations`, and their comments carry the reasoning
+— why a shape is the shape it is. They are the architecture documentation.
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+node scripts/apply-migration.mjs <filename>   # apply one, by basename
+node scripts/db-query.mjs "select ..."        # ask the database something
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+A migration that has been written has not been applied. Apply it, then verify by
+counting what it should have made.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Working on it
 
-## Deploy on Vercel
+`.agents/AGENTS.md` holds the binding rules — what to read before changing
+anything, how state is modelled, how the interface is kept in one place, and the
+multi-tenant mandate. Read it first.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The short version: derive state rather than storing it, scope every query to the
+asking studio, finish each feature in both directions at once, and prove a thing
+works by exercising it rather than by compiling it.
