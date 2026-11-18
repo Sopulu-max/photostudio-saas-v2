@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone,
 } from 'lucide-react';
+import { signOut } from '@/weave/account/actions';
 
 /**
  * The studio's shell: a sidebar and a page beside it.
@@ -53,8 +54,15 @@ export function StudioShell({
           ))}
         </nav>
 
+        {/*
+          * A form, not a link. This was a link to /login, which ended no
+          * session — it only moved the operator to a page that would have
+          * signed them straight back in from the cookie they still held.
+          */}
         <div className="q-side-foot">
-          <Link href="/login" className="q-meta q-plain-link">Sign out</Link>
+          <form action={signOut}>
+            <button type="submit" className="q-side-out">Sign out</button>
+          </form>
         </div>
       </aside>
 

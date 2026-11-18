@@ -9,11 +9,15 @@ import { weave } from './db';
  * being signed in there; nobody logs in twice. What differs is where the answer
  * is looked up: `weave.people`, not `public.contacts`.
  *
- * Identity runs through `auth_user_id`. An email is a WEAKER claim — the same
- * address can belong to a person at more than one studio, and taking whichever
- * row came back first is how an operator ends up looking at somebody else's
- * work. So an email is honoured only when it names exactly ONE studio. No
- * studio is recoverable; the wrong studio is not.
+ * Identity runs through `auth_user_id`, and ONLY through it.
+ *
+ * It used to fall back to matching on email when no row carried the account's
+ * id. That was survivable while accounts were made by hand; it stopped being
+ * survivable the moment anyone could sign up. `weave.people` holds a studio's
+ * CLIENTS as well as its operators — every gallery visitor becomes a row — so
+ * the fallback meant registering as ada@example.com and being handed operator
+ * access to whichever studio Ada is a client of. The link is the claim now,
+ * and an unlinked row proves nothing about who is asking.
  */
 export type Who = {
   userId: string; personId: string; studioId: string; studioName: string;
@@ -24,41 +28,41 @@ async function resolve(): Promise<Who> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: linked } = await weave
+  /*
+   * Listed rather than fetched as one row. An account may hold a membership
+   * at more than one studio — a photographer who second-shoots elsewhere is
+   * one account with two — and `.maybeSingle()` does not return the first of
+   * those, it throws. Asking for the list means the ambiguous case is
+   * something this function decides, not something it crashes on.
+   */
+  const { data: memberships } = await weave
     .from('people')
     .select('id, studio_id, studio:studios(name)')
     .eq('auth_user_id', user.id)
-    .maybeSingle();
+    .order('created_at', { ascending: true });
 
-  if (linked) {
-    const row = linked as unknown as { id: string; studio_id: string; studio: { name: string } | null };
+  const rows = (memberships ?? []) as unknown as
+    { id: string; studio_id: string; studio: { name: string } | null }[];
+
+  if (rows.length === 1) {
+    const row = rows[0];
     return {
       userId: user.id, personId: row.id, studioId: row.studio_id,
       studioName: row.studio?.name ?? 'Studio',
     };
   }
 
-  if (!user.email) return null;
-
-  const { data: byEmail } = await weave
-    .from('people')
-    .select('id, studio_id, studio:studios(name)')
-    .eq('email', user.email);
-
-  const rows = (byEmail ?? []) as unknown as
-    { id: string; studio_id: string; studio: { name: string } | null }[];
-  const studios = [...new Set(rows.map((r) => r.studio_id))];
-
-  if (studios.length === 1) {
-    return {
-      userId: user.id, personId: rows[0].id, studioId: studios[0],
-      studioName: rows[0].studio?.name ?? 'Studio',
-    };
-  }
-  if (studios.length > 1) {
+  if (rows.length > 1) {
+    /*
+     * Nothing can produce this yet: founding makes exactly one membership and
+     * there are no invitations. It is reachable the day invitations ship, and
+     * on that day this must become a choice the operator makes and the app
+     * remembers — not a guess made here. Showing the wrong studio's work is
+     * worse than showing none, so until then it refuses, loudly.
+     */
     console.error(
-      `${user.email} is a person at ${studios.length} studios and no row carries `
-      + `auth_user_id ${user.id}. Refusing to guess which is meant.`,
+      `Account ${user.id} holds ${rows.length} studio memberships and nothing has `
+      + 'said which is meant. Refusing to guess; a studio switcher is owed here.',
     );
   }
   return null;

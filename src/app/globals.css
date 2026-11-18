@@ -868,3 +868,78 @@ select.q-input { cursor: pointer; }
   .q-mobile { padding-left: 30px; padding-right: 30px; }
   .q-mobile-head { margin-top: 14px; }
 }
+
+/* ---- The way in --------------------------------------------------------- */
+/*
+ * Sign up, log in, and both halves of forgetting a password. These four pages
+ * are the first thing a studio sees of this software, so they get the gallery
+ * treatment rather than the form treatment: one column, generous air, the
+ * display face on the title, and the ground of the page doing the work
+ * instead of a box with a shadow under it.
+ */
+
+.q-auth {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 48px 20px;
+  background: var(--paper);
+}
+.q-auth-card { width: 100%; max-width: 380px; }
+
+.q-auth-mark {
+  display: block; margin-bottom: 44px; text-decoration: none;
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.3em;
+  color: var(--ink-faint);
+  transition: color var(--fast) var(--ease);
+}
+.q-auth-mark:hover { color: var(--ink); }
+
+.q-auth-title {
+  margin: 0; font-family: var(--font-display); font-weight: 400;
+  font-size: 2rem; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink);
+}
+.q-auth-says { margin: 12px 0 0; font-size: 0.92rem; line-height: 1.6; color: var(--ink-dim); }
+.q-auth-body { margin: 0 0 14px; font-size: 0.92rem; line-height: 1.7; color: var(--ink-dim); }
+
+.q-auth-form { display: flex; flex-direction: column; gap: 20px; margin-top: 34px; }
+.q-auth-field { display: block; position: relative; }
+.q-auth-field .q-input { width: 100%; }
+.q-auth-hint {
+  display: block; margin-top: 7px;
+  font-size: 0.76rem; color: var(--ink-faint);
+}
+
+/* Sits on the password label's line, where it is looked for and nowhere else. */
+.q-auth-aside {
+  position: absolute; top: 0; right: 0;
+  font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.14em;
+  color: var(--ink-faint); text-decoration: none;
+  transition: color var(--fast) var(--ease);
+}
+.q-auth-aside:hover { color: var(--ink); }
+
+.q-auth-go { width: 100%; margin-top: 6px; padding: 13px 22px; }
+
+.q-auth-problem {
+  margin: 0; padding: 12px 14px;
+  border-left: 2px solid var(--bad);
+  background: var(--paper-2);
+  font-size: 0.88rem; line-height: 1.55; color: var(--ink);
+  animation: q-appear var(--fast) var(--ease) both;
+}
+
+.q-auth-foot {
+  margin-top: 34px; padding-top: 22px;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem; color: var(--ink-dim);
+}
+.q-auth-link { color: var(--ink); text-underline-offset: 3px; }
+.q-auth-link:hover { text-decoration-thickness: 2px; }
+
+/* Sign out is a submit button, so it is made to read as the quiet link it was. */
+.q-side-out {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 0.86rem; color: var(--ink-dim);
+  transition: color var(--fast) var(--ease);
+}
+.q-side-out:hover { color: var(--ink); }
