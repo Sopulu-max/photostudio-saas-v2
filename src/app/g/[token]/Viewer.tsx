@@ -7,7 +7,10 @@ import {
 } from '@/weave/galleries/actions';
 import { placeOrder } from '@/weave/store/actions';
 import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
-import { money, orderTotal, type BasketLine, type PriceList } from '@/weave/store/shape';
+import {
+  money, orderTotal, saySize, sizeOf, type BasketLine, type PriceList,
+} from '@/weave/store/shape';
+import { PrintPreview } from '@/components/PrintPreview';
 import { Lightbox } from './Lightbox';
 import { ClientHub } from './ClientHub';
 import { AlbumProofs } from './AlbumProofs';
@@ -270,6 +273,8 @@ export function Viewer({
 
   const fileName = (id: string | null) =>
     gallery.files.find((f) => f.id === id)?.name ?? null;
+  const fileUrl = (id: string | null) =>
+    gallery.files.find((f) => f.id === id)?.url ?? null;
   const cover = gallery.coverFileId
     ? gallery.files.find((file) => file.id === gallery.coverFileId && (file.mimeType ?? '').startsWith('image/')) ?? null
     : null;
@@ -511,18 +516,45 @@ export function Viewer({
                   {p.name}
                   <span className="q-meta"> &middot; {p.kind === 'digital' ? 'a file' : 'made and sent'}</span>
                 </span>
-                {(p.variants.length === 0 ? [{ id: null, name: null, priceDelta: 0 }] : p.variants).map((variant) => (
-                  <span className="q-row q-row-between" key={variant.id ?? 'base'}>
-                    <span className="q-meta">{variant.name ?? 'Standard'}</span>
-                    <span className="q-row q-row-sm">
-                      <strong className="q-num">{money(p.price + variant.priceDelta, p.currency)}</strong>
-                      <button type="button" className="q-btn q-btn-secondary q-btn-xs"
-                        onClick={() => addToBasket(p.id, variant.id, buying)}>
-                        Add
-                      </button>
-                    </span>
-                  </span>
-                ))}
+                {(p.variants.length === 0 ? [null] : p.variants).map((variant) => {
+                  const size = sizeOf(p, variant);
+                  const key = `${p.id}:${variant?.id ?? 'base'}`;
+                  return (
+                    <div className="q-stack q-stack-xs" key={key}>
+                      {/*
+                        * The picture as the thing being bought. Only drawn when
+                        * the studio stated a size — a digital file and an
+                        * unmeasured product have nothing truthful to show, and
+                        * a made-up rectangle is worse than none.
+                        */}
+                      {size && (
+                        <>
+                          <PrintPreview
+                            url={fileUrl(buying)}
+                            name={fileName(buying) ?? 'This picture'}
+                            size={size}
+                            shownAs={p.shownAs}
+                          />
+                          <span className="q-meta-sm">
+                            {saySize(size)} &middot; anything outside the frame is trimmed
+                          </span>
+                        </>
+                      )}
+                      <span className="q-row q-row-between">
+                        <span className="q-meta">{variant?.name ?? 'Standard'}</span>
+                        <span className="q-row q-row-sm">
+                          <strong className="q-num">
+                            {money(p.price + (variant?.priceDelta ?? 0), p.currency)}
+                          </strong>
+                          <button type="button" className="q-btn q-btn-secondary q-btn-xs"
+                            onClick={() => addToBasket(p.id, variant?.id ?? null, buying)}>
+                            Add
+                          </button>
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </section>

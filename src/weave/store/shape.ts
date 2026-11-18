@@ -8,11 +8,19 @@
 
 export type ProductKind = 'digital' | 'physical';
 
+/** How the engine draws it. Three distinct renderings, which is what earns a kind. */
+export type ShownAs = 'print' | 'framed' | 'canvas';
+
+/** Millimetres, stated by the studio. Never parsed out of a name. */
+export type Size = { widthMm: number; heightMm: number };
+
 export type ProductVariant = {
   id: string;
   name: string;
   priceDelta: number;
   position: number;
+  /** An option may restate the size — "12 × 18" is a size, "Lustre" is not. */
+  size: Size | null;
 };
 
 export type Product = {
@@ -22,8 +30,35 @@ export type Product = {
   price: number;
   currency: string;
   position: number;
+  shownAs: ShownAs;
+  size: Size | null;
   variants: ProductVariant[];
 };
+
+/**
+ * The size actually being bought.
+ *
+ * An option that states its own measurements is the thing being made, so it
+ * wins. One that does not — a finish, a paper — leaves the product's size
+ * standing.
+ */
+export function sizeOf(product: Product, variant?: ProductVariant | null): Size | null {
+  return variant?.size ?? product.size ?? null;
+}
+
+/**
+ * What a client is shown about the size, in their own units.
+ *
+ * Both, because a studio in Lagos quotes inches and a lab quotes millimetres,
+ * and a client should never have to convert to know whether it fits a wall.
+ */
+export function saySize(size: Size): string {
+  const inches = (mm: number) => {
+    const n = mm / 25.4;
+    return Number.isInteger(Math.round(n * 10) / 10) ? String(Math.round(n)) : (Math.round(n * 10) / 10).toFixed(1);
+  };
+  return `${inches(size.widthMm)} × ${inches(size.heightMm)} in · ${size.widthMm} × ${size.heightMm} mm`;
+}
 
 export type PriceList = {
   id: string;

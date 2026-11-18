@@ -5,7 +5,7 @@ import {
   addPriceList, addProduct, addProductVariant, removeProduct, removeProductVariant,
 } from '@/weave/store/actions';
 import { Reveal } from '@/components/Reveal';
-import { money, type PriceList, type ProductKind } from '@/weave/store/shape';
+import { money, saySize, type PriceList, type ProductKind, type ShownAs } from '@/weave/store/shape';
 
 /**
  * Price lists, and what is on them.
@@ -58,6 +58,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
 
                   <span className="q-ware-kind">
                     {p.kind === 'digital' ? 'A file' : 'Made and sent'}
+                    {p.size && ` · ${saySize(p.size)}`}
                   </span>
 
                   {p.variants.map((variant) => (
@@ -127,14 +128,32 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                   const name = String(form.get('name') ?? '').trim();
                   const major = Number(form.get('price'));
                   const kind = String(form.get('kind') ?? 'physical') as ProductKind;
+                  const shownAs = String(form.get('shownAs') ?? 'print') as ShownAs;
+                  const wIn = String(form.get('widthIn') ?? '').trim();
+                  const hIn = String(form.get('heightIn') ?? '').trim();
                   if (!name) { setProblem('Give it a name.'); return; }
                   if (!Number.isFinite(major) || major < 0) {
                     setProblem('That price is not a price.'); return;
+                  }
+                  if ((wIn === '') !== (hIn === '')) {
+                    setProblem('Give both measurements, or neither.'); return;
+                  }
+                  /*
+                   * Typed in inches because that is how a studio talks about a
+                   * print, stored in millimetres because integers do not drift.
+                   * The name is never read for this — the studio states it.
+                   */
+                  const toMm = (v: string) => Math.round(Number(v) * 25.4);
+                  const widthMm = wIn === '' ? null : toMm(wIn);
+                  const heightMm = hIn === '' ? null : toMm(hIn);
+                  if (widthMm !== null && (!Number.isFinite(widthMm) || !Number.isFinite(heightMm!))) {
+                    setProblem('Those measurements are not numbers.'); return;
                   }
                   run(async () => {
                     // Typed in whole units, stored in minor ones.
                     await addProduct({
                       priceListId: list.id, name, kind, price: Math.round(major * 100),
+                      widthMm, heightMm, shownAs,
                     });
                     done();
                   });
@@ -152,6 +171,23 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                   className="q-input q-input-sm" name="price" type="number" min="0" step="0.01"
                   placeholder="Price" disabled={working}
                 />
+                {/*
+                  * Optional, and the only thing that lets a client see it on a
+                  * wall before buying. Left blank it behaves exactly as before.
+                  */}
+                <input
+                  className="q-input q-input-sm" name="widthIn" type="number" min="0.5" step="0.5"
+                  placeholder="Width in" disabled={working}
+                />
+                <input
+                  className="q-input q-input-sm" name="heightIn" type="number" min="0.5" step="0.5"
+                  placeholder="Height in" disabled={working}
+                />
+                <select className="q-input q-input-sm" name="shownAs" disabled={working}>
+                  <option value="print">A print</option>
+                  <option value="framed">Framed</option>
+                  <option value="canvas">On canvas</option>
+                </select>
                 <button className="q-btn q-btn-secondary q-btn-sm" type="submit" disabled={working}>
                   Add
                 </button>

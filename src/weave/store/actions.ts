@@ -6,7 +6,12 @@ import { whoIsAsking } from '@/weave/studio';
 import {
   assertVisitorCanUseGalleryFile, visitorCanAccessGallery, visitorPersonForGallery, type GalleryVisitorGate,
 } from '@/weave/galleries/actions';
-import type { BasketLine, Order, PriceList, ProductKind } from './shape';
+import type { BasketLine, Order, PriceList, ProductKind, ShownAs, Size } from './shape';
+
+/** Both measurements or neither — the table enforces it, this honours it. */
+function asSize(w: number | null, h: number | null): Size | null {
+  return w !== null && h !== null ? { widthMm: w, heightMm: h } : null;
+}
 
 /* ------------------------------------------------------------ the studio's */
 
@@ -16,7 +21,7 @@ export async function priceLists(): Promise<PriceList[]> {
 
   const { data, error } = await db
     .from('price_lists')
-    .select('id, name, is_default, products(id, name, kind, price, currency, position, variants:product_variants(id, name, price_delta, position))')
+    .select('id, name, is_default, products(id, name, kind, price, currency, position, shown_as, width_mm, height_mm, variants:product_variants(id, name, price_delta, position, width_mm, height_mm))')
     .eq('studio_id', who.studioId)
     .order('created_at', { ascending: true });
 
@@ -29,7 +34,9 @@ export async function priceLists(): Promise<PriceList[]> {
     id: string; name: string; is_default: boolean;
     products: {
       id: string; name: string; kind: ProductKind; price: number; currency: string; position: number;
-      variants: { id: string; name: string; price_delta: number; position: number }[];
+      shown_as: ShownAs; width_mm: number | null; height_mm: number | null;
+      variants: { id: string; name: string; price_delta: number; position: number;
+        width_mm: number | null; height_mm: number | null }[];
     }[];
   }[]).map((l) => ({
     id: l.id,
@@ -37,8 +44,11 @@ export async function priceLists(): Promise<PriceList[]> {
     isDefault: l.is_default,
     products: (l.products ?? []).sort((a, b) => a.position - b.position).map((product) => ({
       ...product,
+      shownAs: product.shown_as,
+      size: asSize(product.width_mm, product.height_mm),
       variants: (product.variants ?? []).sort((a, b) => a.position - b.position).map((variant) => ({
         id: variant.id, name: variant.name, priceDelta: variant.price_delta, position: variant.position,
+        size: asSize(variant.width_mm, variant.height_mm),
       })),
     })),
   }));
@@ -67,6 +77,10 @@ export async function addProduct(input: {
   kind: ProductKind;
   price: number;
   currency?: string;
+  /** Stated, never parsed from the name. Omitted means it cannot be previewed. */
+  widthMm?: number | null;
+  heightMm?: number | null;
+  shownAs?: ShownAs;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -74,6 +88,17 @@ export async function addProduct(input: {
   const name = input.name.trim();
   if (!name) throw new Error('Something for sale needs a name');
   if (!Number.isFinite(input.price) || input.price < 0) throw new Error('That price is not a price');
+
+  /*
+   * Both measurements or neither. Half a size cannot be drawn, and letting
+   * one through would put a row in the table the preview has to guess about.
+   */
+  const w = input.widthMm ?? null;
+  const h = input.heightMm ?? null;
+  if ((w === null) !== (h === null)) throw new Error('Give both measurements, or neither');
+  if (w !== null && (w < 10 || w > 10_000 || h! < 10 || h! > 10_000)) {
+    throw new Error('Those measurements are not a print');
+  }
 
   const { count } = await db
     .from('products')
@@ -83,6 +108,9 @@ export async function addProduct(input: {
   const { error } = await db.from('products').insert({
     studio_id: who.studioId,
     price_list_id: input.priceListId,
+    width_mm: w,
+    height_mm: h,
+    shown_as: input.shownAs ?? 'print',
     name,
     kind: input.kind,
     price: Math.round(input.price),
@@ -167,7 +195,7 @@ export async function whatIsForSale(token: string): Promise<PriceList | null> {
 
   const { data, error } = await db
     .from('price_lists')
-    .select('id, name, is_default, products(id, name, kind, price, currency, position, variants:product_variants(id, name, price_delta, position))')
+    .select('id, name, is_default, products(id, name, kind, price, currency, position, shown_as, width_mm, height_mm, variants:product_variants(id, name, price_delta, position, width_mm, height_mm))')
     .eq('id', gallery.price_list_id)
     .maybeSingle();
 
@@ -177,7 +205,9 @@ export async function whatIsForSale(token: string): Promise<PriceList | null> {
     id: string; name: string; is_default: boolean;
     products: {
       id: string; name: string; kind: ProductKind; price: number; currency: string; position: number;
-      variants: { id: string; name: string; price_delta: number; position: number }[];
+      shown_as: ShownAs; width_mm: number | null; height_mm: number | null;
+      variants: { id: string; name: string; price_delta: number; position: number;
+        width_mm: number | null; height_mm: number | null }[];
     }[];
   };
 
@@ -187,8 +217,11 @@ export async function whatIsForSale(token: string): Promise<PriceList | null> {
     isDefault: l.is_default,
     products: (l.products ?? []).sort((a, b) => a.position - b.position).map((product) => ({
       ...product,
+      shownAs: product.shown_as,
+      size: asSize(product.width_mm, product.height_mm),
       variants: (product.variants ?? []).sort((a, b) => a.position - b.position).map((variant) => ({
         id: variant.id, name: variant.name, priceDelta: variant.price_delta, position: variant.position,
+        size: asSize(variant.width_mm, variant.height_mm),
       })),
     })),
   };
