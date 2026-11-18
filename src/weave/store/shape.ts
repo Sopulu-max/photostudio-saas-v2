@@ -8,6 +8,27 @@
 
 export type ProductKind = 'digital' | 'physical';
 
+/**
+ * A photograph of a real room, with somewhere to hang a print in it.
+ *
+ * `hangs` null means a detail shot — an edge, a float mount, a corner — shown
+ * as it is. The absence of a measurement already says what it is, so there is
+ * no kind column restating it.
+ */
+export type RoomScene = {
+  id: string;
+  name: string;
+  url: string | null;
+  position: number;
+  hangs: {
+    /** How wide the photograph is in real life, so sizes are true. */
+    wallMm: number;
+    /** Middle of the print, as fractions of the image. */
+    x: number;
+    y: number;
+  } | null;
+};
+
 /** How the engine draws it. Three distinct renderings, which is what earns a kind. */
 export type ShownAs = 'print' | 'framed' | 'canvas';
 

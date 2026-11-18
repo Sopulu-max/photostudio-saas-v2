@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { openGallery } from '@/weave/galleries/actions';
 import { whatIsForSale } from '@/weave/store/actions';
+import { scenesForGallery } from '@/weave/store/scenes';
 import { AccessGate } from './AccessGate';
 import { Viewer } from './Viewer';
 
@@ -25,7 +26,11 @@ export default async function GalleryPage({
     return <AccessGate token={gallery.token} name={gallery.name} studioName={gallery.studioName} />;
   }
 
-  const forSale = await whatIsForSale(token);
+  const [forSale, scenes] = await Promise.all([
+    whatIsForSale(token),
+    // The studio's own rooms, so a print is seen on a real wall.
+    scenesForGallery(token),
+  ]);
 
-  return <Viewer gallery={gallery} forSale={forSale} />;
+  return <Viewer gallery={gallery} forSale={forSale} scenes={scenes} />;
 }

@@ -1131,3 +1131,94 @@ select.q-input { cursor: pointer; }
   gap: 16px; flex-wrap: wrap; min-height: 34px;
 }
 .q-wall-chosen { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---- A print on a real wall --------------------------------------------- */
+/*
+ * The room is a photograph the studio supplied; the print is a rectangle
+ * composited onto it. Its width is a percentage of the image, so the scale
+ * stays true at any rendered size, and it transitions when the size changes
+ * — watching an 8×10 become a 20×30 against the same sofa is the comparison.
+ */
+
+.q-room { display: flex; flex-direction: column; gap: 14px; }
+
+.q-room-stage {
+  position: relative; width: 100%;
+  border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--paper-2);
+}
+.q-room-photo { display: block; width: 100%; height: auto; }
+
+.q-room-hung {
+  position: absolute;
+  left: var(--q-room-x); top: var(--q-room-y);
+  width: var(--q-room-across);
+  aspect-ratio: 1 / var(--q-room-ratio);
+  transform: translate(-50%, -50%);
+  transition: width 420ms var(--ease);
+}
+.q-room-print { display: block; width: 100%; height: 100%; object-fit: cover; }
+.q-room-blank { background: var(--line); }
+
+/* The contact shadow is what seats it on the wall rather than floating over. */
+.q-room-print, .q-room-blank {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.22), 0 10px 24px rgb(0 0 0 / 0.26);
+}
+.q-room-as-framed { padding: 2.2%; background: var(--ink); }
+.q-room-as-framed .q-room-print { box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
+.q-room-as-framed { box-shadow: 0 2px 4px rgb(0 0 0 / 0.26), 0 14px 30px rgb(0 0 0 / 0.3); }
+.q-room-as-canvas .q-room-print { box-shadow: 3px 3px 0 -1px rgb(0 0 0 / 0.18), 0 12px 26px rgb(0 0 0 / 0.28); }
+
+.q-room-scenes { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.q-room-scenes::-webkit-scrollbar { display: none; }
+.q-room-thumb {
+  flex: none; width: 74px; height: 54px; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  background: var(--paper-2); opacity: 0.55;
+  transition: opacity var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.q-room-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.q-room-thumb:hover { opacity: 0.85; }
+.q-room-thumb-on { opacity: 1; border-color: var(--ink); }
+
+.q-room-sizes { display: flex; gap: 7px; flex-wrap: wrap; }
+.q-size {
+  padding: 7px 13px; cursor: pointer;
+  background: transparent; color: var(--ink-dim);
+  border: 1px solid var(--line); border-radius: var(--pill);
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em;
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.q-size:hover { color: var(--ink); border-color: var(--ink-faint); }
+.q-size-on { color: var(--ink); border-color: var(--ink); }
+
+.q-room-say {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.q-room-what { display: flex; flex-direction: column; gap: 2px; }
+
+/* ---- Rooms, as the studio arranges them --------------------------------- */
+
+.q-scene-grid {
+  display: grid; gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+}
+.q-scene { display: flex; flex-direction: column; gap: 8px; }
+
+.q-scene-shot {
+  position: relative; display: block; width: 100%; padding: 0; cursor: crosshair;
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  background: var(--paper-2);
+}
+.q-scene-shot img { display: block; width: 100%; height: auto; }
+
+/* Where the middle of a print will sit. Set by pressing, shown by looking. */
+.q-scene-mark {
+  position: absolute; left: var(--q-mk-x); top: var(--q-mk-y);
+  width: 16px; height: 16px; transform: translate(-50%, -50%);
+  border: 1.5px solid var(--card); border-radius: 50%;
+  background: var(--ink); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+
+.q-scene-add { align-self: flex-start; cursor: pointer; }

@@ -7,10 +7,11 @@ import {
 } from '@/weave/galleries/actions';
 import { placeOrder } from '@/weave/store/actions';
 import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
+import type { RoomScene } from '@/weave/store/shape';
 import {
   money, orderTotal, type BasketLine, type PriceList,
 } from '@/weave/store/shape';
-import { PrintWall } from '@/components/PrintWall';
+import { RoomView } from '@/components/RoomView';
 import { Lightbox } from './Lightbox';
 import { ClientHub } from './ClientHub';
 import { AlbumProofs } from './AlbumProofs';
@@ -37,10 +38,11 @@ function noRememberedEmail() { return ''; }
  * want made.
  */
 export function Viewer({
-  gallery, forSale,
+  gallery, forSale, scenes,
 }: {
   gallery: PublicGallery;
   forSale: PriceList | null;
+  scenes: RoomScene[];
 }) {
   const [email, setEmail] = useState('');
   const rememberedEmail = useSyncExternalStore(
@@ -514,9 +516,9 @@ export function Viewer({
               * has no size — a file, an unmeasured product — is listed below
               * it, since there is nothing truthful to hang.
               */}
-            <PrintWall
-              url={fileUrl(buying)}
-              fileName={fileName(buying) ?? 'this picture'}
+            <RoomView
+              photoUrl={fileUrl(buying)}
+              scenes={scenes}
               products={products}
               currency={products[0]?.currency ?? 'NGN'}
               working={working}

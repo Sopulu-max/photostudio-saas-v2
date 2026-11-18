@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation';
 import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { priceLists } from '@/weave/store/actions';
+import { roomScenes } from '@/weave/store/scenes';
 import { PriceLists } from './PriceLists';
+import { RoomScenes } from './RoomScenes';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +12,7 @@ export default async function StorePage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const lists = await priceLists();
+  const [lists, scenes] = await Promise.all([priceLists(), roomScenes()]);
 
   return (
     <StudioShell here="store" studioName={who.studioName}>
@@ -26,7 +28,10 @@ export default async function StorePage() {
         </div>
       </header>
 
-      <PriceLists lists={lists} />
+      <div className="q-stack q-stack-lg">
+        <PriceLists lists={lists} />
+        <RoomScenes scenes={scenes} />
+      </div>
     </div>
     </StudioShell>
   );
