@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { StudioShell } from './StudioShell';
 import { readBoard } from '@/weave/jobs/actions';
@@ -21,6 +22,11 @@ export const dynamic = 'force-dynamic';
 export default async function BoardPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
+
+  const head = await headers();
+  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
+  const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  const origin = `${scheme}://${host}`;
 
   const today = new Date().toLocaleDateString('en-CA');
   const [board, todays, waiting] = await Promise.all([
@@ -51,7 +57,7 @@ export default async function BoardPage() {
         * somebody outside is waiting to hear back, and no job on the board is
         * more time-sensitive than a person who has not had a reply.
         */}
-      <Requests waiting={waiting} />
+      <Requests waiting={waiting} origin={origin} />
 
       {/*
         * Today, above the board.

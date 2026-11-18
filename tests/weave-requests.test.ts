@@ -105,6 +105,36 @@ describe('a request is a job nobody has answered', () => {
     expect(error).toBeTruthy();
   });
 
+  /*
+   * The reason a refusal was recorded and the reply sent back are two
+   * different things, written for two different readers. A reading built for
+   * the client must never carry the private one — this is the kind of leak
+   * that gets reintroduced by someone adding a column to a select.
+   */
+  it('keeps the studio\'s private reason out of what the asker can read', async () => {
+    const id = await ask('Refused Privately');
+    await db.from('jobs').update({
+      declined_at: new Date().toISOString(),
+      declined_because: 'PRIVATE: not worth the rate',
+      answered_with: 'Thank you for asking, we cannot take this one.',
+      request_token: 'test-token-' + Date.now(),
+    }).eq('id', id);
+
+    const { data: token } = await db.from('jobs')
+      .select('request_token').eq('id', id).single();
+
+    // The same select the client-facing reading uses.
+    const { data: asAsked } = await db.from('jobs')
+      .select('wants, expected_on, requested_at, accepted_at, declined_at, '
+        + 'answered_with, studio:studios(name, slug)')
+      .eq('request_token', token!.request_token).maybeSingle();
+
+    expect(asAsked).toBeTruthy();
+    expect(JSON.stringify(asAsked)).not.toContain('PRIVATE');
+    expect((asAsked as unknown as { answered_with: string }).answered_with)
+      .toContain('cannot take this one');
+  });
+
   it('every studio gets an address to be asked at', async () => {
     const { data } = await db.from('studios').select('slug').eq('id', studioId).single();
     expect(data!.slug).toBeTruthy();
@@ -114,7 +144,8 @@ describe('a request is a job nobody has answered', () => {
 describe('how waiting is said', () => {
   const one = (over: Partial<Request> = {}): Request => ({
     id: 'a', wants: 'A sitting', expectedOn: null, askedBy: 'Ada',
-    askedByEmail: 'ada@weave.test', requestedAt: new Date().toISOString(), ...over,
+    askedByEmail: 'ada@weave.test', requestedAt: new Date().toISOString(),
+    token: 'tok', ...over,
   });
 
   it('says the silence rather than showing nothing', () => {

@@ -60,7 +60,7 @@ export default async function BookingsPage() {
           </section>
         )}
 
-        {waiting.length > 0 && <Requests waiting={waiting} heading={false} />}
+        {waiting.length > 0 && <Requests waiting={waiting} origin={origin} heading={false} />}
 
         <section className="q-stack q-stack-sm">
           <h2 className="q-section-title">Already answered</h2>

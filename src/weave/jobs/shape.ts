@@ -45,6 +45,25 @@ export type Request = {
   askedBy: string | null;
   askedByEmail: string | null;
   requestedAt: string;
+  /** Where the asker reads the answer. The studio sends them here. */
+  token: string | null;
+};
+
+/**
+ * A request, read by the person who made it.
+ *
+ * The only shape in this system written for somebody who does not work at the
+ * studio and has no account. It says what they asked, and what came back.
+ */
+export type RequestAsAsked = {
+  studioName: string;
+  studioSlug: string;
+  wants: string | null;
+  expectedOn: string | null;
+  requestedAt: string;
+  answer: 'waiting' | 'taken' | 'turned away';
+  answeredAt: string | null;
+  answeredWith: string | null;
 };
 
 /**

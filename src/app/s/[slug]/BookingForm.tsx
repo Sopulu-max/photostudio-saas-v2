@@ -12,18 +12,25 @@ import { requestBooking } from '@/weave/jobs/requests';
  * answer them.
  */
 export function BookingForm({ slug, studioName }: { slug: string; studioName: string }) {
-  const [sent, setSent] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
 
-  if (sent) {
+  if (sentTo) {
     return (
       <div className="q-asked">
         <h2 className="q-asked-title">That has gone to {studioName}.</h2>
         <p className="q-auth-body">
-          They will read it and come back to you by email. Nothing is booked
-          until they say so — this is a request, not a confirmed date.
+          They will read it and come back to you. Nothing is booked until they
+          say so — this is a request, not a confirmed date.
         </p>
+        {/*
+          * The link is given now rather than only emailed, because no mail is
+          * sent yet and because a page they can return to is the thing that
+          * makes the answer readable at all.
+          */}
+        <p className="q-auth-body">Keep this link. The answer will appear on it.</p>
+        <a className="q-share" href={sentTo}>{sentTo}</a>
       </div>
     );
   }
@@ -37,14 +44,14 @@ export function BookingForm({ slug, studioName }: { slug: string; studioName: st
         setProblem(null);
         start(async () => {
           try {
-            await requestBooking({
+            const { token } = await requestBooking({
               slug,
               name: String(form.get('name') ?? ''),
               email: String(form.get('email') ?? ''),
               wants: String(form.get('wants') ?? ''),
               expectedOn: String(form.get('expectedOn') ?? '') || null,
             });
-            setSent(true);
+            setSentTo(`${window.location.origin}/r/${token}`);
           } catch (err) {
             setProblem(err instanceof Error ? err.message : 'That did not send');
           }

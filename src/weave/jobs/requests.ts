@@ -1,9 +1,10 @@
 'use server';
 
+import { randomBytes } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
-import type { AnsweredRequest, Request, StudioFront } from './shape';
+import type { AnsweredRequest, Request, RequestAsAsked, StudioFront } from './shape';
 
 /**
  * Work arriving from outside.
@@ -55,7 +56,7 @@ export async function requestBooking(input: {
   email: string;
   wants: string;
   expectedOn?: string | null;
-}): Promise<void> {
+}): Promise<{ token: string }> {
   const studio = await studioAtSlug(input.slug);
   if (!studio) throw new Error('That studio is not here');
 
@@ -84,7 +85,9 @@ export async function requestBooking(input: {
     // Unanswered, so it stays off the board until somebody takes it.
     turn: 'us',
     requested_at: new Date().toISOString(),
-  }).select('id').single();
+    // An address of their own, so the answer has somewhere to be read.
+    request_token: randomBytes(16).toString('hex'),
+  }).select('id, request_token').single();
 
   if (error || !job) {
     console.error('Could not record the request:', error);
@@ -103,6 +106,45 @@ export async function requestBooking(input: {
   revalidatePath('/');
   revalidatePath('/mobile');
   revalidatePath('/bookings');
+
+  return { token: job.request_token as string };
+}
+
+/**
+ * The request as the person who made it sees it.
+ *
+ * By token, with no account and no sign-in — the same ruling as a gallery.
+ * It is deliberately thin: what they asked for, and what came back. Nothing
+ * about the studio's board, its other work, or what it decided internally.
+ */
+export async function requestAsAsked(token: string): Promise<RequestAsAsked | null> {
+  const { data } = await db.from('jobs')
+    .select('wants, expected_on, requested_at, accepted_at, declined_at, declined_because, '
+      + 'answered_with, studio:studios(name, slug)')
+    .eq('request_token', token).maybeSingle();
+  if (!data) return null;
+
+  const row = data as unknown as {
+    wants: string | null; expected_on: string | null; requested_at: string | null;
+    accepted_at: string | null; declined_at: string | null; declined_because: string | null;
+    answered_with: string | null; studio: { name: string; slug: string } | null;
+  };
+
+  return {
+    studioName: row.studio?.name ?? 'The studio',
+    studioSlug: row.studio?.slug ?? '',
+    wants: row.wants,
+    expectedOn: row.expected_on,
+    requestedAt: row.requested_at ?? new Date().toISOString(),
+    answer: row.accepted_at ? 'taken' : row.declined_at ? 'turned away' : 'waiting',
+    answeredAt: row.accepted_at ?? row.declined_at,
+    /*
+     * A refusal's reason and the studio's reply are different things. The
+     * reason was written for the studio's own records; only what they chose to
+     * SAY to the client is shown here.
+     */
+    answeredWith: row.answered_with,
+  };
 }
 
 /** What is waiting for an answer, oldest first — somebody has been waiting longest. */
@@ -111,7 +153,7 @@ export async function requestsWaiting(): Promise<Request[]> {
   if (!who) return [];
 
   const { data, error } = await db.from('jobs')
-    .select('id, wants, expected_on, requested_at, created_at, client:people(name, email)')
+    .select('id, wants, expected_on, requested_at, created_at, request_token, client:people(name, email)')
     .eq('studio_id', who.studioId)
     .is('accepted_at', null)
     .is('declined_at', null)
@@ -124,7 +166,7 @@ export async function requestsWaiting(): Promise<Request[]> {
 
   return ((data ?? []) as unknown as {
     id: string; wants: string | null; expected_on: string | null;
-    requested_at: string | null; created_at: string;
+    requested_at: string | null; created_at: string; request_token: string | null;
     client: { name: string; email: string | null } | null;
   }[]).map((row) => ({
     id: row.id,
@@ -133,6 +175,7 @@ export async function requestsWaiting(): Promise<Request[]> {
     askedBy: row.client?.name ?? null,
     askedByEmail: row.client?.email ?? null,
     requestedAt: row.requested_at ?? row.created_at,
+    token: row.request_token,
   }));
 }
 
@@ -148,7 +191,7 @@ export async function requestsAnswered(limit = 25): Promise<AnsweredRequest[]> {
 
   const { data, error } = await db.from('jobs')
     .select('id, wants, expected_on, requested_at, created_at, accepted_at, declined_at, '
-      + 'declined_because, client:people(name, email)')
+      + 'declined_because, request_token, client:people(name, email)')
     .eq('studio_id', who.studioId)
     .not('requested_at', 'is', null)
     .or('accepted_at.not.is.null,declined_at.not.is.null')
@@ -164,6 +207,7 @@ export async function requestsAnswered(limit = 25): Promise<AnsweredRequest[]> {
     id: string; wants: string | null; expected_on: string | null;
     requested_at: string | null; created_at: string;
     accepted_at: string | null; declined_at: string | null; declined_because: string | null;
+    request_token: string | null;
     client: { name: string; email: string | null } | null;
   }[]).map((row) => ({
     id: row.id,
@@ -172,6 +216,7 @@ export async function requestsAnswered(limit = 25): Promise<AnsweredRequest[]> {
     askedBy: row.client?.name ?? null,
     askedByEmail: row.client?.email ?? null,
     requestedAt: row.requested_at ?? row.created_at,
+    token: row.request_token,
     answer: row.accepted_at ? 'taken' : 'turned away',
     answeredAt: (row.accepted_at ?? row.declined_at)!,
     because: row.declined_because,
@@ -184,7 +229,7 @@ export async function requestsAnswered(limit = 25): Promise<AnsweredRequest[]> {
  * A dated request becomes scheduled; an undated one still needs the studio,
  * because agreeing to shoot somebody is not the same as knowing when.
  */
-export async function acceptRequest(input: { jobId: string }): Promise<void> {
+export async function acceptRequest(input: { jobId: string; saying?: string }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
 
@@ -198,6 +243,7 @@ export async function acceptRequest(input: { jobId: string }): Promise<void> {
     .update({
       accepted_at: new Date().toISOString(),
       turn: job.expected_on ? 'scheduled' : 'us',
+      answered_with: input.saying?.trim() || null,
     })
     .eq('id', input.jobId).eq('studio_id', who.studioId);
   if (error) throw new Error('Could not accept that request');
@@ -219,7 +265,7 @@ export async function acceptRequest(input: { jobId: string }): Promise<void> {
  * Deleting a declined request would lose the fact that somebody asked and was
  * turned away, which is a thing a studio has every reason to look back on.
  */
-export async function declineRequest(input: { jobId: string; because?: string }): Promise<void> {
+export async function declineRequest(input: { jobId: string; because?: string; saying?: string }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
 
@@ -233,6 +279,7 @@ export async function declineRequest(input: { jobId: string; because?: string })
     .update({
       declined_at: new Date().toISOString(),
       declined_because: input.because?.trim() || null,
+      answered_with: input.saying?.trim() || null,
     })
     .eq('id', input.jobId).eq('studio_id', who.studioId);
   if (error) throw new Error('Could not decline that request');

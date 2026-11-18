@@ -1009,3 +1009,11 @@ select.q-input { cursor: pointer; }
 }
 /* Refused is said in the warm tone, not a red one: it was a decision, not a fault. */
 .q-answer-no { color: var(--warn); }
+
+/* What the studio said back, read by the person who asked. */
+.q-reply { margin-top: 26px; }
+.q-reply-body {
+  margin: 0; max-width: 56ch; white-space: pre-wrap;
+  font-size: 0.96rem; line-height: 1.7; color: var(--ink);
+}
+.q-asked .q-label, .q-reply .q-label { margin-bottom: 6px; }

@@ -16,8 +16,10 @@ import { sayRequests, type Request } from '@/weave/jobs/shape';
  * an operator do the subtraction and the answer to that subtraction is the
  * whole point.
  */
-export function Requests({ waiting, heading = true }: {
+export function Requests({ waiting, origin, heading = true }: {
   waiting: Request[];
+  /** Written out in full, because the studio has to paste it into a message. */
+  origin: string;
   /**
    * Off where the page has already said it. On the board this band has to
    * announce itself; on the Bookings page the title says the same sentence
@@ -27,13 +29,14 @@ export function Requests({ waiting, heading = true }: {
   heading?: boolean;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
-  const [decliningId, setDecliningId] = useState<string | null>(null);
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'take' | 'decline'>('take');
   const [working, start] = useTransition();
 
   const run = (fn: () => Promise<unknown>) => {
     setProblem(null);
     start(async () => {
-      try { await fn(); setDecliningId(null); } catch (err) {
+      try { await fn(); setAnsweringId(null); } catch (err) {
         setProblem(err instanceof Error ? err.message : 'That did not work');
       }
     });
@@ -73,40 +76,68 @@ export function Requests({ waiting, heading = true }: {
               </p>
             )}
 
-            {decliningId === ask.id ? (
+            {/*
+              * The link the asker reads the answer on. Shown before answering
+              * as well as after, because until email is wired this is the only
+              * way they hear anything at all, and it has to be copyable.
+              */}
+            {ask.token && (
+              <a className="q-share" href={`/r/${ask.token}`}>
+                {origin}/r/{ask.token}
+              </a>
+            )}
+
+            {answeringId === ask.id ? (
               <form
-                className="q-row q-row-sm"
+                className="q-stack q-stack-xs"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const because = String(new FormData(event.currentTarget).get('because') ?? '');
-                  run(() => declineRequest({ jobId: ask.id, because }));
+                  const form = new FormData(event.currentTarget);
+                  const saying = String(form.get('saying') ?? '');
+                  const because = String(form.get('because') ?? '');
+                  run(() => mode === 'take'
+                    ? acceptRequest({ jobId: ask.id, saying })
+                    : declineRequest({ jobId: ask.id, because, saying }));
                 }}
               >
-                <input
-                  className="q-input q-input-sm" name="because" autoFocus disabled={working}
-                  placeholder="Why, for your own records"
+                <textarea
+                  className="q-input" name="saying" rows={3} autoFocus disabled={working}
+                  placeholder={mode === 'take'
+                    ? 'What to say back to them. They will read it on their link.'
+                    : 'What to say back to them, kindly.'}
                 />
-                <button className="q-btn q-btn-secondary q-btn-xs" type="submit" disabled={working}>
-                  Decline it
-                </button>
-                <button
-                  type="button" className="q-btn q-btn-ghost q-btn-xs"
-                  onClick={() => setDecliningId(null)} disabled={working}
-                >
-                  Keep it open
-                </button>
+                {mode === 'decline' && (
+                  <input
+                    className="q-input q-input-sm" name="because" disabled={working}
+                    placeholder="And why, for your own records — they will not see this"
+                  />
+                )}
+                <div className="q-row q-row-sm">
+                  <button
+                    className={mode === 'take' ? 'q-btn q-btn-primary q-btn-sm' : 'q-btn q-btn-secondary q-btn-sm'}
+                    type="submit" disabled={working}
+                  >
+                    {mode === 'take' ? 'Take it on' : 'Turn it away'}
+                  </button>
+                  <button
+                    type="button" className="q-btn q-btn-ghost q-btn-xs"
+                    onClick={() => setAnsweringId(null)} disabled={working}
+                  >
+                    Not yet
+                  </button>
+                </div>
               </form>
             ) : (
               <div className="q-row q-row-sm">
                 <button
                   type="button" className="q-btn q-btn-primary q-btn-sm" disabled={working}
-                  onClick={() => run(() => acceptRequest({ jobId: ask.id }))}
+                  onClick={() => { setMode('take'); setAnsweringId(ask.id); }}
                 >
                   Take it on
                 </button>
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
-                  onClick={() => setDecliningId(ask.id)}
+                  onClick={() => { setMode('decline'); setAnsweringId(ask.id); }}
                 >
                   Not this one
                 </button>
