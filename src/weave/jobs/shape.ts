@@ -30,3 +30,36 @@ export type JobCard = {
 };
 
 export type Board = { turn: Turn; heading: string; absent: string; jobs: JobCard[] }[];
+
+/**
+ * Work that has arrived from outside and not been answered.
+ *
+ * The same row as a job — a request IS a job nobody has agreed to — read
+ * differently, because the act it invites is different. A job is moved along;
+ * a request is taken or refused.
+ */
+export type Request = {
+  id: string;
+  wants: string | null;
+  expectedOn: string | null;
+  askedBy: string | null;
+  askedByEmail: string | null;
+  requestedAt: string;
+};
+
+/** What a studio shows the world at its own address. */
+export type StudioFront = {
+  studioId: string;
+  name: string;
+  slug: string;
+};
+
+/**
+ * Said plainly, because a count beside a label is not a reading.
+ * Nothing waiting is worth saying too — silence reads as a broken page.
+ */
+export function sayRequests(waiting: Request[]): string {
+  if (waiting.length === 0) return 'Nobody is waiting on an answer.';
+  if (waiting.length === 1) return 'One person is waiting on an answer.';
+  return `${waiting.length} people are waiting on an answer.`;
+}

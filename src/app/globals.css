@@ -943,3 +943,49 @@ select.q-input { cursor: pointer; }
   transition: color var(--fast) var(--ease);
 }
 .q-side-out:hover { color: var(--ink); }
+
+/* ---- Somebody is waiting on an answer ----------------------------------- */
+/*
+ * Above the board, and louder than it. A job on the board is work in hand; an
+ * unanswered request is a person sitting somewhere wondering if they were
+ * heard. The warm rule down the left is the only place that colour is used on
+ * this screen, so the eye lands here first.
+ */
+
+.q-asks { display: flex; flex-direction: column; gap: 14px; margin-bottom: 38px; }
+
+.q-ask {
+  border-left: 2px solid var(--warn);
+  padding: 2px 0 2px 20px;
+  display: flex; flex-direction: column; gap: 9px;
+  animation: q-appear var(--fast) var(--ease) both;
+}
+.q-ask[data-busy] { opacity: 0.45; }
+
+.q-ask-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.q-ask-who { display: flex; flex-direction: column; gap: 2px; }
+.q-ask-name {
+  font-family: var(--font-display); font-weight: 400; font-size: 1.25rem;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+/* How long they have waited, not when they asked: the subtraction is the point. */
+.q-ask-waited {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.16em;
+  color: var(--warn); white-space: nowrap;
+}
+.q-ask-wants {
+  margin: 0; max-width: 60ch;
+  font-size: 0.96rem; line-height: 1.65; color: var(--ink);
+}
+
+/* ---- A studio's own front ----------------------------------------------- */
+
+.q-asked { animation: q-appear 260ms var(--ease) both; margin-top: 34px; }
+.q-asked-title {
+  margin: 0 0 12px; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.3rem; letter-spacing: -0.01em; color: var(--ink);
+}
+.q-auth-field textarea.q-input { resize: vertical; min-height: 92px; }

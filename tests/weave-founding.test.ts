@@ -71,8 +71,14 @@ describe('founding a studio', () => {
     expect(again.studio_id).toBe(first.studio_id);
     expect(again.person_id).toBe(first.person_id);
 
-    const { count } = await db.from('studios')
-      .select('id', { count: 'exact', head: true }).eq('name', 'Second Light');
+    /*
+     * Counted by the ACCOUNT, not by the studio's name. Counting by name made
+     * this fail whenever an earlier run died before its cleanup and left a
+     * 'Second Light' behind — a test that reports someone else's litter as
+     * this code's bug is worse than no test.
+     */
+    const { count } = await db.from('people')
+      .select('id', { count: 'exact', head: true }).eq('auth_user_id', user);
     expect(count).toBe(1);
   });
 

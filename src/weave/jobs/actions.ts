@@ -24,10 +24,17 @@ export async function readBoard(): Promise<Board> {
    * Finished work is capped below: a done column that grows forever stops being
    * a reading and becomes an archive, and nobody scrolls an archive.
    */
+  /*
+   * Only work the studio has actually taken on. An unanswered request is not
+   * yet work — it is a question — and a refused one never will be. Letting
+   * either sit in these four columns would misreport the day's load, which is
+   * the one thing this board exists not to do.
+   */
   const { data, error } = await db
     .from('jobs')
     .select('id, wants, expected_on, turn, client:people(name)')
     .eq('studio_id', who.studioId)
+    .not('accepted_at', 'is', null)
     .order('expected_on', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
 
@@ -111,6 +118,9 @@ export async function createJob(input: {
       expected_on: input.expectedOn || null,
       // A dated job is not waiting on anybody yet; an undated one needs you.
       turn: input.expectedOn ? 'scheduled' : 'us',
+      // Work the studio starts itself is work the studio has already agreed to.
+      // Only a request from outside arrives unanswered.
+      accepted_at: new Date().toISOString(),
     })
     .select('id')
     .single();
