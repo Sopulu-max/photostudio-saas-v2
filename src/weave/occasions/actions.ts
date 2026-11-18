@@ -8,10 +8,12 @@ import type { Occasion } from './shape';
 type Row = {
   id: string; job_id: string | null; what: string | null; on_date: string;
   starts_at: string | null; ends_at: string | null; happened_at: string | null;
+  job: { client: { name: string } | null } | null;
   crew: { id: string; person_id: string; person: { name: string } | null }[];
 };
 
 const SELECT = 'id, job_id, what, on_date, starts_at, ends_at, happened_at, '
+  + 'job:jobs(client:people(name)), '
   + 'crew:crew(id, person_id, person:people(name))';
 
 function shape(r: Row): Occasion {
@@ -23,6 +25,7 @@ function shape(r: Row): Occasion {
     startsAt: r.starts_at,
     endsAt: r.ends_at,
     happenedAt: r.happened_at,
+    clientName: r.job?.client?.name ?? null,
     crew: (r.crew ?? []).map((c) => ({
       id: c.id,
       personId: c.person_id,
@@ -251,4 +254,89 @@ export async function listPeople(): Promise<{ id: string; name: string }[]> {
     return [];
   }
   return data ?? [];
+}
+
+/**
+ * A studio booking something itself.
+ *
+ * Until now this took two screens: start a job on the board, open it, add an
+ * occasion. But a studio taking a booking is doing ONE thing — somebody is
+ * coming on a day at a time — and making them do it in two places is how a
+ * date ends up written on a hand instead.
+ *
+ * It creates work the studio has already agreed to, so the job is accepted on
+ * the spot. Only a request from outside arrives unanswered.
+ */
+export async function bookIn(input: {
+  clientName: string;
+  what?: string;
+  onDate: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}): Promise<{ jobId: string; occasionId: string }> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+
+  const name = input.clientName.trim();
+  if (!name) throw new Error('A booking needs somebody it is for');
+  if (!input.onDate) throw new Error('A booking needs a day');
+  if (input.startsAt && input.endsAt && input.endsAt <= input.startsAt) {
+    throw new Error('It cannot end before it starts');
+  }
+
+  /*
+   * The studio's own spelling, matched exactly. Deciding that "Ada O." is
+   * "Ada Okafor" is the kind of helpfulness that merges two clients.
+   */
+  const { data: found } = await db.from('people')
+    .select('id').eq('studio_id', who.studioId).eq('name', name).limit(1).maybeSingle();
+
+  let clientId = found?.id ?? null;
+  if (!clientId) {
+    const { data: made, error } = await db.from('people')
+      .insert({ studio_id: who.studioId, name }).select('id').single();
+    if (error || !made) throw new Error('Could not add that client');
+    clientId = made.id;
+  }
+
+  const { data: job, error: jobError } = await db.from('jobs').insert({
+    studio_id: who.studioId,
+    client_id: clientId,
+    wants: input.what?.trim() || null,
+    expected_on: input.onDate,
+    turn: 'scheduled',
+    accepted_at: new Date().toISOString(),
+  }).select('id').single();
+  if (jobError || !job) throw new Error('Could not make that booking');
+
+  const { data: occasion, error: occasionError } = await db.from('occasions').insert({
+    studio_id: who.studioId,
+    job_id: job.id,
+    what: input.what?.trim() || null,
+    on_date: input.onDate,
+    starts_at: input.startsAt || null,
+    ends_at: input.endsAt || null,
+  }).select('id').single();
+
+  /*
+   * A job with nothing happening on it is not the booking anybody asked for,
+   * and it would sit on the board forever. If the second write fails the
+   * first is undone rather than left as litter.
+   */
+  if (occasionError || !occasion) {
+    await db.from('jobs').delete().eq('id', job.id).eq('studio_id', who.studioId);
+    throw new Error('Could not put that in the diary');
+  }
+
+  await db.from('events').insert({
+    studio_id: who.studioId, subject_type: 'job', subject_id: job.id,
+    action: 'booked_in', actor_id: who.personId,
+    payload: { on: input.onDate, from: input.startsAt ?? null },
+  });
+
+  revalidatePath('/');
+  revalidatePath('/calendar');
+  revalidatePath('/mobile');
+  revalidatePath(`/jobs/${job.id}`);
+  return { jobId: job.id, occasionId: occasion.id };
 }

@@ -1229,3 +1229,74 @@ select.q-input { cursor: pointer; }
   background: var(--paper-2); border-radius: var(--radius-lg);
   font-size: 1.05rem; max-width: none;
 }
+
+/* ---- The month ----------------------------------------------------------- */
+/*
+ * A reading of occasions, not a new thing. Hairlines rather than boxes, so a
+ * full month reads as a shape instead of a wall of cells.
+ */
+
+.q-cal { border-top: 1px solid var(--line); }
+.q-cal-week { display: grid; grid-template-columns: repeat(7, 1fr); }
+
+.q-cal-heads { border-bottom: 1px solid var(--line); }
+.q-cal-head {
+  padding: 9px 10px;
+  font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.16em;
+  color: var(--ink-faint);
+}
+
+.q-cal-day {
+  min-height: 108px; padding: 7px 8px 10px;
+  border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.q-cal-day:first-child { border-left: 1px solid var(--line); }
+/* Days from the months either side are context, not this month's business. */
+.q-cal-away { background: var(--paper-2); }
+.q-cal-away .q-cal-n { color: var(--ink-faint); }
+.q-cal-today .q-cal-n { background: var(--ink); color: var(--paper); }
+
+.q-cal-n {
+  align-self: flex-start; min-width: 23px; padding: 3px 6px;
+  background: transparent; border: 0; border-radius: var(--pill); cursor: pointer;
+  font-family: var(--mono); font-size: 0.62rem; color: var(--ink-dim);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.q-cal-n:hover { background: var(--hover); color: var(--ink); }
+
+.q-cal-item {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 4px 6px; border-radius: 5px;
+  background: var(--paper-2); text-decoration: none;
+  transition: background var(--fast) var(--ease);
+}
+.q-cal-item:hover { background: var(--hover); }
+.q-cal-at {
+  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.06em;
+  color: var(--ink-faint); flex: none;
+}
+/* The studio's own words, whole: never truncated, so they wrap instead. */
+.q-cal-who { font-size: 0.78rem; color: var(--ink); overflow-wrap: anywhere; }
+.q-cal-done { opacity: 0.5; }
+.q-cal-unmarked { box-shadow: inset 2px 0 0 var(--warn); }
+/* One person, two places. The only alarm this grid raises. */
+.q-cal-clash { background: var(--bad); }
+.q-cal-clash .q-cal-who, .q-cal-clash .q-cal-at { color: var(--paper); }
+
+.q-clash {
+  margin: 0; padding: 11px 14px;
+  border-left: 2px solid var(--bad); background: var(--paper-2);
+  font-size: 0.9rem; color: var(--ink);
+}
+
+.q-cal-new { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.q-cal-new .q-input { width: 100%; }
+
+@media (max-width: 52em) {
+  /* A seven-column grid on a phone is seven unreadable columns. */
+  .q-cal-week { grid-template-columns: 1fr; }
+  .q-cal-heads { display: none; }
+  .q-cal-day { min-height: 0; border-left: 1px solid var(--line); }
+  .q-cal-away { display: none; }
+}

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus,
+  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus, CalendarDays,
 } from 'lucide-react';
 import { signOut } from '@/weave/account/actions';
 
@@ -15,11 +15,14 @@ import { signOut } from '@/weave/account/actions';
  * share that layout and neither should carry the studio's furniture.
  */
 export type Where =
-  | 'board' | 'bookings' | 'orders' | 'store' | 'automations' | 'galleries' | 'mobile';
+  | 'board' | 'calendar' | 'bookings' | 'orders' | 'store' | 'automations'
+  | 'galleries' | 'mobile';
 
 const NAV: { key: Where; href: string; label: string; Icon: typeof LayoutGrid }[] = [
   { key: 'board', href: '/', label: 'The board', Icon: LayoutGrid },
   { key: 'mobile', href: '/mobile', label: 'Today', Icon: Smartphone },
+  // The month, beside the day it belongs to.
+  { key: 'calendar', href: '/calendar', label: 'Calendar', Icon: CalendarDays },
   // Where work arrives from outside. Second, because it comes before the work.
   { key: 'bookings', href: '/bookings', label: 'Bookings', Icon: CalendarPlus },
   { key: 'galleries', href: '/galleries', label: 'Galleries', Icon: Images },

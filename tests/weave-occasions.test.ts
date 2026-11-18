@@ -101,7 +101,7 @@ describe('what happens', () => {
 describe('how an occasion stands', () => {
   const base: Occasion = {
     id: 'x', jobId: null, what: 'The shoot', onDate: '2026-11-20',
-    startsAt: '10:00:00', endsAt: '14:00:00', happenedAt: null, crew: [],
+    startsAt: '10:00:00', endsAt: '14:00:00', clientName: null, happenedAt: null, crew: [],
   };
 
   it('is derived, never stored', () => {
