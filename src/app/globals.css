@@ -327,6 +327,21 @@ select.q-input { cursor: pointer; }
 
 .q-gallery { min-height: 100vh; background: var(--paper); }
 
+/* Gallery branding is deliberately a finite editorial vocabulary. It changes
+   the gallery's variables only; the dashboard never inherits a client brand. */
+.q-gal-theme-paper { --gal-ground: var(--paper); --gal-ink: var(--ink); --gal-dim: var(--ink-dim); --gal-rule: var(--line); }
+.q-gal-theme-midnight { --gal-ground: #202227; --gal-ink: #f5f0e8; --gal-dim: #c0bbb2; --gal-rule: #45474c; }
+.q-gal-theme-cobalt { --gal-ground: #e9edf9; --gal-ink: #182c68; --gal-dim: #51628f; --gal-rule: #bdc8e7; }
+.q-gal-theme-rose { --gal-ground: #f8eceb; --gal-ink: #572d36; --gal-dim: #8c6670; --gal-rule: #e9cfd2; }
+.q-gal-theme-midnight, .q-gal-theme-cobalt, .q-gal-theme-rose { background: var(--gal-ground); color: var(--gal-ink); }
+.q-gal-theme-midnight .q-gal-title, .q-gal-theme-cobalt .q-gal-title, .q-gal-theme-rose .q-gal-title { color: var(--gal-ink); }
+.q-gal-theme-midnight .q-gal-sub, .q-gal-theme-cobalt .q-gal-sub, .q-gal-theme-rose .q-gal-sub,
+.q-gal-theme-midnight .q-gal-studio, .q-gal-theme-cobalt .q-gal-studio, .q-gal-theme-rose .q-gal-studio { color: var(--gal-dim); }
+.q-gal-theme-midnight .q-gal-main > .q-card, .q-gal-theme-cobalt .q-gal-main > .q-card, .q-gal-theme-rose .q-gal-main > .q-card { border-color: var(--gal-rule); }
+.q-gal-font-editorial .q-gal-main { font-family: var(--font-display); }
+.q-gal-font-editorial .q-gal-modes .q-btn, .q-gal-font-editorial .q-gal-section-title { font-family: var(--font-sans); }
+.q-gal-font-mono .q-gal-title, .q-gal-font-mono .q-gal-main { font-family: var(--mono); }
+
 .q-gal-head-plain {
   max-width: 1180px; margin: 0 auto;
   padding: 104px 32px 64px;
@@ -347,7 +362,16 @@ select.q-input { cursor: pointer; }
   font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.2em;
   color: var(--ink-faint); margin: 56px 0 18px;
 }
-.q-gal-cover-image { display: block; width: 100%; border-radius: 2px; }
+.q-gal-cover-set { display: grid; gap: 10px; width: 100%; }
+.q-gal-cover-image { display: block; width: 100%; border-radius: 2px; object-fit: cover; aspect-ratio: 16 / 8; }
+.q-gal-cover-split .q-gal-cover-set { grid-template-columns: 1.2fr 0.8fr; }
+.q-gal-cover-split .q-gal-cover-image { height: 330px; aspect-ratio: auto; }
+.q-gal-cover-filmstrip .q-gal-cover-set { grid-template-columns: repeat(3, 1fr); }
+.q-gal-cover-filmstrip .q-gal-cover-image { height: 220px; aspect-ratio: auto; }
+.q-gal-grid-tiles { grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)) !important; gap: 12px !important; }
+.q-gal-grid-tiles .q-gal-tile { aspect-ratio: 1 / 1 !important; }
+.q-gal-grid-columns { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)) !important; gap: 8px !important; }
+.q-gal-grid-columns .q-gal-cell:nth-child(3n) { grid-row: span 2; }
 
 .q-gal-slideshow {
   position: fixed; inset: 0; z-index: 90;
@@ -408,6 +432,7 @@ select.q-input { cursor: pointer; }
   .q-page-header { flex-direction: column; margin-bottom: 30px; }
   .q-gal-head-plain { padding: 64px 20px 40px; }
   .q-gal-main { padding: 8px 20px 90px; }
+  .q-gal-cover-split .q-gal-cover-image, .q-gal-cover-filmstrip .q-gal-cover-image { height: 150px; }
   .q-gal-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 8px; }
   .q-board-col { flex: 0 0 252px; }
 }
@@ -548,6 +573,27 @@ select.q-input { cursor: pointer; }
 /* Once it is kept the mark stays, because that is a fact and not a hover. */
 .q-gal-keep-on { opacity: 1; transform: none; background: var(--ink); color: var(--paper); }
 .q-gal-keep:disabled { display: none; }
+
+/* Collaboration is a margin note beside the work, not another application chrome. */
+.q-hub-files { display: flex; flex-wrap: wrap; gap: 7px; }
+.q-hub-file {
+  border: 1px solid var(--line); border-radius: var(--pill); padding: 6px 11px;
+  background: transparent; color: var(--ink-dim); cursor: pointer;
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em;
+}
+.q-hub-file:hover, .q-hub-file-on { border-color: var(--ink); color: var(--ink); }
+.q-hub-file-on { background: var(--hover); }
+.q-hub-message { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.q-hub-reply { margin-left: 22px; padding-left: 14px; border-left: 1px solid var(--line-strong); }
+.q-hub-pin-canvas { position: relative; display: block; width: min(100%, 400px); padding: 0; border: 0; background: var(--paper-2); cursor: crosshair; text-align: left; }
+.q-hub-pin-canvas img { display: block; width: 100%; max-height: 280px; object-fit: cover; opacity: 0.9; }
+.q-hub-pin-canvas span { display: block; padding: 7px 9px; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em; color: var(--ink-dim); }
+
+/* A proof is a spread on paper, intentionally calmer than the photo grid. */
+.q-album-spread { padding: 18px 0; border-top: 1px solid var(--line); }
+.q-album-pages { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--line); }
+.q-album-page { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--paper-2); }
+.q-album-page-empty { background: var(--paper-2); }
 
 /* A touch screen has no hover, so the control is simply always there. */
 @media (hover: none) {
@@ -777,4 +823,48 @@ select.q-input { cursor: pointer; }
 @media (max-width: 640px) {
   .q-receipt { padding: 20px 18px; }
   .q-letter { padding-left: 16px; }
+}
+
+/* ---- Pocket companion --------------------------------------------------- */
+/*
+ * This is deliberately not the desktop shell squeezed into a narrow column.
+ * On a phone it opens with the few facts somebody can genuinely act on between
+ * locations: a job to move, today's occasion, and an order needing a mark.
+ */
+
+.q-mobile {
+  width: min(100%, 620px); min-height: 100vh; margin: 0 auto;
+  padding: max(22px, env(safe-area-inset-top)) 20px max(38px, env(safe-area-inset-bottom));
+  background: var(--paper);
+}
+.q-mobile-head {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center;
+  gap: 14px; padding-bottom: 30px; border-bottom: 1px solid var(--line);
+}
+.q-mobile-mark {
+  display: grid; place-items: center; width: 38px; height: 38px;
+  border: 1px solid var(--ink); border-radius: 50%; color: var(--ink);
+  font-family: var(--font-display); font-size: 1.12rem; font-weight: 500; text-decoration: none;
+}
+.q-mobile-title {
+  margin: 0; font-family: var(--font-display); font-size: 2rem; font-weight: 400;
+  letter-spacing: -0.025em; line-height: 1.02;
+}
+.q-mobile-link {
+  padding: 7px 0; color: var(--ink-dim); font-family: var(--mono);
+  font-size: 0.62rem; letter-spacing: 0.1em; text-decoration: none;
+}
+.q-mobile-link:hover { color: var(--ink); }
+.q-mobile-body { padding: 34px 0; }
+.q-mobile-item {
+  display: flex; flex-direction: column; gap: 10px; padding: 17px 0;
+  border-top: 1px solid var(--line);
+}
+.q-mobile-item:last-child { border-bottom: 1px solid var(--line); }
+.q-mobile-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.q-mobile-actions .q-btn { min-height: 40px; }
+
+@media (min-width: 43em) {
+  .q-mobile { padding-left: 30px; padding-right: 30px; }
+  .q-mobile-head { margin-top: 14px; }
 }

@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
 import type {
-  ClientGalleryCollection, GalleryActivity, GallerySummary, GalleryTemplate, LockedGallery, PublicGallery,
+  ClientGalleryCollection, GalleryActivity, GalleryDesign, GallerySummary, GalleryTemplate, LockedGallery, PublicGallery,
 } from './shape';
 
 const BUCKET = 'weave-files';
@@ -57,7 +57,7 @@ export async function visitorCanAccessGallery(gallery: GalleryVisitorGate): Prom
   return !!data;
 }
 
-async function assertVisitorCanAccessGallery(gallery: GalleryVisitorGate): Promise<void> {
+export async function assertVisitorCanAccessGallery(gallery: GalleryVisitorGate): Promise<void> {
   if (!await visitorCanAccessGallery(gallery)) {
     throw new Error('That gallery is not available');
   }
@@ -91,12 +91,15 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
   const { data, error } = await db
     .from('galleries')
     .select('id, name, token, shared_at, expires_on, access_mode, may_download, cover_file_id, price_list_id, '
+      + 'gallery_theme, gallery_font, gallery_grid, cover_style, '
       + 'gallery_files(file_id, section_id, file:files(name, mime_type)), '
       + 'sections:gallery_sections(id, name, position, visible_to_clients, audience_role, gallery_files(id)), '
       + 'collections:gallery_collections(id, name, kind, max_items, due_on, submitted_at, '
       + 'person:people(name, email), items:gallery_collection_files(id)), '
       + 'comments:gallery_comments(id, body, created_at, person:people(name), file:files(name)), '
-      + 'participants:gallery_participants(id, role, status, person:people(name, email))')
+      + 'participants:gallery_participants(id, role, status, person:people(name, email)), '
+      + 'hub_requests:gallery_hub_requests(id, title, purpose, due_on, status, members:gallery_hub_members(id, submitted_at)), '
+      + 'albums:gallery_albums(id, name, status, spreads:gallery_album_spreads(id))')
     .eq('studio_id', who.studioId)
     .eq('job_id', jobId)
     .order('created_at', { ascending: false });
@@ -110,6 +113,8 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     id: string; name: string; token: string; shared_at: string | null;
     expires_on: string | null; access_mode: 'link' | 'code' | 'invite'; may_download: boolean;
     cover_file_id: string | null; price_list_id: string | null;
+    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
+    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
     gallery_files: { file_id: string; section_id: string; file: { name: string; mime_type: string | null } | null }[];
     sections: {
       id: string; name: string; position: number; visible_to_clients: boolean;
@@ -130,6 +135,11 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
       id: string; role: 'main_client' | 'guest' | 'vendor'; status: 'invited' | 'approved' | 'revoked';
       person: { name: string; email: string | null } | null;
     }[];
+    hub_requests: {
+      id: string; title: string; purpose: 'selection' | 'album' | 'retouch' | 'approval'; due_on: string | null; status: 'open' | 'closed';
+      members: { id: string; submitted_at: string | null }[];
+    }[];
+    albums: { id: string; name: string; status: 'draft' | 'review' | 'approved'; spreads: { id: string }[] }[];
   }[]).map((g) => ({
     id: g.id,
     name: g.name,
@@ -140,6 +150,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     mayDownload: g.may_download,
     howMany: (g.gallery_files ?? []).length,
     coverFileId: g.cover_file_id,
+    design: { theme: g.gallery_theme, font: g.gallery_font, grid: g.gallery_grid, coverStyle: g.cover_style },
     sections: (g.sections ?? []).sort((a, b) => a.position - b.position).map((section) => ({
       id: section.id,
       name: section.name,
@@ -178,6 +189,14 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
       email: participant.person?.email ?? null,
       role: participant.role,
       status: participant.status,
+    })),
+    hubRequests: (g.hub_requests ?? []).map((request) => ({
+      id: request.id, title: request.title, purpose: request.purpose, dueOn: request.due_on, status: request.status,
+      collaborators: (request.members ?? []).length,
+      submitted: (request.members ?? []).filter((member) => !!member.submitted_at).length,
+    })),
+    albums: (g.albums ?? []).map((album) => ({
+      id: album.id, name: album.name, status: album.status, spreads: (album.spreads ?? []).length,
     })),
     priceListId: g.price_list_id,
   }));
@@ -227,15 +246,19 @@ export async function galleryTemplates(): Promise<GalleryTemplate[]> {
   const who = await whoIsAsking();
   if (!who) return [];
   const { data, error } = await db.from('gallery_templates')
-    .select('id, name, may_download, price_list_id, sections:gallery_template_sections(id, name, position, visible_to_clients)')
+    .select('id, name, may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style, '
+      + 'sections:gallery_template_sections(id, name, position, visible_to_clients)')
     .eq('studio_id', who.studioId).order('created_at', { ascending: true });
   if (error) throw new Error('Could not read gallery templates');
   return ((data ?? []) as unknown as {
     id: string; name: string; may_download: boolean; price_list_id: string | null;
+    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
+    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
     sections: { id: string; name: string; position: number; visible_to_clients: boolean }[];
   }[]).map((template) => ({
     id: template.id, name: template.name, mayDownload: template.may_download,
     priceListId: template.price_list_id,
+    design: { theme: template.gallery_theme, font: template.gallery_font, grid: template.gallery_grid, coverStyle: template.cover_style },
     sections: (template.sections ?? []).sort((a, b) => a.position - b.position).map((section) => ({
       id: section.id, name: section.name, position: section.position, visibleToClients: section.visible_to_clients,
     })),
@@ -251,14 +274,23 @@ export async function saveGalleryAsTemplate(input: {
   const name = input.name.trim();
   if (!name) throw new Error('A template needs a name');
   const { data: gallery } = await db.from('galleries')
-    .select('id, may_download, price_list_id, sections:gallery_sections(name, position, visible_to_clients)')
+    .select('id, may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style, '
+      + 'sections:gallery_sections(name, position, visible_to_clients)')
     .eq('id', input.galleryId).eq('studio_id', who.studioId).maybeSingle();
   if (!gallery) throw new Error('That gallery is not in this studio');
+  const source = gallery as unknown as {
+    may_download: boolean; price_list_id: string | null;
+    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
+    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
+    sections: { name: string; position: number; visible_to_clients: boolean }[];
+  };
   const { data: template, error } = await db.from('gallery_templates').insert({
-    studio_id: who.studioId, name, may_download: gallery.may_download, price_list_id: gallery.price_list_id,
+    studio_id: who.studioId, name, may_download: source.may_download, price_list_id: source.price_list_id,
+    gallery_theme: source.gallery_theme, gallery_font: source.gallery_font,
+    gallery_grid: source.gallery_grid, cover_style: source.cover_style,
   }).select('id').single();
   if (error || !template) throw new Error('Could not save that template');
-  const sections = ((gallery.sections ?? []) as { name: string; position: number; visible_to_clients: boolean }[])
+  const sections = (source.sections ?? [])
     .sort((a, b) => a.position - b.position);
   const { error: sectionsError } = await db.from('gallery_template_sections').insert(
     sections.map((section) => ({
@@ -295,12 +327,15 @@ export async function makeGallery(input: {
 
   type TemplateSeed = {
     may_download: boolean; price_list_id: string | null;
+    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
+    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
     sections: { name: string; position: number; visible_to_clients: boolean }[];
   };
   let template: TemplateSeed | null = null;
   if (input.templateId) {
     const { data, error } = await db.from('gallery_templates')
-      .select('may_download, price_list_id, sections:gallery_template_sections(name, position, visible_to_clients)')
+      .select('may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style, '
+        + 'sections:gallery_template_sections(name, position, visible_to_clients)')
       .eq('id', input.templateId).eq('studio_id', who.studioId).maybeSingle();
     if (error || !data) throw new Error('That gallery template is not in this studio');
     template = data as unknown as TemplateSeed;
@@ -312,6 +347,10 @@ export async function makeGallery(input: {
       studio_id: who.studioId, job_id: input.jobId, name,
       may_download: template?.may_download ?? true,
       price_list_id: template?.price_list_id ?? null,
+      gallery_theme: template?.gallery_theme ?? 'paper',
+      gallery_font: template?.gallery_font ?? 'modern',
+      gallery_grid: template?.gallery_grid ?? 'story',
+      cover_style: template?.cover_style ?? 'single',
     })
     .select('id')
     .single();
@@ -593,6 +632,37 @@ export async function setGalleryCover(input: {
   revalidatePath(`/jobs/${input.jobId}`);
 }
 
+/** Set one named presentation choice for a gallery, never raw CSS supplied by a browser. */
+export async function setGalleryDesign(input: {
+  galleryId: string; jobId: string; design: GalleryDesign;
+}): Promise<void> {
+  const who = await whoIsAsking();
+  if (!who) throw new Error('Sign in first');
+  const allowed = {
+    theme: ['paper', 'midnight', 'cobalt', 'rose'],
+    font: ['modern', 'editorial', 'mono'],
+    grid: ['story', 'tiles', 'columns'],
+    coverStyle: ['single', 'split', 'filmstrip'],
+  } as const;
+  if (!allowed.theme.includes(input.design.theme)
+    || !allowed.font.includes(input.design.font)
+    || !allowed.grid.includes(input.design.grid)
+    || !allowed.coverStyle.includes(input.design.coverStyle)) {
+    throw new Error('Choose a gallery design from the available styles');
+  }
+  const { error } = await db.from('galleries').update({
+    gallery_theme: input.design.theme, gallery_font: input.design.font,
+    gallery_grid: input.design.grid, cover_style: input.design.coverStyle,
+  }).eq('id', input.galleryId).eq('studio_id', who.studioId);
+  if (error) throw new Error('Could not update gallery design');
+  await db.from('events').insert({
+    studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
+    action: 'design_changed', actor_id: who.personId, payload: input.design,
+  });
+  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath('/g/[token]', 'page');
+}
+
 export async function setGalleryExpiry(input: {
   galleryId: string; jobId: string; expiresOn: string | null;
 }): Promise<void> {
@@ -699,9 +769,12 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
   const { data, error } = await db
     .from('galleries')
     .select('id, name, token, shared_at, expires_on, access_mode, access_code_hash, may_download, '
+      + 'gallery_theme, gallery_font, gallery_grid, cover_style, '
       + 'cover_file_id, studio:studios(name), '
       + 'sections:gallery_sections(id, name, position, visible_to_clients, audience_role, '
-      + 'items:gallery_files(position, file:files(id, name, storage_path, mime_type)))')
+      + 'items:gallery_files(position, file:files(id, name, storage_path, mime_type))), '
+      + 'albums:gallery_albums(id, name, status, spreads:gallery_album_spreads(id, position, caption, left_file_id, right_file_id, '
+      + 'comments:gallery_album_comments(id, body, parent_id, created_at, person:people(name))))')
     .eq('token', token)
     .maybeSingle();
 
@@ -715,10 +788,19 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
     id: string; name: string; token: string; shared_at: string | null;
     expires_on: string | null; access_mode: 'link' | 'code' | 'invite'; access_code_hash: string | null;
     may_download: boolean; cover_file_id: string | null; studio: { name: string } | null;
+    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
+    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
     sections: {
       id: string; name: string; position: number; visible_to_clients: boolean;
       audience_role: 'main_client' | 'guest' | 'vendor' | null;
       items: { position: number; file: { id: string; name: string; storage_path: string; mime_type: string | null } | null }[];
+    }[];
+    albums: {
+      id: string; name: string; status: 'draft' | 'review' | 'approved';
+      spreads: {
+        id: string; position: number; caption: string | null; left_file_id: string | null; right_file_id: string | null;
+        comments: { id: string; body: string; parent_id: string | null; created_at: string; person: { name: string } | null }[];
+      }[];
     }[];
   };
 
@@ -751,6 +833,7 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
     studioName: g.studio?.name ?? 'The studio',
     mayDownload: g.may_download,
     coverFileId: g.cover_file_id,
+    design: { theme: g.gallery_theme, font: g.gallery_font, grid: g.gallery_grid, coverStyle: g.cover_style },
     sections: sections.map((section) => ({
       id: section.id,
       name: section.name,
@@ -766,6 +849,19 @@ export async function openGallery(token: string): Promise<PublicGallery | Locked
       name: i.file!.name,
       mimeType: i.file!.mime_type,
       url: urlFor.get(i.file!.storage_path) ?? null,
+    })),
+    albums: (g.albums ?? []).filter((album) => album.status !== 'draft').map((album) => ({
+      id: album.id, name: album.name, status: album.status === 'approved' ? 'approved' : 'review',
+      spreads: (album.spreads ?? []).filter((spread) => {
+        const allowed = new Set(items.map((item) => item.file!.id));
+        return (!spread.left_file_id || allowed.has(spread.left_file_id)) && (!spread.right_file_id || allowed.has(spread.right_file_id));
+      }).sort((a, b) => a.position - b.position).map((spread) => ({
+        id: spread.id, caption: spread.caption, leftFileId: spread.left_file_id, rightFileId: spread.right_file_id,
+        comments: (spread.comments ?? []).map((comment) => ({
+          id: comment.id, body: comment.body, authorName: comment.person?.name ?? 'A collaborator',
+          parentId: comment.parent_id, createdAt: comment.created_at,
+        })),
+      })),
     })),
   };
 }

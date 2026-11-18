@@ -15,13 +15,24 @@ export type GallerySummary = {
   mayDownload: boolean;
   howMany: number;
   coverFileId: string | null;
+  design: GalleryDesign;
   sections: GallerySectionSummary[];
   members: GalleryMemberSummary[];
   collections: GalleryCollectionSummary[];
   comments: GalleryCommentSummary[];
   participants: GalleryParticipantSummary[];
+  hubRequests: GalleryHubRequestSummary[];
+  albums: GalleryAlbumSummary[];
   /** Null means nothing is for sale in it, which is most galleries. */
   priceListId: string | null;
+};
+
+/** A bounded editorial vocabulary keeps gallery branding coherent and reusable. */
+export type GalleryDesign = {
+  theme: 'paper' | 'midnight' | 'cobalt' | 'rose';
+  font: 'modern' | 'editorial' | 'mono';
+  grid: 'story' | 'tiles' | 'columns';
+  coverStyle: 'single' | 'split' | 'filmstrip';
 };
 
 export type GallerySectionSummary = {
@@ -68,6 +79,23 @@ export type GalleryParticipantSummary = {
   status: 'invited' | 'approved' | 'revoked';
 };
 
+export type GalleryHubRequestSummary = {
+  id: string;
+  title: string;
+  purpose: 'selection' | 'album' | 'retouch' | 'approval';
+  dueOn: string | null;
+  status: 'open' | 'closed';
+  collaborators: number;
+  submitted: number;
+};
+
+export type GalleryAlbumSummary = {
+  id: string;
+  name: string;
+  status: 'draft' | 'review' | 'approved';
+  spreads: number;
+};
+
 export type ClientGalleryCollection = {
   id: string;
   name: string;
@@ -96,6 +124,7 @@ export type GalleryTemplate = {
   name: string;
   mayDownload: boolean;
   priceListId: string | null;
+  design: GalleryDesign;
   sections: { id: string; name: string; position: number; visibleToClients: boolean }[];
 };
 
@@ -119,8 +148,39 @@ export type PublicGallery = {
   studioName: string;
   mayDownload: boolean;
   coverFileId: string | null;
+  design: GalleryDesign;
   sections: PublicGallerySection[];
   files: PublicGalleryFile[];
+  albums: PublicGalleryAlbum[];
+};
+
+export type PublicGalleryAlbum = {
+  id: string;
+  name: string;
+  status: 'review' | 'approved';
+  spreads: {
+    id: string;
+    caption: string | null;
+    leftFileId: string | null;
+    rightFileId: string | null;
+    comments: { id: string; body: string; authorName: string; parentId: string | null; createdAt: string }[];
+  }[];
+};
+
+export type ClientHubRequest = {
+  id: string;
+  title: string;
+  purpose: 'selection' | 'album' | 'retouch' | 'approval';
+  minItems: number | null;
+  maxItems: number | null;
+  dueOn: string | null;
+  submittedAt: string | null;
+  fileIds: string[];
+  messages: {
+    id: string; body: string; fileId: string | null; parentId: string | null;
+    pinX: number | null; pinY: number | null; authorName: string; createdAt: string;
+  }[];
+  references: { id: string; name: string; mimeType: string | null; url: string | null }[];
 };
 
 /** A public address can reveal that a gallery exists without revealing its media. */

@@ -130,6 +130,7 @@ export async function createJob(input: {
   });
 
   revalidatePath('/');
+  revalidatePath('/mobile');
   return { id: job.id };
 }
 
@@ -231,6 +232,7 @@ export async function amendJob(input: {
   });
 
   revalidatePath('/');
+  revalidatePath('/mobile');
   revalidatePath(`/jobs/${input.jobId}`);
 }
 
@@ -250,6 +252,16 @@ export async function moveJob(input: { jobId: string; turn: Turn }): Promise<voi
     throw new Error('Could not move that job');
   }
 
+  await db.from('events').insert({
+    studio_id: who.studioId,
+    subject_type: 'job',
+    subject_id: input.jobId,
+    action: 'turn_changed',
+    actor_id: who.personId,
+    payload: { to: input.turn },
+  });
+
   revalidatePath('/');
+  revalidatePath('/mobile');
   revalidatePath(`/jobs/${input.jobId}`);
 }

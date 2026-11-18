@@ -4,8 +4,11 @@ import { useState, useTransition } from 'react';
 import {
   addGallerySection, allowDownload, fillGallery, makeGallery, moveGalleryFile,
   inviteGalleryParticipant, requestGallerySelection, revokeGalleryParticipant, saveGalleryAsTemplate,
-  setGalleryAccess, setGalleryCover, setGalleryExpiry, setSectionAudience, setSectionVisibility, shareGallery,
+  setGalleryAccess, setGalleryCover, setGalleryDesign, setGalleryExpiry, setSectionAudience, setSectionVisibility, shareGallery,
 } from '@/weave/galleries/actions';
+import {
+  addGalleryAlbumSpread, closeClientHubRequest, createClientHubRequest, createGalleryAlbum, setGalleryAlbumStatus,
+} from '@/weave/galleries/experience';
 import { sellFrom } from '@/weave/store/actions';
 import { sayGallery, type GalleryActivity, type GallerySummary, type GalleryTemplate } from '@/weave/galleries/shape';
 import type { PriceList } from '@/weave/store/shape';
@@ -32,6 +35,15 @@ function GalleryControls({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'main_client' | 'guest' | 'vendor'>('guest');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [hubTitle, setHubTitle] = useState('');
+  const [hubPurpose, setHubPurpose] = useState<'selection' | 'album' | 'retouch' | 'approval'>('selection');
+  const [hubMax, setHubMax] = useState('');
+  const [hubDueOn, setHubDueOn] = useState('');
+  const [hubParticipantIds, setHubParticipantIds] = useState<string[]>([]);
+  const [albumName, setAlbumName] = useState('');
+  const [spreadAlbumId, setSpreadAlbumId] = useState('');
+  const [spreadLeft, setSpreadLeft] = useState('');
+  const [spreadRight, setSpreadRight] = useState('');
 
   const addSection = (event: React.FormEvent) => {
     event.preventDefault();
@@ -78,6 +90,36 @@ function GalleryControls({
     });
   };
 
+  const changeDesign = (patch: Partial<typeof gallery.design>) => {
+    run(() => setGalleryDesign({ galleryId: gallery.id, jobId, design: { ...gallery.design, ...patch } }));
+  };
+
+  const createHub = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await createClientHubRequest({
+        galleryId: gallery.id, jobId, title: hubTitle, purpose: hubPurpose,
+        maxItems: hubMax ? Number(hubMax) : null, dueOn: hubDueOn || null, participantIds: hubParticipantIds,
+      });
+      setHubTitle(''); setHubMax(''); setHubDueOn(''); setHubParticipantIds([]);
+    });
+  };
+
+  const createAlbum = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => { await createGalleryAlbum({ galleryId: gallery.id, jobId, name: albumName }); setAlbumName(''); });
+  };
+
+  const addSpread = (event: React.FormEvent) => {
+    event.preventDefault();
+    run(async () => {
+      await addGalleryAlbumSpread({
+        galleryId: gallery.id, jobId, albumId: spreadAlbumId, leftFileId: spreadLeft || null, rightFileId: spreadRight || null,
+      });
+      setSpreadLeft(''); setSpreadRight('');
+    });
+  };
+
   return (
     <div className="q-stack q-stack-sm">
       <div className="q-row q-row-sm">
@@ -104,6 +146,129 @@ function GalleryControls({
           {lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
         </select>
       </label>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Gallery design</summary>
+        <p className="q-meta-sm">A reusable editorial treatment for this gallery and any template you save from it.</p>
+        <div className="q-row q-row-sm">
+          <label className="q-stack q-stack-xs">
+            <span className="q-label">Palette</span>
+            <select className="q-input q-input-sm" value={gallery.design.theme} disabled={working}
+              onChange={(event) => changeDesign({ theme: event.target.value as typeof gallery.design.theme })}>
+              <option value="paper">Paper</option>
+              <option value="midnight">Midnight</option>
+              <option value="cobalt">Cobalt</option>
+              <option value="rose">Rose</option>
+            </select>
+          </label>
+          <label className="q-stack q-stack-xs">
+            <span className="q-label">Type</span>
+            <select className="q-input q-input-sm" value={gallery.design.font} disabled={working}
+              onChange={(event) => changeDesign({ font: event.target.value as typeof gallery.design.font })}>
+              <option value="modern">Modern</option>
+              <option value="editorial">Editorial</option>
+              <option value="mono">Studio mono</option>
+            </select>
+          </label>
+          <label className="q-stack q-stack-xs">
+            <span className="q-label">Grid</span>
+            <select className="q-input q-input-sm" value={gallery.design.grid} disabled={working}
+              onChange={(event) => changeDesign({ grid: event.target.value as typeof gallery.design.grid })}>
+              <option value="story">Story</option>
+              <option value="tiles">Tiles</option>
+              <option value="columns">Columns</option>
+            </select>
+          </label>
+          <label className="q-stack q-stack-xs">
+            <span className="q-label">Cover</span>
+            <select className="q-input q-input-sm" value={gallery.design.coverStyle} disabled={working}
+              onChange={(event) => changeDesign({ coverStyle: event.target.value as typeof gallery.design.coverStyle })}>
+              <option value="single">Single image</option>
+              <option value="split">Split image</option>
+              <option value="filmstrip">Filmstrip</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Client Hub</summary>
+        <p className="q-meta-sm">A named collaboration request keeps selections and feedback beside the pictures.</p>
+        {gallery.hubRequests.length > 0 && gallery.hubRequests.map((request) => (
+          <div className="q-row q-row-between" key={request.id}>
+            <span className="q-text-body">{request.title} <span className="q-meta">· {request.purpose} · {request.submitted}/{request.collaborators} sent</span></span>
+            <button type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
+              onClick={() => run(() => closeClientHubRequest({
+                galleryId: gallery.id, jobId, requestId: request.id, closed: request.status === 'open',
+              }))}>
+              {request.status === 'open' ? 'Close request' : 'Reopen'}
+            </button>
+          </div>
+        ))}
+        <form className="q-stack q-stack-xs" onSubmit={createHub}>
+          <div className="q-row q-row-sm">
+            <input className="q-input" placeholder="Request title, e.g. Album favourites" value={hubTitle}
+              onChange={(event) => setHubTitle(event.target.value)} disabled={working} />
+            <select className="q-input q-input-sm" value={hubPurpose} disabled={working}
+              onChange={(event) => setHubPurpose(event.target.value as typeof hubPurpose)}>
+              <option value="selection">Selection</option><option value="album">Album</option>
+              <option value="retouch">Retouching</option><option value="approval">Approval</option>
+            </select>
+            <input className="q-input q-input-sm" type="number" min="1" placeholder="Maximum" value={hubMax}
+              onChange={(event) => setHubMax(event.target.value)} disabled={working} />
+            <input className="q-input q-input-sm" type="date" value={hubDueOn}
+              onChange={(event) => setHubDueOn(event.target.value)} disabled={working} />
+          </div>
+          <div className="q-row q-row-sm">
+            {gallery.participants.filter((participant) => participant.status === 'approved').map((participant) => (
+              <label className="q-meta" key={participant.id}>
+                <input type="checkbox" checked={hubParticipantIds.includes(participant.id)} disabled={working}
+                  onChange={(event) => setHubParticipantIds((current) => event.target.checked
+                    ? [...current, participant.id] : current.filter((id) => id !== participant.id))} /> {participant.name}
+              </label>
+            ))}
+          </div>
+          <button className="q-btn q-btn-ghost q-btn-xs q-self-start" type="submit"
+            disabled={working || !hubTitle.trim() || hubParticipantIds.length === 0}>Open collaboration</button>
+        </form>
+      </details>
+
+      <details className="q-stack q-stack-xs">
+        <summary className="q-meta">Album proofs</summary>
+        {gallery.albums.map((album) => (
+          <div className="q-row q-row-between" key={album.id}>
+            <span className="q-text-body">{album.name} <span className="q-meta">· {album.spreads} spreads · {album.status}</span></span>
+            <select className="q-input q-input-sm" value={album.status} disabled={working}
+              onChange={(event) => run(() => setGalleryAlbumStatus({
+                albumId: album.id, galleryId: gallery.id, jobId, status: event.target.value as typeof album.status,
+              }))}>
+              <option value="draft">Draft</option><option value="review">Send for review</option><option value="approved">Approved</option>
+            </select>
+          </div>
+        ))}
+        <form className="q-row q-row-sm" onSubmit={createAlbum}>
+          <input className="q-input" placeholder="Name an album proof" value={albumName}
+            onChange={(event) => setAlbumName(event.target.value)} disabled={working} />
+          <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !albumName.trim()}>Start proof</button>
+        </form>
+        {gallery.albums.length > 0 && (
+          <form className="q-row q-row-sm" onSubmit={addSpread}>
+            <select className="q-input q-input-sm" value={spreadAlbumId} disabled={working}
+              onChange={(event) => setSpreadAlbumId(event.target.value)}>
+              <option value="">Choose proof</option>{gallery.albums.map((album) => <option key={album.id} value={album.id}>{album.name}</option>)}
+            </select>
+            <select className="q-input q-input-sm" value={spreadLeft} disabled={working}
+              onChange={(event) => setSpreadLeft(event.target.value)}>
+              <option value="">Left picture</option>{gallery.members.map((file) => <option key={file.fileId} value={file.fileId}>{file.name}</option>)}
+            </select>
+            <select className="q-input q-input-sm" value={spreadRight} disabled={working}
+              onChange={(event) => setSpreadRight(event.target.value)}>
+              <option value="">Right picture</option>{gallery.members.map((file) => <option key={file.fileId} value={file.fileId}>{file.name}</option>)}
+            </select>
+            <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || !spreadAlbumId || (!spreadLeft && !spreadRight)}>Add spread</button>
+          </form>
+        )}
+      </details>
 
       <div className="q-stack q-stack-xs">
         <span className="q-meta">Sections</span>

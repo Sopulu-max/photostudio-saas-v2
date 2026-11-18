@@ -476,5 +476,6 @@ export async function markOrder(input: {
   });
 
   revalidatePath('/orders');
+  revalidatePath('/mobile');
   if (data?.job_id) revalidatePath(`/jobs/${data.job_id}`);
 }

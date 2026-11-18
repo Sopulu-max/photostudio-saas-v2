@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  LayoutGrid, ShoppingBag, Tag, Send, Images,
+  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone,
 } from 'lucide-react';
 
 /**
@@ -13,10 +13,11 @@ import {
  * Not in the root layout, deliberately: the client's gallery and the login page
  * share that layout and neither should carry the studio's furniture.
  */
-export type Where = 'board' | 'orders' | 'store' | 'automations' | 'galleries';
+export type Where = 'board' | 'orders' | 'store' | 'automations' | 'galleries' | 'mobile';
 
 const NAV: { key: Where; href: string; label: string; Icon: typeof LayoutGrid }[] = [
   { key: 'board', href: '/', label: 'The board', Icon: LayoutGrid },
+  { key: 'mobile', href: '/mobile', label: 'Today', Icon: Smartphone },
   { key: 'galleries', href: '/galleries', label: 'Galleries', Icon: Images },
   { key: 'orders', href: '/orders', label: 'Orders', Icon: ShoppingBag },
   { key: 'store', href: '/store', label: 'What you sell', Icon: Tag },

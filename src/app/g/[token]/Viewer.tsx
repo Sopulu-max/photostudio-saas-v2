@@ -9,6 +9,8 @@ import { placeOrder } from '@/weave/store/actions';
 import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
 import { money, orderTotal, type BasketLine, type PriceList } from '@/weave/store/shape';
 import { Lightbox } from './Lightbox';
+import { ClientHub } from './ClientHub';
+import { AlbumProofs } from './AlbumProofs';
 
 const REMEMBERED = 'weave.visitor.email';
 
@@ -271,14 +273,21 @@ export function Viewer({
   const cover = gallery.coverFileId
     ? gallery.files.find((file) => file.id === gallery.coverFileId && (file.mimeType ?? '').startsWith('image/')) ?? null
     : null;
+  const coverFrames = [cover, ...gallery.files.filter((file) => file.id !== cover?.id && (file.mimeType ?? '').startsWith('image/'))]
+    .filter((file): file is NonNullable<typeof file> => !!file)
+    .slice(0, gallery.design.coverStyle === 'filmstrip' ? 3 : 2);
   const activeSlide = gallery.files[slideIndex] ?? null;
 
   return (
-    <div className="q-gallery">
-      <header className="q-gal-head-plain q-stack q-stack-xs">
-        {cover?.url && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img className="q-gal-cover-image" src={cover.url} alt="" />
+    <div className={`q-gallery q-gal-theme-${gallery.design.theme} q-gal-font-${gallery.design.font}`}>
+      <header className={`q-gal-head-plain q-stack q-stack-xs q-gal-cover-${gallery.design.coverStyle}`}>
+        {coverFrames.length > 0 && (
+          <div className="q-gal-cover-set">
+            {coverFrames.map((file) => (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img className="q-gal-cover-image" key={file.id} src={file.url ?? undefined} alt="" />
+            ))}
+          </div>
         )}
         <span className="q-gal-studio">{gallery.studioName}</span>
         <h1 className="q-gal-title">{gallery.name}</h1>
@@ -414,6 +423,9 @@ export function Viewer({
           </section>
         )}
 
+        {visitorEmail && <ClientHub token={gallery.token} email={visitorEmail} files={gallery.files} />}
+        {visitorEmail && <AlbumProofs token={gallery.token} email={visitorEmail} albums={gallery.albums} files={gallery.files} />}
+
         {visitorEmail && gallery.files.length > 0 && (
           <form className="q-card q-stack q-stack-xs" onSubmit={comment}>
             <h2 className="q-section-title">Leave a comment</h2>
@@ -436,7 +448,7 @@ export function Viewer({
             {gallery.sections.map((section) => (
               <section key={section.id} className="q-stack q-stack-sm">
                 {gallery.sections.length > 1 && <h2 className="q-gal-section-title">{section.name}</h2>}
-                <div className="q-gal-grid">
+                <div className={`q-gal-grid q-gal-grid-${gallery.design.grid}`}>
                   {section.files.map((f) => {
               const kept = picks.has(f.id);
               const collected = collectionFileIds.has(f.id);
