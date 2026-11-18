@@ -29,7 +29,7 @@ type Choice = {
 };
 
 export function RoomView({
-  photoUrl, scenes, products, currency, onAdd, working,
+  photoUrl, scenes, products, currency, onAdd, working, buyable = true,
 }: {
   photoUrl: string | null;
   scenes: RoomScene[];
@@ -37,6 +37,8 @@ export function RoomView({
   currency: string;
   onAdd: (productId: string, variantId: string | null) => void;
   working?: boolean;
+  /** Off where the studio is looking at its own shop rather than shopping. */
+  buyable?: boolean;
 }) {
   const choices: Choice[] = [];
   for (const product of products) {
@@ -141,12 +143,14 @@ export function RoomView({
         </span>
         <span className="q-row q-row-sm">
           <strong className="q-num">{money(chosen.price, currency)}</strong>
-          <button
-            type="button" className="q-btn q-btn-primary q-btn-sm" disabled={working}
-            onClick={() => onAdd(chosen.product.id, chosen.variant?.id ?? null)}
-          >
-            Add this one
-          </button>
+          {buyable && (
+            <button
+              type="button" className="q-btn q-btn-primary q-btn-sm" disabled={working}
+              onClick={() => onAdd(chosen.product.id, chosen.variant?.id ?? null)}
+            >
+              Add this one
+            </button>
+          )}
         </span>
       </div>
     </div>

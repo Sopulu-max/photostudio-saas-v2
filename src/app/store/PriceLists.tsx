@@ -78,7 +78,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                     </div>
                   ))}
 
-                  <Reveal says="Add an option">
+                  <Reveal says="Add a size or a finish">
                     {(done) => (
                       <form
                         className="q-row q-row-sm"
@@ -118,7 +118,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
             </div>
           )}
 
-          <Reveal says="Add something to this list">
+          <Reveal says="Price something new">
             {(done) => (
               <form
                 className="q-row q-row-sm"

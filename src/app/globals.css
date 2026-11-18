@@ -1222,3 +1222,10 @@ select.q-input { cursor: pointer; }
 }
 
 .q-scene-add { align-self: flex-start; cursor: pointer; }
+
+/* A gap in the shop, said where the shop would be. */
+.q-shopfront-gap {
+  margin: 0; padding: 48px 28px; text-align: center;
+  background: var(--paper-2); border-radius: var(--radius-lg);
+  font-size: 1.05rem; max-width: none;
+}

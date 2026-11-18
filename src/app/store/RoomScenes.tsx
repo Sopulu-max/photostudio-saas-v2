@@ -58,12 +58,7 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
 
   return (
     <section className="q-stack q-stack-sm">
-      <h2 className="q-section-title">Rooms to hang prints in</h2>
-      <p className="q-meta">
-        Your own photographs, shot square on to the wall. A client sees their
-        picture hanging in them, at its real size. One without a wall width is
-        shown as it is — good for a close-up of an edge or a mount.
-      </p>
+      <h2 className="q-section-title">Your rooms</h2>
 
       {scenes.length === 0 ? (
         <p className="q-empty">No rooms yet. Until there is one, a client sees prices and no picture.</p>
@@ -153,7 +148,7 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
       )}
 
       <label className="q-reveal-line q-scene-add">
-        {busy ? 'Uploading' : 'Add a room photograph'}
+        {busy ? 'Uploading' : 'Add a room photograph, shot square on to the wall'}
         <input
           ref={picker} type="file" accept="image/*" multiple hidden disabled={busy}
           onChange={(event) => void send(event.target.files)}
