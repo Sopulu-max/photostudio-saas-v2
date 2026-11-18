@@ -90,6 +90,13 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         </div>
       </header>
 
+      {/*
+        * Stacked, like every other page. Without this the sections were plain
+        * siblings in a block: each card's top sat exactly on the one above, so
+        * two 1px hairlines met and read as a single heavy 2px rule with no air
+        * on either side of it.
+        */}
+      <div className="q-stack q-stack-md">
       <JobAmend job={job} />
 
       <Occasions jobId={job.id} occasions={occasions} people={people} today={today} />
@@ -115,6 +122,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           ))
         )}
       </section>
+      </div>
     </div>
     </StudioShell>
   );
