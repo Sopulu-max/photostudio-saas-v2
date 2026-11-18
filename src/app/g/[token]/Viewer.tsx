@@ -8,9 +8,9 @@ import {
 import { placeOrder } from '@/weave/store/actions';
 import type { ClientGalleryCollection, PublicGallery } from '@/weave/galleries/shape';
 import {
-  money, orderTotal, saySize, sizeOf, type BasketLine, type PriceList,
+  money, orderTotal, type BasketLine, type PriceList,
 } from '@/weave/store/shape';
-import { PrintPreview } from '@/components/PrintPreview';
+import { PrintWall } from '@/components/PrintWall';
 import { Lightbox } from './Lightbox';
 import { ClientHub } from './ClientHub';
 import { AlbumProofs } from './AlbumProofs';
@@ -508,38 +508,33 @@ export function Viewer({
                 Close
               </button>
             </div>
+            {/*
+              * Everything with a size goes on one wall, together, because the
+              * question is how big and that is answered by comparison. What
+              * has no size — a file, an unmeasured product — is listed below
+              * it, since there is nothing truthful to hang.
+              */}
+            <PrintWall
+              url={fileUrl(buying)}
+              fileName={fileName(buying) ?? 'this picture'}
+              products={products}
+              currency={products[0]?.currency ?? 'NGN'}
+              working={working}
+              onAdd={(productId, variantId) => addToBasket(productId, variantId, buying)}
+            />
+
             {products.length === 0 ? (
               <p className="q-empty">Nothing is priced yet.</p>
-            ) : products.map((p) => (
+            ) : products.filter((p) => !p.size && p.variants.every((v) => !v.size)).map((p) => (
               <div key={p.id} className="q-stack q-stack-xs">
                 <span className="q-text-body">
                   {p.name}
                   <span className="q-meta"> &middot; {p.kind === 'digital' ? 'a file' : 'made and sent'}</span>
                 </span>
                 {(p.variants.length === 0 ? [null] : p.variants).map((variant) => {
-                  const size = sizeOf(p, variant);
                   const key = `${p.id}:${variant?.id ?? 'base'}`;
                   return (
                     <div className="q-stack q-stack-xs" key={key}>
-                      {/*
-                        * The picture as the thing being bought. Only drawn when
-                        * the studio stated a size — a digital file and an
-                        * unmeasured product have nothing truthful to show, and
-                        * a made-up rectangle is worse than none.
-                        */}
-                      {size && (
-                        <>
-                          <PrintPreview
-                            url={fileUrl(buying)}
-                            name={fileName(buying) ?? 'This picture'}
-                            size={size}
-                            shownAs={p.shownAs}
-                          />
-                          <span className="q-meta-sm">
-                            {saySize(size)} &middot; anything outside the frame is trimmed
-                          </span>
-                        </>
-                      )}
                       <span className="q-row q-row-between">
                         <span className="q-meta">{variant?.name ?? 'Standard'}</span>
                         <span className="q-row q-row-sm">
