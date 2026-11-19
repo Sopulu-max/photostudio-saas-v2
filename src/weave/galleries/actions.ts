@@ -725,7 +725,7 @@ export async function inviteGalleryParticipant(input: {
     .eq('id', input.galleryId).eq('studio_id', who.studioId).maybeSingle();
   if (!gallery) throw new Error('That gallery is not in this studio');
   const personId = await findOrCreateGalleryPerson({
-    studioId: who.studioId, email: input.email, name: input.name,
+    studioId: who.studioId, galleryId: gallery.id, email: input.email, name: input.name,
   });
   const invite = randomBytes(24).toString('hex');
   const { error } = await db.from('gallery_participants').upsert({
@@ -896,14 +896,51 @@ export async function unlockGallery(input: { token: string; code: string }): Pro
   revalidatePath(`/g/${gallery.token}`);
 }
 
+/**
+ * Which person an email means, inside one gallery.
+ *
+ * A studio can hold TWO people with the same address, and legitimately: a
+ * booking request always makes a new person rather than attaching a stranger
+ * to an existing client on the strength of a typed email. Ask twice and
+ * there are two rows.
+ *
+ * This used to be `.eq(email).maybeSingle()`, which does not return the first
+ * of two — it THROWS. So anyone who enquired twice was locked out of their
+ * own pictures, silently, and the studio had no way to know.
+ *
+ * Resolving it is not a coin toss. The gallery knows who it is for: the
+ * client of the job it hangs off. That is the row the studio means, and the
+ * one their keeps and orders should land on. Failing that, the oldest, so
+ * the answer is at least the same every time.
+ */
 async function findOrCreateGalleryPerson(input: {
-  studioId: string; email: string; name?: string;
+  studioId: string; galleryId: string; email: string; name?: string;
 }): Promise<string> {
   const email = input.email.trim().toLowerCase();
   if (!email.includes('@')) throw new Error('An email is needed');
+
   const { data: found } = await db.from('people').select('id')
-    .eq('studio_id', input.studioId).eq('email', email).maybeSingle();
-  if (found) return found.id;
+    .eq('studio_id', input.studioId).eq('email', email)
+    .order('created_at', { ascending: true });
+
+  const rows = found ?? [];
+  if (rows.length === 1) return rows[0].id;
+
+  if (rows.length > 1) {
+    /*
+     * Only when there is a choice to make, so the ordinary visit still costs
+     * one query. Several rows is the uncommon case and can afford a second.
+     */
+    const { data: gallery } = await db.from('galleries')
+      .select('job:jobs(client_id)').eq('id', input.galleryId).maybeSingle();
+    const client = (gallery as unknown as { job: { client_id: string | null } | null } | null)
+      ?.job?.client_id ?? null;
+    console.warn(
+      `${rows.length} people in studio ${input.studioId} share ${email}. `
+      + 'Resolving to the one this gallery is for; they want merging.',
+    );
+    return rows.find((row) => row.id === client)?.id ?? rows[0].id;
+  }
 
   const { data: made, error } = await db.from('people').insert({
     studio_id: input.studioId, name: input.name?.trim() || email, email,
@@ -918,7 +955,9 @@ export async function visitorPersonForGallery(
 ): Promise<string> {
   const invited = await invitedParticipantForGallery(gallery);
   if (invited) return invited.person_id;
-  return findOrCreateGalleryPerson({ studioId: gallery.studio_id, email, name });
+  return findOrCreateGalleryPerson({
+    studioId: gallery.studio_id, galleryId: gallery.id, email, name,
+  });
 }
 
 /** A declared visitor opening a gallery is an event, not a counter to maintain. */
@@ -1005,7 +1044,7 @@ export async function requestGallerySelection(input: {
     .eq('id', input.galleryId).eq('studio_id', who.studioId).maybeSingle();
   if (!gallery) throw new Error('That gallery is not in this studio');
   const personId = await findOrCreateGalleryPerson({
-    studioId: who.studioId, email: input.email, name: input.email,
+    studioId: who.studioId, galleryId: gallery.id, email: input.email, name: input.email,
   });
 
   const { error } = await db.from('gallery_collections').insert({
@@ -1034,9 +1073,10 @@ export async function collectionsForVisitor(input: {
   if (!personId) {
     const email = input.email.trim().toLowerCase();
     if (!email.includes('@')) return [];
-    const { data: person } = await db.from('people').select('id')
-      .eq('studio_id', gallery.studio_id).eq('email', email).maybeSingle();
-    personId = person?.id ?? null;
+    /* One rule for who an email means, not a second copy that drifts. */
+    personId = await findOrCreateGalleryPerson({
+      studioId: gallery.studio_id, galleryId: gallery.id, email,
+    });
   }
   if (!personId) return [];
 
