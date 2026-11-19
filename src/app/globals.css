@@ -1319,3 +1319,31 @@ select.q-input { cursor: pointer; }
 .q-mate:focus-within .q-mate-acts { opacity: 1; }
 @media (hover: none) { .q-mate-acts { opacity: 1; } }
 .q-mate-gone { opacity: 0.55; }
+
+/* ---- What a studio offers ------------------------------------------------ */
+
+.q-pack {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+  padding: 16px 0; border-bottom: 1px solid var(--line);
+}
+.q-pack-what { flex: 1 1 260px; display: flex; flex-direction: column; gap: 4px; }
+.q-pack-name {
+  font-family: var(--font-display); font-weight: 400; font-size: 1.2rem;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+.q-pack-price { white-space: nowrap; color: var(--ink); }
+.q-pack-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.q-pack-on, .q-pack-off {
+  font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.q-pack-on { color: var(--ink); }
+.q-pack-off { color: var(--ink-faint); }
+
+/* The promise, read against what is actually in the gallery. */
+.q-promise {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em;
+  color: var(--ink-faint);
+}
+.q-promise-over { color: var(--warn); }

@@ -126,7 +126,7 @@ describe('galleries', () => {
 describe('how a gallery says itself', () => {
   const g = (over: Partial<GallerySummary> = {}): GallerySummary => ({
     id: 'a', name: 'Selects', token: 't', sharedAt: null, expiresOn: null,
-    accessMode: 'link', mayDownload: true, howMany: 12, coverFileId: null,
+    accessMode: 'link', mayDownload: true, howMany: 12, picturesPromised: null, coverFileId: null,
     design: { theme: 'paper', font: 'modern', grid: 'story', coverStyle: 'single' },
     sections: [], members: [], collections: [], comments: [], participants: [], hubRequests: [], albums: [], priceListId: null, ...over,
   });

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { studioAtSlug } from '@/weave/jobs/requests';
+import { packagesOffered } from '@/weave/packages/actions';
 import { BookingForm } from './BookingForm';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,9 @@ export default async function StudioFrontPage({ params }: {
   const studio = await studioAtSlug(slug);
   if (!studio) notFound();
 
+  // Only what the studio has actually chosen to offer.
+  const offered = await packagesOffered(slug);
+
   return (
     <main className="q-auth">
       <div className="q-auth-card">
@@ -41,7 +45,7 @@ export default async function StudioFrontPage({ params }: {
         <p className="q-auth-says">
           Tell them what you are after and they will come back to you.
         </p>
-        <BookingForm slug={studio.slug} studioName={studio.name} />
+        <BookingForm slug={studio.slug} studioName={studio.name} packages={offered} />
       </div>
     </main>
   );

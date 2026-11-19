@@ -14,6 +14,8 @@ export type GallerySummary = {
   accessMode: 'link' | 'code' | 'invite';
   mayDownload: boolean;
   howMany: number;
+  /** What the package promised, copied at acceptance. Null if none was. */
+  picturesPromised: number | null;
   coverFileId: string | null;
   design: GalleryDesign;
   sections: GallerySectionSummary[];

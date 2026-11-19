@@ -91,6 +91,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
   const { data, error } = await db
     .from('galleries')
     .select('id, name, token, shared_at, expires_on, access_mode, may_download, cover_file_id, price_list_id, '
+      + 'pictures_promised, '
       + 'gallery_theme, gallery_font, gallery_grid, cover_style, '
       + 'gallery_files(file_id, section_id, file:files(name, mime_type)), '
       + 'sections:gallery_sections(id, name, position, visible_to_clients, audience_role, gallery_files(id)), '
@@ -113,6 +114,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     id: string; name: string; token: string; shared_at: string | null;
     expires_on: string | null; access_mode: 'link' | 'code' | 'invite'; may_download: boolean;
     cover_file_id: string | null; price_list_id: string | null;
+    pictures_promised: number | null;
     gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
     gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
     gallery_files: { file_id: string; section_id: string; file: { name: string; mime_type: string | null } | null }[];
@@ -149,6 +151,7 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
     accessMode: g.access_mode,
     mayDownload: g.may_download,
     howMany: (g.gallery_files ?? []).length,
+    picturesPromised: g.pictures_promised,
     coverFileId: g.cover_file_id,
     design: { theme: g.gallery_theme, font: g.gallery_font, grid: g.gallery_grid, coverStyle: g.cover_style },
     sections: (g.sections ?? []).sort((a, b) => a.position - b.position).map((section) => ({

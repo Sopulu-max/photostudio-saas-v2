@@ -11,6 +11,7 @@ import {
 } from '@/weave/galleries/experience';
 import { sellFrom } from '@/weave/store/actions';
 import { sayGallery, type GalleryActivity, type GallerySummary, type GalleryTemplate } from '@/weave/galleries/shape';
+import { sayPromise, standingOfPromise } from '@/weave/packages/shape';
 import type { PriceList } from '@/weave/store/shape';
 
 type Run = (fn: () => Promise<unknown>) => void;
@@ -542,6 +543,19 @@ export function Galleries({
               <div className="q-row q-row-between">
                 <strong className="q-strong">{gallery.name}</strong>
                 <span className={gallery.sharedAt ? 'q-meta' : 'q-meta q-warm'}>{sayGallery(gallery)}</span>
+                {/*
+                  * What the package promised, against what is actually in it.
+                  * Derived every time — the promise is a count, never four
+                  * hundred empty rows waiting to disagree with it.
+                  */}
+                {gallery.picturesPromised !== null && (
+                  <span className={
+                    standingOfPromise(gallery.howMany, gallery.picturesPromised).kind === 'over'
+                      ? 'q-promise q-promise-over' : 'q-promise'
+                  }>
+                    {sayPromise(gallery.howMany, gallery.picturesPromised)}
+                  </span>
+                )}
               </div>
               {gallery.sharedAt && <span className="q-meta-sm">{origin}/g/{gallery.token}</span>}
               <GalleryControls gallery={gallery} activity={activity.find((entry) => entry.galleryId === gallery.id)} jobId={jobId} origin={origin} lists={lists}

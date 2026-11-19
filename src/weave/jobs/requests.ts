@@ -3,6 +3,7 @@
 import { randomBytes } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
+import { galleryForAcceptedJob } from '@/weave/packages/accepting';
 import { whoIsAsking } from '@/weave/studio';
 import type { AnsweredRequest, Request, RequestAsAsked, StudioFront } from './shape';
 
@@ -56,6 +57,8 @@ export async function requestBooking(input: {
   email: string;
   wants: string;
   expectedOn?: string | null;
+  /** What they are asking for, if the studio publishes packages. */
+  packageId?: string | null;
 }): Promise<{ token: string }> {
   const studio = await studioAtSlug(input.slug);
   if (!studio) throw new Error('That studio is not here');
@@ -87,6 +90,7 @@ export async function requestBooking(input: {
     requested_at: new Date().toISOString(),
     // An address of their own, so the answer has somewhere to be read.
     request_token: randomBytes(16).toString('hex'),
+    package_id: input.packageId || null,
   }).select('id, request_token').single();
 
   if (error || !job) {
@@ -234,7 +238,7 @@ export async function acceptRequest(input: { jobId: string; saying?: string }): 
   if (!who) throw new Error('Sign in first');
 
   const { data: job } = await db.from('jobs')
-    .select('id, expected_on, accepted_at, declined_at')
+    .select('id, expected_on, accepted_at, declined_at, package_id, client:people(name)')
     .eq('id', input.jobId).eq('studio_id', who.studioId).maybeSingle();
   if (!job) throw new Error('That request is not in this studio');
   if (job.accepted_at || job.declined_at) throw new Error('That request has already been answered');
@@ -247,6 +251,19 @@ export async function acceptRequest(input: { jobId: string; saying?: string }): 
     })
     .eq('id', input.jobId).eq('studio_id', who.studioId);
   if (error) throw new Error('Could not accept that request');
+
+  /*
+   * Taking the work on brings the work into existence. The gallery is opened
+   * here, sized by what was promised, so the agreement becomes a thing with
+   * a shape rather than a sentence in a request.
+   */
+  await galleryForAcceptedJob({
+    studioId: who.studioId,
+    jobId: input.jobId,
+    clientName: (job as unknown as { client: { name: string } | null }).client?.name ?? null,
+    packageId: (job as unknown as { package_id: string | null }).package_id,
+    actorId: who.personId,
+  });
 
   await db.from('events').insert({
     studio_id: who.studioId, subject_type: 'job', subject_id: input.jobId,

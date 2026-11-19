@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
+import { galleryForAcceptedJob } from '@/weave/packages/accepting';
 import type { Occasion } from './shape';
 
 type Row = {
@@ -282,6 +283,8 @@ export async function bookIn(input: {
   onDate: string;
   startsAt?: string | null;
   endsAt?: string | null;
+  /** What was booked, if the studio works in packages. */
+  packageId?: string | null;
 }): Promise<{ jobId: string; occasionId: string }> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -315,6 +318,7 @@ export async function bookIn(input: {
     expected_on: input.onDate,
     turn: 'scheduled',
     accepted_at: new Date().toISOString(),
+    package_id: input.packageId || null,
   }).select('id').single();
   if (jobError || !job) throw new Error('Could not make that booking');
 
@@ -336,6 +340,19 @@ export async function bookIn(input: {
     await db.from('jobs').delete().eq('id', job.id).eq('studio_id', who.studioId);
     throw new Error('Could not put that in the diary');
   }
+
+  /*
+   * A studio booking something itself has already agreed to it, so the same
+   * thing happens as when a request is accepted: the gallery is opened,
+   * sized by the package.
+   */
+  await galleryForAcceptedJob({
+    studioId: who.studioId,
+    jobId: job.id,
+    clientName: name,
+    packageId: input.packageId || null,
+    actorId: who.personId,
+  });
 
   await db.from('events').insert({
     studio_id: who.studioId, subject_type: 'job', subject_id: job.id,

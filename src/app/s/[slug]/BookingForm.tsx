@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { requestBooking } from '@/weave/jobs/requests';
+import { money } from '@/weave/store/shape';
+import { sayPackage, type Package } from '@/weave/packages/shape';
 
 /**
  * Asking a studio for work.
@@ -11,7 +13,12 @@ import { requestBooking } from '@/weave/jobs/requests';
  * in under a minute, and be told clearly that a person, not a calendar, will
  * answer them.
  */
-export function BookingForm({ slug, studioName }: { slug: string; studioName: string }) {
+export function BookingForm({ slug, studioName, packages }: {
+  slug: string;
+  studioName: string;
+  /** What the studio offers. Empty is fine — then it is a plain enquiry. */
+  packages: Package[];
+}) {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
@@ -50,6 +57,7 @@ export function BookingForm({ slug, studioName }: { slug: string; studioName: st
               email: String(form.get('email') ?? ''),
               wants: String(form.get('wants') ?? ''),
               expectedOn: String(form.get('expectedOn') ?? '') || null,
+              packageId: String(form.get('packageId') ?? '') || null,
             });
             setSentTo(`${window.location.origin}/r/${token}`);
           } catch (err) {
@@ -70,6 +78,26 @@ export function BookingForm({ slug, studioName }: { slug: string; studioName: st
         <input className="q-input" name="email" type="email" required autoComplete="email" />
         <span className="q-auth-hint">So they can answer you.</span>
       </label>
+
+      {/*
+        * Shown only when the studio has published something. A studio that
+        * works case by case gets a plain enquiry, which is what it had.
+        */}
+      {packages.length > 0 && (
+        <label className="q-auth-field">
+          <span className="q-label">What are you asking about?</span>
+          <select className="q-input" name="packageId" defaultValue="">
+            <option value="">Not sure yet</option>
+            {packages.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.picturesPromised !== null ? ` — ${sayPackage(p)}` : ''}
+                {p.price !== null ? ` — ${money(p.price, p.currency)}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <label className="q-auth-field">
         <span className="q-label">What are you after?</span>
