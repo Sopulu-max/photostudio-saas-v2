@@ -305,13 +305,6 @@ select.q-input { cursor: pointer; }
 }
 .q-gal-video { width: 100%; border-radius: 2px; display: block; background: #000; }
 
-.q-gal-files { display: flex; flex-direction: column; }
-.q-gal-file {
-  display: flex; justify-content: space-between; align-items: center; gap: 16px;
-  padding: 14px 2px; border-bottom: 1px solid var(--line);
-}
-.q-gal-file-n { font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
 .q-drop {
   display: flex; align-items: center; justify-content: center;
   padding: 44px; width: 100%;

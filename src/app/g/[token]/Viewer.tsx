@@ -615,20 +615,6 @@ export function Viewer({
           </p>
         )}
 
-        {gallery.mayDownload && gallery.files.length > 0 && (
-          <div className="q-gal-files">
-            {gallery.files.map((f) => (
-              <div key={f.id} className="q-gal-file">
-                <span className="q-gal-file-n">{f.name}</span>
-                <button type="button" className="q-btn q-btn-ghost q-btn-xs"
-                  disabled={working || downloadingFileId === f.id} onClick={() => download(f.id)}>
-                  {downloadingFileId === f.id ? 'Preparing' : 'Download'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
         {viewing !== null && (
           <Lightbox
             files={allFiles}
@@ -636,10 +622,13 @@ export function Viewer({
             kept={picks.has(allFiles[viewing]?.id ?? '')}
             canKeep={!!visitorEmail && mode !== 'buy'}
             canBuy={!!forSale}
+            canDownload={gallery.mayDownload}
+            downloading={downloadingFileId === allFiles[viewing]?.id}
             onClose={() => setViewing(null)}
             onMove={setViewing}
             onToggleKeep={(id: string) => toggle(id)}
             onBuy={(id: string) => { setViewing(null); setMode('buy'); setBuying(id); }}
+            onDownload={(id: string) => download(id)}
           />
         )}
 

@@ -21,18 +21,22 @@ export type LightboxFile = {
 };
 
 export function Lightbox({
-  files, index, kept, canKeep, canBuy,
-  onClose, onMove, onToggleKeep, onBuy,
+  files, index, kept, canKeep, canBuy, canDownload, downloading,
+  onClose, onMove, onToggleKeep, onBuy, onDownload,
 }: {
   files: LightboxFile[];
   index: number;
   kept: boolean;
   canKeep: boolean;
   canBuy: boolean;
+  /** Downloading belongs where the picture is, not in a list of filenames. */
+  canDownload: boolean;
+  downloading: boolean;
   onClose: () => void;
   onMove: (next: number) => void;
   onToggleKeep: (fileId: string) => void;
   onBuy: (fileId: string) => void;
+  onDownload: (fileId: string) => void;
 }) {
   const file = files[index];
 
@@ -118,6 +122,14 @@ export function Lightbox({
               onClick={() => onBuy(file.id)}
             >
               Order a print
+            </button>
+          )}
+          {canDownload && (
+            <button
+              type="button" className="q-btn q-btn-ghost q-btn-sm"
+              onClick={() => onDownload(file.id)} disabled={downloading}
+            >
+              {downloading ? 'Preparing' : 'Download'}
             </button>
           )}
         </span>
