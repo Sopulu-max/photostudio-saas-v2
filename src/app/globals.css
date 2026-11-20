@@ -75,35 +75,42 @@
  * `--frame` is deliberately absent: a frame is a physical object.
  */
 :root[data-theme='dark'] {
-  --paper: #16150f;
-  --paper-2: #1d1c15;
-  --card: #22201a;
-  --hover: #2b2922;
+  /*
+   * NEUTRAL, not warm. Light mode is warm because paper is warm, and the
+   * same instinct applied here produced mud: the yellow that reads as paper
+   * stock at high key reads as brown at mid-grey.
+   *
+   * There is a working reason beyond taste. Lightroom, Capture One and
+   * Photoshop all surround the image with neutral grey, because a tinted
+   * surround shifts how the eye judges what sits next to it. A photographer
+   * grading skin tones against a warm brown interface is being misled by
+   * their own screen. The chrome stays out of the way of the colour.
+   */
+  --paper: #1f1f1f;
+  --paper-2: #262626;
+  --card: #2d2d2d;
+  --hover: #363636;
 
-  --line: #332f27;
-  --line-strong: #474337;
+  --line: #3c3c3c;
+  --line-strong: #525252;
 
-  --ink: #f4f0e6;
-  --ink-dim: #a9a295;
-  --ink-faint: #7b7568;
+  --ink: #f2f2f0;
+  --ink-dim: #adadaa;
+  /* 4.89:1 on the ground above, measured rather than judged by eye. */
+  --ink-faint: #8c8c89;
 
   /*
-   * Dark gets a colour where light stays monochrome, and deliberately so:
-   * near-black ground takes an accent that paper cannot, and without one
-   * the whole app reads as grey on grey.
-   *
-   * Eucalyptus rather than brass. A warm ground wants a cool counterpoint,
-   * and amber is already spoken for by --warn — an accent sharing a hue
-   * with the warning colour is an accent nobody can read as emphasis.
+   * The one colour, and it survives the move to neutral: a desaturated
+   * eucalyptus reads as emphasis against grey without tinting it, and
+   * leaves amber free to mean warning.
    */
   --accent: #7fae9b;
-  --accent-ink: #10201a;
+  --accent-ink: #12211c;
   --accent-lift: #96c3b1;
-  --tint: #233029;
+  --tint: #2f3b36;
 
-  /* Lifted, because the light-mode tones vanish against a dark ground. */
-  --warn: #d9a441;
-  --bad: #e07a63;
+  --warn: #e0ab4a;
+  --bad: #e68872;
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 40px rgba(0, 0, 0, 0.55);
 

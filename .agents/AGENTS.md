@@ -66,6 +66,18 @@ near-black ink (`--ink`, `--ink-dim`, `--ink-faint`), hairline rules, generous
 air, Playfair Display for titles and Inter for interface. Photographs supply the
 colour; the interface does not compete with them.
 
+**Light is warm. DARK IS NEUTRAL GREY, and this is not a preference.** Lightroom,
+Capture One and Photoshop all surround the image with neutral grey because a
+tinted surround shifts how the eye judges what sits beside it — a photographer
+grading skin tones against a warm brown interface is being misled by their own
+screen. A warm dark also simply goes muddy: the yellow that reads as paper stock
+at high key reads as brown at mid-grey. Do not warm the dark palette.
+
+One accent, a desaturated eucalyptus, carries emphasis in dark where light stays
+monochrome; amber means warning and nothing else may share that hue. Anything
+depicting a physical object — a picture frame, a video letterbox — uses a fixed
+colour such as `--frame` and does not follow the theme.
+
 **The Absolute Law of Centralization still holds.** No `.module.css`. No inline
 `style={{...}}` for layout, colour or shadow. Every element uses a `.q-` class
 defined in `src/app/globals.css`, so a visual fix happens in exactly one place.
