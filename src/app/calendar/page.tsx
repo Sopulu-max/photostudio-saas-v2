@@ -51,9 +51,9 @@ export default async function CalendarPage({
     .toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
   const said = inMonth.length === 0
-    ? `Nothing is booked in ${named}.`
-    : `${inMonth.length} ${inMonth.length === 1 ? 'thing' : 'things'} in ${named}`
-      + `${clashes.length > 0 ? '' : '. Nobody is double-booked.'}`;
+    ? `No bookings in ${named}.`
+    : `${inMonth.length} ${inMonth.length === 1 ? 'booking' : 'bookings'} in ${named}`
+      + `${clashes.length > 0 ? '' : '. No double-bookings.'}`;
 
   return (
     <StudioShell here="calendar" studioName={who.studioName}>
@@ -64,9 +64,9 @@ export default async function CalendarPage({
           <p className="q-page-subtitle">{sayClashes(clashes) ?? said}</p>
         </div>
         <div className="q-row q-row-sm">
-          <Link className="q-btn q-btn-ghost q-btn-xs" href={`/calendar?m=${shift(-1)}`}>Before</Link>
+          <Link className="q-btn q-btn-ghost q-btn-xs" href={`/calendar?m=${shift(-1)}`}>Previous</Link>
           <Link className="q-btn q-btn-ghost q-btn-xs" href="/calendar">This month</Link>
-          <Link className="q-btn q-btn-ghost q-btn-xs" href={`/calendar?m=${shift(1)}`}>After</Link>
+          <Link className="q-btn q-btn-ghost q-btn-xs" href={`/calendar?m=${shift(1)}`}>Next</Link>
         </div>
       </header>
 

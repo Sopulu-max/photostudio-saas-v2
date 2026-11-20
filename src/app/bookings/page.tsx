@@ -33,10 +33,10 @@ export default async function BookingsPage() {
 
   const taken = answered.filter((a) => a.answer === 'taken').length;
   const said = waiting.length > 0
-    ? `${waiting.length} ${waiting.length === 1 ? 'person is' : 'people are'} waiting on an answer.`
+    ? `${waiting.length} ${waiting.length === 1 ? 'request' : 'requests'} awaiting a response.`
     : answered.length === 0
-      ? 'Nobody has asked yet. Share the address below and they can.'
-      : `Nobody is waiting. ${taken} of ${answered.length} asked so far became work.`;
+      ? 'No requests yet. Share the booking page below to receive them.'
+      : `No pending requests. ${taken} of ${answered.length} accepted.`;
 
   return (
     <StudioShell here="bookings" studioName={who.studioName}>
@@ -51,11 +51,11 @@ export default async function BookingsPage() {
       <div className="q-stack q-stack-lg">
         {front && (
           <section className="q-stack q-stack-xs">
-            <h2 className="q-section-title">Where people ask</h2>
+            <h2 className="q-section-title">Booking page</h2>
             <span className="q-share">{origin}/s/{front.slug}</span>
             <p className="q-meta">
-              Put this on your site or in your profile. Anyone can ask from it —
-              they do not need an account, and nothing is booked until you say so.
+              Add this to your website or profile. No account is required to submit a
+              request, and nothing is confirmed until you accept it.
             </p>
           </section>
         )}
@@ -63,20 +63,20 @@ export default async function BookingsPage() {
         {waiting.length > 0 && <Requests waiting={waiting} origin={origin} heading={false} />}
 
         <section className="q-stack q-stack-sm">
-          <h2 className="q-section-title">Already answered</h2>
+          <h2 className="q-section-title">Answered</h2>
           {answered.length === 0 ? (
-            <p className="q-empty">Nothing has been answered yet.</p>
+            <p className="q-empty">No answered requests.</p>
           ) : (
             <div className="q-sheet">
               {answered.map((ask) => (
                 <div className="q-answered" key={ask.id}>
                   <div className="q-answered-main">
                     <strong className="q-strong">{ask.askedBy ?? 'Somebody'}</strong>
-                    <span className="q-meta">{ask.wants ?? 'They did not say what for.'}</span>
-                    {ask.because && <span className="q-meta-sm">Because: {ask.because}</span>}
+                    <span className="q-meta">{ask.wants ?? 'No details provided.'}</span>
+                    {ask.because && <span className="q-meta-sm">Reason: {ask.because}</span>}
                   </div>
                   <span className={ask.answer === 'taken' ? 'q-answer' : 'q-answer q-answer-no'}>
-                    {ask.answer === 'taken' ? 'Taken on' : 'Turned away'}
+                    {ask.answer === 'taken' ? 'Accepted' : 'Declined'}
                     {' · '}
                     {new Date(ask.answeredAt).toLocaleDateString('en-GB', {
                       day: 'numeric', month: 'short',

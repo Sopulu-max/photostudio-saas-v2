@@ -45,7 +45,7 @@ export function sayWhen(o: Occasion): string {
 }
 
 export function sayCrew(o: Occasion): string {
-  if (o.crew.length === 0) return 'Nobody on it';
+  if (o.crew.length === 0) return 'Unassigned';
   return o.crew.map((c) => c.name).join(', ');
 }
 
@@ -89,8 +89,8 @@ export function clashesIn(occasions: Occasion[]): Clash[] {
 export function sayClashes(clashes: Clash[]): string | null {
   if (clashes.length === 0) return null;
   const people = [...new Set(clashes.map((c) => c.who))];
-  if (people.length === 1) return `${people[0]} is booked twice at once.`;
-  return `${people.slice(0, -1).join(', ')} and ${people[people.length - 1]} are each booked twice at once.`;
+  if (people.length === 1) return `${people[0]} is double-booked.`;
+  return `${people.slice(0, -1).join(', ')} and ${people[people.length - 1]} are double-booked.`;
 }
 
 /** The days of a month, padded to whole weeks starting Monday. */

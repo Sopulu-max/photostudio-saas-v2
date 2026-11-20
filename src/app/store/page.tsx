@@ -38,7 +38,7 @@ export default async function StorePage() {
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">What you sell</h1>
+          <h1 className="q-page-title">Products</h1>
           <p className="q-page-subtitle">{said}</p>
         </div>
       </header>

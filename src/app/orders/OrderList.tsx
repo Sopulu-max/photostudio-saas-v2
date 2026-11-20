@@ -30,7 +30,7 @@ export function OrderList({ orders }: { orders: Order[] }) {
   };
 
   if (orders.length === 0) {
-    return <p className="q-empty-lg">Nobody has ordered anything yet.</p>;
+    return <p className="q-empty-lg">No orders.</p>;
   }
 
   return (
@@ -41,7 +41,7 @@ export function OrderList({ orders }: { orders: Order[] }) {
           <article key={o.id} className="q-receipt" data-busy={working ? 'yes' : undefined}>
             <header className="q-receipt-head">
               <div className="q-receipt-who">
-                <strong className="q-receipt-name">{o.who ?? 'Somebody'}</strong>
+                <strong className="q-receipt-name">{o.who ?? 'Unnamed'}</strong>
                 <span className="q-meta-sm">
                   {new Date(o.placedAt).toLocaleString('en-GB', {
                     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
@@ -76,24 +76,24 @@ export function OrderList({ orders }: { orders: Order[] }) {
               </strong>
             </div>
 
-            {o.shipTo && <p className="q-meta">Send to: {o.shipTo}</p>}
-            {o.note && <p className="q-meta">They said: {o.note}</p>}
+            {o.shipTo && <p className="q-meta">Ship to: {o.shipTo}</p>}
+            {o.note && <p className="q-meta">Client note: {o.note}</p>}
 
             <div className="q-receipt-acts">
               <button
                 type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                 onClick={() => run(() => markOrder({ orderId: o.id, paid: !o.paidAt }))}
               >
-                {o.paidAt ? 'Not paid after all' : 'Mark it paid'}
+                {o.paidAt ? 'Mark unpaid' : 'Mark paid'}
               </button>
               <button
                 type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                 onClick={() => run(() => markOrder({ orderId: o.id, fulfilled: !o.fulfilledAt }))}
               >
-                {o.fulfilledAt ? 'Not sent after all' : 'Mark it sent'}
+                {o.fulfilledAt ? 'Mark unshipped' : 'Mark shipped'}
               </button>
               {o.jobId && (
-                <a className="q-btn q-btn-ghost q-btn-xs" href={`/jobs/${o.jobId}`}>The job</a>
+                <a className="q-btn q-btn-ghost q-btn-xs" href={`/jobs/${o.jobId}`}>View job</a>
               )}
             </div>
           </article>

@@ -83,9 +83,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">{job.clientName ?? 'Nobody named yet'}</h1>
+          <h1 className="q-page-title">{job.clientName ?? 'Unnamed client'}</h1>
           <p className="q-page-subtitle">
-            {job.wants ?? 'Nothing written down about what they want yet.'}
+            {job.wants ?? 'No brief recorded.'}
           </p>
         </div>
       </header>
@@ -106,9 +106,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <Galleries jobId={job.id} galleries={galleries} activity={galleryActivity} templates={templates} origin={origin} lists={lists} />
 
       <section className="q-card q-stack q-stack-sm">
-        <h2 className="q-section-title">What has happened</h2>
+        <h2 className="q-section-title">Activity</h2>
         {job.history.length === 0 ? (
-          <p className="q-empty">Nothing recorded yet.</p>
+          <p className="q-empty">No activity recorded.</p>
         ) : (
           job.history.map((e) => (
             <div key={e.id} className="q-row q-row-between">

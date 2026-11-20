@@ -38,7 +38,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
           <h2 className="q-list-name">{list.name}</h2>
 
           {list.products.length === 0 ? (
-            <p className="q-empty">Nothing on this list yet.</p>
+            <p className="q-empty">No products on this list.</p>
           ) : (
             <div className="q-sheet">
               {list.products.map((p) => (
@@ -57,7 +57,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                   </div>
 
                   <span className="q-ware-kind">
-                    {p.kind === 'digital' ? 'A file' : 'Made and sent'}
+                    {p.kind === 'digital' ? 'Digital file' : 'Printed and shipped'}
                     {p.size && ` · ${saySize(p.size)}`}
                   </span>
 
@@ -78,7 +78,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                     </div>
                   ))}
 
-                  <Reveal says="Add a size or a finish">
+                  <Reveal says="Add option">
                     {(done) => (
                       <form
                         className="q-row q-row-sm"
@@ -87,7 +87,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                           const form = new FormData(event.currentTarget);
                           const name = String(form.get('name') ?? '').trim();
                           const delta = Number(form.get('delta'));
-                          if (!name) { setProblem('Give the option a name.'); return; }
+                          if (!name) { setProblem('Enter an option name.'); return; }
                           if (!Number.isFinite(delta) || p.price + Math.round(delta * 100) < 0) {
                             setProblem('That option would make the price invalid.'); return;
                           }
@@ -118,7 +118,7 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
             </div>
           )}
 
-          <Reveal says="Price something new">
+          <Reveal says="Add product">
             {(done) => (
               <form
                 className="q-row q-row-sm"
@@ -131,9 +131,9 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
                   const shownAs = String(form.get('shownAs') ?? 'print') as ShownAs;
                   const wIn = String(form.get('widthIn') ?? '').trim();
                   const hIn = String(form.get('heightIn') ?? '').trim();
-                  if (!name) { setProblem('Give it a name.'); return; }
+                  if (!name) { setProblem('Enter a product name.'); return; }
                   if (!Number.isFinite(major) || major < 0) {
-                    setProblem('That price is not a price.'); return;
+                    setProblem('Enter a valid price.'); return;
                   }
                   if ((wIn === '') !== (hIn === '')) {
                     setProblem('Give both measurements, or neither.'); return;
@@ -161,11 +161,11 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
               >
                 <input
                   className="q-input" name="name" autoFocus disabled={working}
-                  placeholder="What it is, in your words"
+                  placeholder="Product name"
                 />
                 <select className="q-input q-input-sm" name="kind" disabled={working}>
-                  <option value="physical">Made and sent</option>
-                  <option value="digital">A file</option>
+                  <option value="physical">Printed and shipped</option>
+                  <option value="digital">Digital file</option>
                 </select>
                 <input
                   className="q-input q-input-sm" name="price" type="number" min="0" step="0.01"
@@ -197,23 +197,23 @@ export function PriceLists({ lists }: { lists: PriceList[] }) {
         </section>
       ))}
 
-      <Reveal says="Start another price list">
+      <Reveal says="Add price list">
         {(done) => (
           <form
             className="q-row q-row-sm"
             onSubmit={(e) => {
               e.preventDefault();
               const name = String(new FormData(e.currentTarget).get('name') ?? '').trim();
-              if (!name) { setProblem('A price list needs a name.'); return; }
+              if (!name) { setProblem('Enter a price list name.'); return; }
               run(async () => { await addPriceList({ name }); done(); });
             }}
           >
             <input
               className="q-input" name="name" autoFocus disabled={working}
-              placeholder="Name a new price list"
+              placeholder="Price list name"
             />
             <button className="q-btn q-btn-primary q-btn-sm" type="submit" disabled={working}>
-              {working ? 'Making' : 'Make one'}
+              {working ? 'Adding' : 'Add'}
             </button>
           </form>
         )}

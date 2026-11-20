@@ -68,7 +68,7 @@ describe('how a clash is said', () => {
 
   it('names the person rather than counting collisions', () => {
     expect(sayClashes([{ a: 'a', b: 'b', who: 'Chidi' }]))
-      .toBe('Chidi is booked twice at once.');
+      .toBe('Chidi is double-booked.');
   });
 
   it('names each of them once, however many collisions they are in', () => {
@@ -76,7 +76,7 @@ describe('how a clash is said', () => {
       { a: 'a', b: 'b', who: 'Chidi' },
       { a: 'c', b: 'd', who: 'Chidi' },
       { a: 'e', b: 'f', who: 'Ada' },
-    ])).toBe('Chidi and Ada are each booked twice at once.');
+    ])).toBe('Chidi and Ada are double-booked.');
   });
 });
 

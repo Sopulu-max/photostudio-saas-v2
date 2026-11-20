@@ -149,11 +149,11 @@ describe('how waiting is said', () => {
   });
 
   it('says the silence rather than showing nothing', () => {
-    expect(sayRequests([])).toBe('Nobody is waiting on an answer.');
+    expect(sayRequests([])).toBe('No pending requests.');
   });
 
   it('counts people, not rows', () => {
-    expect(sayRequests([one()])).toBe('One person is waiting on an answer.');
-    expect(sayRequests([one(), one({ id: 'b' })])).toBe('2 people are waiting on an answer.');
+    expect(sayRequests([one()])).toBe('1 request awaiting a response.');
+    expect(sayRequests([one(), one({ id: 'b' })])).toBe('2 requests awaiting a response.');
   });
 });

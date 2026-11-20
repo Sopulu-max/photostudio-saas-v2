@@ -26,17 +26,17 @@ export function BookingForm({ slug, studioName, packages }: {
   if (sentTo) {
     return (
       <div className="q-asked">
-        <h2 className="q-asked-title">That has gone to {studioName}.</h2>
+        <h2 className="q-asked-title">Request sent to {studioName}.</h2>
         <p className="q-auth-body">
-          They will read it and come back to you. Nothing is booked until they
-          say so — this is a request, not a confirmed date.
+          They will review it and respond. This is a request; nothing is confirmed
+          until they accept it.
         </p>
         {/*
           * The link is given now rather than only emailed, because no mail is
           * sent yet and because a page they can return to is the thing that
           * makes the answer readable at all.
           */}
-        <p className="q-auth-body">Keep this link. The answer will appear on it.</p>
+        <p className="q-auth-body">Save this link. Their response will appear here.</p>
         <a className="q-share" href={sentTo}>{sentTo}</a>
       </div>
     );
@@ -69,14 +69,14 @@ export function BookingForm({ slug, studioName, packages }: {
       {problem && <p className="q-auth-problem" role="alert">{problem}</p>}
 
       <label className="q-auth-field">
-        <span className="q-label">Your name</span>
+        <span className="q-label">Name</span>
         <input className="q-input" name="name" required autoFocus autoComplete="name" />
       </label>
 
       <label className="q-auth-field">
         <span className="q-label">Email</span>
         <input className="q-input" name="email" type="email" required autoComplete="email" />
-        <span className="q-auth-hint">So they can answer you.</span>
+        <span className="q-auth-hint">Used to send you a response.</span>
       </label>
 
       {/*
@@ -85,9 +85,9 @@ export function BookingForm({ slug, studioName, packages }: {
         */}
       {packages.length > 0 && (
         <label className="q-auth-field">
-          <span className="q-label">What are you asking about?</span>
+          <span className="q-label">Package</span>
           <select className="q-input" name="packageId" defaultValue="">
-            <option value="">Not sure yet</option>
+            <option value="">Not sure</option>
             {packages.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -100,21 +100,21 @@ export function BookingForm({ slug, studioName, packages }: {
       )}
 
       <label className="q-auth-field">
-        <span className="q-label">What are you after?</span>
+        <span className="q-label">Details</span>
         <textarea
           className="q-input" name="wants" rows={4} required
-          placeholder="A wedding, a family sitting, headshots for a new site — in your own words."
+          placeholder="Describe what you are looking for."
         />
       </label>
 
       <label className="q-auth-field">
-        <span className="q-label">A date in mind</span>
+        <span className="q-label">Preferred date</span>
         <input className="q-input" name="expectedOn" type="date" />
-        <span className="q-auth-hint">Leave it blank if you are not sure yet.</span>
+        <span className="q-auth-hint">Optional.</span>
       </label>
 
       <button type="submit" className="q-btn q-btn-primary q-auth-go" disabled={working}>
-        {working ? 'Sending' : 'Send the request'}
+        {working ? 'Sending' : 'Send request'}
       </button>
     </form>
   );

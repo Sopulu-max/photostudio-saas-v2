@@ -65,11 +65,11 @@ export function Requests({ waiting, origin, heading = true }: {
               <span className="q-ask-waited">{waited}</span>
             </header>
 
-            <p className="q-ask-wants">{ask.wants ?? 'They did not say what for.'}</p>
+            <p className="q-ask-wants">{ask.wants ?? 'No details provided.'}</p>
 
             {ask.expectedOn && (
               <p className="q-meta">
-                They asked for{' '}
+                Requested date:{' '}
                 {new Date(`${ask.expectedOn}T00:00:00`).toLocaleDateString('en-GB', {
                   weekday: 'long', day: 'numeric', month: 'long',
                 })}
@@ -103,13 +103,13 @@ export function Requests({ waiting, origin, heading = true }: {
                 <textarea
                   className="q-input" name="saying" rows={3} autoFocus disabled={working}
                   placeholder={mode === 'take'
-                    ? 'What to say back to them. They will read it on their link.'
-                    : 'What to say back to them, kindly.'}
+                    ? 'Reply to the client'
+                    : 'Reply to the client'}
                 />
                 {mode === 'decline' && (
                   <input
                     className="q-input q-input-sm" name="because" disabled={working}
-                    placeholder="And why, for your own records — they will not see this"
+                    placeholder="Internal note, not shown to the client"
                   />
                 )}
                 <div className="q-row q-row-sm">
@@ -117,13 +117,13 @@ export function Requests({ waiting, origin, heading = true }: {
                     className={mode === 'take' ? 'q-btn q-btn-primary q-btn-sm' : 'q-btn q-btn-secondary q-btn-sm'}
                     type="submit" disabled={working}
                   >
-                    {mode === 'take' ? 'Take it on' : 'Turn it away'}
+                    {mode === 'take' ? 'Accept' : 'Decline'}
                   </button>
                   <button
                     type="button" className="q-btn q-btn-ghost q-btn-xs"
                     onClick={() => setAnsweringId(null)} disabled={working}
                   >
-                    Not yet
+                    Cancel
                   </button>
                 </div>
               </form>
@@ -133,13 +133,13 @@ export function Requests({ waiting, origin, heading = true }: {
                   type="button" className="q-btn q-btn-primary q-btn-sm" disabled={working}
                   onClick={() => { setMode('take'); setAnsweringId(ask.id); }}
                 >
-                  Take it on
+                  Accept
                 </button>
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                   onClick={() => { setMode('decline'); setAnsweringId(ask.id); }}
                 >
-                  Not this one
+                  Decline
                 </button>
               </div>
             )}

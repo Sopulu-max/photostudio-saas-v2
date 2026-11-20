@@ -18,16 +18,16 @@ const pack = (over: Partial<Package> = {}): Package => ({
 
 describe('what a package says', () => {
   it('leads with the promise, because that is what is being bought', () => {
-    expect(sayPackage(pack())).toBe('400 finished pictures');
+    expect(sayPackage(pack())).toBe('400 edited images');
   });
 
   it('says a promise is missing rather than leaving a gap', () => {
     expect(sayPackage(pack({ picturesPromised: null })))
-      .toBe('Number of pictures not said yet');
+      .toBe('Image count not set');
   });
 
   it('counts one picture as one', () => {
-    expect(sayPackage(pack({ picturesPromised: 1 }))).toBe('1 finished picture');
+    expect(sayPackage(pack({ picturesPromised: 1 }))).toBe('1 edited image');
   });
 
   it('is only offered once it has been published', () => {
@@ -63,14 +63,14 @@ describe('a gallery against its promise', () => {
 
 describe('how the promise is said', () => {
   it('tells the studio what is left to do', () => {
-    expect(sayPromise(0, 400)).toBe('0 of 400. 400 still to come.');
-    expect(sayPromise(400, 400)).toBe('All 400 promised pictures are in.');
-    expect(sayPromise(412, 400)).toBe('412 in it — 12 past the 400 promised.');
+    expect(sayPromise(0, 400)).toBe('0 of 400 delivered. 400 outstanding.');
+    expect(sayPromise(400, 400)).toBe('400 of 400 delivered.');
+    expect(sayPromise(412, 400)).toBe('412 delivered. 12 above the agreed 400.');
   });
 
   it('says the absence of a promise rather than nothing at all', () => {
-    expect(sayPromise(0, null)).toBe('Nothing in it yet, and no number promised.');
-    expect(sayPromise(9, null)).toBe('9 in it. No number was promised.');
+    expect(sayPromise(0, null)).toBe('No images. No count agreed.');
+    expect(sayPromise(9, null)).toBe('9 images. No count agreed.');
   });
 
   /*
@@ -79,9 +79,9 @@ describe('how the promise is said', () => {
    * getting against what they agreed.
    */
   it('says something else entirely to the client', () => {
-    expect(sayPromiseToClient(120, 400)).toBe('120 of the 400 in your package so far.');
+    expect(sayPromiseToClient(120, 400)).toBe('120 of 400 images delivered.');
     expect(sayPromiseToClient(412, 400))
-      .toBe('412 pictures — 12 more than your package included.');
+      .toBe('412 images delivered, 12 above your package.');
   });
 
   it('says nothing to a client who was promised no number', () => {

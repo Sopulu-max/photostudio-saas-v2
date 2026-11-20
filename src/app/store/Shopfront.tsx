@@ -30,15 +30,15 @@ export function Shopfront({
   const hangable = scenes.filter((s) => s.url && s.hangs);
 
   const missing =
-    products.length === 0 ? 'Price something below and it appears here.'
-      : measured.length === 0 ? 'Nothing you sell has a size yet, so nothing can hang on a wall. Add the width and height to a print below.'
-        : hangable.length === 0 ? 'Add a room photograph below and give it a wall width, and your clients will see their pictures hanging in it.'
-          : !pictureUrl ? 'No gallery is selling pictures yet, so there is nothing to hang here.'
+    products.length === 0 ? 'Add a product below to preview it here.'
+      : measured.length === 0 ? 'No product has dimensions set. Add width and height to a print below.'
+        : hangable.length === 0 ? 'Add a room photograph below and set its wall width to enable the preview.'
+          : !pictureUrl ? 'No gallery is linked to a price list, so there is no image to preview.'
             : null;
 
   return (
     <section className="q-stack q-stack-sm">
-      <h2 className="q-section-title">What a client sees</h2>
+      <h2 className="q-section-title">Client preview</h2>
 
       {missing ? (
         <p className="q-empty-lg q-shopfront-gap">{missing}</p>
@@ -54,7 +54,7 @@ export function Shopfront({
           />
           {galleryName && (
             <p className="q-meta-sm">
-              Shown with a picture from {galleryName}. A client sees their own.
+              Preview uses an image from {galleryName}. Clients see their own.
             </p>
           )}
         </>

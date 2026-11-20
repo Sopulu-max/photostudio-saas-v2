@@ -27,10 +27,10 @@ export type AccountResult = { problem: string } | undefined;
 function readableAuthError(message: string): string {
   const said = message.toLowerCase();
   if (said.includes('already registered') || said.includes('already been registered')) {
-    return 'There is already an account for that address. Log in instead, or reset the password.';
+    return 'An account already exists for that address. Sign in, or reset the password.';
   }
-  if (said.includes('password')) return 'That password is too short. Use at least eight characters.';
-  if (said.includes('invalid') && said.includes('email')) return 'That does not look like an email address.';
+  if (said.includes('password')) return 'Password must be at least eight characters.';
+  if (said.includes('invalid') && said.includes('email')) return 'Enter a valid email address.';
   return message;
 }
 
@@ -92,9 +92,9 @@ export async function signUpStudio(_prev: AccountResult, form: FormData): Promis
   const email = String(form.get('email') ?? '').trim().toLowerCase();
   const password = String(form.get('password') ?? '');
 
-  if (!studioName) return { problem: 'What is the studio called?' };
-  if (!email) return { problem: 'An email address, so you can get back in.' };
-  if (password.length < 8) return { problem: 'Use a password of at least eight characters.' };
+  if (!studioName) return { problem: 'Enter a studio name.' };
+  if (!email) return { problem: 'Enter an email address.' };
+  if (password.length < 8) return { problem: 'Password must be at least eight characters.' };
 
   const supabase = await createClient();
   const origin = await originOfThisRequest();
@@ -127,7 +127,7 @@ export async function signUpStudio(_prev: AccountResult, form: FormData): Promis
 
 export async function requestPasswordReset(_prev: AccountResult, form: FormData): Promise<AccountResult> {
   const email = String(form.get('email') ?? '').trim().toLowerCase();
-  if (!email) return { problem: 'Which address?' };
+  if (!email) return { problem: 'Enter an email address.' };
 
   const supabase = await createClient();
   const origin = await originOfThisRequest();
@@ -145,14 +145,14 @@ export async function setNewPassword(_prev: AccountResult, form: FormData): Prom
   const password = String(form.get('password') ?? '');
   const again = String(form.get('again') ?? '');
 
-  if (password.length < 8) return { problem: 'Use a password of at least eight characters.' };
-  if (password !== again) return { problem: 'Those two do not match.' };
+  if (password.length < 8) return { problem: 'Password must be at least eight characters.' };
+  if (password !== again) return { problem: 'Passwords do not match.' };
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   // The recovery link is what signs them in; without it there is nobody to
   // change the password of, and this form must not be usable on its own.
-  if (!user) return { problem: 'That reset link has expired. Ask for another.' };
+  if (!user) return { problem: 'This reset link has expired. Request another.' };
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { problem: readableAuthError(error.message) };

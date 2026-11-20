@@ -27,19 +27,19 @@ export default async function PackagesPage() {
   const unsaid = all.filter((p) => p.picturesPromised === null).length;
 
   const said = all.length === 0
-    ? 'Nothing offered yet.'
+    ? 'No packages.'
     : offered === 0
-      ? `${all.length} written down, none offered to anybody yet.`
+      ? `${all.length} ${all.length === 1 ? 'package' : 'packages'}, none published.`
       : unsaid > 0
-        ? `${offered} offered. ${unsaid} ${unsaid === 1 ? 'does' : 'do'} not say how many pictures yet.`
-        : `${offered} of ${all.length} offered.`;
+        ? `${offered} published. ${unsaid} without an image count.`
+        : `${offered} of ${all.length} published.`;
 
   return (
     <StudioShell here="packages" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">What you offer</h1>
+          <h1 className="q-page-title">Packages</h1>
           <p className="q-page-subtitle">{said}</p>
         </div>
       </header>

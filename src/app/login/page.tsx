@@ -22,8 +22,8 @@ export default async function LoginPage({
 
   return (
     <AuthPage
-      title="Welcome back"
-      foot={<>No studio yet? <Link href="/signup" className="q-auth-link">Open one</Link></>}
+      title="Sign in"
+      foot={<>No account? <Link href="/signup" className="q-auth-link">Create a studio</Link></>}
     >
       <form className="q-auth-form" action={login}>
         <AuthProblem problem={params.error} />
@@ -42,10 +42,10 @@ export default async function LoginPage({
             className="q-input" id="password" name="password" type="password" required
             autoComplete="current-password"
           />
-          <Link href="/forgot" className="q-auth-aside">Forgotten it?</Link>
+          <Link href="/forgot" className="q-auth-aside">Reset</Link>
         </label>
 
-        <button type="submit" className="q-btn q-btn-primary q-auth-go">Log in</button>
+        <button type="submit" className="q-btn q-btn-primary q-auth-go">Sign in</button>
       </form>
     </AuthPage>
   );

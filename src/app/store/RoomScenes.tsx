@@ -58,10 +58,10 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
 
   return (
     <section className="q-stack q-stack-sm">
-      <h2 className="q-section-title">Your rooms</h2>
+      <h2 className="q-section-title">Room scenes</h2>
 
       {scenes.length === 0 ? (
-        <p className="q-empty">No rooms yet. Until there is one, a client sees prices and no picture.</p>
+        <p className="q-empty">No room scenes. Without one, clients see prices but no preview.</p>
       ) : (
         <div className="q-scene-grid">
           {scenes.map((scene) => (
@@ -108,7 +108,7 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
                 onSubmit={(event) => {
                   event.preventDefault();
                   const mm = Number(new FormData(event.currentTarget).get('wallMm'));
-                  if (!Number.isFinite(mm) || mm <= 0) { setProblem('How wide is that wall?'); return; }
+                  if (!Number.isFinite(mm) || mm <= 0) { setProblem('Enter the wall width in millimetres.'); return; }
                   run(() => setScenePlacement({
                     sceneId: scene.id, wallMm: Math.round(mm),
                     x: scene.hangs?.x ?? 0.5, y: scene.hangs?.y ?? 0.4,
@@ -117,10 +117,10 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
               >
                 <input
                   className="q-input q-input-sm" name="wallMm" type="number" min="300" max="20000"
-                  defaultValue={scene.hangs?.wallMm ?? ''} placeholder="Wall mm" disabled={working || busy}
+                  defaultValue={scene.hangs?.wallMm ?? ''} placeholder="Wall width (mm)" disabled={working || busy}
                 />
                 <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working || busy}>
-                  Set width
+                  Save width
                 </button>
               </form>
 
@@ -132,9 +132,9 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
                       sceneId: scene.id, wallMm: null, x: null, y: null,
                     }))}
                   >
-                    Make it a close-up
+                    Set as detail shot
                   </button>
-                ) : <span className="q-meta-sm">A close-up. Press the photo to hang in it.</span>}
+                ) : <span className="q-meta-sm">Detail shot. Click the photo to position a print.</span>}
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working || busy}
                   onClick={() => run(() => removeScene({ sceneId: scene.id }))}
@@ -148,7 +148,7 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
       )}
 
       <label className="q-reveal-line q-scene-add">
-        {busy ? 'Uploading' : 'Add a room photograph, shot square on to the wall'}
+        {busy ? 'Uploading' : 'Add room photograph (shot square on to the wall)'}
         <input
           ref={picker} type="file" accept="image/*" multiple hidden disabled={busy}
           onChange={(event) => void send(event.target.files)}

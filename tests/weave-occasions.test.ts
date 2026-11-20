@@ -114,7 +114,7 @@ describe('how an occasion stands', () => {
   it('says itself without a legend', () => {
     expect(sayWhen(base)).toBe('Fri 20 Nov, 10:00–14:00');
     expect(sayWhen({ ...base, startsAt: null, endsAt: null })).toBe('Fri 20 Nov');
-    expect(sayCrew(base)).toBe('Nobody on it');
+    expect(sayCrew(base)).toBe('Unassigned');
     expect(sayCrew({ ...base, crew: [{ id: 'a', personId: 'p', name: 'Chidi' }] })).toBe('Chidi');
   });
 });

@@ -42,11 +42,11 @@ export default async function BoardPage() {
     <div className="q-page">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">The board</h1>
+          <h1 className="q-page-title">Board</h1>
           <p className="q-page-subtitle">
             {live === 0
-              ? 'No job is open.'
-              : `${live} ${live === 1 ? 'job is' : 'jobs are'} open.`}
+              ? 'No active jobs.'
+              : `${live} active ${live === 1 ? 'job' : 'jobs'}.`}
           </p>
         </div>
 
@@ -70,7 +70,7 @@ export default async function BoardPage() {
       <section className="q-card q-stack q-stack-sm">
         <h2 className="q-section-title">Today</h2>
         {todays.length === 0 ? (
-          <p className="q-empty">Nothing is happening today.</p>
+          <p className="q-empty">Nothing scheduled today.</p>
         ) : (
           todays.map((o) => (
             <div key={o.id} className="q-row q-row-between">

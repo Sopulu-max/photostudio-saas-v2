@@ -74,7 +74,27 @@ component is the one thing that breaks this.
 
 **A reading announces itself.** No legends, no colour keys, no label saying what
 the number beside it means. If a reading needs a key, it is not a reading. If a
-fact is absent, say so — "No date yet" — rather than leaving a gap.
+fact is absent, say so — "No date set" — rather than leaving a gap.
+
+**THE VOICE IS PROFESSIONAL BUSINESS SOFTWARE.** This is the rule most often
+broken, so it is written out. A studio runs its livelihood on this; it is not
+a companion app.
+
+- **Labels are nouns.** "Brief", not "What are you after?". "Status", not
+  "Whose move". A field label is not a question put to the user.
+- **Actions are verbs.** "Accept" and "Decline", not "Take it on" and "Not
+  this one". "Add team member", not "Somebody is joining".
+- **Empty states state the fact.** "No orders", not "Nobody has ordered
+  anything yet". "No team members", not "Just you".
+- **Never address the user as a character in a scene.** "Nobody is holding
+  you up", "They are back", "0 of 400. 400 still to come" — all wrong. The
+  software reports; it does not narrate.
+- **Use the industry's words**: client, booking, package, deliverable,
+  invoice, status. They are what a photographer already says.
+
+Announcing itself and sounding professional are not in tension: "120 of 400
+delivered" is both. Warmth belongs in what the studio writes to its own
+clients, never in the chrome around it.
 
 **Never rewrite a studio's own words.** Not the case, not the spelling, not the
 inflection, and never truncated by CSS. What they typed is what is shown.

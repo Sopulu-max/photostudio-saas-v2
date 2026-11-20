@@ -36,9 +36,9 @@ export default async function RequestPage({ params }: {
   });
 
   const said =
-    ask.answer === 'waiting' ? 'With them now'
-      : ask.answer === 'taken' ? 'They have taken it on'
-        : 'They could not take this one';
+    ask.answer === 'waiting' ? 'Under review'
+      : ask.answer === 'taken' ? 'Request accepted'
+        : 'Request declined';
 
   return (
     <main className="q-auth">
@@ -48,22 +48,22 @@ export default async function RequestPage({ params }: {
 
         <p className="q-auth-says">
           {ask.answer === 'waiting'
-            ? `You asked on ${asked}. They will come back to you by email.`
+            ? `Submitted ${asked}. They will respond by email.`
             : ask.answer === 'taken'
-              ? `You asked on ${asked}, and they said yes.`
-              : `You asked on ${asked}.`}
+              ? `Submitted ${asked}. Accepted.`
+              : `Submitted ${asked}.`}
         </p>
 
         {ask.answeredWith && (
           <div className="q-reply">
-            <span className="q-label">What they said</span>
+            <span className="q-label">Their response</span>
             <p className="q-reply-body">{ask.answeredWith}</p>
           </div>
         )}
 
         <div className="q-asked">
-          <span className="q-label">What you asked for</span>
-          <p className="q-reply-body">{ask.wants ?? 'Nothing written down.'}</p>
+          <span className="q-label">Your request</span>
+          <p className="q-reply-body">{ask.wants ?? 'No details provided.'}</p>
           {ask.expectedOn && (
             <p className="q-meta">
               For{' '}
@@ -76,8 +76,8 @@ export default async function RequestPage({ params }: {
 
         {ask.answer === 'turned away' && (
           <p className="q-auth-body">
-            Nothing is booked. If your plans change you are welcome to{' '}
-            <a className="q-auth-link" href={`/s/${ask.studioSlug}`}>ask them again</a>.
+            Nothing was booked. You are welcome to{' '}
+            <a className="q-auth-link" href={`/s/${ask.studioSlug}`}>submit another request</a>.
           </p>
         )}
       </div>

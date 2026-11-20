@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: {
   const studio = await studioAtSlug(slug);
   return {
     title: studio ? studio.name : 'Not found',
-    description: studio ? `Ask ${studio.name} about a booking.` : undefined,
+    description: studio ? `Request a booking with ${studio.name}.` : undefined,
   };
 }
 
@@ -41,9 +41,9 @@ export default async function StudioFrontPage({ params }: {
     <main className="q-auth">
       <div className="q-auth-card">
         <span className="q-auth-mark">{studio.name}</span>
-        <h1 className="q-auth-title">Ask about a date</h1>
+        <h1 className="q-auth-title">Request a booking</h1>
         <p className="q-auth-says">
-          Tell them what you are after and they will come back to you.
+          Describe what you need and they will respond.
         </p>
         <BookingForm slug={studio.slug} studioName={studio.name} packages={offered} />
       </div>

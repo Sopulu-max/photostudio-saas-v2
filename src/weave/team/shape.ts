@@ -34,14 +34,10 @@ export function sayTeam(members: TeamMember[]): string {
   const here = members.filter(worksHere);
   const gone = members.length - here.length;
 
-  if (here.length === 0) return 'Nobody is on the team yet.';
-  if (here.length === 1) {
-    return gone === 0
-      ? 'Just you.'
-      : `Just you, and ${gone} who ${gone === 1 ? 'has' : 'have'} left.`;
-  }
-  return `${here.length} people work here`
-    + `${gone > 0 ? `, and ${gone} ${gone === 1 ? 'has' : 'have'} left` : ''}.`;
+  if (here.length === 0) return 'No team members.';
+  const current = `${here.length} ${here.length === 1 ? 'member' : 'members'}`;
+  if (gone === 0) return `${current}.`;
+  return `${current}, ${gone} former.`;
 }
 
 /**
@@ -52,5 +48,5 @@ export function sayTeam(members: TeamMember[]): string {
  */
 export function sayLeaving(member: TeamMember): string | null {
   if (member.booked === 0) return null;
-  return `${member.name} is on ${member.booked} ${member.booked === 1 ? 'shoot' : 'shoots'} ahead.`;
+  return `${member.name} is assigned to ${member.booked} upcoming ${member.booked === 1 ? 'booking' : 'bookings'}.`;
 }

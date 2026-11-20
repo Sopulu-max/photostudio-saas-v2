@@ -22,11 +22,11 @@ export default async function OrdersPage() {
   const toMake = orders.filter((o) => standingOf(o) === 'to make').length;
 
   const said = orders.length === 0
-    ? 'No orders yet.'
+    ? 'No orders.'
     : [
-        unpaid > 0 ? `${unpaid} not paid` : null,
-        toMake > 0 ? `${toMake} to make` : null,
-      ].filter(Boolean).join(', ') || 'Everything is paid and sent.';
+        unpaid > 0 ? `${unpaid} unpaid` : null,
+        toMake > 0 ? `${toMake} to fulfil` : null,
+      ].filter(Boolean).join(', ') || 'All orders paid and shipped.';
 
   return (
     <StudioShell here="orders" studioName={who.studioName}>

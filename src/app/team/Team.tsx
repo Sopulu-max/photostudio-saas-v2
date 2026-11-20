@@ -32,7 +32,7 @@ export function Team({ members }: { members: TeamMember[] }) {
     <div className="q-stack q-stack-lg">
       <section className="q-stack q-stack-sm">
         {here.length === 0 ? (
-          <p className="q-empty">Nobody works here yet, so nobody can be put on a shoot.</p>
+          <p className="q-empty">No team members. Crew is assigned from this list.</p>
         ) : (
           <div className="q-sheet">
             {here.map((member) => (
@@ -41,7 +41,7 @@ export function Team({ members }: { members: TeamMember[] }) {
                   <strong className="q-mate-name">{member.name}</strong>
                   <span className="q-meta-sm">
                     {[member.email, member.phone].filter(Boolean).join(' · ')
-                      || 'No way to reach them written down'}
+                      || 'No contact details'}
                   </span>
                 </div>
 
@@ -51,21 +51,21 @@ export function Team({ members }: { members: TeamMember[] }) {
                   */}
                 <span className="q-mate-load">
                   {member.booked === 0
-                    ? 'Nothing ahead'
-                    : `${member.booked} ahead`}
+                    ? 'No bookings'
+                    : `${member.booked} upcoming`}
                 </span>
 
                 <span className="q-mate-acts">
-                  {member.hasAccount && <span className="q-meta-sm">Can sign in</span>}
+                  {member.hasAccount && <span className="q-meta-sm">Has account</span>}
                   <button
                     type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                     onClick={() => {
                       const warn = sayLeaving(member);
-                      if (warn) setProblem(`${warn} Those stay on the record.`);
+                      if (warn) setProblem(`${warn} Assignments are retained.`);
                       run(() => theyLeft({ personId: member.id }));
                     }}
                   >
-                    They left
+                    Mark as left
                   </button>
                 </span>
               </div>
@@ -73,7 +73,7 @@ export function Team({ members }: { members: TeamMember[] }) {
           </div>
         )}
 
-        <Reveal says="Somebody is joining">
+        <Reveal says="Add team member">
           {(done) => (
             <form
               className="q-row q-row-sm"
@@ -81,7 +81,7 @@ export function Team({ members }: { members: TeamMember[] }) {
                 event.preventDefault();
                 const form = new FormData(event.currentTarget);
                 const name = String(form.get('name') ?? '').trim();
-                if (!name) { setProblem('Who is joining?'); return; }
+                if (!name) { setProblem('Enter a name.'); return; }
                 run(async () => {
                   await addToTeam({
                     name,
@@ -92,7 +92,7 @@ export function Team({ members }: { members: TeamMember[] }) {
                 });
               }}
             >
-              <input className="q-input" name="name" autoFocus placeholder="Their name" disabled={working} />
+              <input className="q-input" name="name" autoFocus placeholder="Full name" disabled={working} />
               <input className="q-input q-input-sm" name="email" type="email" placeholder="Email" disabled={working} />
               <input className="q-input q-input-sm" name="phone" placeholder="Phone" disabled={working} />
               <button className="q-btn q-btn-secondary q-btn-sm" type="submit" disabled={working}>
@@ -105,14 +105,14 @@ export function Team({ members }: { members: TeamMember[] }) {
 
       {gone.length > 0 && (
         <section className="q-stack q-stack-sm">
-          <h2 className="q-section-title">No longer here</h2>
+          <h2 className="q-section-title">Former members</h2>
           <div className="q-sheet">
             {gone.map((member) => (
               <div className="q-mate q-mate-gone" key={member.id}>
                 <div className="q-mate-who">
                   <strong className="q-mate-name">{member.name}</strong>
                   <span className="q-meta-sm">
-                    Left{' '}
+                    Left on{' '}
                     {new Date(member.leftAt!).toLocaleDateString('en-GB', {
                       day: 'numeric', month: 'long', year: 'numeric',
                     })}
@@ -123,7 +123,7 @@ export function Team({ members }: { members: TeamMember[] }) {
                     type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
                     onClick={() => run(() => theyReturned({ personId: member.id }))}
                   >
-                    They are back
+                    Reinstate
                   </button>
                 </span>
               </div>

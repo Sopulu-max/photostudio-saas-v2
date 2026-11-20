@@ -89,7 +89,7 @@ export function Diary({
                       >
                         {o.startsAt && <span className="q-cal-at">{o.startsAt.slice(0, 5)}</span>}
                         <span className="q-cal-who">
-                          {o.clientName ?? o.what ?? 'Something'}
+                          {o.clientName ?? o.what ?? 'Untitled'}
                         </span>
                       </Link>
                     );
@@ -120,11 +120,11 @@ export function Diary({
                     >
                       <input
                         className="q-input q-input-sm" name="clientName" autoFocus required
-                        placeholder="Who is it for" disabled={working}
+                        placeholder="Client name" disabled={working}
                       />
                       <input
                         className="q-input q-input-sm" name="what"
-                        placeholder="What is it" disabled={working}
+                        placeholder="Description" disabled={working}
                       />
                       <span className="q-row q-row-sm">
                         <input className="q-input q-input-sm" name="startsAt" type="time" disabled={working} />
@@ -132,7 +132,7 @@ export function Diary({
                       </span>
                       <span className="q-row q-row-sm">
                         <button className="q-btn q-btn-primary q-btn-xs" type="submit" disabled={working}>
-                          {working ? 'Booking' : 'Book it'}
+                          {working ? 'Saving' : 'Add booking'}
                         </button>
                         <button
                           type="button" className="q-btn q-btn-ghost q-btn-xs"

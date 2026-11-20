@@ -13,9 +13,9 @@ export default async function SignUpPage() {
 
   return (
     <AuthPage
-      title="Open a studio"
-      says="A few minutes, and your first gallery can go out today."
-      foot={<>Already have one? <Link href="/login" className="q-auth-link">Log in</Link></>}
+      title="Create a studio"
+      says="Set up your studio account."
+      foot={<>Already have an account? <Link href="/login" className="q-auth-link">Sign in</Link></>}
     >
       <SignUpForm />
     </AuthPage>

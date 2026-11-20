@@ -32,8 +32,8 @@ export function isPublished(p: Package): boolean {
  */
 export function sayPackage(p: Package): string {
   const pictures = p.picturesPromised === null
-    ? 'Number of pictures not said yet'
-    : `${p.picturesPromised} finished ${p.picturesPromised === 1 ? 'picture' : 'pictures'}`;
+    ? 'Image count not set'
+    : `${p.picturesPromised} edited ${p.picturesPromised === 1 ? 'image' : 'images'}`;
   return pictures;
 }
 
@@ -67,14 +67,14 @@ export function sayPromise(have: number, promised: number | null): string {
   switch (s.kind) {
     case 'unpromised':
       return s.have === 0
-        ? 'Nothing in it yet, and no number promised.'
-        : `${s.have} in it. No number was promised.`;
+        ? 'No images. No count agreed.'
+        : `${s.have} images. No count agreed.`;
     case 'filling':
-      return `${s.have} of ${s.promised}. ${s.left} still to come.`;
+      return `${s.have} of ${s.promised} delivered. ${s.left} outstanding.`;
     case 'met':
-      return `All ${s.promised} promised pictures are in.`;
+      return `${s.promised} of ${s.promised} delivered.`;
     case 'over':
-      return `${s.have} in it — ${s.extra} past the ${s.promised} promised.`;
+      return `${s.have} delivered. ${s.extra} above the agreed ${s.promised}.`;
   }
 }
 
@@ -83,8 +83,8 @@ export function sayPromiseToClient(have: number, promised: number | null): strin
   const s = standingOfPromise(have, promised);
   if (s.kind === 'unpromised') return null;
   if (s.kind === 'filling') {
-    return `${s.have} of the ${s.promised} in your package so far.`;
+    return `${s.have} of ${s.promised} images delivered.`;
   }
-  if (s.kind === 'met') return `All ${s.promised} pictures in your package.`;
-  return `${s.have} pictures — ${s.extra} more than your package included.`;
+  if (s.kind === 'met') return `All ${s.promised} images delivered.`;
+  return `${s.have} images delivered, ${s.extra} above your package.`;
 }

@@ -31,13 +31,13 @@ export function JobCardRow({ job }: { job: JobCard }) {
     ? new Date(job.expectedOn + 'T00:00:00').toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short',
       })
-    : 'No date yet';
+    : 'No date set';
 
   return (
     <div className="q-card q-job" data-busy={working ? 'yes' : undefined}>
       <Link href={`/jobs/${job.id}`} className="q-plain-link q-stack q-stack-xs">
-        <strong className="q-card-name">{job.clientName ?? 'Nobody named yet'}</strong>
-        <span className="q-card-what">{job.wants ?? 'Nothing written down yet'}</span>
+        <strong className="q-card-name">{job.clientName ?? 'Unnamed client'}</strong>
+        <span className="q-card-what">{job.wants ?? 'No brief'}</span>
         <span className="q-card-when">{when}</span>
       </Link>
 

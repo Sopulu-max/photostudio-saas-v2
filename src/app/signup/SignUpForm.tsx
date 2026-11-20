@@ -9,7 +9,7 @@ function Submit() {
   const { pending } = useFormStatus();
   return (
     <button type="submit" className="q-btn q-btn-primary q-auth-go" disabled={pending}>
-      {pending ? 'Setting it up' : 'Open the studio'}
+      {pending ? 'Creating' : 'Create studio'}
     </button>
   );
 }
@@ -31,7 +31,7 @@ export function SignUpForm() {
       <AuthProblem problem={result?.problem} />
 
       <label className="q-auth-field">
-        <span className="q-label">What the studio is called</span>
+        <span className="q-label">Studio name</span>
         <input
           className="q-input" name="studioName" required autoFocus
           autoComplete="organization" placeholder="Glamour Studio"
@@ -60,7 +60,7 @@ export function SignUpForm() {
           className="q-input" name="password" type="password" required
           autoComplete="new-password" minLength={8}
         />
-        <span className="q-auth-hint">Eight characters or more.</span>
+        <span className="q-auth-hint">Minimum eight characters.</span>
       </label>
 
       <Submit />

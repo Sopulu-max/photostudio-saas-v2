@@ -44,7 +44,7 @@ export function JobAmend({ job }: { job: JobDetail }) {
   return (
     <section className="q-card q-stack q-stack-sm">
       <div className="q-field">
-        <label className="q-label" htmlFor="wants">What they want</label>
+        <label className="q-label" htmlFor="wants">Brief</label>
         <input
           className="q-input"
           id="wants"
@@ -56,7 +56,7 @@ export function JobAmend({ job }: { job: JobDetail }) {
       </div>
 
       <div className="q-field">
-        <label className="q-label" htmlFor="expected">When</label>
+        <label className="q-label" htmlFor="expected">Expected date</label>
         <input
           className="q-input q-input-sm"
           id="expected"
@@ -68,7 +68,7 @@ export function JobAmend({ job }: { job: JobDetail }) {
       </div>
 
       <div className="q-field">
-        <label className="q-label" htmlFor="turn">Whose move</label>
+        <label className="q-label" htmlFor="turn">Status</label>
         <select
           className="q-input q-input-sm"
           id="turn"

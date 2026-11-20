@@ -88,16 +88,15 @@ export async function theShopfront(): Promise<Shopfront> {
  * whether anybody can buy anything, and what is stopping them if not.
  */
 export async function sayShopfront(front: Shopfront, rooms: number, things: number): Promise<string> {
-  if (things === 0) return 'Nothing is priced yet, so nothing can be bought.';
-  if (front.galleries === 0) return 'Priced and ready, but you have no galleries to sell from yet.';
-  if (front.selling === 0) return 'Nothing is for sale: no gallery is selling from a price list yet.';
+  if (things === 0) return 'No products priced.';
+  if (front.galleries === 0) return 'Products priced. No galleries to sell from yet.';
+  if (front.selling === 0) return 'No gallery is linked to a price list.';
   // One phrase, pluralised once. Two copies of it is how "1 of 1 galleries"
   // gets shipped.
-  const where = `Selling in ${front.selling} of ${front.galleries} `
-    + `${front.galleries === 1 ? 'gallery' : 'galleries'}`;
+  const where = `${front.selling} of ${front.galleries} `
+    + `${front.galleries === 1 ? 'gallery selling' : 'galleries selling'}`;
 
-  if (rooms === 0) return `${where}. Clients see prices, but no picture on a wall.`;
+  if (rooms === 0) return `${where}. No room scene, so clients see prices without a preview.`;
 
-  return `${where} — ${front.buyable} ${front.buyable === 1 ? 'picture' : 'pictures'} `
-    + 'a client could buy.';
+  return `${where}. ${front.buyable} ${front.buyable === 1 ? 'image' : 'images'} available to buy.`;
 }

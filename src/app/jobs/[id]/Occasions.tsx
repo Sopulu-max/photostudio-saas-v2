@@ -57,7 +57,7 @@ export function Occasions({
 
   return (
     <section className="q-card q-stack q-stack-sm">
-      <h2 className="q-section-title">What happens</h2>
+      <h2 className="q-section-title">Schedule</h2>
 
       {occasions.length === 0 ? (
         <p className="q-empty">Nothing is arranged on this job yet.</p>
@@ -84,7 +84,7 @@ export function Occasions({
                     disabled={working}
                     onClick={() => run(() => markHappened({ occasionId: o.id, happened: !o.happenedAt }))}
                   >
-                    {o.happenedAt ? 'It did not happen' : 'It happened'}
+                    {o.happenedAt ? 'It did not happen' : 'Mark complete'}
                   </button>
                   <button
                     type="button"
@@ -92,7 +92,7 @@ export function Occasions({
                     disabled={working}
                     onClick={() => setOpen(open === o.id ? null : o.id)}
                   >
-                    Who is on it
+                    Assign crew
                   </button>
                   <button
                     type="button"
@@ -100,14 +100,14 @@ export function Occasions({
                     disabled={working}
                     onClick={() => run(() => removeOccasion({ occasionId: o.id }))}
                   >
-                    Take it off
+                    Remove
                   </button>
                 </div>
 
                 {open === o.id && (
                   <div className="q-stack q-stack-xs">
                     {people.length === 0 ? (
-                      <p className="q-meta">Nobody is on the books yet.</p>
+                      <p className="q-meta">No team members available.</p>
                     ) : people.map((p) => {
                       const on = o.crew.some((c) => c.personId === p.id);
                       return (

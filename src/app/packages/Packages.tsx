@@ -30,8 +30,8 @@ export function Packages({ packages }: { packages: Package[] }) {
     <div className="q-stack q-stack-md">
       {packages.length === 0 ? (
         <p className="q-empty">
-          Nothing offered yet. A package says what a client gets back, and
-          opens a gallery that size the moment you take the booking.
+          No packages. A package defines what the client receives, and opens a
+          gallery of that size when a booking is accepted.
         </p>
       ) : (
         <div className="q-sheet">
@@ -44,12 +44,12 @@ export function Packages({ packages }: { packages: Package[] }) {
               </div>
 
               <span className="q-num q-pack-price">
-                {p.price === null ? 'No price yet' : money(p.price, p.currency)}
+                {p.price === null ? 'No price set' : money(p.price, p.currency)}
               </span>
 
               <span className="q-pack-acts">
                 <span className={isPublished(p) ? 'q-pack-on' : 'q-pack-off'}>
-                  {isPublished(p) ? 'Offered' : 'Not offered'}
+                  {isPublished(p) ? 'Published' : 'Draft'}
                 </span>
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
@@ -57,7 +57,7 @@ export function Packages({ packages }: { packages: Package[] }) {
                     packageId: p.id, offered: !isPublished(p),
                   }))}
                 >
-                  {isPublished(p) ? 'Stop offering it' : 'Offer it'}
+                  {isPublished(p) ? 'Unpublish' : 'Publish'}
                 </button>
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working}
@@ -71,7 +71,7 @@ export function Packages({ packages }: { packages: Package[] }) {
         </div>
       )}
 
-      <Reveal says="Offer something new">
+      <Reveal says="Add package">
         {(done) => (
           <form
             className="q-stack q-stack-xs q-reveal-form"
@@ -81,7 +81,7 @@ export function Packages({ packages }: { packages: Package[] }) {
               const name = String(form.get('name') ?? '').trim();
               const major = String(form.get('price') ?? '').trim();
               const pics = String(form.get('pictures') ?? '').trim();
-              if (!name) { setProblem('What is it called?'); return; }
+              if (!name) { setProblem('Enter a package name.'); return; }
               run(async () => {
                 await addPackage({
                   name,
@@ -97,11 +97,11 @@ export function Packages({ packages }: { packages: Package[] }) {
             <div className="q-row q-row-sm">
               <input
                 className="q-input" name="name" autoFocus disabled={working}
-                placeholder="What it is called, in your words"
+                placeholder="Package name"
               />
               <input
                 className="q-input q-input-sm" name="pictures" type="number" min="1"
-                disabled={working} placeholder="Pictures"
+                disabled={working} placeholder="Images"
               />
               <input
                 className="q-input q-input-sm" name="price" type="number" min="0" step="0.01"
@@ -110,7 +110,7 @@ export function Packages({ packages }: { packages: Package[] }) {
             </div>
             <textarea
               className="q-input" name="about" rows={2} disabled={working}
-              placeholder="What it covers, if you want to say more"
+              placeholder="Description (optional)"
             />
             <button
               className="q-btn q-btn-secondary q-btn-sm q-self-start" type="submit" disabled={working}

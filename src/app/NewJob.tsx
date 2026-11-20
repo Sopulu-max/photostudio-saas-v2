@@ -46,7 +46,7 @@ export function NewJob() {
   if (!open) {
     return (
       <button type="button" className="q-start-line" onClick={() => setOpen(true)}>
-        Start a job
+        New job
       </button>
     );
   }

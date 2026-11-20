@@ -15,10 +15,10 @@
 export type Turn = 'us' | 'them' | 'scheduled' | 'done';
 
 export const COLUMNS: { turn: Turn; heading: string; absent: string }[] = [
-  { turn: 'us', heading: 'Needs you', absent: 'Nothing needs you.' },
-  { turn: 'them', heading: 'Waiting on them', absent: 'Nobody is holding you up.' },
-  { turn: 'scheduled', heading: 'Scheduled', absent: 'Nothing is booked ahead.' },
-  { turn: 'done', heading: 'Done', absent: 'Nothing finished yet.' },
+  { turn: 'us', heading: 'Action needed', absent: 'No action needed.' },
+  { turn: 'them', heading: 'Awaiting client', absent: 'Nothing awaiting a client.' },
+  { turn: 'scheduled', heading: 'Scheduled', absent: 'Nothing scheduled.' },
+  { turn: 'done', heading: 'Complete', absent: 'Nothing completed.' },
 ];
 
 export type JobCard = {
@@ -91,7 +91,7 @@ export type StudioFront = {
  * Nothing waiting is worth saying too — silence reads as a broken page.
  */
 export function sayRequests(waiting: Request[]): string {
-  if (waiting.length === 0) return 'Nobody is waiting on an answer.';
-  if (waiting.length === 1) return 'One person is waiting on an answer.';
-  return `${waiting.length} people are waiting on an answer.`;
+  if (waiting.length === 0) return 'No pending requests.';
+  if (waiting.length === 1) return '1 request awaiting a response.';
+  return `${waiting.length} requests awaiting a response.`;
 }

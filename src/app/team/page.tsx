@@ -25,7 +25,7 @@ export default async function TeamPage() {
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
-          <h1 className="q-page-title">The team</h1>
+          <h1 className="q-page-title">Team</h1>
           <p className="q-page-subtitle">{sayTeam(members)}</p>
         </div>
       </header>
