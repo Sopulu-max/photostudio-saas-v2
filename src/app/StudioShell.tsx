@@ -3,6 +3,7 @@ import {
   LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus, CalendarDays, Users, Package as PackageIcon,
 } from 'lucide-react';
 import { signOut } from '@/weave/account/actions';
+import { ThemeToggle } from '@/components/Theme';
 
 /**
  * The studio's shell: a sidebar and a page beside it.
@@ -69,7 +70,8 @@ export function StudioShell({
           * session — it only moved the operator to a page that would have
           * signed them straight back in from the cookie they still held.
           */}
-        <div className="q-side-foot">
+        <div className="q-side-foot q-stack q-stack-sm">
+          <ThemeToggle />
           <form action={signOut}>
             <button type="submit" className="q-side-out">Sign out</button>
           </form>

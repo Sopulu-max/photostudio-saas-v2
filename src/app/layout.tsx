@@ -4,6 +4,7 @@ import { Playfair_Display, Inter } from 'next/font/google';
 // Mounted at the true root so it covers the studio and the client's gallery
 // alike — an action reports itself the same way wherever it was taken from.
 import { Toaster } from '@/components/Toast';
+import { themeScript } from '@/components/Theme';
 
 /*
  * Two faces, and the split between them is the whole typographic idea: a
@@ -37,7 +38,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable}`}>
+    <html lang="en" className={`${display.variable} ${sans.variable}`} suppressHydrationWarning>
+      <head>
+        {/*
+          * Before the first paint. Without it the page renders light and then
+          * corrects itself, which is a white flash on every navigation for
+          * exactly the person who asked for dark mode.
+          */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         {children}
         <Toaster />

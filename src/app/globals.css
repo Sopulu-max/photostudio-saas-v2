@@ -31,10 +31,18 @@
   /* Used sparingly, and warm, because the pictures bring the colour. */
   --accent: #1c1a17;
   --accent-ink: #faf8f4;
+  --accent-lift: #000000;
   --tint: #f6edda;
 
   --warn: #a8761f;
   --bad: #a4402f;
+
+  /*
+   * PHYSICAL, and therefore fixed. A picture frame is a dark object in a
+   * room; it does not become white because the operator prefers dark mode.
+   * Anything depicting a real thing belongs here rather than in the palette.
+   */
+  --frame: #1c1a17;
 
   --radius: 8px;
   --radius-lg: 14px;
@@ -47,6 +55,84 @@
   --font-display: var(--display), Georgia, "Times New Roman", serif;
   --font-sans: var(--sans), ui-sans-serif, system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  color-scheme: light;
+}
+
+/*
+ * ---- Dark --------------------------------------------------------------
+ *
+ * ONE BLOCK, as the law requires: every colour in this file comes from a
+ * token above, so the dark palette is those tokens restated and nothing
+ * else. If a rule needed changing here as well, that rule has a hardcoded
+ * colour in it and the fix is to remove the hardcoding, not to add a
+ * second override.
+ *
+ * Not an inversion. Paper becomes a warm near-black rather than grey, and
+ * ink becomes a warm off-white, so the two palettes are the same room at
+ * different times of day instead of a photo negative.
+ *
+ * `--frame` is deliberately absent: a frame is a physical object.
+ */
+:root[data-theme='dark'] {
+  --paper: #16150f;
+  --paper-2: #1d1c15;
+  --card: #22201a;
+  --hover: #2b2922;
+
+  --line: #332f27;
+  --line-strong: #474337;
+
+  --ink: #f4f0e6;
+  --ink-dim: #a9a295;
+  --ink-faint: #7b7568;
+
+  /*
+   * Dark gets a colour where light stays monochrome, and deliberately so:
+   * near-black ground takes an accent that paper cannot, and without one
+   * the whole app reads as grey on grey.
+   *
+   * Eucalyptus rather than brass. A warm ground wants a cool counterpoint,
+   * and amber is already spoken for by --warn — an accent sharing a hue
+   * with the warning colour is an accent nobody can read as emphasis.
+   */
+  --accent: #7fae9b;
+  --accent-ink: #10201a;
+  --accent-lift: #96c3b1;
+  --tint: #233029;
+
+  /* Lifted, because the light-mode tones vanish against a dark ground. */
+  --warn: #d9a441;
+  --bad: #e07a63;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 14px 40px rgba(0, 0, 0, 0.55);
+
+  color-scheme: dark;
+}
+
+/*
+ * A client-facing page is the STUDIO'S presentation of its work, designed by
+ * them — the gallery even carries a theme they chose. A visitor's operating
+ * system preference must not repaint somebody else's shopfront, so these
+ * surfaces restate the light palette for their own subtree.
+ */
+[data-surface='client'] {
+  --paper: #faf8f4;
+  --paper-2: #f3efe8;
+  --card: #ffffff;
+  --hover: #f0ece4;
+  --line: #e5dfd4;
+  --line-strong: #d3cabb;
+  --ink: #1c1a17;
+  --ink-dim: #6b655c;
+  --ink-faint: #9b948a;
+  --accent: #1c1a17;
+  --accent-ink: #faf8f4;
+  --accent-lift: #000000;
+  --tint: #f6edda;
+  --warn: #a8761f;
+  --bad: #a4402f;
+  --shadow: 0 1px 2px rgba(28, 26, 23, 0.05), 0 14px 40px rgba(28, 26, 23, 0.07);
 
   color-scheme: light;
 }
@@ -65,7 +151,7 @@ html, body {
 
 a { color: inherit; }
 ::selection { background: var(--tint); color: var(--ink); }
-:focus-visible { outline: 1.5px solid var(--ink); outline-offset: 3px; border-radius: 3px; }
+:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
 
 /* ---- Shell --------------------------------------------------------------- */
 
@@ -94,7 +180,7 @@ a { color: inherit; }
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 .q-side-item:hover { color: var(--ink); background: var(--hover); }
-.q-side-item-on { color: var(--ink); font-weight: 500; }
+.q-side-item-on { color: var(--ink); font-weight: 500; background: var(--tint); }
 .q-side-item-on svg { opacity: 1; }
 .q-side-item svg { width: 16px; height: 16px; flex: none; opacity: 0.6; }
 .q-side-foot { padding: 22px 24px; }
@@ -193,8 +279,8 @@ a { color: inherit; }
 }
 .q-btn:disabled { opacity: 0.4; cursor: default; }
 
-.q-btn-primary { background: var(--ink); color: var(--accent-ink); }
-.q-btn-primary:hover:not(:disabled) { background: #000; }
+.q-btn-primary { background: var(--accent); color: var(--accent-ink); }
+.q-btn-primary:hover:not(:disabled) { background: var(--accent-lift); }
 
 .q-btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
 .q-btn-secondary:hover:not(:disabled) { border-color: var(--ink); }
@@ -1011,120 +1097,6 @@ select.q-input { cursor: pointer; }
 }
 .q-asked .q-label, .q-reply .q-label { margin-bottom: 6px; }
 
-/* ---- The wall: every size at once, to scale ----------------------------- */
-/*
- * A client is deciding how big, not what an 8×10 looks like, so every size
- * hangs together and the comparison is done by the page instead of by them.
- * Measurements arrive as custom properties because they are data; the rules
- * that use them are all here.
- */
-
-.q-wall { display: flex; flex-direction: column; gap: 14px; }
-
-.q-wall-room {
-  position: relative;
-  height: var(--q-wall-h);
-  min-height: 220px;
-  padding: 0 18px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  /* Light falling from the left, the way a room has a window in it. */
-  background:
-    linear-gradient(103deg, var(--card) 0%, var(--paper-2) 58%, var(--paper) 100%);
-}
-
-/* The floor, and the skirting that tells you where the wall stops. */
-.q-wall-room::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0;
-  height: 10px; background: var(--line);
-}
-
-/*
- * Hung on a centre line, the way pictures actually hang. Bottom-aligning them
- * made the comparison marginally easier to measure and made the wall read as
- * a chart, which is the opposite of the point — the sizes are already
- * comparable because they share one scale.
- */
-.q-wall-hang {
-  position: absolute; left: 18px; right: 18px;
-  bottom: calc(var(--q-wall-floor) + 10px);
-  height: var(--q-wall-tallest);
-  display: flex; align-items: center; justify-content: center;
-  gap: var(--q-wall-gap);
-  z-index: 2;
-}
-
-.q-hang {
-  background: transparent; border: 0; padding: 0; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 7px;
-  transition: transform var(--ease) 200ms;
-}
-.q-hang:hover { transform: translateY(-3px); }
-
-.q-hang-piece {
-  display: block; box-sizing: border-box;
-  width: calc(var(--q-p-w) + (var(--q-p-mat) + var(--q-p-moulding)) * 2);
-  height: calc(var(--q-p-h) + (var(--q-p-mat) + var(--q-p-moulding)) * 2);
-  padding: var(--q-p-moulding);
-  /* A bigger piece sits further off the wall, so it casts a heavier shadow. */
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.16), 0 1px 3px rgb(0 0 0 / 0.1);
-  transition: box-shadow var(--ease) 200ms;
-}
-.q-hang:hover .q-hang-piece { box-shadow: 0 10px 26px rgb(0 0 0 / 0.24); }
-
-.q-hang-mat {
-  display: block; width: 100%; height: 100%; box-sizing: border-box;
-  padding: var(--q-p-mat); background: var(--card);
-}
-.q-hang-img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.q-hang-blank { background: var(--line); }
-
-/* A frame is a dark moulding; the mat gets a bevel so it reads as cut board. */
-.q-hang-framed { background: var(--ink); }
-.q-hang-framed .q-hang-mat { box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.14); }
-/* A canvas has depth instead of a frame, and returns around its edge. */
-.q-hang-canvas .q-hang-mat { padding: 0; }
-.q-hang-canvas { box-shadow: 5px 5px 0 -1px var(--ink-faint), 0 10px 24px rgb(0 0 0 / 0.22); }
-/* A bare print is paper on a wall: no frame, barely any lift. */
-.q-hang-print .q-hang-mat { padding: 0; }
-
-.q-hang-size {
-  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.12em;
-  color: var(--ink-faint);
-  opacity: 0; transition: opacity var(--fast) var(--ease);
-}
-.q-hang:hover .q-hang-size, .q-hang-on .q-hang-size { opacity: 1; }
-.q-hang-on .q-hang-piece { outline: 1px solid var(--ink); outline-offset: 7px; }
-@media (hover: none) { .q-hang-size { opacity: 1; } }
-
-/* The sideboard. Real dimensions, same scale — that is the whole point of it. */
-.q-wall-side {
-  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-  width: var(--q-side-w); height: var(--q-side-h);
-  z-index: 1;
-}
-/*
- * Barely there on purpose. It exists to make 762mm mean something, not to be
- * looked at — the moment the furniture competes with the photograph the wall
- * has stopped doing its job.
- */
-.q-wall-side-top {
-  position: absolute; top: 0; left: 0; right: 0; height: 9%;
-  background: var(--ink-faint); opacity: 0.3; border-radius: 2px;
-}
-.q-wall-side-leg {
-  position: absolute; top: 9%; bottom: 0; width: 2.5%;
-  background: var(--ink-faint); opacity: 0.16;
-}
-.q-wall-side-leg:first-of-type { left: 8%; }
-.q-wall-side-leg:last-of-type { right: 8%; }
-
-.q-wall-say {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 16px; flex-wrap: wrap; min-height: 34px;
-}
-.q-wall-chosen { display: flex; flex-direction: column; gap: 2px; }
-
 /* ---- A print on a real wall --------------------------------------------- */
 /*
  * The room is a photograph the studio supplied; the print is a rectangle
@@ -1157,7 +1129,7 @@ select.q-input { cursor: pointer; }
 .q-room-print, .q-room-blank {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.22), 0 10px 24px rgb(0 0 0 / 0.26);
 }
-.q-room-as-framed { padding: 2.2%; background: var(--ink); }
+.q-room-as-framed { padding: 2.2%; background: var(--frame); }
 .q-room-as-framed .q-room-print { box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
 .q-room-as-framed { box-shadow: 0 2px 4px rgb(0 0 0 / 0.26), 0 14px 30px rgb(0 0 0 / 0.3); }
 .q-room-as-canvas .q-room-print { box-shadow: 3px 3px 0 -1px rgb(0 0 0 / 0.18), 0 12px 26px rgb(0 0 0 / 0.28); }
@@ -1248,7 +1220,7 @@ select.q-input { cursor: pointer; }
 /* Days from the months either side are context, not this month's business. */
 .q-cal-away { background: var(--paper-2); }
 .q-cal-away .q-cal-n { color: var(--ink-faint); }
-.q-cal-today .q-cal-n { background: var(--ink); color: var(--paper); }
+.q-cal-today .q-cal-n { background: var(--accent); color: var(--accent-ink); }
 
 .q-cal-n {
   align-self: flex-start; min-width: 23px; padding: 3px 6px;
@@ -1347,3 +1319,24 @@ select.q-input { cursor: pointer; }
   color: var(--ink-faint);
 }
 .q-promise-over { color: var(--warn); }
+
+/* ---- Appearance ---------------------------------------------------------- */
+/*
+ * Three states because "system" is the honest default: an operator whose
+ * laptop goes dark at sunset has already said what they want.
+ */
+
+.q-theme {
+  display: inline-flex; gap: 1px; padding: 2px;
+  background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: var(--pill);
+}
+.q-theme-pick {
+  padding: 4px 10px; cursor: pointer;
+  background: transparent; border: 0; border-radius: var(--pill);
+  font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.q-theme-pick:hover { color: var(--ink-dim); }
+.q-theme-on { background: var(--card); color: var(--ink); }
