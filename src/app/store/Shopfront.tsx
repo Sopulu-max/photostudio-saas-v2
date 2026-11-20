@@ -32,7 +32,7 @@ export function Shopfront({
   const missing =
     products.length === 0 ? 'Add a product below to preview it here.'
       : measured.length === 0 ? 'No product has dimensions set. Add width and height to a print below.'
-        : hangable.length === 0 ? 'Add a room photograph below and set its wall width to enable the preview.'
+        : hangable.length === 0 ? 'Add a room photograph below and set its wall width to show prints on a wall.'
           : !pictureUrl ? 'No gallery is linked to a price list, so there is no image to preview.'
             : null;
 

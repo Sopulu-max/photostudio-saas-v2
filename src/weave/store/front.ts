@@ -96,7 +96,7 @@ export async function sayShopfront(front: Shopfront, rooms: number, things: numb
   const where = `${front.selling} of ${front.galleries} `
     + `${front.galleries === 1 ? 'gallery selling' : 'galleries selling'}`;
 
-  if (rooms === 0) return `${where}. No room scene, so clients see prices without a preview.`;
+  if (rooms === 0) return `${where}. No room photograph, so clients see prices without a preview.`;
 
   return `${where}. ${front.buyable} ${front.buyable === 1 ? 'image' : 'images'} available to buy.`;
 }

@@ -58,10 +58,19 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
 
   return (
     <section className="q-stack q-stack-sm">
-      <h2 className="q-section-title">Room scenes</h2>
+      <h2 className="q-section-title">Room photographs</h2>
+      {/*
+        * One line saying what this is. A reading should not need a key, but a
+        * SECTION has to say what it is — removing this sentence once already
+        * left a jargon heading nobody could act on.
+        */}
+      <p className="q-meta">
+        Photographs of your own rooms, shot square on to the wall. A client
+        sees their chosen image on the wall at its real size before ordering.
+      </p>
 
       {scenes.length === 0 ? (
-        <p className="q-empty">No room scenes. Without one, clients see prices but no preview.</p>
+        <p className="q-empty">No room photographs. Clients see prices without a preview.</p>
       ) : (
         <div className="q-scene-grid">
           {scenes.map((scene) => (
@@ -132,9 +141,9 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
                       sceneId: scene.id, wallMm: null, x: null, y: null,
                     }))}
                   >
-                    Set as detail shot
+                    Convert to close-up
                   </button>
-                ) : <span className="q-meta-sm">Detail shot. Click the photo to position a print.</span>}
+                ) : <span className="q-meta-sm">Close-up. Click the photograph to position a print.</span>}
                 <button
                   type="button" className="q-btn q-btn-ghost q-btn-xs" disabled={working || busy}
                   onClick={() => run(() => removeScene({ sceneId: scene.id }))}
@@ -148,7 +157,7 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
       )}
 
       <label className="q-reveal-line q-scene-add">
-        {busy ? 'Uploading' : 'Add room photograph (shot square on to the wall)'}
+        {busy ? 'Uploading' : 'Add room photograph'}
         <input
           ref={picker} type="file" accept="image/*" multiple hidden disabled={busy}
           onChange={(event) => void send(event.target.files)}
