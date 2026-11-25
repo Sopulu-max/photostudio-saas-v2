@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
 import { packages } from '@/weave/packages/actions';
 import { galleryTemplates } from '@/weave/galleries/actions';
+import { mediaForPackages } from '@/weave/packages/media';
 import { isPublished } from '@/weave/packages/shape';
 import { Packages } from './Packages';
 
@@ -23,6 +24,7 @@ export default async function PackagesPage() {
   if (!who) redirect('/login');
 
   const [all, templates] = await Promise.all([packages(), galleryTemplates()]);
+  const media = await mediaForPackages(all.map((p) => p.id));
   const offered = all.filter(isPublished).length;
   const unsaid = all.filter((p) => p.picturesPromised === null).length;
 
@@ -43,7 +45,7 @@ export default async function PackagesPage() {
         </div>
       </header>
 
-      <Packages packages={all} templates={templates} />
+      <Packages packages={all} templates={templates} media={media} />
     </div>
   );
 }

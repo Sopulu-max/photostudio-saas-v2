@@ -6,8 +6,10 @@ import {
 } from '@/weave/packages/actions';
 import { isPublished, sayPackage, sayShape, type Package } from '@/weave/packages/shape';
 import type { GalleryTemplate } from '@/weave/galleries/shape';
+import type { PackageMedia as Media } from '@/weave/packages/media';
 import { money } from '@/weave/store/shape';
 import { Reveal } from '@/components/Reveal';
+import { PackageMedia } from './PackageMedia';
 
 /**
  * What the studio offers.
@@ -17,10 +19,11 @@ import { Reveal } from '@/components/Reveal';
  * given the weight it deserves — it is the thing that becomes structure.
  */
 export function Packages({
-  packages, templates,
+  packages, templates, media,
 }: {
   packages: Package[];
   templates: GalleryTemplate[];
+  media: Media[];
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
@@ -104,6 +107,17 @@ export function Packages({
                   Remove
                 </button>
               </span>
+
+              {/*
+                * What it looks like, under what it says. A studio sells this
+                * by showing it, so the pictures sit with the package rather
+                * than behind a second screen.
+                */}
+              <PackageMedia
+                packageId={p.id}
+                packageName={p.name}
+                media={media.filter((m) => m.packageId === p.id)}
+              />
             </div>
           ))}
         </div>

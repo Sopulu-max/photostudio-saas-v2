@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { requestBooking } from '@/weave/jobs/requests';
-import { money } from '@/weave/store/shape';
-import { sayPackage, type Package } from '@/weave/packages/shape';
+import type { Package } from '@/weave/packages/shape';
+import type { PackageMedia } from '@/weave/packages/media';
+import { PackageChoice } from './PackageChoice';
 
 /**
  * Asking a studio for work.
@@ -13,11 +14,13 @@ import { sayPackage, type Package } from '@/weave/packages/shape';
  * in under a minute, and be told clearly that a person, not a calendar, will
  * answer them.
  */
-export function BookingForm({ slug, studioName, packages }: {
+export function BookingForm({ slug, studioName, packages, media }: {
   slug: string;
   studioName: string;
   /** What the studio offers. Empty is fine — then it is a plain enquiry. */
   packages: Package[];
+  /** What those packages look like, cover first. */
+  media: PackageMedia[];
 }) {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -83,21 +86,7 @@ export function BookingForm({ slug, studioName, packages }: {
         * Shown only when the studio has published something. A studio that
         * works case by case gets a plain enquiry, which is what it had.
         */}
-      {packages.length > 0 && (
-        <label className="q-auth-field">
-          <span className="q-label">Package</span>
-          <select className="q-input" name="packageId" defaultValue="">
-            <option value="">Not sure</option>
-            {packages.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.picturesPromised !== null ? ` — ${sayPackage(p)}` : ''}
-                {p.price !== null ? ` — ${money(p.price, p.currency)}` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <PackageChoice packages={packages} media={media} name="packageId" />
 
       <label className="q-auth-field">
         <span className="q-label">Details</span>
