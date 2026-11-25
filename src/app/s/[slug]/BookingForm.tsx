@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { requestBooking } from '@/weave/jobs/requests';
 import type { Package } from '@/weave/packages/shape';
 import type { PackageMedia } from '@/weave/packages/media';
-import { PackageChoice } from './PackageChoice';
+
 
 /**
  * Asking a studio for work.
@@ -14,13 +14,18 @@ import { PackageChoice } from './PackageChoice';
  * in under a minute, and be told clearly that a person, not a calendar, will
  * answer them.
  */
-export function BookingForm({ slug, studioName, packages, media }: {
+export function BookingForm({ slug, studioName, packages, media, fixedPackageId }: {
   slug: string;
   studioName: string;
   /** What the studio offers. Empty is fine — then it is a plain enquiry. */
   packages: Package[];
   /** What those packages look like, cover first. */
   media: PackageMedia[];
+  /**
+   * Already decided, because they are standing on that package's own page.
+   * Asking again would be the software forgetting what the client just did.
+   */
+  fixedPackageId?: string;
 }) {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -86,7 +91,9 @@ export function BookingForm({ slug, studioName, packages, media }: {
         * Shown only when the studio has published something. A studio that
         * works case by case gets a plain enquiry, which is what it had.
         */}
-      <PackageChoice packages={packages} media={media} name="packageId" />
+      {fixedPackageId && (
+        <input type="hidden" name="packageId" value={fixedPackageId} />
+      )}
 
       <label className="q-auth-field">
         <span className="q-label">Details</span>

@@ -12,6 +12,7 @@ import {
 import { sellFrom } from '@/weave/store/actions';
 import { sayGallery, type GalleryActivity, type GallerySummary, type GalleryTemplate } from '@/weave/galleries/shape';
 import { sayPromise, standingOfPromise } from '@/weave/packages/shape';
+import { Promised } from '@/components/Promised';
 import type { PriceList } from '@/weave/store/shape';
 
 type Run = (fn: () => Promise<unknown>) => void;
@@ -555,6 +556,18 @@ export function Galleries({
                   }>
                     {sayPromise(gallery.howMany, gallery.picturesPromised)}
                   </span>
+                )}
+                {/*
+                  * And the same promise as containers, filling. The sentence
+                  * says how many; the shape says how far — which is the thing
+                  * an operator reads at a glance without counting.
+                  */}
+                {gallery.picturesPromised !== null && (
+                  <Promised
+                    promised={gallery.picturesPromised}
+                    have={gallery.howMany}
+                    extra={false}
+                  />
                 )}
               </div>
               {gallery.sharedAt && <span className="q-meta-sm">{origin}/g/{gallery.token}</span>}

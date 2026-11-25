@@ -4,6 +4,7 @@ import { studioAtSlug } from '@/weave/jobs/requests';
 import { packagesOffered } from '@/weave/packages/actions';
 import { mediaOnOffer } from '@/weave/packages/media';
 import { BookingForm } from './BookingForm';
+import { PackageCards } from './PackageCards';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,10 +45,25 @@ export default async function StudioFrontPage({ params }: {
     <main className="q-auth">
       <div className="q-auth-card q-auth-card-front">
         <span className="q-auth-mark">{studio.name}</span>
-        <h1 className="q-auth-title">Request a booking</h1>
-        <p className="q-auth-says">
-          Describe what you need and they will respond.
-        </p>
+        {/*
+          * The work first. A studio's page should open with what they make,
+          * not with a form; the form is how somebody responds to the work.
+          */}
+        {offered.length > 0 && (
+          <>
+            <h1 className="q-auth-title">What {studio.name} offers</h1>
+            <PackageCards slug={studio.slug} packages={offered} media={media} />
+            <h2 className="q-section-title q-front-ask">Or ask about something else</h2>
+          </>
+        )}
+        {offered.length === 0 && (
+          <>
+            <h1 className="q-auth-title">Request a booking</h1>
+            <p className="q-auth-says">
+              Describe what you need and they will respond.
+            </p>
+          </>
+        )}
         <BookingForm
           slug={studio.slug} studioName={studio.name}
           packages={offered} media={media}

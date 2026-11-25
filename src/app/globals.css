@@ -422,46 +422,52 @@ a { color: inherit; }
   grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
 }
 
+/*
+ * A card that opens a package.
+ *
+ * No selected state, no ring, no tick: pressing one goes somewhere, so there
+ * is nothing to mark. Borders were the wrong instrument anyway — in light the
+ * accent is near-black ink, so a hairline changing colour on a card that
+ * already has a hairline says nothing.
+ *
+ * It lifts instead, and the cover eases up behind it. Motion is what tells a
+ * hand that something is a door.
+ */
 .q-offer {
   position: relative;
   display: flex; flex-direction: column;
   border: 1px solid var(--line); border-radius: var(--radius-lg);
-  overflow: hidden; cursor: pointer; background: var(--card);
-  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  overflow: hidden; background: var(--card);
+  text-decoration: none; color: inherit;
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
 }
-.q-offer:hover { border-color: var(--line-strong); }
-/*
- * Two pixels, not one. In light the accent is near-black ink, so a 1px ring
- * sat on a card that already had a hairline border and read as nothing: a
- * client pressed a package, it WAS selected, and the screen appeared not to
- * have noticed.
- */
-.q-offer-on { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.q-offer:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: 0 10px 26px rgba(28, 26, 23, 0.1);
+}
+/* Pressed: it settles, the way a physical thing does under a finger. */
+.q-offer:active { transform: translateY(-1px); }
+.q-offer:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /*
- * The choice mark, on every card rather than only the chosen one.
- *
- * An empty circle says "this is a thing you pick" before anything is picked.
- * Feedback that only exists after the press cannot tell anybody the press is
- * available, which is the half of this that was actually missing.
+ * The cover grows a little as the card lifts. Scale rather than size, so
+ * nothing around it reflows — a layout that shifts under the cursor is the
+ * one thing worse than no feedback at all.
  */
-.q-offer-tick {
-  position: absolute; top: 10px; left: 10px; z-index: 1;
-  width: 24px; height: 24px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
-  color: var(--accent-ink);
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+.q-offer .q-offer-frame {
+  transition: transform var(--slow, 420ms) var(--ease);
 }
-.q-offer-tick svg { width: 14px; height: 14px; }
-.q-offer-on .q-offer-tick {
-  background: var(--accent); border-color: var(--accent);
-}
+.q-offer:hover .q-offer-frame { transform: scale(1.04); }
 
-/* Present for the keyboard and the form; the card is what anybody sees. */
-.q-offer-radio { position: absolute; opacity: 0; width: 0; height: 0; }
-.q-offer:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .q-offer, .q-offer .q-offer-frame { transition: none; }
+  .q-offer:hover { transform: none; }
+  .q-offer:hover .q-offer-frame { transform: none; }
+}
 
 .q-offer-art {
   position: relative; display: block;
@@ -488,12 +494,77 @@ a { color: inherit; }
   font-size: 0.8125rem; color: var(--ink-dim);
 }
 
-.q-offer-none {
-  display: inline-flex; align-items: center; margin-top: 12px;
-  padding: 9px 13px; border: 1px solid var(--line); border-radius: var(--radius);
-  font-size: 0.8125rem; color: var(--ink-dim); cursor: pointer;
+/* A heading between the work and the form below it. */
+.q-front-ask { margin-top: 30px; }
+
+/* ---- One package, on its own page --------------------------------------- */
+
+/* The studio's name, leading back to everything else they offer. */
+.q-back { display: inline-block; text-decoration: none; }
+.q-back:hover { color: var(--ink); }
+
+/*
+ * The cover, the size the work deserves. Full bleed across the card: this is
+ * the first thing a client sees of a package and the argument for buying it.
+ */
+.q-hero {
+  margin: 18px 0 22px;
+  border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--paper-2); aspect-ratio: 3 / 2;
 }
-.q-offer-none.q-offer-on { border-color: var(--accent); color: var(--ink); }
+.q-hero-art { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/*
+ * The promise and the price, together. These are the two halves of the only
+ * question a client is asking, so they are set as a statement rather than as
+ * fine print — which is what they were while this class did not exist.
+ */
+.q-offer-terms {
+  margin: 0 0 14px; font-size: 1rem; color: var(--ink);
+}
+
+/* Everything else the studio chose to show, after the argument. */
+.q-reel {
+  display: grid; gap: 10px; margin: 20px 0 26px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.q-reel-frame { margin: 0; }
+.q-reel-art {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+  border-radius: var(--radius); background: var(--paper-2);
+}
+
+/* ---- What is promised, as containers ------------------------------------ */
+
+/*
+ * One square per picture a package promises, drawn in full however many
+ * there are. The size comes from the count, so four reads as "these are
+ * yours" and four hundred reads as "that many" — without either turning
+ * into a figure with a caption.
+ */
+.q-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.q-slots-large { gap: 10px; }
+.q-slots-small { gap: 3px; }
+
+.q-slot {
+  flex: none;
+  border-radius: 4px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+}
+.q-slots-large .q-slot { width: 64px; height: 64px; border-radius: 8px; }
+.q-slots-medium .q-slot { width: 30px; height: 30px; }
+.q-slots-small .q-slot { width: 13px; height: 13px; border-radius: 2px; }
+
+/* Arrived. Ink rather than accent, because in light the accent IS ink and a
+ * filled slot should read the same in both themes. */
+.q-slot-full { background: var(--ink-dim); border-color: var(--ink-dim); }
+
+/* Beyond what was agreed: not an error, so not amber. Simply more. */
+.q-slot-over { background: var(--accent); border-color: var(--accent); }
+
+/* Room past the promise. Dashed, because it is space rather than a thing. */
+.q-slot-more { background: transparent; border-style: dashed; border-color: var(--line-strong); }
 
 /* ---- The apps, on the home page ----------------------------------------- */
 

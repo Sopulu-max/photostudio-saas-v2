@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isPublished, sayPackage, sayPromise, sayPromiseToClient, sayShape, standingOfPromise, type Package,
+  isPublished, sayPackage, sayPromise, sayPromiseToClient, sayShape, slotSize, standingOfPromise, type Package,
 } from '@/weave/packages/shape';
 
 /**
@@ -113,5 +113,29 @@ describe('how the promise is said', () => {
 
   it('says nothing to a client who was promised no number', () => {
     expect(sayPromiseToClient(9, null)).toBeNull();
+  });
+});
+
+describe('how big to draw what was promised', () => {
+  /*
+   * Four squares say "these are yours"; four hundred marks say "that many".
+   * Both are drawn in full, because capping the count and writing "+376
+   * more" turns the shape back into a figure with a caption.
+   */
+  it('draws a handful large enough to count', () => {
+    expect(slotSize(1)).toBe('large');
+    expect(slotSize(4)).toBe('large');
+    expect(slotSize(8)).toBe('large');
+  });
+
+  it('shrinks once there are too many to count at a glance', () => {
+    expect(slotSize(9)).toBe('medium');
+    expect(slotSize(48)).toBe('medium');
+  });
+
+  it('goes to marks when the number is the point', () => {
+    expect(slotSize(49)).toBe('small');
+    expect(slotSize(400)).toBe('small');
+    expect(slotSize(5000)).toBe('small');
   });
 });

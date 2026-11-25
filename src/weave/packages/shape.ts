@@ -59,6 +59,23 @@ export function sayShape(template: { name: string; sections: unknown[] } | null)
 }
 
 /**
+ * How big to draw each container.
+ *
+ * A promise of four and a promise of four hundred are different pictures, and
+ * both should be drawn in full — four large squares say "these are yours",
+ * four hundred small marks say "that many". Capping the count and writing
+ * "+376 more" would turn the shape back into a number with a label, which is
+ * the thing a reading must never be.
+ */
+export type SlotSize = 'large' | 'medium' | 'small';
+
+export function slotSize(promised: number): SlotSize {
+  if (promised <= 8) return 'large';
+  if (promised <= 48) return 'medium';
+  return 'small';
+}
+
+/**
  * How full a gallery is against what was promised.
  *
  * DERIVED, every time. The promise is a count, never four hundred empty rows:
