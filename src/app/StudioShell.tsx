@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import {
-  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone, CalendarPlus, CalendarDays, Users, Package as PackageIcon,
-} from 'lucide-react';
 import { signOut } from '@/weave/account/actions';
 import { ThemeToggle } from '@/components/Theme';
+import { APPS, type Where } from './apps';
 
 /**
  * The studio's shell: a sidebar and a page beside it.
@@ -15,26 +13,7 @@ import { ThemeToggle } from '@/components/Theme';
  * Not in the root layout, deliberately: the client's gallery and the login page
  * share that layout and neither should carry the studio's furniture.
  */
-export type Where =
-  | 'board' | 'calendar' | 'bookings' | 'packages' | 'team' | 'orders' | 'store'
-  | 'automations' | 'galleries' | 'mobile';
-
-const NAV: { key: Where; href: string; label: string; Icon: typeof LayoutGrid }[] = [
-  { key: 'board', href: '/', label: 'Board', Icon: LayoutGrid },
-  { key: 'mobile', href: '/mobile', label: 'Today', Icon: Smartphone },
-  // The month, beside the day it belongs to.
-  { key: 'calendar', href: '/calendar', label: 'Calendar', Icon: CalendarDays },
-  // Where work arrives from outside. Second, because it comes before the work.
-  { key: 'bookings', href: '/bookings', label: 'Bookings', Icon: CalendarPlus },
-  // What a booking can be FOR. It shapes the gallery acceptance opens.
-  { key: 'packages', href: '/packages', label: 'Packages', Icon: PackageIcon },
-  // Who works here. Crew on a shoot is drawn from this and nothing else.
-  { key: 'team', href: '/team', label: 'Team', Icon: Users },
-  { key: 'galleries', href: '/galleries', label: 'Galleries', Icon: Images },
-  { key: 'orders', href: '/orders', label: 'Orders', Icon: ShoppingBag },
-  { key: 'store', href: '/store', label: 'Products', Icon: Tag },
-  { key: 'automations', href: '/automations', label: 'Follow-ups', Icon: Send },
-];
+export type { Where };
 
 export function StudioShell({
   here, studioName, children,
@@ -51,8 +30,12 @@ export function StudioShell({
           <span className="q-eyebrow">Studio</span>
         </Link>
 
+        {/*
+          * No Home item. The studio's name at the top of this sidebar is the
+          * link to the apps page, and naming it twice is chrome about chrome.
+          */}
         <nav className="q-side-nav">
-          {NAV.map(({ key, href, label, Icon }) => (
+          {APPS.map(({ key, href, label, Icon }) => (
             <Link
               key={key}
               href={href}

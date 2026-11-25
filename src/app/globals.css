@@ -261,6 +261,56 @@ a { color: inherit; }
   padding: 28px 30px;
 }
 .q-card-narrow { max-width: 430px; width: 100%; }
+
+/* ---- The apps, on the home page ----------------------------------------- */
+
+/*
+ * Auto-fit rather than a fixed column count: the grid is the studio's own
+ * list, and a list that grows must not need this file edited to stay whole.
+ *
+ * Squarish and close-packed, so it reads as a shelf of things to open rather
+ * than a column of cards to read. A phone's home screen does this with ten
+ * different colours; one accent is the law here, so the work is done by
+ * form — a mark on its own ground, centred, evenly spaced.
+ */
+.q-apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: 12px;
+}
+.q-app {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px 16px 20px;
+  text-decoration: none;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.q-app:hover { border-color: var(--line-strong); background: var(--hover); }
+
+.q-app-mark {
+  width: 52px; height: 52px;
+  border-radius: 15px;
+  background: var(--tint);
+  display: grid; place-items: center;
+  margin-bottom: 12px;
+  transition: background var(--fast) var(--ease);
+}
+.q-app-mark svg { width: 23px; height: 23px; color: var(--ink); opacity: 0.85; }
+.q-app:hover .q-app-mark svg { opacity: 1; }
+
+.q-app-name { font-size: 0.9375rem; font-weight: 500; color: var(--ink); }
+/*
+ * The reading, and the reason this is not a filing cabinet. Allowed to wrap
+ * and never truncated — it is a sentence about the studio's work, and half a
+ * sentence is worse than none.
+ */
+.q-app-says {
+  font-size: 0.78125rem; color: var(--ink-faint); line-height: 1.4;
+  max-width: 19ch;
+}
 .q-tile {
   background: transparent;
   border: 1px solid var(--line);
@@ -502,19 +552,62 @@ select.q-input { cursor: pointer; }
     border-right: 0; border-bottom: 1px solid var(--line);
   }
   /*
-   * The studio's name stays. Hiding it to save a line left an operator with
-   * no answer to "whose studio am I in", which in a multi-tenant app is the
-   * one question the chrome exists to answer.
+   * No nav strip on a narrow screen. Ten items in a row that scrolls
+   * sideways hides most of itself, and hiding the scrollbar — which this
+   * did — removes the only clue that anything is off the edge. An operator
+   * saw four of ten screens and had no reason to think there were more.
+   *
+   * The home page is the menu now, so the strip has somewhere to go rather
+   * than needing to be made smaller. The studio's name is the way back to
+   * it, which is also the answer to "whose studio am I in" — the one
+   * question the chrome of a multi-tenant app has to keep answering.
    */
-  .q-side-head { padding: 18px 20px 2px; }
+  /*
+   * Wraps rather than clips. The name takes what it needs, Home sits beside
+   * it, and the theme control and Sign out drop to a second line when a
+   * narrow screen cannot hold all four — which at 375px it cannot. Clipping
+   * "Sign out" to "Sign" is the failure this avoids: a control that is half
+   * there reads as decoration.
+   */
+  .q-sidebar {
+    flex-direction: row; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; row-gap: 8px; column-gap: 14px; padding: 10px 18px;
+  }
+  /*
+   * flex:none, so the name is never the thing that gets compressed. With
+   * min-width:0 it shrank under the others and, once it could not wrap, ran
+   * straight under the Home icon. A studio's name is not squeezed, cut or
+   * overlapped — it takes the room it needs and the rest of the bar fits
+   * around it.
+   */
+  .q-side-head { padding: 0; flex: none; }
   .q-side-name { font-size: 1.05rem; }
-  .q-side-foot { display: none; }
-  .q-side-nav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 8px 10px 10px; }
-  /* It scrolls, but a scrollbar under the nav is chrome about chrome. */
-  .q-side-nav { scrollbar-width: none; }
-  .q-side-nav::-webkit-scrollbar { display: none; }
-  .q-side-item { white-space: nowrap; }
+  .q-side-nav { display: none; }
+  /*
+   * The studio's name is never squeezed or cut, so the rest of the bar gives
+   * way to it: the eyebrow goes and the theme control tightens.
+   */
+  .q-side-head .q-eyebrow { display: none; }
+  .q-theme-pick { padding: 5px 8px; font-size: 0.6875rem; }
+  /*
+   * Was display:none, which left no way to sign out or change the theme on
+   * a phone at all. Laid along the bar instead of stacked.
+   */
+  .q-side-foot {
+    display: flex; flex-direction: row; align-items: center;
+    gap: 12px; padding: 0; flex: none;
+  }
   .q-shell-main { padding: 28px 20px 72px; }
+  /*
+   * A phone is 375px wide, so a 164px minimum leaves room for one column and
+   * the grid becomes a stack of tall cards — the opposite of a home screen.
+   * Small enough here that two always fit, which is what makes it read as a
+   * shelf rather than a list.
+   */
+  .q-apps { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+  .q-app { padding: 18px 10px 16px; }
+  .q-app-mark { width: 46px; height: 46px; border-radius: 13px; margin-bottom: 10px; }
+  .q-app-mark svg { width: 21px; height: 21px; }
   .q-page-header { flex-direction: column; margin-bottom: 30px; }
   .q-gal-head-plain { padding: 64px 20px 40px; }
   .q-gal-main { padding: 8px 20px 90px; }

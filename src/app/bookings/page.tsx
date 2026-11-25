@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { myStudioFront, requestsAnswered, requestsWaiting } from '@/weave/jobs/requests';
-import { Requests } from '../Requests';
+import { Requests } from '../board/Requests';
 
 export const dynamic = 'force-dynamic';
 
