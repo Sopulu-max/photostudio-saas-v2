@@ -5,6 +5,26 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { claimStudio } from '@/weave/account/actions';
 
+/*
+ * Supabase reports an unreachable server as an AuthRetryableFetchError whose
+ * message is the string "fetch failed". Passed through to the screen it sits
+ * under the password box and reads as a rejected password, so the operator
+ * concludes their password is wrong and changes a credential that was never
+ * the problem. That happened. Say which of the two it is.
+ */
+function sayProblem(error: { message: string; status?: number }): string {
+  if (error.status === 0 || error.message === 'fetch failed') {
+    return 'Could not reach the server. Check the connection and try again.';
+  }
+  // Supabase says "Invalid login credentials" for a wrong password and for
+  // an address with no account alike, which is the right thing to say —
+  // distinguishing them tells a stranger which addresses are real.
+  if (error.message === 'Invalid login credentials') {
+    return 'That email and password do not match an account.';
+  }
+  return error.message;
+}
+
 export async function login(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
@@ -17,14 +37,7 @@ export async function login(formData: FormData) {
 
     if (error) {
       console.error('Login Error:', error);
-      // Supabase says "Invalid login credentials" for a wrong password and for
-      // an address with no account alike, which is the right thing to say —
-      // distinguishing them tells a stranger which addresses are real.
-      redirectUrl = `/login?error=${encodeURIComponent(
-        error.message === 'Invalid login credentials'
-          ? 'That email and password do not match an account.'
-          : error.message,
-      )}`;
+      redirectUrl = `/login?error=${encodeURIComponent(sayProblem(error))}`;
     } else {
       /*
        * Finishes a founding that did not complete. If an account was confirmed
@@ -45,7 +58,10 @@ export async function login(formData: FormData) {
     }
   } catch (err) {
     console.error('Action Crash:', err);
-    const said = err instanceof Error ? err.message : 'Something went wrong signing in.';
+    /* A thrown network failure reads the same way; name it the same way. */
+    const said = err instanceof Error
+      ? sayProblem({ message: err.message })
+      : 'Something went wrong signing in.';
     redirectUrl = `/login?error=${encodeURIComponent(said)}`;
   }
 

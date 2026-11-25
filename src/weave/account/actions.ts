@@ -26,6 +26,12 @@ export type AccountResult = { problem: string } | undefined;
 
 function readableAuthError(message: string): string {
   const said = message.toLowerCase();
+  /* Same as signing in: an unreachable server says "fetch failed", which under
+   * a password box reads as a rejected password rather than a dropped
+   * connection. Sign-up and reset go through here, so they say it too. */
+  if (said === 'fetch failed' || said.includes('network')) {
+    return 'Could not reach the server. Check the connection and try again.';
+  }
   if (said.includes('already registered') || said.includes('already been registered')) {
     return 'An account already exists for that address. Sign in, or reset the password.';
   }
