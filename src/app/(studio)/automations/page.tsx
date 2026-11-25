@@ -2,7 +2,6 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
 import { automations, discounts, whatIsDue } from '@/weave/automations/actions';
-import { StudioShell } from '../StudioShell';
 import { Automations } from './Automations';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +34,6 @@ export default async function AutomationsPage() {
     : `${due.length} ${due.length === 1 ? 'message is' : 'messages are'} due.`;
 
   return (
-    <StudioShell here="automations" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -46,6 +44,5 @@ export default async function AutomationsPage() {
 
       <Automations due={due} automations={list} discounts={codes} />
     </div>
-    </StudioShell>
   );
 }

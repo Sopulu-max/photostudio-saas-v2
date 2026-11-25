@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { allOrders } from '@/weave/store/actions';
 import { standingOf } from '@/weave/store/shape';
@@ -29,7 +28,6 @@ export default async function OrdersPage() {
       ].filter(Boolean).join(', ') || 'All orders paid and shipped.';
 
   return (
-    <StudioShell here="orders" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -40,6 +38,5 @@ export default async function OrdersPage() {
 
       <OrderList orders={orders} />
     </div>
-    </StudioShell>
   );
 }

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { occasionsBetween } from '@/weave/occasions/actions';
 import { sayClashes, clashesIn } from '@/weave/occasions/shape';
@@ -56,7 +55,6 @@ export default async function CalendarPage({
       + `${clashes.length > 0 ? '' : '. No double-bookings.'}`;
 
   return (
-    <StudioShell here="calendar" studioName={who.studioName}>
     <div className="q-page">
       <header className="q-page-header">
         <div>
@@ -72,6 +70,5 @@ export default async function CalendarPage({
 
       <Diary occasions={occasions} year={year} month={month} today={today} />
     </div>
-    </StudioShell>
   );
 }

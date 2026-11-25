@@ -12,6 +12,16 @@
       "autoPort": false
     },
     {
+      "name": "prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
       "name": "attach",
       "url": "http://localhost:3000"
     }

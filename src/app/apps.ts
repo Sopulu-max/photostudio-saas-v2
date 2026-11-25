@@ -15,7 +15,7 @@ import {
  * copies is one.
  */
 export type Where =
-  | 'home' | 'board' | 'calendar' | 'bookings' | 'packages' | 'team' | 'orders'
+  | 'home' | 'dashboard' | 'calendar' | 'bookings' | 'packages' | 'team' | 'orders'
   | 'store' | 'automations' | 'galleries' | 'mobile';
 
 export type AppKey = Exclude<Where, 'home'>;
@@ -31,8 +31,8 @@ export type App = {
 
 export const APPS: App[] = [
   {
-    key: 'board', href: '/board', label: 'Board', Icon: LayoutGrid,
-    what: 'Whose move it is on every job',
+    key: 'dashboard', href: '/dashboard', label: 'Dashboard', Icon: LayoutGrid,
+    what: 'What is outstanding, and today',
   },
   {
     key: 'mobile', href: '/mobile', label: 'Today', Icon: Smartphone,
@@ -74,7 +74,12 @@ export const APPS: App[] = [
 
 /** What each screen can be counted for, gathered once by the home page. */
 export type Standing = {
-  activeJobs: number;
+  /*
+   * What is somebody's move, from the dashboard's own readings — so the tile
+   * and the page it opens can never disagree. Not derived from `jobs.turn`,
+   * which is a column a human sets.
+   */
+  outstanding: number;
   onToday: number;
   nextSevenDays: number;
   requestsWaiting: number;
@@ -100,10 +105,10 @@ function count(n: number, one: string, many: string): string {
  */
 export function sayApp(app: App, standing: Standing): string {
   switch (app.key) {
-    case 'board':
-      return standing.activeJobs === 0
+    case 'dashboard':
+      return standing.outstanding === 0
         ? app.what
-        : count(standing.activeJobs, 'active job', 'active jobs');
+        : count(standing.outstanding, 'item outstanding', 'items outstanding');
 
     case 'mobile':
       return standing.onToday === 0

@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { StudioShell } from './StudioShell';
-import { APPS, sayApp, type Standing } from './apps';
+import { APPS, sayApp, type Standing } from '../apps';
 import { whoIsAsking } from '@/weave/studio';
-import { readBoard } from '@/weave/jobs/actions';
-import { requestsWaiting } from '@/weave/jobs/requests';
+import { theDashboard } from '@/weave/dashboard/actions';
+import { outstanding, sayStanding } from '@/weave/dashboard/shape';
 import { occasionsBetween } from '@/weave/occasions/actions';
 import { packages } from '@/weave/packages/actions';
 import { isPublished } from '@/weave/packages/shape';
@@ -45,10 +44,15 @@ export default async function HomePage() {
   const inSevenDays = new Date(today);
   inSevenDays.setDate(inSevenDays.getDate() + 7);
 
-  const [board, waiting, todays, week, offered, crew, galleries, orders, front, due] =
+  /*
+   * The dashboard's own readings, so the tile and the page behind it can
+   * never disagree about how much is outstanding — and so neither reads
+   * `jobs.turn`. It also answers "requests unanswered", which used to be a
+   * query of its own here.
+   */
+  const [board, todays, week, offered, crew, galleries, orders, front, due] =
     await Promise.all([
-      readBoard(),
-      requestsWaiting(),
+      theDashboard(asDay(today)),
       occasionsBetween(asDay(today), asDay(today)),
       occasionsBetween(asDay(today), asDay(inSevenDays)),
       packages(),
@@ -60,12 +64,10 @@ export default async function HomePage() {
     ]);
 
   const standing: Standing = {
-    activeJobs: board
-      .filter((column) => column.turn !== 'done')
-      .reduce((n, column) => n + column.jobs.length, 0),
+    outstanding: outstanding(board),
     onToday: todays.length,
     nextSevenDays: week.length,
-    requestsWaiting: waiting.length,
+    requestsWaiting: board.unanswered.length,
     packages: { all: offered.length, published: offered.filter(isPublished).length },
     team: crew.length,
     galleries: {
@@ -78,15 +80,12 @@ export default async function HomePage() {
   };
 
   return (
-    <StudioShell here="home" studioName={who.studioName}>
       <div className="q-page">
         <header className="q-page-header">
           <div>
             <h1 className="q-page-title">{who.studioName}</h1>
             <p className="q-page-subtitle">
-              {standing.activeJobs === 0 && standing.requestsWaiting === 0
-                ? 'Nothing on. Take a booking, or add a job.'
-                : sayApp(APPS[0], standing)}
+              {sayStanding(board)}
             </p>
           </div>
         </header>
@@ -106,6 +105,5 @@ export default async function HomePage() {
           ))}
         </div>
       </div>
-    </StudioShell>
   );
 }

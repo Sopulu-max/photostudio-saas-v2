@@ -190,6 +190,21 @@ a { color: inherit; }
 .q-side-item-on { color: var(--ink); font-weight: 500; background: var(--tint); }
 .q-side-item-on svg { opacity: 1; }
 .q-side-item svg { width: 16px; height: 16px; flex: none; opacity: 0.6; }
+/*
+ * The press, answered in the same frame.
+ *
+ * A dot rather than a spinner: it is 5px, it sits where the eye already is,
+ * and it means "heard you" rather than "something is happening". The row
+ * tints with it, so the acknowledgement is the whole item and not a speck.
+ */
+.q-side-wait {
+  margin-left: auto; width: 5px; height: 5px; border-radius: 50%;
+  background: transparent; flex: none;
+}
+.q-side-waiting { background: var(--accent); animation: q-breathe 900ms var(--ease) infinite; }
+.q-side-item:has(.q-side-waiting) { color: var(--ink); background: var(--hover); }
+@media (prefers-reduced-motion: reduce) { .q-side-waiting { animation: none; } }
+
 .q-side-foot { padding: 22px 24px; }
 
 /* ---- Page ---------------------------------------------------------------- */
@@ -251,6 +266,35 @@ a { color: inherit; }
 .q-row-between { justify-content: space-between; }
 .q-field { display: block; }
 
+/*
+ * A row that is a door.
+ *
+ * Without this the rows fell back to raw anchor styling — underlined, and
+ * amber, because the meta beside them inherited the link colour. A row in a
+ * list is not a word in a paragraph; it is a target, and it says so by
+ * lighting up rather than by being underlined.
+ *
+ * The negative margin pulls the hit area out to the card's edge, so the
+ * whole row is pressable and not just the text in it.
+ */
+.q-row-link {
+  color: inherit; text-decoration: none;
+  margin: 0 -10px; padding: 7px 10px; border-radius: var(--radius);
+  transition: background var(--fast) var(--ease);
+}
+.q-row-link:hover { background: var(--hover); }
+
+/*
+ * A reading: a statement about the work, not a label over it.
+ *
+ * `q-section-title` is a small tracked mono label, which is right for
+ * "Activity" and wrong for "1 gallery short by 40" — set in it, a finding
+ * reads as a caption for something else rather than as the thing itself.
+ */
+.q-reading {
+  margin: 0; font-size: 0.9375rem; font-weight: 500; color: var(--ink);
+}
+
 /* ---- Surfaces ------------------------------------------------------------ */
 /* Cards are defined by a hairline and air, not by a fill and a shadow. */
 
@@ -261,6 +305,48 @@ a { color: inherit; }
   padding: 28px 30px;
 }
 .q-card-narrow { max-width: 430px; width: 100%; }
+
+/* ---- Waiting ------------------------------------------------------------- */
+
+/*
+ * The shape of what is coming, not a spinner.
+ *
+ * A spinner reports that something is happening somewhere; a bone reports
+ * WHAT is coming and WHERE, so the eye has already found the title before
+ * the title exists. Sized to the real thing so nothing jumps when it lands.
+ */
+.q-bone {
+  display: block;
+  background: var(--hover);
+  border-radius: 6px;
+  animation: q-breathe 1.4s var(--ease) infinite;
+}
+.q-bone-title { height: 34px; width: 232px; border-radius: 8px; }
+.q-bone-line { height: 13px; width: 164px; }
+.q-bone-row { height: 58px; border-radius: var(--radius); animation-delay: 80ms; }
+.q-bone-row:nth-child(2) { animation-delay: 160ms; }
+.q-bone-row:nth-child(3) { animation-delay: 240ms; }
+.q-bone-row:nth-child(4) { animation-delay: 320ms; }
+
+@keyframes q-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/*
+ * Motion is a courtesy, not a requirement. Somebody who has asked their
+ * system for less of it still gets the shape — it simply holds still.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .q-bone { animation: none; }
+}
+
+/* Said to a screen reader, where a grey rectangle says nothing at all. */
+.q-sr {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* ---- The apps, on the home page ----------------------------------------- */
 

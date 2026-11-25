@@ -9,7 +9,7 @@ import { APPS, sayApp, type AppKey, type Standing } from '@/app/apps';
  * and never a bare figure that needs a key to interpret.
  */
 const nothing: Standing = {
-  activeJobs: 0, onToday: 0, nextSevenDays: 0, requestsWaiting: 0,
+  outstanding: 0, onToday: 0, nextSevenDays: 0, requestsWaiting: 0,
   packages: { all: 0, published: 0 },
   team: 0,
   galleries: { all: 0, shared: 0 },
@@ -29,9 +29,9 @@ describe('a studio with nothing in it', () => {
 });
 
 describe('a studio with work on', () => {
-  it('counts active jobs', () => {
-    expect(sayApp(app('board'), { ...nothing, activeJobs: 2 })).toBe('2 active jobs');
-    expect(sayApp(app('board'), { ...nothing, activeJobs: 1 })).toBe('1 active job');
+  it('counts what is outstanding', () => {
+    expect(sayApp(app('dashboard'), { ...nothing, outstanding: 2 })).toBe('2 items outstanding');
+    expect(sayApp(app('dashboard'), { ...nothing, outstanding: 1 })).toBe('1 item outstanding');
   });
 
   it('leads packages with what is published, because that is what can be booked', () => {

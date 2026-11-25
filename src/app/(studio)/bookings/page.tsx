@@ -1,9 +1,8 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { myStudioFront, requestsAnswered, requestsWaiting } from '@/weave/jobs/requests';
-import { Requests } from '../board/Requests';
+import { Requests } from './Requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +38,6 @@ export default async function BookingsPage() {
       : `No pending requests. ${taken} of ${answered.length} accepted.`;
 
   return (
-    <StudioShell here="bookings" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -89,6 +87,5 @@ export default async function BookingsPage() {
         </section>
       </div>
     </div>
-    </StudioShell>
   );
 }

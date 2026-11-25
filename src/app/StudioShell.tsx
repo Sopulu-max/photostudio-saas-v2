@@ -1,24 +1,19 @@
 import Link from 'next/link';
 import { signOut } from '@/weave/account/actions';
 import { ThemeToggle } from '@/components/Theme';
-import { APPS, type Where } from './apps';
+import { SideNav } from './SideNav';
 
 /**
  * The studio's shell: a sidebar and a page beside it.
  *
- * This replaces a row of buttons in a header. A row of buttons is fine for
- * three screens and stops being fine at five, and it never told you where you
- * were — only where you could go.
- *
- * Not in the root layout, deliberately: the client's gallery and the login page
- * share that layout and neither should carry the studio's furniture.
+ * Mounted by the (studio) layout, once, so it survives navigation rather than
+ * being rebuilt by every page. Not in the ROOT layout, deliberately: the
+ * client's gallery, the storefront and the sign-in pages share that one and
+ * none of them should carry a studio's furniture.
  */
-export type { Where };
-
 export function StudioShell({
-  here, studioName, children,
+  studioName, children,
 }: {
-  here: Where;
   studioName: string;
   children: React.ReactNode;
 }) {
@@ -33,20 +28,11 @@ export function StudioShell({
         {/*
           * No Home item. The studio's name at the top of this sidebar is the
           * link to the apps page, and naming it twice is chrome about chrome.
+          *
+          * A client component, so the highlight follows the press rather than
+          * the server.
           */}
-        <nav className="q-side-nav">
-          {APPS.map(({ key, href, label, Icon }) => (
-            <Link
-              key={key}
-              href={href}
-              className={key === here ? 'q-side-item q-side-item-on' : 'q-side-item'}
-              aria-current={key === here ? 'page' : undefined}
-            >
-              <Icon aria-hidden="true" />
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <SideNav />
 
         {/*
           * A form, not a link. This was a link to /login, which ended no

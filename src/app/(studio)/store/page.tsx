@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { priceLists } from '@/weave/store/actions';
 import { roomScenes } from '@/weave/store/scenes';
@@ -34,7 +33,6 @@ export default async function StorePage() {
   const said = await sayShopfront(front, scenes.length, things);
 
   return (
-    <StudioShell here="store" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -54,6 +52,5 @@ export default async function StorePage() {
         <RoomScenes scenes={scenes} />
       </div>
     </div>
-    </StudioShell>
   );
 }

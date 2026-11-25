@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { team } from '@/weave/team/actions';
 import { sayTeam } from '@/weave/team/shape';
@@ -21,7 +20,6 @@ export default async function TeamPage() {
   const members = await team();
 
   return (
-    <StudioShell here="team" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -32,6 +30,5 @@ export default async function TeamPage() {
 
       <Team members={members} />
     </div>
-    </StudioShell>
   );
 }

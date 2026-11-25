@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { packages } from '@/weave/packages/actions';
 import { galleryTemplates } from '@/weave/galleries/actions';
@@ -36,7 +35,6 @@ export default async function PackagesPage() {
         : `${offered} of ${all.length} published.`;
 
   return (
-    <StudioShell here="packages" studioName={who.studioName}>
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
@@ -47,6 +45,5 @@ export default async function PackagesPage() {
 
       <Packages packages={all} templates={templates} />
     </div>
-    </StudioShell>
   );
 }

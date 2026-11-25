@@ -3,7 +3,6 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
 import { allGalleries } from '@/weave/galleries/actions';
-import { StudioShell } from '../StudioShell';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +28,6 @@ export default async function GalleriesPage() {
     : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'}, ${open} open to clients.`;
 
   return (
-    <StudioShell here="galleries" studioName={who.studioName}>
       <div className="q-page">
         <header className="q-page-header">
           <div>
@@ -81,6 +79,5 @@ export default async function GalleriesPage() {
           </div>
         )}
       </div>
-    </StudioShell>
   );
 }
