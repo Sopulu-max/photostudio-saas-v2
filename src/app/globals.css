@@ -423,15 +423,41 @@ a { color: inherit; }
 }
 
 .q-offer {
+  position: relative;
   display: flex; flex-direction: column;
   border: 1px solid var(--line); border-radius: var(--radius-lg);
   overflow: hidden; cursor: pointer; background: var(--card);
   transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
 }
 .q-offer:hover { border-color: var(--line-strong); }
-/* The chosen one is ringed, not merely tinted: on a photograph a tint is
- * invisible, and the border is the only thing guaranteed to read. */
-.q-offer-on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+/*
+ * Two pixels, not one. In light the accent is near-black ink, so a 1px ring
+ * sat on a card that already had a hairline border and read as nothing: a
+ * client pressed a package, it WAS selected, and the screen appeared not to
+ * have noticed.
+ */
+.q-offer-on { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+
+/*
+ * The choice mark, on every card rather than only the chosen one.
+ *
+ * An empty circle says "this is a thing you pick" before anything is picked.
+ * Feedback that only exists after the press cannot tell anybody the press is
+ * available, which is the half of this that was actually missing.
+ */
+.q-offer-tick {
+  position: absolute; top: 10px; left: 10px; z-index: 1;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  color: var(--accent-ink);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.q-offer-tick svg { width: 14px; height: 14px; }
+.q-offer-on .q-offer-tick {
+  background: var(--accent); border-color: var(--accent);
+}
 
 /* Present for the keyboard and the form; the card is what anybody sees. */
 .q-offer-radio { position: absolute; opacity: 0; width: 0; height: 0; }

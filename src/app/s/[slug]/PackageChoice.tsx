@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Check } from 'lucide-react';
 import { sayPackage, type Package } from '@/weave/packages/shape';
 import type { PackageMedia } from '@/weave/packages/media';
 import { money } from '@/weave/store/shape';
@@ -38,11 +39,25 @@ export function PackageChoice({ packages, media, name }: {
           const on = chosen === p.id;
 
           return (
-            <label key={p.id} className={on ? 'q-offer q-offer-on' : 'q-offer'}>
+            <label
+              key={p.id}
+              className={on ? 'q-offer q-offer-on' : 'q-offer'}
+            >
               <input
                 type="radio" name={name} value={p.id} className="q-offer-radio"
                 checked={on} onChange={() => setChosen(p.id)}
               />
+
+              {/*
+                * On every card, not only the chosen one. A ring that appears
+                * only after you press tells you nothing beforehand — the
+                * cards looked like pictures rather than like a choice, so
+                * pressing one and seeing a hairline change colour read as
+                * nothing happening at all.
+                */}
+              <span className="q-offer-tick" aria-hidden="true">
+                {on && <Check strokeWidth={3} />}
+              </span>
 
               <span className="q-offer-art">
                 {cover ? (
