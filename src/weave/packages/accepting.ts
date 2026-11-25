@@ -1,6 +1,7 @@
 'use server';
 
 import { weave as db } from '@/weave/db';
+import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seeding';
 
 /**
  * What accepting a booking brings into existence.
@@ -35,19 +36,35 @@ export async function galleryForAcceptedJob(input: {
     .eq('studio_id', input.studioId).eq('job_id', input.jobId);
   if ((count ?? 0) > 0) return { galleryId: null };
 
+  /*
+   * Two things come off the package: how many pictures were promised, and
+   * what shape the gallery starts in. The count is copied because it is what
+   * was agreed; the template is READ now and its contents copied in, so
+   * editing the template later changes the next gallery and never this one.
+   */
   let promised: number | null = null;
+  let templateId: string | null = null;
   if (input.packageId) {
     const { data: pack } = await db.from('packages')
-      .select('pictures_promised').eq('id', input.packageId)
+      .select('pictures_promised, gallery_template_id').eq('id', input.packageId)
       .eq('studio_id', input.studioId).maybeSingle();
     promised = pack?.pictures_promised ?? null;
+    templateId = pack?.gallery_template_id ?? null;
   }
+
+  /*
+   * A template that has since been deleted is not worth refusing an
+   * acceptance over. Null means the gallery is born plain, which is what it
+   * did before any of this existed.
+   */
+  const template = await readTemplate(input.studioId, templateId);
 
   const { data: gallery, error } = await db.from('galleries').insert({
     studio_id: input.studioId,
     job_id: input.jobId,
     name: input.clientName ? `${input.clientName}'s pictures` : 'Their pictures',
     pictures_promised: promised,
+    ...designFrom(template),
   }).select('id').single();
 
   if (error || !gallery) {
@@ -60,13 +77,23 @@ export async function galleryForAcceptedJob(input: {
     return { galleryId: null };
   }
 
+  /*
+   * Sections, which this path never wrote. A gallery with none cannot be
+   * filled — `fillGallery` takes a section to put the pictures in — so until
+   * now the gallery a package produced had to be repaired by hand before it
+   * could hold anything.
+   */
+  await writeSections({
+    studioId: input.studioId, galleryId: gallery.id, template,
+  });
+
   await db.from('events').insert({
     studio_id: input.studioId,
     subject_type: 'gallery',
     subject_id: gallery.id,
     action: 'opened_on_acceptance',
     actor_id: input.actorId,
-    payload: { job: input.jobId, promised },
+    payload: { job: input.jobId, promised, template: templateId },
   });
 
   return { galleryId: gallery.id };

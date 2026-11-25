@@ -14,6 +14,12 @@ export type Package = {
   currency: string;
   /** Finished pictures the client gets back. Null means not said yet. */
   picturesPromised: number | null;
+  /**
+   * The shape the gallery starts in. A package produces a gallery; this is
+   * what that gallery looks like on the day it is born — cover, theme and
+   * sections. Null means plain, which is what it was before.
+   */
+  galleryTemplateId: string | null;
   publishedAt: string | null;
   position: number;
 };
@@ -35,6 +41,21 @@ export function sayPackage(p: Package): string {
     ? 'Image count not set'
     : `${p.picturesPromised} edited ${p.picturesPromised === 1 ? 'image' : 'images'}`;
   return pictures;
+}
+
+/**
+ * What shape the gallery it produces starts in.
+ *
+ * A statement, not a label beside a value: a package that names no template
+ * makes a plain gallery, and saying so is a fact the studio can act on. The
+ * section count is there because it is the part that is actually visible on
+ * the day — a cover and a theme are taste, sections are structure.
+ */
+export function sayShape(template: { name: string; sections: unknown[] } | null): string {
+  if (!template) return 'Opens a plain gallery';
+  const n = template.sections.length;
+  if (n === 0) return `Opens a ${template.name} gallery`;
+  return `Opens a ${template.name} gallery, ${n} ${n === 1 ? 'section' : 'sections'}`;
 }
 
 /**

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { StudioShell } from '../StudioShell';
 import { whoIsAsking } from '@/weave/studio';
 import { packages } from '@/weave/packages/actions';
+import { galleryTemplates } from '@/weave/galleries/actions';
 import { isPublished } from '@/weave/packages/shape';
 import { Packages } from './Packages';
 
@@ -22,7 +23,7 @@ export default async function PackagesPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const all = await packages();
+  const [all, templates] = await Promise.all([packages(), galleryTemplates()]);
   const offered = all.filter(isPublished).length;
   const unsaid = all.filter((p) => p.picturesPromised === null).length;
 
@@ -44,7 +45,7 @@ export default async function PackagesPage() {
         </div>
       </header>
 
-      <Packages packages={all} />
+      <Packages packages={all} templates={templates} />
     </div>
     </StudioShell>
   );

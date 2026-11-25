@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { addPackage, removePackage, setPackageOffered } from '@/weave/packages/actions';
-import { isPublished, sayPackage, type Package } from '@/weave/packages/shape';
+import {
+  addPackage, amendPackage, removePackage, setPackageOffered,
+} from '@/weave/packages/actions';
+import { isPublished, sayPackage, sayShape, type Package } from '@/weave/packages/shape';
+import type { GalleryTemplate } from '@/weave/galleries/shape';
 import { money } from '@/weave/store/shape';
 import { Reveal } from '@/components/Reveal';
 
@@ -13,7 +16,12 @@ import { Reveal } from '@/components/Reveal';
  * one opens a gallery sized by its promise. So the number of pictures is
  * given the weight it deserves — it is the thing that becomes structure.
  */
-export function Packages({ packages }: { packages: Package[] }) {
+export function Packages({
+  packages, templates,
+}: {
+  packages: Package[];
+  templates: GalleryTemplate[];
+}) {
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
 
@@ -40,6 +48,14 @@ export function Packages({ packages }: { packages: Package[] }) {
               <div className="q-pack-what">
                 <strong className="q-pack-name">{p.name}</strong>
                 <span className="q-meta">{sayPackage(p)}</span>
+                {/*
+                  * What it produces, said next to what it promises, because
+                  * they are the two halves of the same thing: how many
+                  * pictures, and the gallery they arrive in.
+                  */}
+                <span className="q-meta-sm">
+                  {sayShape(templates.find((t) => t.id === p.galleryTemplateId) ?? null)}
+                </span>
                 {p.about && <span className="q-meta-sm">{p.about}</span>}
               </div>
 
@@ -48,6 +64,28 @@ export function Packages({ packages }: { packages: Package[] }) {
               </span>
 
               <span className="q-pack-acts">
+                {/*
+                  * Only offered where there is something to choose. A studio
+                  * with no gallery templates is not missing a feature, so it
+                  * is not shown a control that can only say "none".
+                  */}
+                {templates.length > 0 && (
+                  <select
+                    className="q-input q-input-sm"
+                    aria-label={`Gallery shape for ${p.name}`}
+                    value={p.galleryTemplateId ?? ''}
+                    disabled={working}
+                    onChange={(event) => run(() => amendPackage({
+                      packageId: p.id,
+                      galleryTemplateId: event.target.value || null,
+                    }))}
+                  >
+                    <option value="">Plain gallery</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
                 <span className={isPublished(p) ? 'q-pack-on' : 'q-pack-off'}>
                   {isPublished(p) ? 'Published' : 'Draft'}
                 </span>

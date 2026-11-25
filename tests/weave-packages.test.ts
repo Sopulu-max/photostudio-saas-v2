@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isPublished, sayPackage, sayPromise, sayPromiseToClient, standingOfPromise, type Package,
+  isPublished, sayPackage, sayPromise, sayPromiseToClient, sayShape, standingOfPromise, type Package,
 } from '@/weave/packages/shape';
 
 /**
@@ -13,7 +13,34 @@ import {
  */
 const pack = (over: Partial<Package> = {}): Package => ({
   id: 'p', name: 'The whole wedding day', about: null, price: 85_000_00,
-  currency: 'NGN', picturesPromised: 400, publishedAt: null, position: 0, ...over,
+  currency: 'NGN', picturesPromised: 400, galleryTemplateId: null,
+  publishedAt: null, position: 0, ...over,
+});
+
+describe('what shape a package makes', () => {
+  it('states the plain case rather than leaving a gap', () => {
+    expect(sayShape(null)).toBe('Opens a plain gallery');
+  });
+
+  it('names the template and how much structure it carries', () => {
+    expect(sayShape({ name: 'Wedding booklet', sections: [1, 2, 3] }))
+      .toBe('Opens a Wedding booklet gallery, 3 sections');
+  });
+
+  it('counts one section as one', () => {
+    expect(sayShape({ name: 'Portrait', sections: [1] }))
+      .toBe('Opens a Portrait gallery, 1 section');
+  });
+
+  it('says nothing about sections when a template has none', () => {
+    expect(sayShape({ name: 'Bare', sections: [] })).toBe('Opens a Bare gallery');
+  });
+
+  /* A studio's own words, unaltered — not title-cased, not truncated. */
+  it('leaves the studio\'s name for the template exactly as typed', () => {
+    expect(sayShape({ name: 'the BIG day', sections: [1] }))
+      .toBe('Opens a the BIG day gallery, 1 section');
+  });
 });
 
 describe('what a package says', () => {

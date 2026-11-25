@@ -8,6 +8,7 @@ import { whoIsAsking } from '@/weave/studio';
 import type {
   ClientGalleryCollection, GalleryActivity, GalleryDesign, GallerySummary, GalleryTemplate, LockedGallery, PublicGallery,
 } from './shape';
+import { designFrom, readTemplate, writeSections } from './seeding';
 
 const BUCKET = 'weave-files';
 
@@ -328,32 +329,21 @@ export async function makeGallery(input: {
   const name = input.name.trim();
   if (!name) throw new Error('A gallery needs a name');
 
-  type TemplateSeed = {
-    may_download: boolean; price_list_id: string | null;
-    gallery_theme: GalleryDesign['theme']; gallery_font: GalleryDesign['font'];
-    gallery_grid: GalleryDesign['grid']; cover_style: GalleryDesign['coverStyle'];
-    sections: { name: string; position: number; visible_to_clients: boolean }[];
-  };
-  let template: TemplateSeed | null = null;
-  if (input.templateId) {
-    const { data, error } = await db.from('gallery_templates')
-      .select('may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style, '
-        + 'sections:gallery_template_sections(name, position, visible_to_clients)')
-      .eq('id', input.templateId).eq('studio_id', who.studioId).maybeSingle();
-    if (error || !data) throw new Error('That gallery template is not in this studio');
-    template = data as unknown as TemplateSeed;
+  /*
+   * A template the studio picked by hand: if it cannot be read, that is a
+   * mistake worth stopping for. The acceptance path treats the same miss as
+   * "no template" instead, because nobody is standing there to be told.
+   */
+  const template = await readTemplate(who.studioId, input.templateId);
+  if (input.templateId && !template) {
+    throw new Error('That gallery template is not in this studio');
   }
 
   const { data: gallery, error } = await db
     .from('galleries')
     .insert({
       studio_id: who.studioId, job_id: input.jobId, name,
-      may_download: template?.may_download ?? true,
-      price_list_id: template?.price_list_id ?? null,
-      gallery_theme: template?.gallery_theme ?? 'paper',
-      gallery_font: template?.gallery_font ?? 'modern',
-      gallery_grid: template?.gallery_grid ?? 'story',
-      cover_style: template?.cover_style ?? 'single',
+      ...designFrom(template),
     })
     .select('id')
     .single();
@@ -363,23 +353,12 @@ export async function makeGallery(input: {
     throw new Error('Could not make that gallery');
   }
 
-  const sectionSeed = template?.sections?.length
-    ? [...template.sections].sort((a, b) => a.position - b.position)
-    : [{ name: 'Gallery', position: 0, visible_to_clients: true }];
-  const { data: madeSections, error: sectionError } = await db
-    .from('gallery_sections')
-    .insert(sectionSeed.map((section) => ({
-      studio_id: who.studioId, gallery_id: gallery.id, name: section.name,
-      position: section.position, visible_to_clients: section.visible_to_clients,
-    })))
-    .select('id, position')
-    .order('position', { ascending: true });
+  const madeSections = await writeSections({
+    studioId: who.studioId, galleryId: gallery.id, template,
+  });
 
-  const firstSection = (madeSections ?? [])[0];
-  if (sectionError || !firstSection) {
-    console.error('Failed to make the gallery section:', sectionError);
-    throw new Error('Could not prepare that gallery');
-  }
+  const firstSection = madeSections[0];
+  if (!firstSection) throw new Error('Could not prepare that gallery');
 
   if (input.fromChosen !== false) {
     const { data: files } = await db
