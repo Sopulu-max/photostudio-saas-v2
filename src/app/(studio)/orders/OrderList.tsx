@@ -92,8 +92,8 @@ export function OrderList({ orders }: { orders: Order[] }) {
               >
                 {o.fulfilledAt ? 'Mark unshipped' : 'Mark shipped'}
               </button>
-              {o.jobId && (
-                <a className="q-btn q-btn-ghost q-btn-xs" href={`/jobs/${o.jobId}`}>View job</a>
+              {o.bookingId && (
+                <a className="q-btn q-btn-ghost q-btn-xs" href={`/bookings/${o.bookingId}`}>View booking</a>
               )}
             </div>
           </article>

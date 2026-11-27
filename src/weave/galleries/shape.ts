@@ -2,7 +2,7 @@
  * A gallery, from the two sides it is seen from.
  *
  * The studio sees a summary — what it is called, how much is in it, whether it
- * is open. The client sees the pictures and nothing about the job behind them.
+ * is open. The client sees the pictures and nothing about the booking behind them.
  */
 
 export type GallerySummary = {

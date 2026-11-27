@@ -5,14 +5,16 @@ import { APPS, sayApp, type Standing } from '../apps';
 import { whoIsAsking } from '@/weave/studio';
 import { theDashboard } from '@/weave/dashboard/actions';
 import { outstanding, sayStanding } from '@/weave/dashboard/shape';
-import { occasionsBetween } from '@/weave/occasions/actions';
 import { packages } from '@/weave/packages/actions';
 import { isPublished } from '@/weave/packages/shape';
 import { team } from '@/weave/team/actions';
+import { clients } from '@/weave/clients/actions';
+import { theCalendar } from '@/weave/calendar/actions';
 import { allGalleries } from '@/weave/galleries/actions';
 import { allOrders } from '@/weave/store/actions';
 import { standingOf } from '@/weave/store/shape';
 import { theShopfront } from '@/weave/store/front';
+import { deliverables } from '@/weave/deliverables/actions';
 import { whatIsDue } from '@/weave/automations/actions';
 
 /**
@@ -47,29 +49,34 @@ export default async function HomePage() {
   /*
    * The dashboard's own readings, so the tile and the page behind it can
    * never disagree about how much is outstanding — and so neither reads
-   * `jobs.turn`. It also answers "requests unanswered", which used to be a
+   * `bookings.turn`. It also answers "requests unanswered", which used to be a
    * query of its own here.
    */
-  const [board, todays, week, offered, crew, galleries, orders, front, due] =
+  const [board, week, offered, crew, served, galleries, orders, front, due, made] =
     await Promise.all([
       theDashboard(asDay(today)),
-      occasionsBetween(asDay(today), asDay(today)),
-      occasionsBetween(asDay(today), asDay(inSevenDays)),
+      theCalendar(asDay(today), asDay(inSevenDays)),
       packages(),
       team(),
+      clients(),
       allGalleries(),
       allOrders(),
       theShopfront(),
       whatIsDue(origin),
+      deliverables(),
     ]);
 
   const standing: Standing = {
     outstanding: outstanding(board),
-    onToday: todays.length,
-    nextSevenDays: week.length,
     requestsWaiting: board.unanswered.length,
+    nextSevenDays: week.filter((e) => e.kind === 'shoot').length,
+    deliverables: {
+      files: made.filter((d) => d.kind === 'digital').length,
+      objects: made.filter((d) => d.kind === 'physical').length,
+    },
     packages: { all: offered.length, published: offered.filter(isPublished).length },
     team: crew.length,
+    clients: served.length,
     galleries: {
       all: galleries.length,
       shared: galleries.filter((g) => g.sharedAt !== null).length,

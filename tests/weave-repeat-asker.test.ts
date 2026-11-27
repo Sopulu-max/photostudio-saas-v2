@@ -46,14 +46,14 @@ beforeAll(async () => {
     .insert({ studio_id: studioId, name: 'Asked Twice', email }).select('id').single();
   secondPersonId = second!.id;
 
-  // The studio took on the SECOND one, and that job has the gallery.
-  const { data: job } = await db.from('jobs').insert({
+  // The studio took on the SECOND one, and that booking has the gallery.
+  const { data: booking } = await db.from('bookings').insert({
     studio_id: studioId, client_id: secondPersonId, turn: 'scheduled',
     accepted_at: new Date().toISOString(),
   }).select('id').single();
 
   const { data: gallery } = await db.from('galleries')
-    .insert({ studio_id: studioId, job_id: job!.id, name: 'Theirs' })
+    .insert({ studio_id: studioId, booking_id: booking!.id, name: 'Theirs' })
     .select('id').single();
   galleryId = gallery!.id;
 });
@@ -94,8 +94,8 @@ describe('asking twice', () => {
    */
   it('resolves to the person the gallery is for, not merely the first', async () => {
     const { data: gallery } = await db.from('galleries')
-      .select('job:jobs(client_id)').eq('id', galleryId).maybeSingle();
-    const client = (gallery as unknown as { job: { client_id: string } | null })?.job?.client_id;
+      .select('booking:bookings(client_id)').eq('id', galleryId).maybeSingle();
+    const client = (gallery as unknown as { booking: { client_id: string } | null })?.booking?.client_id;
 
     const { data: rows } = await db.from('people').select('id')
       .eq('studio_id', studioId).eq('email', email)

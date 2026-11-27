@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { requestAsAsked } from '@/weave/jobs/requests';
+import { requestAsAsked } from '@/weave/bookings/requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,10 +64,10 @@ export default async function RequestPage({ params }: {
         <div className="q-asked">
           <span className="q-label">Your request</span>
           <p className="q-reply-body">{ask.wants ?? 'No details provided.'}</p>
-          {ask.expectedOn && (
+          {ask.askedFor && (
             <p className="q-meta">
               For{' '}
-              {new Date(`${ask.expectedOn}T00:00:00`).toLocaleDateString('en-GB', {
+              {new Date(`${ask.askedFor}T00:00:00`).toLocaleDateString('en-GB', {
                 weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
               })}
             </p>

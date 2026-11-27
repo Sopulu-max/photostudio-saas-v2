@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { studioAtSlug } from '@/weave/jobs/requests';
+import { studioAtSlug } from '@/weave/bookings/requests';
 import { packagesOffered } from '@/weave/packages/actions';
 import { mediaOnOffer } from '@/weave/packages/media';
 import { BookingForm } from './BookingForm';

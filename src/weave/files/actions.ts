@@ -9,32 +9,32 @@ import type { StudioFile } from './shape';
 const BUCKET = 'weave-files';
 
 /**
- * Files on a job.
+ * Files on a booking.
  *
  * Images are never served from a public URL. The bucket is private and every
  * image is read through a short-lived signed URL issued per request, so a path
  * cannot be guessed and a link cannot be forwarded forever.
  */
-export async function filesForJob(jobId: string): Promise<StudioFile[]> {
+export async function filesForJob(bookingId: string): Promise<StudioFile[]> {
   const who = await whoIsAsking();
   if (!who) return [];
 
   const { data, error } = await db
     .from('files')
-    .select('id, name, storage_path, mime_type, size_bytes, derived_from, occasion_id, created_at, '
+    .select('id, name, storage_path, mime_type, size_bytes, derived_from, created_at, '
       + 'choices:choices(person_id, person:people(name))')
     .eq('studio_id', who.studioId)
-    .eq('job_id', jobId)
+    .eq('booking_id', bookingId)
     .order('created_at', { ascending: true });
 
   if (error) {
     console.error('Failed to read the files:', error);
-    throw new Error('Could not read the files on this job');
+    throw new Error('Could not read the files on this booking');
   }
 
   const rows = (data ?? []) as unknown as {
     id: string; name: string; storage_path: string; mime_type: string | null;
-    size_bytes: number | null; derived_from: string | null; occasion_id: string | null;
+    size_bytes: number | null; derived_from: string | null;
     created_at: string;
     choices: { person_id: string; person: { name: string } | null }[];
   }[];
@@ -58,7 +58,6 @@ export async function filesForJob(jobId: string): Promise<StudioFile[]> {
     mimeType: r.mime_type,
     sizeBytes: r.size_bytes,
     derivedFrom: r.derived_from,
-    occasionId: r.occasion_id,
     addedAt: r.created_at,
     url: urlFor.get(r.storage_path) ?? null,
     chosenBy: (r.choices ?? []).map((c) => ({
@@ -77,16 +76,16 @@ export async function filesForJob(jobId: string): Promise<StudioFile[]> {
  * file is measured in tens of them.
  */
 export async function placeToPut(input: {
-  jobId: string;
+  bookingId: string;
   name: string;
 }): Promise<{ path: string; token: string }> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
 
-  // Studio and job in the path so a stray object is always attributable, and a
+  // Studio and booking in the path so a stray object is always attributable, and a
   // uuid so two cards with IMG_0001.jpg cannot overwrite one another.
   const safe = input.name.replace(/[^\w.\-]+/g, '_').slice(-120);
-  const path = `${who.studioId}/${input.jobId}/${randomUUID()}-${safe}`;
+  const path = `${who.studioId}/${input.bookingId}/${randomUUID()}-${safe}`;
 
   const { data, error } = await db.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) {
@@ -98,8 +97,7 @@ export async function placeToPut(input: {
 
 /** Record a file that has landed in storage. */
 export async function recordFile(input: {
-  jobId: string;
-  occasionId?: string | null;
+  bookingId: string;
   storagePath: string;
   name: string;
   mimeType?: string | null;
@@ -113,8 +111,7 @@ export async function recordFile(input: {
     .from('files')
     .insert({
       studio_id: who.studioId,
-      job_id: input.jobId,
-      occasion_id: input.occasionId ?? null,
+      booking_id: input.bookingId,
       derived_from: input.derivedFrom ?? null,
       storage_path: input.storagePath,
       name: input.name,
@@ -130,7 +127,7 @@ export async function recordFile(input: {
     throw new Error('That file arrived but could not be recorded');
   }
 
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   return { id: data.id };
 }
 
@@ -144,7 +141,7 @@ export async function recordFile(input: {
  */
 export async function chooseFile(input: {
   fileId: string;
-  jobId: string;
+  bookingId: string;
   chosen: boolean;
 }): Promise<void> {
   const who = await whoIsAsking();
@@ -173,11 +170,11 @@ export async function chooseFile(input: {
     }
   }
 
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
-/** Take a file off the job, and out of storage with it. */
-export async function removeFile(input: { fileId: string; jobId: string }): Promise<void> {
+/** Take a file off the booking, and out of storage with it. */
+export async function removeFile(input: { fileId: string; bookingId: string }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
 
@@ -210,5 +207,5 @@ export async function removeFile(input: { fileId: string; jobId: string }): Prom
   const { error: gone } = await db.storage.from(BUCKET).remove([file.storage_path]);
   if (gone) console.error('File row removed but the object remains:', file.storage_path, gone);
 
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }

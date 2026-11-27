@@ -12,7 +12,7 @@ import { whoIsAsking } from '@/weave/studio';
  * `is_cover` column, because a second claim about the same thing goes out of
  * step with the ordering the moment somebody reorders.
  *
- * Uploads go browser-to-storage through a signed URL, the same way a job's
+ * Uploads go browser-to-storage through a signed URL, the same way a booking's
  * files do: a server action's body is measured in megabytes and a video is
  * measured in tens of them.
  */
@@ -64,7 +64,8 @@ export async function recordPackageMedia(input: {
   storagePath: string;
   mimeType: string | null;
   sizeBytes: number | null;
-}): Promise<void> {
+  /** Returns the new row, so a package element can point straight at it. */
+}): Promise<{ mediaId: string }> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
 
@@ -75,7 +76,7 @@ export async function recordPackageMedia(input: {
     .select('id', { count: 'exact', head: true })
     .eq('studio_id', who.studioId).eq('package_id', input.packageId);
 
-  const { error } = await db.from('package_media').insert({
+  const { data, error } = await db.from('package_media').insert({
     studio_id: who.studioId,
     package_id: input.packageId,
     storage_path: input.storagePath,
@@ -83,13 +84,15 @@ export async function recordPackageMedia(input: {
     mime_type: input.mimeType,
     size_bytes: input.sizeBytes,
     position: count ?? 0,
-  });
+  }).select('id').single();
 
-  if (error) {
+  if (error || !data) {
     console.error('Could not record the package media:', error);
     throw new Error('Could not add that to the package');
   }
   revalidatePath('/packages');
+  revalidatePath('/packages/[id]', 'page');
+  return { mediaId: data.id as string };
 }
 
 export async function removePackageMedia(input: { mediaId: string }): Promise<void> {

@@ -4,14 +4,16 @@ import { APPS, sayApp, type AppKey, type Standing } from '@/app/apps';
 /**
  * A tile is a reading, not a label beside a number.
  *
- * Two jobs: tell a studio with work on how much of it there is, and tell a
+ * Two bookings: tell a studio with work on how much of it there is, and tell a
  * studio that signed up this morning what the screen is for. Never a gap,
  * and never a bare figure that needs a key to interpret.
  */
 const nothing: Standing = {
-  outstanding: 0, onToday: 0, nextSevenDays: 0, requestsWaiting: 0,
+  outstanding: 0, requestsWaiting: 0, nextSevenDays: 0,
+  deliverables: { files: 0, objects: 0 },
   packages: { all: 0, published: 0 },
   team: 0,
+  clients: 0,
   galleries: { all: 0, shared: 0 },
   ordersNeedingAttention: 0, picturesForSale: 0, messagesDue: 0,
 };
@@ -54,15 +56,31 @@ describe('a studio with work on', () => {
     expect(sayApp(app('team'), { ...nothing, team: 3 })).toBe('3 people');
   });
 
+  it('counts the people it serves apart from the people it employs', () => {
+    expect(sayApp(app('clients'), { ...nothing, clients: 1 })).toBe('1 client');
+    expect(sayApp(app('clients'), { ...nothing, clients: 4 })).toBe('4 clients');
+  });
+
+  /* Shoots, not every engagement. A code expiring is not somewhere to be. */
+  it('counts the shoots a week brings, and nothing else on the calendar', () => {
+    expect(sayApp(app('calendar'), { ...nothing, nextSevenDays: 1 }))
+      .toBe('1 shoot in the next seven days');
+    expect(sayApp(app('calendar'), { ...nothing, nextSevenDays: 3 }))
+      .toBe('3 shoots in the next seven days');
+  });
+
   it('names what a request is waiting for', () => {
     expect(sayApp(app('bookings'), { ...nothing, requestsWaiting: 1 }))
       .toBe('1 request awaiting a response');
   });
 
-  it('counts shoots rather than occasions, which is not a word a studio uses', () => {
-    expect(sayApp(app('mobile'), { ...nothing, onToday: 2 })).toBe('2 shoots today');
-    expect(sayApp(app('calendar'), { ...nothing, nextSevenDays: 1 }))
-      .toBe('1 shoot in the next seven days');
+  /*
+   * The phone used to count the day's shoots, from `weave.occasions`. Nothing
+   * records when work happens now, so it says what the screen is for and
+   * never a number — which is the same rule, with nothing to count.
+   */
+  it('gives the phone no figure to report, because nothing is dated', () => {
+    expect(sayApp(app('mobile'), nothing)).toBe(app('mobile').what);
   });
 });
 

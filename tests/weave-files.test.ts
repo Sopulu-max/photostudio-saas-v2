@@ -14,7 +14,7 @@ const db = createClient(
 );
 
 let studioId: string;
-let jobId: string;
+let bookingId: string;
 let personId: string;
 
 beforeAll(async () => {
@@ -27,9 +27,9 @@ beforeAll(async () => {
     .from('people').insert({ studio_id: studioId, name: 'Test Person' }).select('id').single();
   personId = person!.id;
 
-  const { data: job } = await db
-    .from('jobs').insert({ studio_id: studioId }).select('id').single();
-  jobId = job!.id;
+  const { data: booking } = await db
+    .from('bookings').insert({ studio_id: studioId }).select('id').single();
+  bookingId = booking!.id;
 });
 
 afterAll(async () => {
@@ -37,20 +37,20 @@ afterAll(async () => {
 });
 
 describe('files', () => {
-  it('must belong to a job', async () => {
+  it('must belong to a booking', async () => {
     const { error } = await db.from('files').insert({
       studio_id: studioId, storage_path: 'x/1.jpg', name: '1.jpg',
     });
-    expect(error, 'a file with no job was accepted').not.toBeNull();
+    expect(error, 'a file with no booking was accepted').not.toBeNull();
   });
 
   it('will not take the same path twice', async () => {
-    const path = `${studioId}/${jobId}/same.jpg`;
+    const path = `${studioId}/${bookingId}/same.jpg`;
     const first = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId, storage_path: path, name: 'same.jpg',
+      studio_id: studioId, booking_id: bookingId, storage_path: path, name: 'same.jpg',
     });
     const second = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId, storage_path: path, name: 'same.jpg',
+      studio_id: studioId, booking_id: bookingId, storage_path: path, name: 'same.jpg',
     });
 
     expect(first.error).toBeNull();
@@ -59,13 +59,13 @@ describe('files', () => {
 
   it('lets an edit know its original', async () => {
     const { data: raw } = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId,
-      storage_path: `${studioId}/${jobId}/raw.cr3`, name: 'raw.cr3',
+      studio_id: studioId, booking_id: bookingId,
+      storage_path: `${studioId}/${bookingId}/raw.cr3`, name: 'raw.cr3',
     }).select('id').single();
 
     const { data: edit, error } = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId, derived_from: raw!.id,
-      storage_path: `${studioId}/${jobId}/edit.jpg`, name: 'edit.jpg',
+      studio_id: studioId, booking_id: bookingId, derived_from: raw!.id,
+      storage_path: `${studioId}/${bookingId}/edit.jpg`, name: 'edit.jpg',
     }).select('id, derived_from').single();
 
     expect(error).toBeNull();
@@ -74,8 +74,8 @@ describe('files', () => {
 
   it('records who chose a frame, once each', async () => {
     const { data: file } = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId,
-      storage_path: `${studioId}/${jobId}/pick.jpg`, name: 'pick.jpg',
+      studio_id: studioId, booking_id: bookingId,
+      storage_path: `${studioId}/${bookingId}/pick.jpg`, name: 'pick.jpg',
     }).select('id').single();
 
     await db.from('choices').insert({
@@ -93,26 +93,26 @@ describe('files', () => {
     expect(picks![0].person_id).toBe(personId);
   });
 
-  it('goes with the job when the job goes', async () => {
-    const { data: job } = await db
-      .from('jobs').insert({ studio_id: studioId }).select('id').single();
+  it('goes with the booking when the booking goes', async () => {
+    const { data: booking } = await db
+      .from('bookings').insert({ studio_id: studioId }).select('id').single();
     const { data: file } = await db.from('files').insert({
-      studio_id: studioId, job_id: job!.id,
-      storage_path: `${studioId}/${job!.id}/doomed.jpg`, name: 'doomed.jpg',
+      studio_id: studioId, booking_id: booking!.id,
+      storage_path: `${studioId}/${booking!.id}/doomed.jpg`, name: 'doomed.jpg',
     }).select('id').single();
 
-    await db.from('jobs').delete().eq('id', job!.id);
+    await db.from('bookings').delete().eq('id', booking!.id);
 
     const { data: left } = await db
       .from('files').select('id').eq('id', file!.id).maybeSingle();
-    expect(left, 'a file outlived the job it belonged to').toBeNull();
+    expect(left, 'a file outlived the booking it belonged to').toBeNull();
   });
 });
 
 describe('how a set of files says itself', () => {
   const file = (over: Partial<StudioFile> = {}): StudioFile => ({
     id: 'a', name: 'x.jpg', mimeType: 'image/jpeg', sizeBytes: 2_500_000,
-    derivedFrom: null, occasionId: null, addedAt: '', url: null, chosenBy: [], ...over,
+    derivedFrom: null, addedAt: '', url: null, chosenBy: [], ...over,
   });
 
   it('states what is there rather than counting', () => {

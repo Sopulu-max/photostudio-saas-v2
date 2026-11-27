@@ -84,8 +84,8 @@ export async function assertVisitorCanUseGalleryFile(
   }
 }
 
-/** The galleries made from one job. */
-export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> {
+/** The galleries made from one booking. */
+export async function galleriesForJob(bookingId: string): Promise<GallerySummary[]> {
   const who = await whoIsAsking();
   if (!who) return [];
 
@@ -103,12 +103,12 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
       + 'hub_requests:gallery_hub_requests(id, title, purpose, due_on, status, members:gallery_hub_members(id, submitted_at)), '
       + 'albums:gallery_albums(id, name, status, spreads:gallery_album_spreads(id))')
     .eq('studio_id', who.studioId)
-    .eq('job_id', jobId)
+    .eq('booking_id', bookingId)
     .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Failed to read the galleries:', error);
-    throw new Error('Could not read the galleries on this job');
+    throw new Error('Could not read the galleries on this booking');
   }
 
   return ((data ?? []) as unknown as {
@@ -207,14 +207,14 @@ export async function galleriesForJob(jobId: string): Promise<GallerySummary[]> 
 }
 
 /** The studio's gallery dashboard, derived from the same append-only log. */
-export async function galleryActivityForJob(jobId: string): Promise<GalleryActivity[]> {
+export async function galleryActivityForJob(bookingId: string): Promise<GalleryActivity[]> {
   const who = await whoIsAsking();
   if (!who) return [];
   const [{ data: galleries, error: galleryError }, { data: events, error: eventError }, { data: orders }] = await Promise.all([
-    db.from('galleries').select('id').eq('studio_id', who.studioId).eq('job_id', jobId),
+    db.from('galleries').select('id').eq('studio_id', who.studioId).eq('booking_id', bookingId),
     db.from('events').select('id, subject_id, action, at, actor:people(name)')
       .eq('studio_id', who.studioId).eq('subject_type', 'gallery').order('at', { ascending: false }),
-    db.from('orders').select('gallery_id').eq('studio_id', who.studioId).eq('job_id', jobId),
+    db.from('orders').select('gallery_id').eq('studio_id', who.studioId).eq('booking_id', bookingId),
   ]);
   if (galleryError || eventError) throw new Error('Could not read gallery activity');
   const galleryIds = new Set((galleries ?? []).map((gallery) => gallery.id));
@@ -269,9 +269,9 @@ export async function galleryTemplates(): Promise<GalleryTemplate[]> {
   }));
 }
 
-/** Save the reusable gallery structure without copying this job's client facts. */
+/** Save the reusable gallery structure without copying this booking's client facts. */
 export async function saveGalleryAsTemplate(input: {
-  galleryId: string; jobId: string; name: string;
+  galleryId: string; bookingId: string; name: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -307,18 +307,18 @@ export async function saveGalleryAsTemplate(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'saved_as_template', actor_id: who.personId, payload: { template: template.id, name },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /**
- * Make a gallery from the files already chosen on this job.
+ * Make a gallery from the files already chosen on this booking.
  *
  * Seeded from the studio's own choices because that is what choosing is for —
  * but copied in, not derived, so unchoosing a frame later cannot reach into a
  * gallery somebody is already looking at.
  */
 export async function makeGallery(input: {
-  jobId: string;
+  bookingId: string;
   name: string;
   fromChosen?: boolean;
   templateId?: string | null;
@@ -342,7 +342,7 @@ export async function makeGallery(input: {
   const { data: gallery, error } = await db
     .from('galleries')
     .insert({
-      studio_id: who.studioId, job_id: input.jobId, name,
+      studio_id: who.studioId, booking_id: input.bookingId, name,
       ...designFrom(template),
     })
     .select('id')
@@ -365,7 +365,7 @@ export async function makeGallery(input: {
       .from('files')
       .select('id, created_at, choices:choices(id)')
       .eq('studio_id', who.studioId)
-      .eq('job_id', input.jobId)
+      .eq('booking_id', input.bookingId)
       .order('created_at', { ascending: true });
 
     const chosen = ((files ?? []) as unknown as { id: string; choices: { id: string }[] }[])
@@ -390,17 +390,17 @@ export async function makeGallery(input: {
     subject_id: gallery.id,
     action: 'made',
     actor_id: who.personId,
-    payload: { name, job: input.jobId },
+    payload: { name, booking: input.bookingId },
   });
 
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   return { id: gallery.id };
 }
 
-/** Put every file on the job into the gallery, skipping what is already in. */
+/** Put every file on the booking into the gallery, skipping what is already in. */
 export async function fillGallery(input: {
   galleryId: string;
-  jobId: string;
+  bookingId: string;
   sectionId: string;
 }): Promise<void> {
   const who = await whoIsAsking();
@@ -408,7 +408,7 @@ export async function fillGallery(input: {
 
   const [{ data: files }, { data: already }, { data: section }] = await Promise.all([
     db.from('files').select('id').eq('studio_id', who.studioId)
-      .eq('job_id', input.jobId).order('created_at', { ascending: true }),
+      .eq('booking_id', input.bookingId).order('created_at', { ascending: true }),
     db.from('gallery_files').select('file_id').eq('gallery_id', input.galleryId),
     db.from('gallery_sections').select('id')
       .eq('id', input.sectionId).eq('gallery_id', input.galleryId).eq('studio_id', who.studioId)
@@ -435,7 +435,7 @@ export async function fillGallery(input: {
     console.error('Failed to fill the gallery:', error);
     throw new Error('Could not add those');
   }
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /**
@@ -447,7 +447,7 @@ export async function fillGallery(input: {
  */
 export async function shareGallery(input: {
   galleryId: string;
-  jobId: string;
+  bookingId: string;
   shared: boolean;
 }): Promise<void> {
   const who = await whoIsAsking();
@@ -473,11 +473,11 @@ export async function shareGallery(input: {
     payload: {},
   });
 
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 export async function allowDownload(input: {
-  galleryId: string; jobId: string; may: boolean;
+  galleryId: string; bookingId: string; may: boolean;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -493,12 +493,12 @@ export async function allowDownload(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: input.may ? 'downloads_enabled' : 'downloads_disabled', actor_id: who.personId, payload: {},
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Add a named, independently visible portion of a gallery. */
 export async function addGallerySection(input: {
-  galleryId: string; jobId: string; name: string;
+  galleryId: string; bookingId: string; name: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -522,11 +522,11 @@ export async function addGallerySection(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'section_added', actor_id: who.personId, payload: { name },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 export async function setSectionVisibility(input: {
-  galleryId: string; jobId: string; sectionId: string; visible: boolean;
+  galleryId: string; bookingId: string; sectionId: string; visible: boolean;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -540,12 +540,12 @@ export async function setSectionVisibility(input: {
     action: input.visible ? 'section_shown' : 'section_hidden', actor_id: who.personId,
     payload: { section: input.sectionId },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Limit one gallery section to a named invitation role, or return it to everyone. */
 export async function setSectionAudience(input: {
-  galleryId: string; jobId: string; sectionId: string;
+  galleryId: string; bookingId: string; sectionId: string;
   audienceRole: 'main_client' | 'guest' | 'vendor' | null;
 }): Promise<void> {
   const who = await whoIsAsking();
@@ -565,12 +565,12 @@ export async function setSectionAudience(input: {
     action: 'section_audience_changed', actor_id: who.personId,
     payload: { section: input.sectionId, audienceRole: input.audienceRole },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Put a gallery member in a section without changing the gallery's promised set. */
 export async function moveGalleryFile(input: {
-  galleryId: string; jobId: string; fileId: string; sectionId: string;
+  galleryId: string; bookingId: string; fileId: string; sectionId: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -588,11 +588,11 @@ export async function moveGalleryFile(input: {
     action: 'file_moved', actor_id: who.personId,
     payload: { file: input.fileId, section: input.sectionId },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 export async function setGalleryCover(input: {
-  galleryId: string; jobId: string; fileId: string | null;
+  galleryId: string; bookingId: string; fileId: string | null;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -611,12 +611,12 @@ export async function setGalleryCover(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'cover_changed', actor_id: who.personId, payload: { file: input.fileId },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Set one named presentation choice for a gallery, never raw CSS supplied by a browser. */
 export async function setGalleryDesign(input: {
-  galleryId: string; jobId: string; design: GalleryDesign;
+  galleryId: string; bookingId: string; design: GalleryDesign;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -641,12 +641,12 @@ export async function setGalleryDesign(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'design_changed', actor_id: who.personId, payload: input.design,
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
 
 export async function setGalleryExpiry(input: {
-  galleryId: string; jobId: string; expiresOn: string | null;
+  galleryId: string; bookingId: string; expiresOn: string | null;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -661,11 +661,11 @@ export async function setGalleryExpiry(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'expiry_changed', actor_id: who.personId, payload: { expiresOn },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 export async function setGalleryAccess(input: {
-  galleryId: string; jobId: string; mode: 'link' | 'code' | 'invite'; code?: string;
+  galleryId: string; bookingId: string; mode: 'link' | 'code' | 'invite'; code?: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -693,12 +693,12 @@ export async function setGalleryAccess(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'access_changed', actor_id: who.personId, payload: { mode: input.mode },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Invite a named participant with a revocable, opaque link. */
 export async function inviteGalleryParticipant(input: {
-  galleryId: string; jobId: string; email: string; name?: string;
+  galleryId: string; bookingId: string; email: string; name?: string;
   role: 'main_client' | 'guest' | 'vendor';
 }): Promise<{ invite: string }> {
   const who = await whoIsAsking();
@@ -721,12 +721,12 @@ export async function inviteGalleryParticipant(input: {
     action: 'participant_invited', actor_id: who.personId,
     payload: { email: input.email.trim().toLowerCase(), role: input.role },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   return { invite };
 }
 
 export async function revokeGalleryParticipant(input: {
-  galleryId: string; jobId: string; participantId: string;
+  galleryId: string; bookingId: string; participantId: string;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -738,7 +738,7 @@ export async function revokeGalleryParticipant(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'participant_revoked', actor_id: who.personId, payload: { participant: input.participantId },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /**
@@ -891,7 +891,7 @@ export async function unlockGallery(input: { token: string; code: string }): Pro
  * own pictures, silently, and the studio had no way to know.
  *
  * Resolving it is not a coin toss. The gallery knows who it is for: the
- * client of the job it hangs off. That is the row the studio means, and the
+ * client of the booking it hangs off. That is the row the studio means, and the
  * one their keeps and orders should land on. Failing that, the oldest, so
  * the answer is at least the same every time.
  */
@@ -914,9 +914,9 @@ async function findOrCreateGalleryPerson(input: {
      * one query. Several rows is the uncommon case and can afford a second.
      */
     const { data: gallery } = await db.from('galleries')
-      .select('job:jobs(client_id)').eq('id', input.galleryId).maybeSingle();
-    const client = (gallery as unknown as { job: { client_id: string | null } | null } | null)
-      ?.job?.client_id ?? null;
+      .select('booking:bookings(client_id)').eq('id', input.galleryId).maybeSingle();
+    const client = (gallery as unknown as { booking: { client_id: string | null } | null } | null)
+      ?.booking?.client_id ?? null;
     console.warn(
       `${rows.length} people in studio ${input.studioId} share ${email}. `
       + 'Resolving to the one this gallery is for; they want merging.',
@@ -1010,7 +1010,7 @@ export async function commentOnGalleryFile(input: {
 
 /** The studio asks one identified client for a bounded, submit-able selection. */
 export async function requestGallerySelection(input: {
-  galleryId: string; jobId: string; email: string; name: string; maxItems: number; dueOn?: string | null;
+  galleryId: string; bookingId: string; email: string; name: string; maxItems: number; dueOn?: string | null;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -1039,7 +1039,7 @@ export async function requestGallerySelection(input: {
     action: 'selection_requested', actor_id: who.personId,
     payload: { email: input.email.trim().toLowerCase(), name, maxItems: input.maxItems, dueOn },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /** Collections owned by this visitor, including requests made for them by the studio. */
@@ -1266,12 +1266,12 @@ export async function picksOf(input: {
 /**
  * Every gallery in the studio, newest first, with a cover to look at.
  *
- * A studio thinks in galleries as much as in jobs - "where is the Okafor set" -
- * so they get an index of their own rather than only existing inside the job
+ * A studio thinks in galleries as much as in bookings - "where is the Okafor set" -
+ * so they get an index of their own rather than only existing inside the booking
  * that produced them.
  */
 export async function allGalleries(): Promise<{
-  id: string; name: string; token: string; jobId: string | null;
+  id: string; name: string; token: string; bookingId: string | null;
   clientName: string | null; sharedAt: string | null; expiresOn: string | null;
   howMany: number; coverUrl: string | null; orders: number;
 }[]> {
@@ -1280,8 +1280,8 @@ export async function allGalleries(): Promise<{
 
   const { data, error } = await db
     .from('galleries')
-    .select('id, name, token, job_id, shared_at, expires_on, cover_file_id, '
-      + 'job:jobs(client:people(name)), '
+    .select('id, name, token, booking_id, shared_at, expires_on, cover_file_id, '
+      + 'booking:bookings(client:people(name)), '
       + 'items:gallery_files(file:files(id, storage_path, mime_type)), '
       + 'orders:orders(id)')
     .eq('studio_id', who.studioId)
@@ -1293,9 +1293,9 @@ export async function allGalleries(): Promise<{
   }
 
   const rows = (data ?? []) as unknown as {
-    id: string; name: string; token: string; job_id: string | null;
+    id: string; name: string; token: string; booking_id: string | null;
     shared_at: string | null; expires_on: string | null; cover_file_id: string | null;
-    job: { client: { name: string } | null } | null;
+    booking: { client: { name: string } | null } | null;
     items: { file: { id: string; storage_path: string; mime_type: string | null } | null }[];
     orders: { id: string }[];
   }[];
@@ -1327,8 +1327,8 @@ export async function allGalleries(): Promise<{
     id: g.id,
     name: g.name,
     token: g.token,
-    jobId: g.job_id,
-    clientName: g.job?.client?.name ?? null,
+    bookingId: g.booking_id,
+    clientName: g.booking?.client?.name ?? null,
     sharedAt: g.shared_at,
     expiresOn: g.expires_on,
     howMany: (g.items ?? []).length,

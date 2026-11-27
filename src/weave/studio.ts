@@ -35,10 +35,34 @@ async function resolve(): Promise<Who> {
    * those, it throws. Asking for the list means the ambiguous case is
    * something this function decides, not something it crashes on.
    */
+  /*
+   * AND ONLY SOMEBODY WHO WORKS HERE.
+   *
+   * `auth_user_id` says which account a row belongs to. It does not say that
+   * the account may run a studio, and this function hands out `studioId` —
+   * which thirteen pages treat as the whole of their authorisation, gating on
+   * `if (!who) redirect('/login')` and nothing further.
+   *
+   * `people` holds a studio's CLIENTS beside its operators, on purpose. So the
+   * day a client is given an account — which is the plan — setting
+   * `auth_user_id` on their row would have made them an operator of the studio
+   * they are a customer of, with its whole book open to them. Nothing could
+   * reach that yet, because founding was the only thing that ever wrote
+   * `auth_user_id`; it was waiting for exactly the feature that is coming.
+   *
+   * Employment is the gate because employment is the fact: `joined_at` set and
+   * `left_at` null is what `worksHere` has always meant. Somebody let go stops
+   * being able to sign in, which is the other half of the same rule.
+   *
+   * A client's own identity needs a resolver of its own, one that deliberately
+   * confers NO studio. It does not belong in this function.
+   */
   const { data: memberships } = await weave
     .from('people')
     .select('id, studio_id, studio:studios(name)')
     .eq('auth_user_id', user.id)
+    .not('joined_at', 'is', null)
+    .is('left_at', null)
     .order('created_at', { ascending: true });
 
   const rows = (memberships ?? []) as unknown as

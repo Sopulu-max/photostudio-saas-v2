@@ -106,7 +106,7 @@ export type OrderLine = {
 export type Order = {
   id: string;
   galleryId: string | null;
-  jobId: string | null;
+  bookingId: string | null;
   who: string | null;
   shipTo: string | null;
   discountCode: string | null;

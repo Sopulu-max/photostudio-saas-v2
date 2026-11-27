@@ -32,6 +32,8 @@
   --accent: #1c1a17;
   --accent-ink: #faf8f4;
   --accent-lift: #000000;
+  /* The accent at ring strength, for the one card that has been chosen. */
+  --accent-ring: rgba(28, 26, 23, 0.22);
   --tint: #f6edda;
 
   --warn: #a8761f;
@@ -107,6 +109,7 @@
   --accent: #7fae9b;
   --accent-ink: #12211c;
   --accent-lift: #96c3b1;
+  --accent-ring: rgba(127, 174, 155, 0.32);
   --tint: #2f3b36;
 
   --warn: #e0ab4a;
@@ -136,6 +139,8 @@
   --accent: #1c1a17;
   --accent-ink: #faf8f4;
   --accent-lift: #000000;
+  /* The accent at ring strength, for the one card that has been chosen. */
+  --accent-ring: rgba(28, 26, 23, 0.22);
   --tint: #f6edda;
   --warn: #a8761f;
   --bad: #a4402f;
@@ -1091,16 +1096,11 @@ select.q-input { cursor: pointer; }
 
 /* ---- Starting a job: a line until it is wanted -------------------------- */
 
-.q-start-line {
-  display: block; width: 100%;
-  padding: 18px 2px; margin-bottom: 30px;
-  background: transparent; border: 0; border-bottom: 1px solid var(--line);
-  text-align: left; cursor: pointer;
-  font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.2em;
-  color: var(--ink-faint);
-  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
-}
-.q-start-line:hover { color: var(--ink); border-bottom-color: var(--ink); }
+/*
+ * The door to a new booking. A `.q-stack` is a flex column, so a button in
+ * one stretches the full width and stops reading as a button at all.
+ */
+.q-start-btn { align-self: flex-start; }
 
 .q-start {
   padding: 0 0 20px; margin-bottom: 30px;
@@ -1140,16 +1140,6 @@ select.q-input { cursor: pointer; }
  * code. One rule, so every screen opens the same way.
  */
 
-.q-reveal-line {
-  align-self: flex-start;
-  padding: 7px 0; background: transparent; border: 0;
-  border-bottom: 1px solid transparent;
-  text-align: left; cursor: pointer;
-  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.18em;
-  color: var(--ink-faint);
-  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
-}
-.q-reveal-line:hover { color: var(--ink); border-bottom-color: var(--ink); }
 .q-reveal-end { align-self: flex-end; }
 
 .q-reveal {
@@ -1678,11 +1668,19 @@ select.q-input { cursor: pointer; }
 
 /* ---- Who works here ------------------------------------------------------ */
 
+/*
+ * A door, not a row of controls. Changing somebody and letting them go happen
+ * on their own page, so the line itself opens — which means it carries the
+ * link reset and the hover every other opening row in this app carries.
+ */
 .q-mate {
-  display: flex; align-items: baseline; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   gap: 18px; flex-wrap: wrap;
   padding: 15px 0; border-bottom: 1px solid var(--line);
+  color: inherit; text-decoration: none;
+  transition: background var(--fast) var(--ease);
 }
+.q-mate:hover { background: var(--hover); }
 .q-mate-who { flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px; }
 .q-mate-name {
   font-family: var(--font-display); font-weight: 400; font-size: 1.15rem;
@@ -1693,13 +1691,6 @@ select.q-input { cursor: pointer; }
   font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em;
   color: var(--ink-faint); white-space: nowrap;
 }
-.q-mate-acts {
-  display: flex; align-items: center; gap: 10px;
-  opacity: 0; transition: opacity var(--fast) var(--ease);
-}
-.q-mate:hover .q-mate-acts,
-.q-mate:focus-within .q-mate-acts { opacity: 1; }
-@media (hover: none) { .q-mate-acts { opacity: 1; } }
 .q-mate-gone { opacity: 0.55; }
 
 /* ---- What a studio offers ------------------------------------------------ */
@@ -1750,3 +1741,608 @@ select.q-input { cursor: pointer; }
 }
 .q-theme-pick:hover { color: var(--ink-dim); }
 .q-theme-on { background: var(--card); color: var(--ink); }
+
+/* ======================================================================== *
+ * Deliverables, and the package designer.
+ *
+ * Appended as one block. An earlier edit spliced this region in with
+ * `s[:start] + block` and no tail, which truncated this file and took ~890
+ * lines of the app's styles with it — inputs, buttons, galleries, calendar,
+ * toasts. Restored from the last commit and re-applied here.
+ * ======================================================================== */
+/* ---- the package designer, in two halves -------------------------------- */
+
+/*
+ * CONTROLS LEFT, THE CLIENT'S PAGE RIGHT. These were collapsed into one
+ * canvas once, and it cost the screen its photographs: an editing surface and
+ * a finished page want different densities, and only one of them should be
+ * carrying pictures at size.
+ *
+ * The right half takes its own ground so it reads as the other side of the
+ * glass rather than more of the form.
+ */
+.q-split {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0; width: 100%; align-items: start;
+}
+@media (max-width: 1000px) { .q-split { grid-template-columns: 1fr; } }
+
+.q-split-side { padding: 0 36px 40px 0; border-right: 1px solid var(--line); }
+.q-split-view { padding: 0 0 40px 36px; }
+@media (max-width: 1000px) {
+  .q-split-side { padding: 0 0 28px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .q-split-view { padding: 28px 0 40px; }
+}
+
+.q-divider { border: 0; border-top: 1px solid var(--line); margin: 26px 0 22px; }
+
+/* ---- the controls ---- */
+
+.q-doc { width: 100%; }
+.q-hint { margin: 8px 0 18px; font-size: 0.75rem; color: var(--ink-faint); }
+.q-label-2 { margin-top: 18px; }
+
+/* The palette: the studio's own catalogue, carried into the package. */
+.q-pal { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.q-pal-one {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px 7px 8px; border-radius: var(--pill);
+  border: 1px solid var(--line); background: var(--card);
+  cursor: grab; color: var(--ink); font-size: 0.8125rem;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              border-color var(--fast) var(--ease);
+}
+.q-pal-one:hover {
+  transform: translateY(-1px); border-color: var(--line-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 18px rgba(0, 0, 0, 0.07);
+}
+.q-pal-one:active { cursor: grabbing; transform: none; box-shadow: none; }
+/* The ones that are not objects get no well, so the catalogue stands out. */
+.q-pal-plain { padding: 7px 14px; border-style: dashed; color: var(--ink-dim); }
+.q-pal-mark { display: grid; place-items: center; width: 22px; flex: none; }
+.q-pal-mark .q-del-obj { height: 20px; max-width: 22px; }
+.q-pal-mark .q-del-file { width: 15px; height: 19px; }
+
+.q-els { list-style: none; margin: 14px 0 0; padding: 0; }
+.q-els-none {
+  margin-top: 14px; padding: 26px 20px; text-align: center;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius);
+  font-size: 0.8125rem; color: var(--ink-faint);
+}
+.q-els-tail { min-height: 26px; }
+.q-landing { border-color: var(--ink); background: var(--hover); }
+
+/* The gap that opens to take what is being carried. */
+.q-line {
+  display: block; height: 0; margin: 3px 0; border-radius: var(--radius);
+  border: 1px dashed transparent; background: transparent;
+  transition: height var(--q-dur-2) var(--ease), border-color var(--q-dur-2) var(--ease),
+              background var(--q-dur-2) var(--ease), margin var(--q-dur-2) var(--ease);
+}
+.q-line-on { height: 42px; margin: 8px 0; border-color: var(--ink); background: var(--hover); }
+
+.q-el {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: hidden;
+  transition: border-color var(--fast) var(--ease), opacity var(--fast) var(--ease);
+}
+.q-el:hover { border-color: var(--line-strong); }
+.q-el-open { border-color: var(--ink); }
+.q-el-held { opacity: 0.35; }
+
+.q-el-face {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 11px 13px; border: 0; background: transparent;
+  cursor: grab; text-align: left;
+}
+.q-el:active .q-el-face { cursor: grabbing; }
+.q-el-grip { color: var(--ink-faint); font-size: 0.75rem; }
+.q-el-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.q-el-kind {
+  font-family: var(--mono); font-size: 0.5625rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+/* The studio's own words, wrapped rather than clipped. */
+.q-el-says { font-size: 0.875rem; color: var(--ink); overflow-wrap: anywhere; }
+
+/* Promised is the thing being sold, so it is the one that is inked. */
+.q-mode {
+  flex: none; border: 1px solid var(--line); border-radius: var(--pill);
+  padding: 3px 10px; font-size: 0.6875rem; color: var(--ink-dim);
+}
+.q-mode-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.q-el-tune {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px;
+  padding: 14px; border-top: 1px solid var(--line); background: var(--paper-2);
+}
+.q-tune-bit { display: flex; flex-direction: column; gap: 5px; }
+.q-tune-wide { flex: 1 1 220px; }
+.q-tune-acts { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.q-input-xs { width: 84px; }
+
+/* ---- the client's page ---- */
+
+/*
+ * The offer, as a client meets it. The card carries the photograph to its own
+ * edges, because a picture inset inside a padded box reads as an illustration
+ * of the work rather than the work.
+ */
+.q-o {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.q-o-lead { display: block; aspect-ratio: 3 / 2; background: var(--paper-2); }
+.q-o-lead img, .q-o-lead video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.q-o-body { padding: 26px 28px 30px; }
+
+.q-o-name {
+  margin: 0 0 7px; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.6rem; line-height: 1.2; color: var(--ink);
+}
+.q-o-desc { margin: 0 0 12px; font-size: 0.9375rem; line-height: 1.6; color: var(--ink-dim); }
+.q-o-price { margin: 0 0 20px; font-family: var(--mono); font-size: 0.875rem; color: var(--ink-dim); }
+.q-o-txt { margin: 0 0 18px; font-size: 0.9375rem; line-height: 1.65; color: var(--ink-dim); }
+.q-o-note { margin: 0; font-size: 0.8125rem; color: var(--ink-faint); }
+
+/*
+ * What the client receives. Each line states itself — a number and the
+ * studio's own word — so nothing above it has to explain what the list is.
+ */
+.q-o-gets {
+  list-style: none; margin: 22px 0 0; padding: 18px 0 0;
+  border-top: 1px solid var(--line);
+}
+.q-o-get {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.q-o-get:last-child { border-bottom: 0; }
+.q-o-get-mark { display: grid; place-items: center; width: 38px; flex: none; }
+.q-o-get-mark .q-del-obj { height: 34px; max-width: 38px; }
+.q-o-get-mark .q-del-file { width: 26px; height: 32px; }
+.q-o-get-words { display: flex; align-items: baseline; gap: 9px; flex: 1; min-width: 0; }
+.q-o-get-n { font-family: var(--font-display); font-size: 1.25rem; color: var(--ink); line-height: 1; }
+/* The studio's own word, wrapped rather than clipped. */
+.q-o-get-name { font-size: 0.9375rem; color: var(--ink); overflow-wrap: anywhere; }
+.q-o-get-when {
+  flex: none; font-family: var(--mono); font-size: 0.625rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint);
+}
+
+/*
+ * The pictures themselves: empty before the shoot, filled on delivery day.
+ * The same shape twice, which is the whole idea of the package.
+ */
+.q-o-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+  gap: 6px; margin-top: 18px;
+}
+.q-o-cell {
+  aspect-ratio: 1; border-radius: 4px;
+  background: var(--paper-2); border: 1px solid var(--line);
+}
+.q-o-cell-more {
+  display: grid; place-items: center; background: transparent; border-style: dashed;
+  font-family: var(--mono); font-size: 0.6875rem; color: var(--ink-faint);
+}
+
+.q-o-more-shots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.q-o-shot { display: block; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: var(--paper-2); }
+.q-o-shot img, .q-o-shot video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+
+/* ---- what a studio delivers --------------------------------------------- */
+
+/* Writing one down: a name, the one decision, and go. */
+.q-newthing {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 14px; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+}
+.q-newthing-name { flex: 1 1 280px; }
+
+/*
+ * The one decision, as two faces of a single control rather than a dropdown.
+ * It is the only thing on this page the engine acts on, so it is the only
+ * thing given weight.
+ */
+.q-pick { display: inline-flex; padding: 2px; background: var(--paper-2); border-radius: var(--pill); }
+.q-pick-one {
+  border: 0; background: transparent; color: var(--ink-dim); cursor: pointer;
+  padding: 7px 14px; border-radius: var(--pill); font-size: 0.8125rem;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.q-pick-on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+
+/*
+ * THE SHELF. Each thing is drawn rather than described, so the page is read
+ * the way a studio reads its own stock — at a glance, by shape.
+ */
+.q-shelf {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: 14px;
+}
+
+.q-del {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  width: 100%; padding: 20px 14px 16px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); cursor: pointer; text-align: center;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              border-color var(--fast) var(--ease);
+}
+.q-del:hover {
+  transform: translateY(-2px); border-color: var(--line-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 14px 32px rgba(0, 0, 0, 0.09);
+}
+.q-del:active { transform: translateY(0); box-shadow: none; }
+.q-del-open { border-color: var(--ink); }
+
+/* A fixed stage, so tiles line up however tall or wide the thing inside is. */
+.q-del-stage {
+  display: grid; place-items: center; height: 86px; margin-bottom: 11px;
+}
+
+.q-del-name {
+  font-size: 0.875rem; color: var(--ink); line-height: 1.35;
+  /* The studio's own word, never clipped to fit a box. */
+  overflow-wrap: anywhere;
+}
+.q-del-sub {
+  font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+
+/*
+ * The things themselves. Distinguished by MATERIAL, not by colour: the
+ * photographs bring the colour and the chrome stays out of their way.
+ */
+.q-del-obj {
+  display: block; height: 76px; max-width: 108px;
+  aspect-ratio: var(--q-del-ratio, 1);
+  background: var(--paper-2);
+}
+/* A bare print: a hairline and nothing else. */
+.q-del-as-print { border: 1px solid var(--line-strong); }
+/*
+ * A frame is a dark object in a room and does not become white because the
+ * operator prefers dark mode, so it is drawn in the fixed --frame.
+ */
+.q-del-as-framed {
+  border: 6px solid var(--frame);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+/* A canvas stands off the wall, which is the whole of what makes it a canvas. */
+.q-del-as-canvas {
+  border: 1px solid var(--line-strong);
+  box-shadow: 4px 4px 0 0 var(--line-strong), 7px 7px 14px rgba(0, 0, 0, 0.16);
+}
+
+/* A file has no size, so it is a page, with the corner turned. */
+.q-del-file {
+  display: block; position: relative; width: 58px; height: 74px;
+  background: var(--paper-2); border: 1px solid var(--line-strong);
+  border-radius: 2px;
+}
+.q-del-file::after {
+  content: ''; position: absolute; top: -1px; right: -1px;
+  border-width: 0 0 15px 15px; border-style: solid;
+  border-color: transparent transparent var(--line-strong) transparent;
+}
+
+.q-thing-tune {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px;
+  padding: 18px; background: var(--card);
+  border: 1px solid var(--ink); border-radius: var(--radius-lg);
+}
+
+/* Asked once, in place, before something the rest of the studio points at
+ * is taken away. */
+.q-sure { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.q-sure-ask { font-size: 0.8125rem; color: var(--ink); }
+.q-btn-danger {
+  background: var(--bad); color: var(--paper); border: 1px solid var(--bad);
+}
+.q-btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+
+/*
+ * A question, drawn as the field a client will meet rather than as a sentence
+ * describing one. The box is dead here: this is the studio looking at its own
+ * form, and a working input would invite somebody to answer their own question.
+ */
+.q-b-ask { display: flex; flex-direction: column; gap: 7px; max-width: 420px; }
+.q-b-ask-q { font-size: 0.9375rem; color: var(--ink); }
+.q-b-ask-in {
+  display: flex; align-items: center; height: 38px; padding: 0 12px;
+  background: var(--paper-2); border: 1px solid var(--line-strong);
+  border-radius: var(--radius); color: var(--ink-faint); font-size: 0.875rem;
+}
+.q-b-ask-number { max-width: 110px; }
+.q-b-ask-date { max-width: 180px; font-family: var(--mono); font-size: 0.75rem; }
+
+/* The palette's second heading, set off from the catalogue above it. */
+.q-rail-title-2 { margin-top: 22px; }
+.q-tool-mark { display: grid; place-items: center; width: 34px; flex: none; }
+.q-tool-mark .q-del-obj { height: 30px; max-width: 34px; }
+.q-tool-mark .q-del-file { width: 24px; height: 30px; }
+.q-glyph-ask {
+  width: 20px; height: 14px; border: 1px solid currentColor;
+  border-radius: 2px; opacity: 0.7; color: var(--ink-dim);
+}
+
+/* The designer is two halves and wants the room; the standard page column
+ * would squeeze the client's page into something narrower than it will be. */
+.q-page-wide { max-width: 1480px; }
+
+/* The file input itself is never the control; the Picture tool is. */
+.q-sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* The package's own particulars: a name, a description, a price. Narrow on
+ * purpose — a price is six characters and does not want a field the width of
+ * the pane. */
+.q-particulars {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px; align-items: end;
+}
+.q-particular-wide { grid-column: 1 / -1; }
+.q-particular-foot {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap; margin-top: 2px;
+}
+.q-pal-name { white-space: nowrap; }
+
+/*
+ * A row shows the THING. Every row used to carry its kind in mono capitals
+ * above a line that already said the same, and a "Shown"/"Promised" chip that
+ * named an internal distinction and could not be acted on — so the list read
+ * as seven labels and no contents, and a row about a photograph said
+ * "PICTURE / Picture" instead of showing the photograph.
+ */
+.q-el-mark { display: grid; place-items: center; width: 34px; flex: none; }
+.q-el-mark .q-del-obj { height: 30px; max-width: 34px; }
+.q-el-mark .q-del-file { width: 22px; height: 28px; }
+.q-el-thumb {
+  width: 34px; height: 30px; object-fit: cover;
+  border-radius: 3px; display: block; background: var(--paper-2);
+}
+.q-el-gone {
+  width: 34px; height: 30px; border-radius: 3px;
+  border: 1px dashed var(--line-strong);
+}
+/* A question is a field waiting to be filled. */
+.q-el-field {
+  width: 26px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--line-strong); background: var(--paper-2);
+}
+/* A condition of the day is spent, not delivered: a mark, not an object. */
+.q-el-dot {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
+/* Prose, drawn as lines of it. */
+.q-el-lines {
+  width: 24px; height: 12px;
+  background: repeating-linear-gradient(
+    to bottom, var(--line-strong) 0 1px, transparent 1px 5px
+  );
+}
+.q-el-prose { color: var(--ink-dim); }
+
+/*
+ * The package edits itself: whatever is clicked shows its own controls. The
+ * editing used to live in a list beside this, which meant reading the package
+ * twice — once as a page and once as labels.
+ */
+.q-o-lead, .q-o-txt, .q-o-get, .q-o-shot, .q-o-ask { position: relative; cursor: pointer; }
+.q-o-txt, .q-o-get, .q-o-ask {
+  border-radius: var(--radius);
+  transition: background var(--fast) var(--ease);
+}
+.q-o-txt:hover, .q-o-get:hover, .q-o-ask:hover { background: var(--hover); }
+.q-o-lead:hover, .q-o-shot:hover { opacity: 0.94; }
+.q-on { background: var(--hover); box-shadow: inset 0 0 0 1px var(--ink); }
+.q-o-lead.q-on, .q-o-shot.q-on { box-shadow: inset 0 0 0 2px var(--ink); }
+
+.q-ed {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 7px; z-index: 2;
+  padding: 5px 6px; border-radius: var(--radius);
+  background: var(--card); border: 1px solid var(--ink);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+.q-o-lead .q-ed, .q-o-shot .q-ed { top: 10px; transform: none; }
+.q-ed-n {
+  width: 62px; padding: 4px 6px; font: inherit; font-size: 0.8125rem;
+  color: var(--ink); background: var(--paper-2);
+  border: 1px solid var(--line); border-radius: 5px;
+}
+.q-ed-x {
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--bad); font-size: 0.8125rem; padding: 4px 6px;
+}
+.q-ed-x:hover:not(:disabled) { text-decoration: underline; }
+
+/* What this package asks, when a client requests it. */
+.q-o-asks { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.q-o-ask {
+  margin: 0 0 4px; padding: 9px 10px;
+  font-size: 0.875rem; color: var(--ink-dim);
+}
+
+/* ---- the packages shelf -------------------------------------------------- */
+
+/*
+ * A grid, not a stack. One package per row at full width meant three
+ * packages made a page nobody could take in at a glance — and a studio
+ * recognises its own offers by their photographs, not by their names.
+ */
+.q-packs {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 20px;
+}
+
+.q-pcard {
+  display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); overflow: hidden;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              border-color var(--fast) var(--ease);
+}
+.q-pcard:hover {
+  transform: translateY(-2px); border-color: var(--line-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 34px rgba(0, 0, 0, 0.09);
+}
+
+.q-pcard-face { display: block; text-decoration: none; color: inherit; }
+.q-pcard-cover {
+  display: block; aspect-ratio: 3 / 2; background: var(--paper-2);
+  position: relative; overflow: hidden;
+}
+.q-pcard-cover img, .q-pcard-cover video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+/* States the absence rather than leaving a grey hole. */
+.q-pcard-bare {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+
+.q-pcard-words { display: block; padding: 15px 16px 13px; }
+.q-pcard-name {
+  display: block; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.125rem; line-height: 1.25; color: var(--ink);
+  /* The studio's own name for it, wrapped rather than clipped. */
+  overflow-wrap: anywhere;
+}
+.q-pcard-gets {
+  display: block; margin-top: 5px;
+  font-size: 0.8125rem; line-height: 1.5; color: var(--ink-dim);
+}
+
+/*
+ * Two deliberate rows rather than one that wraps. As a wrapping flex row the
+ * actions kept their `margin-left: auto` after dropping to the second line,
+ * so the price sat left and the buttons hung right with nothing between them.
+ */
+/* One row: the price, and what can be done. The status moved to the cover,
+ * which is what let this stop wrapping. */
+.q-pcard-foot {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: auto; padding: 9px 16px 10px;
+  border-top: 1px solid var(--line);
+}
+.q-pcard-acts {
+  display: flex; align-items: center; gap: 2px;
+  margin-left: auto; margin-right: -13px;
+}
+
+/* Legible over any photograph, so it is a chip rather than bare text. */
+.q-pcard-flag {
+  position: absolute; left: 10px; top: 10px;
+  padding: 4px 9px; border-radius: var(--pill);
+  background: var(--card); color: var(--ink);
+  font-family: var(--mono); font-size: 0.5625rem;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.q-pcard-flag-off { color: var(--ink-faint); }
+
+/*
+ * The package this booking is for.
+ *
+ * `.q-offer` is a door on the client's page and a choice on the studio's, so
+ * the chosen one has to say so without a tick or a legend. The accent carries
+ * emphasis in dark where light stays monochrome, so it is a ring in the accent
+ * and a lift that stays lifted — the card is already up because it has been
+ * pressed, which is the same language as the hover rather than a second one.
+ *
+ * `button` resets, because `.q-offer` was written for an anchor: a button
+ * brings its own font, alignment and background that would otherwise override
+ * the card entirely.
+ */
+button.q-offer {
+  font: inherit; text-align: left; cursor: pointer; padding: 0;
+  width: 100%; appearance: none;
+}
+button.q-offer:disabled { cursor: default; opacity: 0.55; }
+
+.q-offer-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring),
+              0 10px 26px rgba(28, 26, 23, 0.1);
+  transform: translateY(-3px);
+}
+.q-offer-on .q-offer-frame { transform: scale(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-offer-on { transform: none; }
+  .q-offer-on .q-offer-frame { transform: none; }
+}
+
+/* ---- Who is on a booking ------------------------------------------------ */
+/*
+ * One line per person: who, what they do, and a way to take them off. The
+ * same geometry as every other row on a sheet in this app — the left column
+ * wraps, the control on the right does not.
+ */
+.q-onit {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 18px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+
+/* ---- A face for a name --------------------------------------------------- */
+/*
+ * A studio recognises its own people before it reads anything, so the picture
+ * comes first on a line and sets the height of it. Round, because a square
+ * photograph of a person in a list of square thumbnails of WORK would read as
+ * another piece of work.
+ */
+.q-face {
+  flex: 0 0 auto; display: grid; place-items: center; overflow: hidden;
+  width: 38px; height: 38px; border-radius: 999px;
+  background: var(--paper-2); border: 1px solid var(--line);
+}
+.q-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.q-face-lg { width: 72px; height: 72px; }
+
+/*
+ * Their initial, not a silhouette. A grey head says nothing about anybody,
+ * and an initial is at least the studio's own spelling of their name.
+ */
+.q-face-bare {
+  font-family: var(--font-display); font-size: 1.1rem;
+  color: var(--ink-faint); text-transform: uppercase;
+}
+.q-face-lg .q-face-bare { font-size: 1.9rem; }
+
+/*
+ * A page title that is also a door.
+ *
+ * `q-plain-link` would not do: its hover sets the colour to `--ink`, which is
+ * what a title already is, so the one thing on the page that could be pressed
+ * gave no sign of it at all. A rule appears under it instead — the same
+ * hairline this interface uses everywhere else to say "there is more here".
+ */
+.q-title-link {
+  color: inherit; text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--fast) var(--ease);
+}
+.q-title-link:hover { border-bottom-color: var(--ink-faint); }
+.q-title-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/*
+ * A line on the calendar that is not the studio working.
+ *
+ * A gallery closing, a code expiring, a follow-up owed — things the work owes
+ * rather than the work itself. Quieter, so a month reads as its shoots first
+ * and everything else second, which is the order a studio thinks in.
+ */
+.q-cal-owed { color: var(--ink-faint); }
+.q-cal-owed .q-cal-who { color: inherit; }

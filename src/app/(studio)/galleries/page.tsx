@@ -24,7 +24,7 @@ export default async function GalleriesPage() {
 
   const open = galleries.filter((g) => g.sharedAt).length;
   const said = galleries.length === 0
-    ? 'No galleries yet. They are made from a job.'
+    ? 'No galleries yet. They are made from a booking.'
     : `${galleries.length} ${galleries.length === 1 ? 'gallery' : 'galleries'}, ${open} open to clients.`;
 
   return (
@@ -38,14 +38,14 @@ export default async function GalleriesPage() {
 
         {galleries.length === 0 ? (
           <p className="q-empty-lg">
-            Open a job and make one there — a gallery is built from a job&rsquo;s pictures.
+            Open a booking and make one there — a gallery is built from a booking&rsquo;s pictures.
           </p>
         ) : (
           <div className="q-gal-grid">
             {galleries.map((g) => (
               <Link
                 key={g.id}
-                href={g.jobId ? `/jobs/${g.jobId}` : `/g/${g.token}`}
+                href={g.bookingId ? `/bookings/${g.bookingId}` : `/g/${g.token}`}
                 className="q-card q-plain-link q-stack q-stack-xs"
               >
                 {g.coverUrl ? (

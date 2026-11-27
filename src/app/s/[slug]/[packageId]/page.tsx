@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { studioAtSlug } from '@/weave/jobs/requests';
+import { studioAtSlug } from '@/weave/bookings/requests';
 import { packagesOffered } from '@/weave/packages/actions';
 import { mediaOnOffer } from '@/weave/packages/media';
-import { sayPackage } from '@/weave/packages/shape';
+import { promisesOf, sayPromises } from '@/weave/packages/elements';
+import { catalogueOf, elementsOf } from '@/weave/packages/promised';
 import { money } from '@/weave/store/shape';
 import { BookingForm } from '../BookingForm';
 import { Promised } from '@/components/Promised';
@@ -33,8 +34,12 @@ async function read(slug: string, packageId: string) {
   const pack = offered.find((p) => p.id === packageId);
   if (!pack) return null;
 
-  const media = await mediaOnOffer(studio.studioId, [pack.id]);
-  return { studio, pack, media };
+  const [media, elements, catalogue] = await Promise.all([
+    mediaOnOffer(studio.studioId, [pack.id]),
+    elementsOf(studio.studioId, [pack.id]),
+    catalogueOf(studio.studioId),
+  ]);
+  return { studio, pack, media, elements, catalogue };
 }
 
 export async function generateMetadata({ params }: {
@@ -55,7 +60,9 @@ export default async function PackagePage({ params }: {
   const { slug, packageId } = await params;
   const found = await read(slug, packageId);
   if (!found) notFound();
-  const { studio, pack, media } = found;
+  const { studio, pack, media, elements, catalogue } = found;
+  /* What the package promises, counted off its layout. */
+  const promise = promisesOf(elements, catalogue);
 
   const [cover, ...rest] = media;
 
@@ -85,7 +92,13 @@ export default async function PackagePage({ params }: {
           * of specifications.
           */}
         <p className="q-offer-terms">
-          {sayPackage(pack)}
+          {/*
+            * Counted off the package layout, not off the old typed column.
+            * The studio lays out picture slots and prints; this sentence is
+            * those elements read back, so the offer and the layout cannot
+            * state different things.
+            */}
+          {sayPromises(promise)}
           {pack.price !== null && <> · {money(pack.price, pack.currency)}</>}
         </p>
 
@@ -95,11 +108,9 @@ export default async function PackagePage({ params }: {
           * What arrives, as containers rather than as a sentence. Drawn
           * directly from the studio's sketch: the cover, and under it one
           * square per promised picture. Nothing is filled here because
-          * nothing has been made yet — this is the offer, not the job.
+          * nothing has been made yet — this is the offer, not the booking.
           */}
-        {pack.picturesPromised !== null && (
-          <Promised promised={pack.picturesPromised} />
-        )}
+        {promise.pictures > 0 && <Promised promised={promise.pictures} />}
 
         {/* Everything else the studio chose to show, after the argument. */}
         {rest.length > 0 && (

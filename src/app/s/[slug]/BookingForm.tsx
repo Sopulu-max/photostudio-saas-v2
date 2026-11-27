@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { requestBooking } from '@/weave/jobs/requests';
+import { requestBooking } from '@/weave/bookings/requests';
 import type { Package } from '@/weave/packages/shape';
 import type { PackageMedia } from '@/weave/packages/media';
 
@@ -64,7 +64,7 @@ export function BookingForm({ slug, studioName, packages, media, fixedPackageId 
               name: String(form.get('name') ?? ''),
               email: String(form.get('email') ?? ''),
               wants: String(form.get('wants') ?? ''),
-              expectedOn: String(form.get('expectedOn') ?? '') || null,
+              askedFor: String(form.get('askedFor') ?? '') || null,
               packageId: String(form.get('packageId') ?? '') || null,
             });
             setSentTo(`${window.location.origin}/r/${token}`);
@@ -105,7 +105,7 @@ export function BookingForm({ slug, studioName, packages, media, fixedPackageId 
 
       <label className="q-auth-field">
         <span className="q-label">Preferred date</span>
-        <input className="q-input" name="expectedOn" type="date" />
+        <input className="q-input" name="askedFor" type="date" />
         <span className="q-auth-hint">Optional.</span>
       </label>
 

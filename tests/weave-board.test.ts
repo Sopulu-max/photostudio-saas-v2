@@ -6,7 +6,7 @@ import WebSocket from 'ws';
  * The board, tested against the real database.
  *
  * This writes into a studio of its own and deletes it afterwards, so it never
- * touches a working studio's jobs. The previous system learned that one the
+ * touches a working studio's bookings. The previous system learned that one the
  * hard way: tests that seeded into a shared studio left debris that made
  * unrelated suites fail days later.
  */
@@ -43,41 +43,41 @@ afterAll(async () => {
 });
 
 describe('the floor holds', () => {
-  it('a job needs nothing but a studio', async () => {
+  it('a booking needs nothing but a studio', async () => {
     const { data, error } = await db
-      .from('jobs')
+      .from('bookings')
       .insert({ studio_id: studioId })
-      .select('id, turn, wants, expected_on')
+      .select('id, turn, wants, asked_for')
       .single();
 
-    expect(error, 'a bare job was refused').toBeNull();
-    expect(data!.turn, 'an undated job starts as yours to move').toBe('us');
+    expect(error, 'a bare booking was refused').toBeNull();
+    expect(data!.turn, 'an undated booking starts as yours to move').toBe('us');
     expect(data!.wants).toBeNull();
-    expect(data!.expected_on).toBeNull();
+    expect(data!.asked_for).toBeNull();
   });
 
   it('refuses a turn the board has no column for', async () => {
     const { error } = await db
-      .from('jobs')
+      .from('bookings')
       .insert({ studio_id: studioId, turn: 'someday' });
 
     expect(error, 'the database accepted a turn that is not a column').not.toBeNull();
   });
 
   it('records a move without being asked to', async () => {
-    const { data: job } = await db
-      .from('jobs')
+    const { data: booking } = await db
+      .from('bookings')
       .insert({ studio_id: studioId, turn: 'us' })
       .select('id')
       .single();
 
-    await db.from('jobs').update({ turn: 'them' }).eq('id', job!.id);
+    await db.from('bookings').update({ turn: 'them' }).eq('id', booking!.id);
 
     const { data: events } = await db
       .from('events')
       .select('action, payload')
-      .eq('subject_type', 'job')
-      .eq('subject_id', job!.id);
+      .eq('subject_type', 'booking')
+      .eq('subject_id', booking!.id);
 
     const moves = (events ?? []).filter((e) => e.action === 'turn_changed');
     expect(moves.length, 'the move went unrecorded').toBe(1);
@@ -91,10 +91,10 @@ describe('the floor holds', () => {
       .select('id')
       .single();
 
-    await db.from('jobs').insert({ studio_id: other!.id });
+    await db.from('bookings').insert({ studio_id: other!.id });
 
     const { data: mine } = await db
-      .from('jobs')
+      .from('bookings')
       .select('studio_id')
       .eq('studio_id', studioId);
 

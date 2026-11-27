@@ -176,7 +176,7 @@ export async function whatIsDue(origin: string): Promise<DueSend[]> {
   const [galleries, sent] = await Promise.all([
     db.from('galleries')
       .select('id, name, token, shared_at, expires_on, '
-        + 'job:jobs(client:people(id, name, email)), '
+        + 'booking:bookings(client:people(id, name, email)), '
         + 'items:gallery_files(file:files(id, choices(person_id, person:people(id, name, email))))')
       .eq('studio_id', who.studioId)
       .not('shared_at', 'is', null),
@@ -193,7 +193,7 @@ export async function whatIsDue(origin: string): Promise<DueSend[]> {
   const rows = (galleries.data ?? []) as unknown as {
     id: string; name: string; token: string;
     shared_at: string; expires_on: string | null;
-    job: { client: Person | null } | null;
+    booking: { client: Person | null } | null;
     items: { file: { id: string; choices: { person_id: string; person: Person | null }[] } | null }[];
   }[];
 
@@ -201,14 +201,14 @@ export async function whatIsDue(origin: string): Promise<DueSend[]> {
   const due: DueSend[] = [];
 
   for (const g of rows) {
-    // Who kept something in this gallery, and the client the job is for.
+    // Who kept something in this gallery, and the client the booking is for.
     const keepers = new Map<string, Person>();
     for (const item of g.items ?? []) {
       for (const c of item.file?.choices ?? []) {
         if (c.person && c.person.email) keepers.set(c.person.id, c.person);
       }
     }
-    const client = g.job?.client ?? null;
+    const client = g.booking?.client ?? null;
 
     // Did anybody buy from this gallery? One query per gallery would be a
     // round trip each; this is read once below instead.

@@ -164,7 +164,7 @@ export async function removeProductVariant(input: { variantId: string }): Promis
 
 /** Point a gallery at a price list, or take the shop out of it. */
 export async function sellFrom(input: {
-  galleryId: string; jobId: string; priceListId: string | null;
+  galleryId: string; bookingId: string; priceListId: string | null;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -176,7 +176,7 @@ export async function sellFrom(input: {
     .eq('studio_id', who.studioId);
 
   if (error) throw new Error('Could not change that');
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
 /* ------------------------------------------------------------- the client's */
@@ -247,7 +247,7 @@ export async function placeOrder(input: {
 
   const { data: gallery } = await db
     .from('galleries')
-    .select('id, studio_id, job_id, price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
+    .select('id, studio_id, booking_id, price_list_id, token, shared_at, expires_on, access_mode, access_code_hash')
     .eq('token', input.token)
     .maybeSingle();
 
@@ -330,7 +330,7 @@ export async function placeOrder(input: {
     .insert({
       studio_id: gallery.studio_id,
       gallery_id: gallery.id,
-      job_id: gallery.job_id,
+      booking_id: gallery.booking_id,
       person_id: personId,
       ship_to: input.shipTo?.trim() || null,
       note: input.note?.trim() || null,
@@ -391,16 +391,16 @@ export async function placeOrder(input: {
   });
 
   revalidatePath(`/g/${input.token}`);
-  if (gallery.job_id) revalidatePath(`/jobs/${gallery.job_id}`);
+  if (gallery.booking_id) revalidatePath(`/bookings/${gallery.booking_id}`);
   return { id: order.id };
 }
 
 /* ---------------------------------------------------------- back at the desk */
 
-export async function ordersForJob(jobId: string): Promise<Order[]> {
+export async function ordersForJob(bookingId: string): Promise<Order[]> {
   const who = await whoIsAsking();
   if (!who) return [];
-  return readOrders({ studioId: who.studioId, jobId });
+  return readOrders({ studioId: who.studioId, bookingId });
 }
 
 export async function allOrders(): Promise<Order[]> {
@@ -409,17 +409,17 @@ export async function allOrders(): Promise<Order[]> {
   return readOrders({ studioId: who.studioId });
 }
 
-async function readOrders(q: { studioId: string; jobId?: string }): Promise<Order[]> {
+async function readOrders(q: { studioId: string; bookingId?: string }): Promise<Order[]> {
   let query = db
     .from('orders')
-    .select('id, gallery_id, job_id, ship_to, note, currency, discount_code, discount_off, '
+    .select('id, gallery_id, booking_id, ship_to, note, currency, discount_code, discount_off, '
       + 'placed_at, paid_at, fulfilled_at, '
       + 'person:people(name, email), '
       + 'items:order_items(id, name, variant_name, kind, unit_price, quantity, file_id, file:files(name))')
     .eq('studio_id', q.studioId)
     .order('placed_at', { ascending: false });
 
-  if (q.jobId) query = query.eq('job_id', q.jobId);
+  if (q.bookingId) query = query.eq('booking_id', q.bookingId);
 
   const { data, error } = await query;
   if (error) {
@@ -428,7 +428,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
   }
 
   return ((data ?? []) as unknown as {
-    id: string; gallery_id: string | null; job_id: string | null;
+    id: string; gallery_id: string | null; booking_id: string | null;
     ship_to: string | null; note: string | null; currency: string;
     discount_code: string | null; discount_off: number;
     placed_at: string; paid_at: string | null; fulfilled_at: string | null;
@@ -440,7 +440,7 @@ async function readOrders(q: { studioId: string; jobId?: string }): Promise<Orde
   }[]).map((o) => ({
     id: o.id,
     galleryId: o.gallery_id,
-    jobId: o.job_id,
+    bookingId: o.booking_id,
     who: o.person?.name ?? o.person?.email ?? null,
     shipTo: o.ship_to,
     note: o.note,
@@ -491,7 +491,7 @@ export async function markOrder(input: {
     .update(patch)
     .eq('id', input.orderId)
     .eq('studio_id', who.studioId)
-    .select('job_id')
+    .select('booking_id')
     .maybeSingle();
 
   if (error) {
@@ -510,5 +510,5 @@ export async function markOrder(input: {
 
   revalidatePath('/orders');
   revalidatePath('/mobile');
-  if (data?.job_id) revalidatePath(`/jobs/${data.job_id}`);
+  if (data?.booking_id) revalidatePath(`/bookings/${data.booking_id}`);
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { sayLeaving, sayTeam, worksHere, type TeamMember } from '@/weave/team/shape';
+import {
+  sayDone, sayLeaving, sayLoad, sayTeam, worksHere, type TeamMember,
+} from '@/weave/team/shape';
 
 /**
  * Who works here.
@@ -9,7 +11,7 @@ import { sayLeaving, sayTeam, worksHere, type TeamMember } from '@/weave/team/sh
  */
 const member = (over: Partial<TeamMember> & { id: string; name: string }): TeamMember => ({
   email: null, phone: null, joinedAt: '2026-01-01T00:00:00Z', leftAt: null,
-  hasAccount: false, booked: 0, ...over,
+  role: null, avatarPath: null, booked: 0, ...over,
 });
 
 describe('working here', () => {
@@ -52,18 +54,44 @@ describe('how a team says itself', () => {
 });
 
 describe('letting somebody go', () => {
+  /*
+   * Not a block. A studio knows its own business — but nobody should discover
+   * afterwards that the person who left was on next week's wedding.
+   */
   it('says nothing when they are carrying nothing', () => {
     expect(sayLeaving(member({ id: 'a', name: 'Emeka' }))).toBeNull();
   });
 
-  /*
-   * Not a block. A studio knows its own business — but nobody should find
-   * out afterwards that the person who left was on next week's wedding.
-   */
-  it('warns about the shoots they are already on', () => {
+  it('names the bookings they have not finished', () => {
     expect(sayLeaving(member({ id: 'a', name: 'Emeka', booked: 1 })))
-      .toBe('Emeka is assigned to 1 upcoming booking.');
+      .toBe('Emeka is on 1 unfinished booking.');
     expect(sayLeaving(member({ id: 'a', name: 'Emeka', booked: 3 })))
-      .toBe('Emeka is assigned to 3 upcoming bookings.');
+      .toBe('Emeka is on 3 unfinished bookings.');
+  });
+});
+
+describe('what somebody is carrying', () => {
+  /* A blank where a count belongs reads as a broken row. */
+  it('states the absence rather than leaving a gap', () => {
+    expect(sayLoad(member({ id: 'a', name: 'Emeka' }))).toBe('No bookings');
+  });
+
+  it('counts one booking as a booking', () => {
+    expect(sayLoad(member({ id: 'a', name: 'Emeka', booked: 1 }))).toBe('On 1 booking');
+    expect(sayLoad(member({ id: 'a', name: 'Emeka', booked: 4 }))).toBe('On 4 bookings');
+  });
+
+  /*
+   * The heading on their page counts what is NOT behind them, and the list
+   * under it shows exactly that. A count that disagrees with the rows beneath
+   * it is worse than no count, which is what this pair of readings is for.
+   */
+  it('says nothing about earlier work when there is none', () => {
+    expect(sayDone(0)).toBeNull();
+  });
+
+  it('counts earlier bookings apart from the ones still to come', () => {
+    expect(sayDone(1)).toBe('1 earlier booking');
+    expect(sayDone(5)).toBe('5 earlier bookings');
   });
 });

@@ -2,7 +2,7 @@
  * What a studio offers, and what it promises.
  *
  * A package does not describe a gallery — it produces one. Accepting a
- * booking instantiates the work: the job, what happens on it, and a gallery
+ * booking instantiates the work: the booking, what happens on it, and a gallery
  * sized by what was agreed. That is what stops a package being a sentence.
  */
 

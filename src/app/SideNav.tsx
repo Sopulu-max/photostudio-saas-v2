@@ -45,7 +45,7 @@ export function SideNav() {
     <nav className="q-side-nav">
       {APPS.map(({ key, href, label, Icon }) => {
         /*
-         * A nested page is still that section: /jobs/abc is a job, and the
+         * A nested page is still that section: /bookings/abc is a booking, and the
          * sidebar should not go blank while you are looking at one. Home is
          * exact, because every path starts with "/".
          */

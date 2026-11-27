@@ -1,6 +1,6 @@
 import {
   LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone,
-  CalendarPlus, CalendarDays, Users, Package as PackageIcon,
+  CalendarPlus, CalendarDays, Users, Contact, Package as PackageIcon,
 } from 'lucide-react';
 
 /**
@@ -15,7 +15,8 @@ import {
  * copies is one.
  */
 export type Where =
-  | 'home' | 'dashboard' | 'calendar' | 'bookings' | 'packages' | 'team' | 'orders'
+  | 'home' | 'dashboard' | 'calendar' | 'bookings' | 'clients' | 'deliverables'
+  | 'packages' | 'team' | 'orders'
   | 'store' | 'automations' | 'galleries' | 'mobile';
 
 export type AppKey = Exclude<Where, 'home'>;
@@ -29,22 +30,36 @@ export type App = {
   Icon: typeof LayoutGrid;
 };
 
+/*
+ * The sidebar. NOT every screen in the studio — `/store` prices what is sold
+ * and is reached from Deliverables, because a second top-level entry called
+ * "Products" sitting beside "Deliverables" asked a studio to know the
+ * difference between two words for the same objects.
+ */
 export const APPS: App[] = [
   {
     key: 'dashboard', href: '/dashboard', label: 'Dashboard', Icon: LayoutGrid,
-    what: 'What is outstanding, and today',
+    what: 'What is outstanding',
   },
   {
-    key: 'mobile', href: '/mobile', label: 'Today', Icon: Smartphone,
-    what: 'The day, on a phone',
+    key: 'mobile', href: '/mobile', label: 'Open work', Icon: Smartphone,
+    what: 'What needs a move, on a phone',
   },
   {
     key: 'calendar', href: '/calendar', label: 'Calendar', Icon: CalendarDays,
-    what: 'Shoots by the month',
+    what: 'Every date the studio is committed to',
   },
   {
     key: 'bookings', href: '/bookings', label: 'Bookings', Icon: CalendarPlus,
     what: 'Requests from outside the studio',
+  },
+  {
+    key: 'clients', href: '/clients', label: 'Clients', Icon: Contact,
+    what: 'Who the studio serves',
+  },
+  {
+    key: 'deliverables', href: '/deliverables', label: 'Deliverables', Icon: Tag,
+    what: 'What you hand over',
   },
   {
     key: 'packages', href: '/packages', label: 'Packages', Icon: PackageIcon,
@@ -63,12 +78,8 @@ export const APPS: App[] = [
     what: 'Prints a client has bought',
   },
   {
-    key: 'store', href: '/store', label: 'Products', Icon: Tag,
-    what: 'What a gallery can sell',
-  },
-  {
     key: 'automations', href: '/automations', label: 'Follow-ups', Icon: Send,
-    what: 'Messages owed after a job',
+    what: 'Messages owed after a booking',
   },
 ];
 
@@ -76,15 +87,22 @@ export const APPS: App[] = [
 export type Standing = {
   /*
    * What is somebody's move, from the dashboard's own readings — so the tile
-   * and the page it opens can never disagree. Not derived from `jobs.turn`,
+   * and the page it opens can never disagree. Not derived from `bookings.turn`,
    * which is a column a human sets.
    */
   outstanding: number;
-  onToday: number;
-  nextSevenDays: number;
   requestsWaiting: number;
+  /* Shoots in the next seven days. Not every engagement: what a tile is for
+   * is the work, and a code expiring is not somewhere anybody has to be. */
+  nextSevenDays: number;
+  /* Split the way the engine splits them: files are handed over, objects
+   * have to be made and posted by somebody. */
+  deliverables: { files: number; objects: number };
   packages: { all: number; published: number };
   team: number;
+  /* People a booking points at. Not everybody in `people`: a gallery visitor
+   * is a person row too, and is not a client. */
+  clients: number;
   galleries: { all: number; shared: number };
   ordersNeedingAttention: number;
   picturesForSale: number;
@@ -111,19 +129,20 @@ export function sayApp(app: App, standing: Standing): string {
         : count(standing.outstanding, 'item outstanding', 'items outstanding');
 
     case 'mobile':
-      return standing.onToday === 0
-        ? app.what
-        : `${count(standing.onToday, 'shoot', 'shoots')} today`;
-
-    case 'calendar':
-      return standing.nextSevenDays === 0
-        ? app.what
-        : `${count(standing.nextSevenDays, 'shoot', 'shoots')} in the next seven days`;
+      return app.what;
 
     case 'bookings':
       return standing.requestsWaiting === 0
         ? app.what
         : `${count(standing.requestsWaiting, 'request', 'requests')} awaiting a response`;
+
+    case 'deliverables': {
+      const { files, objects } = standing.deliverables;
+      if (files + objects === 0) return app.what;
+      if (objects === 0) return count(files, 'file', 'files');
+      if (files === 0) return `${count(objects, 'object', 'objects')} to make`;
+      return `${count(files, 'file', 'files')}, ${objects} to make`;
+    }
 
     case 'packages': {
       const { all, published } = standing.packages;
@@ -136,6 +155,16 @@ export function sayApp(app: App, standing: Standing): string {
       return standing.team === 0
         ? app.what
         : count(standing.team, 'person', 'people');
+
+    case 'calendar':
+      return standing.nextSevenDays === 0
+        ? app.what
+        : `${count(standing.nextSevenDays, 'shoot', 'shoots')} in the next seven days`;
+
+    case 'clients':
+      return standing.clients === 0
+        ? app.what
+        : count(standing.clients, 'client', 'clients');
 
     case 'galleries': {
       const { all, shared } = standing.galleries;

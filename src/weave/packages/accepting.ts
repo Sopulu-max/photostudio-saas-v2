@@ -1,6 +1,7 @@
 'use server';
 
 import { weave as db } from '@/weave/db';
+import { promisedPictures } from './promised';
 import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seeding';
 
 /**
@@ -8,7 +9,7 @@ import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seedi
  *
  * This is the whole argument made concrete. A package that merely DESCRIBES
  * "400 finished pictures" is a sentence, and the system can do nothing with a
- * sentence. A package that PRODUCES a gallery — named, attached to the job,
+ * sentence. A package that PRODUCES a gallery — named, attached to the booking,
  * carrying the promised number — has turned the agreement into an object with
  * a shape, which is what everything downstream can then read.
  *
@@ -20,7 +21,7 @@ import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seedi
  *  reach backwards into what somebody was already told. */
 export async function galleryForAcceptedJob(input: {
   studioId: string;
-  jobId: string;
+  bookingId: string;
   /** For the gallery's name. A client's own name is what they will recognise. */
   clientName: string | null;
   packageId: string | null;
@@ -28,12 +29,12 @@ export async function galleryForAcceptedJob(input: {
 }): Promise<{ galleryId: string | null }> {
   /*
    * Never a second one. Acceptance can be reached twice — a studio reopening
-   * a request, a retry after a failure — and a job with two empty galleries
+   * a request, a retry after a failure — and a booking with two empty galleries
    * is worse than one.
    */
   const { count } = await db.from('galleries')
     .select('id', { count: 'exact', head: true })
-    .eq('studio_id', input.studioId).eq('job_id', input.jobId);
+    .eq('studio_id', input.studioId).eq('booking_id', input.bookingId);
   if ((count ?? 0) > 0) return { galleryId: null };
 
   /*
@@ -41,15 +42,22 @@ export async function galleryForAcceptedJob(input: {
    * what shape the gallery starts in. The count is copied because it is what
    * was agreed; the template is READ now and its contents copied in, so
    * editing the template later changes the next gallery and never this one.
+   *
+   * The count is COUNTED off the package's layout rather than read from
+   * `packages.pictures_promised`. That column was a number typed beside the
+   * layout, which meant a package could show four picture slots and promise
+   * six, and the typed six would be what arrived. The layout is now the only
+   * place the promise exists, so the two cannot disagree. The column is left
+   * in place and unread — expand, deploy, contract.
    */
   let promised: number | null = null;
   let templateId: string | null = null;
   if (input.packageId) {
     const { data: pack } = await db.from('packages')
-      .select('pictures_promised, gallery_template_id').eq('id', input.packageId)
+      .select('gallery_template_id').eq('id', input.packageId)
       .eq('studio_id', input.studioId).maybeSingle();
-    promised = pack?.pictures_promised ?? null;
     templateId = pack?.gallery_template_id ?? null;
+    promised = await promisedPictures(input.studioId, input.packageId);
   }
 
   /*
@@ -61,7 +69,7 @@ export async function galleryForAcceptedJob(input: {
 
   const { data: gallery, error } = await db.from('galleries').insert({
     studio_id: input.studioId,
-    job_id: input.jobId,
+    booking_id: input.bookingId,
     name: input.clientName ? `${input.clientName}'s pictures` : 'Their pictures',
     pictures_promised: promised,
     ...designFrom(template),
@@ -73,7 +81,7 @@ export async function galleryForAcceptedJob(input: {
      * convenience created alongside it, and a studio can still make one by
      * hand. Failing the acceptance over this would lose the agreement.
      */
-    console.error('Could not open a gallery for the accepted job:', error);
+    console.error('Could not open a gallery for the accepted booking:', error);
     return { galleryId: null };
   }
 
@@ -93,7 +101,7 @@ export async function galleryForAcceptedJob(input: {
     subject_id: gallery.id,
     action: 'opened_on_acceptance',
     actor_id: input.actorId,
-    payload: { job: input.jobId, promised, template: templateId },
+    payload: { booking: input.bookingId, promised, template: templateId },
   });
 
   return { galleryId: gallery.id };

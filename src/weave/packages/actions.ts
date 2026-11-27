@@ -174,7 +174,7 @@ export async function removePackage(input: { packageId: string }): Promise<void>
   if (!who) throw new Error('Sign in first');
 
   /*
-   * Jobs that took it keep their own copy of the promise, so deleting the
+   * Bookings that took it keep their own copy of the promise, so deleting the
    * package cannot change what anybody was told. The reference falls to null
    * and the gallery keeps its number.
    */

@@ -156,7 +156,12 @@ export function RoomScenes({ scenes }: { scenes: RoomScene[] }) {
         </div>
       )}
 
-      <label className="q-reveal-line q-scene-add">
+      {/*
+        * A label rather than a button, because it fronts a hidden file input
+        * — but it is a control and takes the same quiet button the rest of
+        * the app uses to add something.
+        */}
+      <label className="q-btn q-btn-secondary q-btn-sm q-scene-add">
         {busy ? 'Uploading' : 'Add room photograph'}
         <input
           ref={picker} type="file" accept="image/*" multiple hidden disabled={busy}

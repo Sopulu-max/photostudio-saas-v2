@@ -1,18 +1,23 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
-import { occasionsBetween } from '@/weave/occasions/actions';
-import { sayClashes, clashesIn } from '@/weave/occasions/shape';
-import { Diary } from './Diary';
+import { theCalendar } from '@/weave/calendar/actions';
+import { doubledIn, sayDoubled, sayMonth, weeksOf } from '@/weave/calendar/shape';
+import { Month } from './Month';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The calendar.
+ * Every date the studio is committed to, in one month.
  *
- * It reads occasions — the things that happen on a job — so it invents
- * nothing. A month is simply the span a studio holds in its head, and until
- * now the only span the app could show was today.
+ * A SECOND READING of dates that already exist. The shoot, the occasion it is
+ * for, a day somebody has asked for, selects due, a gallery closing, a code
+ * expiring, a follow-up owed — all of them live in the table that needed them,
+ * and this is the one place they are seen together.
+ *
+ * Nothing that merely HAPPENED is here. The schema holds twenty-five dates
+ * and most are a record — accepted_at, paid_at, shared_at — which belong in a
+ * log, because nobody can act on the day a gallery was shared.
  */
 export default async function CalendarPage({
   searchParams,
@@ -25,41 +30,32 @@ export default async function CalendarPage({
   const today = new Date().toLocaleDateString('en-CA');
   const { m } = await searchParams;
 
-  // `?m=2026-11`, so a month can be linked to and come back the same.
+  /* `?m=2026-12`, so a month can be linked to and come back the same. */
   const asked = /^\d{4}-\d{2}$/.test(m ?? '') ? m! : today.slice(0, 7);
   const year = Number(asked.slice(0, 4));
   const month = Number(asked.slice(5, 7)) - 1;
 
-  /*
-   * A fortnight either side of the month, because the grid shows the tail of
-   * the previous month and the head of the next, and a booking that appears
-   * blank in those cells would be a lie about an empty day.
-   */
-  const from = new Date(Date.UTC(year, month, -7)).toISOString().slice(0, 10);
-  const to = new Date(Date.UTC(year, month + 1, 14)).toISOString().slice(0, 10);
-  const occasions = await occasionsBetween(from, to);
+  const weeks = weeksOf(year, month);
+  /* The grid shows the tail of one month and the head of the next, so the
+   * range is the grid's own first and last day rather than the month's. */
+  const entries = await theCalendar(weeks[0][0], weeks[weeks.length - 1][6]);
 
-  const inMonth = occasions.filter((o) => o.onDate.slice(0, 7) === asked);
+  const inMonth = entries.filter((e) => e.on.slice(0, 7) === asked);
+  const doubled = doubledIn(inMonth);
+
   const shift = (by: number) => {
     const d = new Date(Date.UTC(year, month + by, 1));
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
   };
-
-  const clashes = clashesIn(inMonth);
   const named = new Date(Date.UTC(year, month, 1))
     .toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-
-  const said = inMonth.length === 0
-    ? `No bookings in ${named}.`
-    : `${inMonth.length} ${inMonth.length === 1 ? 'booking' : 'bookings'} in ${named}`
-      + `${clashes.length > 0 ? '' : '. No double-bookings.'}`;
 
   return (
     <div className="q-page">
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">{named}</h1>
-          <p className="q-page-subtitle">{sayClashes(clashes) ?? said}</p>
+          <p className="q-page-subtitle">{sayMonth(inMonth, named)}</p>
         </div>
         <div className="q-row q-row-sm">
           <Link className="q-btn q-btn-ghost q-btn-xs" href={`/calendar?m=${shift(-1)}`}>Previous</Link>
@@ -68,7 +64,10 @@ export default async function CalendarPage({
         </div>
       </header>
 
-      <Diary occasions={occasions} year={year} month={month} today={today} />
+      {/* The one thing a month can tell a studio that a list cannot. */}
+      {sayDoubled(doubled) && <p className="q-clash">{sayDoubled(doubled)}</p>}
+
+      <Month weeks={weeks} month={month} today={today} entries={entries} />
     </div>
   );
 }

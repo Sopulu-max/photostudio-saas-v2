@@ -31,7 +31,7 @@ async function visitorHubMember(input: { token: string; email: string; requestId
 
 /** Make one request with several named gallery participants. */
 export async function createClientHubRequest(input: {
-  galleryId: string; jobId: string; title: string; purpose: HubPurpose;
+  galleryId: string; bookingId: string; title: string; purpose: HubPurpose;
   minItems?: number | null; maxItems?: number | null; dueOn?: string | null; participantIds: string[];
 }): Promise<void> {
   const who = await whoIsAsking();
@@ -68,11 +68,11 @@ export async function createClientHubRequest(input: {
     action: 'hub_request_created', actor_id: who.personId,
     payload: { request: request.id, purpose: input.purpose, collaborators: participantIds.length },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
 
-export async function closeClientHubRequest(input: { galleryId: string; jobId: string; requestId: string; closed: boolean }): Promise<void> {
+export async function closeClientHubRequest(input: { galleryId: string; bookingId: string; requestId: string; closed: boolean }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
   const { error } = await db.from('gallery_hub_requests').update({ status: input.closed ? 'closed' : 'open' })
@@ -83,7 +83,7 @@ export async function closeClientHubRequest(input: { galleryId: string; jobId: s
     action: input.closed ? 'hub_request_closed' : 'hub_request_reopened', actor_id: who.personId,
     payload: { request: input.requestId },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
 
@@ -228,7 +228,7 @@ export async function recordClientHubReference(input: {
   revalidatePath(`/g/${input.token}`);
 }
 
-export async function createGalleryAlbum(input: { galleryId: string; jobId: string; name: string }): Promise<void> {
+export async function createGalleryAlbum(input: { galleryId: string; bookingId: string; name: string }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
   const name = input.name.trim();
@@ -241,10 +241,10 @@ export async function createGalleryAlbum(input: { galleryId: string; jobId: stri
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'album_created', actor_id: who.personId, payload: { album: album.id, name },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
-export async function addGalleryAlbumSpread(input: { albumId: string; galleryId: string; jobId: string; leftFileId?: string | null; rightFileId?: string | null; caption?: string | null }): Promise<void> {
+export async function addGalleryAlbumSpread(input: { albumId: string; galleryId: string; bookingId: string; leftFileId?: string | null; rightFileId?: string | null; caption?: string | null }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
   const ids = [input.leftFileId, input.rightFileId].filter((id): id is string => !!id);
@@ -264,10 +264,10 @@ export async function addGalleryAlbumSpread(input: { albumId: string; galleryId:
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'album_spread_added', actor_id: who.personId, payload: { album: album.id },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
 }
 
-export async function setGalleryAlbumStatus(input: { albumId: string; galleryId: string; jobId: string; status: 'draft' | 'review' | 'approved' }): Promise<void> {
+export async function setGalleryAlbumStatus(input: { albumId: string; galleryId: string; bookingId: string; status: 'draft' | 'review' | 'approved' }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
   const { error } = await db.from('gallery_albums').update({ status: input.status })
@@ -277,7 +277,7 @@ export async function setGalleryAlbumStatus(input: { albumId: string; galleryId:
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'album_status_changed', actor_id: who.personId, payload: { album: input.albumId, status: input.status },
   });
-  revalidatePath(`/jobs/${input.jobId}`);
+  revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
 

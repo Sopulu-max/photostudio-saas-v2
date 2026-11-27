@@ -12,7 +12,6 @@ export type StudioFile = {
   mimeType: string | null;
   sizeBytes: number | null;
   derivedFrom: string | null;
-  occasionId: string | null;
   addedAt: string;
   /** Short-lived signed URL. The bucket is private; nothing is reachable by path. */
   url: string | null;
@@ -42,7 +41,7 @@ export function saySize(bytes: number | null): string {
  * What the set of files amounts to, as a sentence.
  *
  * A count on its own informs nobody — "412 files" is a number, while "412
- * files, 38 chosen" is the state of the job's post-production.
+ * files, 38 chosen" is the state of the booking's post-production.
  */
 export function sayFiles(files: StudioFile[]): string {
   if (files.length === 0) return 'No files yet.';

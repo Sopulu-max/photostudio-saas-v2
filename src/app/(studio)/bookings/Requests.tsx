@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { acceptRequest, declineRequest } from '@/weave/jobs/requests';
-import { sayRequests, type Request } from '@/weave/jobs/shape';
+import { acceptRequest, declineRequest } from '@/weave/bookings/requests';
+import { sayRequests, type Request } from '@/weave/bookings/shape';
 
 /**
  * What somebody outside has asked for, and not yet been answered about.
  *
- * Above the board rather than inside it, because the act is different. A job on
+ * Above the board rather than inside it, because the act is different. A booking on
  * the board is moved along; a request is taken or refused, and until it is, a
  * person is sitting somewhere waiting to hear back. That is the most urgent
  * thing on this page and it is given the top of it.
@@ -67,10 +67,14 @@ export function Requests({ waiting, origin, heading = true }: {
 
             <p className="q-ask-wants">{ask.wants ?? 'No details provided.'}</p>
 
-            {ask.expectedOn && (
+{/*
+              * A statement, not a key. "Requested date:" followed by a date is
+              * a label covering for a reading that does not announce itself.
+              */}
+            {ask.askedFor && (
               <p className="q-meta">
-                Requested date:{' '}
-                {new Date(`${ask.expectedOn}T00:00:00`).toLocaleDateString('en-GB', {
+                Asked for{' '}
+                {new Date(`${ask.askedFor}T00:00:00`).toLocaleDateString('en-GB', {
                   weekday: 'long', day: 'numeric', month: 'long',
                 })}
               </p>
@@ -96,8 +100,8 @@ export function Requests({ waiting, origin, heading = true }: {
                   const saying = String(form.get('saying') ?? '');
                   const because = String(form.get('because') ?? '');
                   run(() => mode === 'take'
-                    ? acceptRequest({ jobId: ask.id, saying })
-                    : declineRequest({ jobId: ask.id, because, saying }));
+                    ? acceptRequest({ bookingId: ask.id, saying })
+                    : declineRequest({ bookingId: ask.id, because, saying }));
                 }}
               >
                 <textarea

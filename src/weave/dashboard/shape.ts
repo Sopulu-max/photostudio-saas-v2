@@ -6,24 +6,19 @@
  *
  * ABSENCES, NOT THRESHOLDS. Nothing here is "more than five" or "older than
  * a week" — invented conditions that mean nothing to anybody and have to be
- * explained. What a studio needs told is what is MISSING: a shoot with
- * nobody on it, a job agreed and never put in the diary, work shot and never
- * handed over. Those are facts about the business, not settings.
+ * explained. What a studio needs told is what is MISSING: a request nobody
+ * answered, a gallery never handed over, an order paid and still on the shelf.
+ * Those are facts about the business, not settings.
+ *
+ * TWO READINGS WERE REMOVED WITH `weave.occasions`. "Shoots today" and
+ * "bookings without a shoot" were both answers about DATES, and a booking no
+ * longer has any. Nothing was put in their place: a reading invented to fill
+ * the gap would be a label beside a number, which is the thing this file
+ * exists to refuse.
  *
  * And a reading announces itself. No label beside a number, no key. If a
  * line needs explaining it is not a reading.
  */
-
-export type TodayShoot = {
-  id: string;
-  jobId: string;
-  what: string | null;
-  clientName: string | null;
-  /** A bare clock time — "14:00:00" — not a timestamp. */
-  startsAt: string | null;
-  endsAt: string | null;
-  crew: string[];
-};
 
 export type UnansweredRequest = {
   id: string;
@@ -32,24 +27,27 @@ export type UnansweredRequest = {
   requestedAt: string;
 };
 
-export type NotInTheDiary = {
-  id: string;
-  clientName: string | null;
-  wants: string | null;
-  acceptedAt: string;
-};
-
+/**
+ * Work with a gallery that has pictures in it and was never shared.
+ *
+ * It used to be read off a shoot marked as having happened. With occasions
+ * gone there is no record that a shoot took place, so the reading is taken
+ * from the gallery instead — which is the better edge anyway: a gallery with
+ * pictures in it IS the evidence the work was done, and nobody had to
+ * remember to tick anything for it to be true.
+ */
 export type NotHandedOver = {
-  jobId: string;
+  bookingId: string | null;
   clientName: string | null;
-  galleryId: string | null;
-  galleryName: string | null;
-  happenedAt: string;
+  galleryId: string;
+  galleryName: string;
+  /** How many pictures are sitting in it, unseen. */
+  have: number;
 };
 
 export type ShortOfPromise = {
   galleryId: string;
-  jobId: string | null;
+  bookingId: string | null;
   name: string;
   have: number;
   promised: number;
@@ -62,9 +60,7 @@ export type NotSent = {
 };
 
 export type Dashboard = {
-  today: TodayShoot[];
   unanswered: UnansweredRequest[];
-  notInTheDiary: NotInTheDiary[];
   notHandedOver: NotHandedOver[];
   shortOfPromise: ShortOfPromise[];
   notSent: NotSent[];
@@ -102,40 +98,14 @@ export function sayWaiting(iso: string, today: Date): string {
  * thing and gets out of the way; the detail belongs on the rows underneath,
  * where it sits beside the row it is true of.
  */
-/**
- * When a shoot starts, and finishes if that is known.
- *
- * `occasions.starts_at` is `time without time zone` — the string "14:00:00",
- * with no date and no zone. Handing that to `new Date()` produces Invalid
- * Date, which is what this page showed until somebody looked at it. Sliced,
- * the way the calendar has always done it.
- */
-export function sayStart(startsAt: string | null, endsAt: string | null): string {
-  if (!startsAt) return 'No time set';
-  const clock = (t: string) => t.slice(0, 5);
-  return endsAt ? `${clock(startsAt)}–${clock(endsAt)}` : clock(startsAt);
-}
-
-export function sayToday(shoots: TodayShoot[]): string {
-  if (shoots.length === 0) return 'No shoots today';
-  const bare = shoots.filter((s) => s.crew.length === 0).length;
-  if (bare === 0) return `${count(shoots.length, 'shoot', 'shoots')} today`;
-  return `${count(shoots.length, 'shoot', 'shoots')} today, ${bare} without crew`;
-}
-
 export function sayUnanswered(rows: UnansweredRequest[]): string {
   if (rows.length === 0) return 'No unanswered requests';
   return `${count(rows.length, 'unanswered request', 'unanswered requests')}`;
 }
 
-export function sayNotInTheDiary(rows: NotInTheDiary[]): string {
-  if (rows.length === 0) return 'Every agreed job scheduled';
-  return `${count(rows.length, 'job', 'jobs')} without a shoot`;
-}
-
 export function sayNotHandedOver(rows: NotHandedOver[]): string {
-  if (rows.length === 0) return 'Every completed shoot delivered';
-  return `${count(rows.length, 'shoot', 'shoots')} undelivered`;
+  if (rows.length === 0) return 'Every gallery with pictures in it shared';
+  return `${count(rows.length, 'gallery', 'galleries')} not handed over`;
 }
 
 export function sayShortOfPromise(rows: ShortOfPromise[]): string {
@@ -149,10 +119,10 @@ export function sayNotSent(rows: NotSent[]): string {
   return `${count(rows.length, 'order', 'orders')} not despatched`;
 }
 
-/** How many things are somebody's move. Today's shoots are the day, not a backlog. */
+/** How many things are somebody's move. */
 export function outstanding(d: Dashboard): number {
-  return d.unanswered.length + d.notInTheDiary.length
-    + d.notHandedOver.length + d.shortOfPromise.length + d.notSent.length;
+  return d.unanswered.length + d.notHandedOver.length
+    + d.shortOfPromise.length + d.notSent.length;
 }
 
 /**
@@ -163,6 +133,5 @@ export function outstanding(d: Dashboard): number {
  */
 export function sayStanding(d: Dashboard): string {
   const n = outstanding(d);
-  const today = sayToday(d.today).toLowerCase();
-  return n === 0 ? `Nothing outstanding, ${today}` : `${count(n, 'item', 'items')} outstanding, ${today}`;
+  return n === 0 ? 'Nothing outstanding' : `${count(n, 'item', 'items')} outstanding`;
 }

@@ -104,6 +104,32 @@ a companion app.
 - **Use the industry's words**: client, booking, package, deliverable,
   invoice, status. They are what a photographer already says.
 
+**THE TEST, RUN ON EVERY STRING BEFORE IT SHIPS.** This rule is broken more
+than any other in this file, and re-reading the bullets above has not been
+enough. So it is a mechanical check, not a principle — apply it to every
+label, heading, chip, empty state and button you write:
+
+1. **Does it contain `you`, `your`, `we`, `they`, `them`?** Then it is
+   addressed at somebody, not naming a thing. Rewrite it as a noun.
+2. **Does it contain a verb?** A label almost never needs one. "Promised" and
+   "Shown" are fine; "They receive" and "Your move" are not.
+3. **Is there a word the trade already uses?** Use that one. If the thing is
+   defined by a RELATIONSHIP — who gets it, who fills it, when — name the
+   thing, not the relationship. The relationship belongs in a schema comment.
+4. **Would it read as a key or a legend?** Then the reading beside it is not
+   announcing itself, and the label is covering for that instead of fixing it.
+
+Real corrections, all from one session:
+`They receive` → `Deliverables`; `They answer` → `Question`; `On the day` →
+`Session`; `And on the page` → `Elements`; `Your move` → `Studio`;
+`Waiting on the client` → `Client`; `waiting on you` → `awaiting the studio`;
+`Answered with` → `Answer`; `Typed / A date / A number` →
+`Text / Date / Number`.
+
+**The data model's own values are usually the right words.** `promised`,
+`shown`, `digital`, `physical`, `scheduled`, `done` were chosen as nouns in
+the first place. Reaching past them for a friendlier phrase is the mistake.
+
 Announcing itself and sounding professional are not in tension: "120 of 400
 delivered" is both. Warmth belongs in what the studio writes to its own
 clients, never in the chrome around it.

@@ -24,6 +24,32 @@
     {
       "name": "attach",
       "url": "http://localhost:3000"
+    },
+    {
+      "name": "booklet",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "3100",
+        "--directory",
+        "C:/Users/GLAMOUR/Documents/Codex/2026-11-25/le/studio-booklet/dist"
+      ],
+      "port": 3100,
+      "autoPort": false
+    },
+    {
+      "name": "elements",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "3200",
+        "--directory",
+        "C:/Users/GLAMOUR/AppData/Local/Temp/claude/613915300816f9e3/4da2dbbb-7f2c-450e-8e99-6e21b9cba282/scratchpad/package-elements"
+      ],
+      "port": 3200,
+      "autoPort": false
     }
   ]
 }

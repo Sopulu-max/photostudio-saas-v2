@@ -14,7 +14,7 @@ const db = createClient(
 );
 
 let studioId: string;
-let jobId: string;
+let bookingId: string;
 let fileId: string;
 
 beforeAll(async () => {
@@ -23,13 +23,13 @@ beforeAll(async () => {
   if (error) throw error;
   studioId = studio.id;
 
-  const { data: job } = await db
-    .from('jobs').insert({ studio_id: studioId }).select('id').single();
-  jobId = job!.id;
+  const { data: booking } = await db
+    .from('bookings').insert({ studio_id: studioId }).select('id').single();
+  bookingId = booking!.id;
 
   const { data: file } = await db.from('files').insert({
-    studio_id: studioId, job_id: jobId,
-    storage_path: `${studioId}/${jobId}/g.jpg`, name: 'g.jpg', mime_type: 'image/jpeg',
+    studio_id: studioId, booking_id: bookingId,
+    storage_path: `${studioId}/${bookingId}/g.jpg`, name: 'g.jpg', mime_type: 'image/jpeg',
   }).select('id').single();
   fileId = file!.id;
 });
@@ -55,7 +55,7 @@ describe('galleries', () => {
   it('gets an unguessable link without being asked', async () => {
     const { data, error } = await db
       .from('galleries')
-      .insert({ studio_id: studioId, job_id: jobId, name: 'Selects' })
+      .insert({ studio_id: studioId, booking_id: bookingId, name: 'Selects' })
       .select('token, shared_at')
       .single();
 
@@ -68,7 +68,7 @@ describe('galleries', () => {
   it('will not hold the same picture twice', async () => {
     const { data: gallery } = await db
       .from('galleries')
-      .insert({ studio_id: studioId, job_id: jobId, name: 'Twice' })
+      .insert({ studio_id: studioId, booking_id: bookingId, name: 'Twice' })
       .select('id').single();
 
     const sectionId = await sectionIn(gallery!.id);
@@ -86,14 +86,14 @@ describe('galleries', () => {
     expect(second.error, 'one picture went into a gallery twice').not.toBeNull();
   });
 
-  it('empties itself when a picture is removed from the job', async () => {
+  it('empties itself when a picture is removed from the booking', async () => {
     const { data: gallery } = await db
       .from('galleries')
-      .insert({ studio_id: studioId, job_id: jobId, name: 'Fleeting' })
+      .insert({ studio_id: studioId, booking_id: bookingId, name: 'Fleeting' })
       .select('id').single();
     const { data: file } = await db.from('files').insert({
-      studio_id: studioId, job_id: jobId,
-      storage_path: `${studioId}/${jobId}/fleeting.jpg`, name: 'fleeting.jpg',
+      studio_id: studioId, booking_id: bookingId,
+      storage_path: `${studioId}/${bookingId}/fleeting.jpg`, name: 'fleeting.jpg',
     }).select('id').single();
     await db.from('gallery_files').insert({
       studio_id: studioId, gallery_id: gallery!.id,
@@ -107,19 +107,19 @@ describe('galleries', () => {
     expect(left!.length, 'a gallery still pointed at a deleted picture').toBe(0);
   });
 
-  it('goes with the job when the job goes', async () => {
-    const { data: job } = await db
-      .from('jobs').insert({ studio_id: studioId }).select('id').single();
+  it('goes with the booking when the booking goes', async () => {
+    const { data: booking } = await db
+      .from('bookings').insert({ studio_id: studioId }).select('id').single();
     const { data: gallery } = await db
       .from('galleries')
-      .insert({ studio_id: studioId, job_id: job!.id, name: 'Doomed' })
+      .insert({ studio_id: studioId, booking_id: booking!.id, name: 'Doomed' })
       .select('id').single();
 
-    await db.from('jobs').delete().eq('id', job!.id);
+    await db.from('bookings').delete().eq('id', booking!.id);
 
     const { data: left } = await db
       .from('galleries').select('id').eq('id', gallery!.id).maybeSingle();
-    expect(left, 'a gallery outlived the job it came from').toBeNull();
+    expect(left, 'a gallery outlived the booking it came from').toBeNull();
   });
 });
 

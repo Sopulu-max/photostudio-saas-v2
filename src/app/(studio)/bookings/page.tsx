@@ -1,90 +1,93 @@
-import { headers } from 'next/headers';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
-import { myStudioFront, requestsAnswered, requestsWaiting } from '@/weave/jobs/requests';
-import { Requests } from './Requests';
+import { bookingsHeld } from '@/weave/bookings/actions';
+import { sayBefore, sayHeld, sayWhen, type BookingCard } from '@/weave/bookings/shape';
 
 export const dynamic = 'force-dynamic';
 
+/** One line of work, whichever list it is in. */
+function Row({ booking }: { booking: BookingCard }) {
+  return (
+    <Link className="q-row q-row-between q-row-link" href={`/bookings/${booking.id}`}>
+      <span className="q-stack q-stack-xs">
+        {/* The client, then the studio's own word for what the day is. */}
+        <strong className="q-strong">{booking.clientName ?? 'No client'}</strong>
+        <span className="q-meta">
+          {booking.occasion ?? booking.wants ?? 'No occasion given'}
+        </span>
+      </span>
+      <span className="q-meta">{sayWhen(booking.on, booking.at)}</span>
+    </Link>
+  );
+}
+
 /**
- * Bookings — where work from outside lives.
+ * Every booking the studio holds.
  *
- * The board surfaces what is waiting, because that is urgent and the board is
- * what gets looked at. This is the room it belongs to: the address people ask
- * at, what has not been answered, and what was taken or turned away.
+ * SOONEST FIRST, THEN WHAT IS BEHIND. Sorted plainly by date this page would
+ * open on the oldest shoot in the studio's history; what somebody comes here
+ * for is what is coming. Undated work sits with what is ahead, because a
+ * booking nobody has put a day to is still work nobody has done — and it says
+ * "No date set" rather than being hidden, since that is the row somebody can
+ * act on today.
  *
- * The address comes first and is said even when nothing is waiting, because a
- * studio that has never shared it will never receive a request, and a page
- * that goes blank on a quiet day teaches nobody that the feature exists.
+ * Earlier work is capped. Every booking a studio has ever taken stops being a
+ * reading and becomes an archive, and nobody scrolls an archive.
+ *
+ * WHAT IS NOT HERE. Only work the studio has agreed to: an unanswered request
+ * is a question rather than a booking, and counting one in would misreport the
+ * load. Requests have no screen at all at the moment — accepting or declining
+ * one cannot be done anywhere — which is a gap this page is the obvious home
+ * for, and not something to put back without being asked.
  */
 export default async function BookingsPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const head = await headers();
-  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
-  const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-  const origin = `${scheme}://${host}`;
+  const held = await bookingsHeld();
 
-  const [waiting, answered, front] = await Promise.all([
-    requestsWaiting(), requestsAnswered(), myStudioFront(),
-  ]);
-
-  const taken = answered.filter((a) => a.answer === 'taken').length;
-  const said = waiting.length > 0
-    ? `${waiting.length} ${waiting.length === 1 ? 'request' : 'requests'} awaiting a response.`
-    : answered.length === 0
-      ? 'No requests yet. Share the booking page below to receive them.'
-      : `No pending requests. ${taken} of ${answered.length} accepted.`;
+  const today = new Date().toLocaleDateString('en-CA');
+  const ahead = held.filter((b) => !b.on || b.on >= today);
+  const before = held.filter((b) => b.on && b.on < today).reverse();
 
   return (
     <div className="q-page q-page-narrow">
       <header className="q-page-header">
         <div>
           <h1 className="q-page-title">Bookings</h1>
-          <p className="q-page-subtitle">{said}</p>
+          <p className="q-page-subtitle">{sayHeld(ahead, before.length)}</p>
         </div>
+
+        <Link className="q-btn q-btn-primary q-btn-sm" href="/bookings/new">
+          New booking
+        </Link>
       </header>
 
-      <div className="q-stack q-stack-lg">
-        {front && (
-          <section className="q-stack q-stack-xs">
-            <h2 className="q-section-title">Booking page</h2>
-            <span className="q-share">{origin}/s/{front.slug}</span>
-            <p className="q-meta">
-              Add this to your website or profile. No account is required to submit a
-              request, and nothing is confirmed until you accept it.
-            </p>
-          </section>
+      <div className="q-stack q-stack-md">
+        {held.length === 0 ? (
+          <p className="q-empty">
+            No bookings. The first one starts from the button above, or from a
+            request somebody sends to the studio.
+          </p>
+        ) : (
+          <>
+            {ahead.length > 0 && (
+              <section className="q-stack q-stack-sm">
+                {ahead.map((booking) => <Row key={booking.id} booking={booking} />)}
+              </section>
+            )}
+
+            {before.length > 0 && (
+              <section className="q-stack q-stack-sm">
+                <h2 className="q-reading">{sayBefore(before.length)}</h2>
+                {before.slice(0, 20).map((booking) => (
+                  <Row key={booking.id} booking={booking} />
+                ))}
+              </section>
+            )}
+          </>
         )}
-
-        {waiting.length > 0 && <Requests waiting={waiting} origin={origin} heading={false} />}
-
-        <section className="q-stack q-stack-sm">
-          <h2 className="q-section-title">Answered</h2>
-          {answered.length === 0 ? (
-            <p className="q-empty">No answered requests.</p>
-          ) : (
-            <div className="q-sheet">
-              {answered.map((ask) => (
-                <div className="q-answered" key={ask.id}>
-                  <div className="q-answered-main">
-                    <strong className="q-strong">{ask.askedBy ?? 'Somebody'}</strong>
-                    <span className="q-meta">{ask.wants ?? 'No details provided.'}</span>
-                    {ask.because && <span className="q-meta-sm">Reason: {ask.because}</span>}
-                  </div>
-                  <span className={ask.answer === 'taken' ? 'q-answer' : 'q-answer q-answer-no'}>
-                    {ask.answer === 'taken' ? 'Accepted' : 'Declined'}
-                    {' · '}
-                    {new Date(ask.answeredAt).toLocaleDateString('en-GB', {
-                      day: 'numeric', month: 'short',
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
