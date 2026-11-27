@@ -193,7 +193,7 @@ function GalleryControls({
         </div>
       </details>
 
-      <details className="q-stack q-stack-xs">
+      <details className="q-stack q-stack-xs q-dashboard-target" id={`gallery-hub-${gallery.id}`}>
         <summary className="q-meta">Client Hub</summary>
         <p className="q-meta-sm">A named collaboration request keeps selections and feedback beside the pictures.</p>
         {gallery.hubRequests.length > 0 && gallery.hubRequests.map((request) => (
@@ -361,7 +361,7 @@ function GalleryControls({
         ))}
       </details>
 
-      <details className="q-stack q-stack-xs">
+      <details className="q-stack q-stack-xs q-dashboard-target" id={`gallery-selections-${gallery.id}`}>
         <summary className="q-meta">Client collections and selections</summary>
         {gallery.collections.length === 0 ? (
           <p className="q-empty">No client collections or selection requests yet.</p>
@@ -455,7 +455,7 @@ function GalleryControls({
       <div className="q-stack q-stack-xs">
         <form className="q-row q-row-sm" onSubmit={saveExpiry}>
           <label className="q-meta" htmlFor={`gallery-expiry-${gallery.id}`}>Expires</label>
-          <input id={`gallery-expiry-${gallery.id}`} className="q-input q-input-sm" type="date" value={expiry}
+          <input id={`gallery-expiry-${gallery.id}`} className="q-input q-input-sm q-dashboard-target" type="date" value={expiry}
             onChange={(event) => setExpiry(event.target.value)} disabled={working} />
           <button className="q-btn q-btn-ghost q-btn-xs" type="submit" disabled={working}>Save</button>
         </form>
@@ -540,7 +540,7 @@ export function Galleries({
       ) : (
         <div className="q-stack q-stack-sm">
           {galleries.map((gallery) => (
-            <div key={gallery.id} className="q-tile q-stack q-stack-xs">
+            <div key={gallery.id} id={`gallery-${gallery.id}`} className="q-tile q-stack q-stack-xs q-dashboard-target">
               <div className="q-row q-row-between">
                 <strong className="q-strong">{gallery.name}</strong>
                 <span className={gallery.sharedAt ? 'q-meta' : 'q-meta q-warm'}>{sayGallery(gallery)}</span>

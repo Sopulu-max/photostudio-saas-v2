@@ -38,7 +38,7 @@ export function OrderList({ orders }: { orders: Order[] }) {
       {orders.map((o) => {
         const standing = standingOf(o);
         return (
-          <article key={o.id} className="q-receipt" data-busy={working ? 'yes' : undefined}>
+          <article key={o.id} id={`order-${o.id}`} className="q-receipt q-dashboard-target" data-busy={working ? 'yes' : undefined}>
             <header className="q-receipt-head">
               <div className="q-receipt-who">
                 <strong className="q-receipt-name">{o.who ?? 'Unnamed'}</strong>

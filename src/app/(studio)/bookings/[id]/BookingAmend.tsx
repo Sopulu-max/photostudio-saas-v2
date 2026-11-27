@@ -67,7 +67,7 @@ export function BookingAmend({ booking }: { booking: BookingDetail }) {
       <div className="q-field">
         <label className="q-label" htmlFor="on">Date</label>
         <input
-          className="q-input q-input-sm"
+          className="q-input q-input-sm q-dashboard-target"
           id="on"
           type="date"
           value={on}

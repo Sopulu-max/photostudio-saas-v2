@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   daysSince, outstanding, sayNotHandedOver, sayNotSent,
-  sayShortOfPromise, sayStanding, sayUnanswered, sayWaiting,
+  sayShortOfPromise, sayStanding, sayUnanswered, sayWaiting, scheduleThrough,
   type Dashboard,
 } from '@/weave/dashboard/shape';
 
 const empty: Dashboard = {
-  unanswered: [], notHandedOver: [], shortOfPromise: [], notSent: [],
+  unanswered: [], unscheduled: [], notHandedOver: [], shortOfPromise: [], notSent: [],
 };
 
 const asked = (requestedAt: string) => ({
@@ -14,6 +14,10 @@ const asked = (requestedAt: string) => ({
 });
 
 const NOW = new Date('2026-11-25T09:00:00Z');
+
+it('includes today in the seven-day schedule across a year boundary', () => {
+  expect(scheduleThrough('2026-12-29')).toBe('2027-01-04');
+});
 
 describe('the words on the dashboard', () => {
   /*
@@ -24,7 +28,7 @@ describe('the words on the dashboard', () => {
   const everySentence = [
     sayUnanswered([]), sayUnanswered([asked('2026-11-20')]),
     sayNotHandedOver([]), sayShortOfPromise([]), sayNotSent([]),
-    sayStanding(empty),
+    sayStanding(empty, 0),
   ];
 
   it('never addresses the reader', () => {
@@ -65,20 +69,21 @@ describe('what is outstanding', () => {
     expect(sayShortOfPromise([
       { galleryId: 'g1', bookingId: 'j', name: "Ada's pictures", have: 10, promised: 40 },
       { galleryId: 'g2', bookingId: 'k', name: "Chidi's pictures", have: 8, promised: 10 },
-    ])).toBe('2 galleries short by 32');
+    ])).toBe('2 galleries short by 32 files');
   });
 
   it('names orders paid for and still here', () => {
     expect(sayNotSent([{ id: 'o', clientName: 'Ada', paidAt: '2026-11-10' }]))
-      .toBe('1 order not despatched');
+      .toBe('1 paid order awaiting fulfilment');
   });
 
-  it('adds up every section that is somebody else to act on', () => {
+  it('includes unscheduled bookings and staffing gaps in the outstanding total', () => {
     expect(outstanding({
       ...empty,
       unanswered: [asked('2026-11-20')],
+      unscheduled: [{ id: 'b', clientName: 'Ada', occasion: null }],
       notSent: [{ id: 'o', clientName: null, paidAt: '2026-11-10' }],
-    })).toBe(2);
+    }, 2)).toBe(5);
   });
 });
 
@@ -101,11 +106,11 @@ describe('how long something has been waiting', () => {
 
 describe('the line under the title', () => {
   it('reports a clear board without a zero', () => {
-    expect(sayStanding(empty)).toBe('Nothing outstanding');
+    expect(sayStanding(empty, 0)).toBe('Nothing outstanding');
   });
 
   it('leads with what is outstanding', () => {
-    expect(sayStanding({ ...empty, unanswered: [asked('2026-11-20')] }))
+    expect(sayStanding({ ...empty, unanswered: [asked('2026-11-20')] }, 0))
       .toBe('1 item outstanding');
   });
 });

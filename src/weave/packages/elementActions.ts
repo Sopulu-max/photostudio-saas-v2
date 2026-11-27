@@ -229,68 +229,21 @@ export async function removeElement(input: { elementId: string }): Promise<void>
   refreshBoth();
 }
 
-/**
- * The whole order at once, as it is after a drag.
+/*
+ * REORDERING WAS REMOVED, not left unwired.
  *
- * Takes the ids rather than a from/to pair: a drag is a statement about the
- * final arrangement, and sending the arrangement is both simpler and immune
- * to the list having moved since.
+ * `reorderElements` and `moveElement` sat here with no caller, and the honest
+ * question was whether to wire them up. The answer is in the offer itself:
  *
- * Every id is checked to belong to this package before anything is written,
- * so a tampered list cannot drag another studio's element into this one.
+ *   THE OFFER COMPOSES ITSELF. The studio chooses what is in the package, not
+ *   where each piece sits — the picture leads, the words follow, what is
+ *   received is listed. That is the order a client reads in and it is the
+ *   same for every package, so it is not a decision to hand to a studio.
+ *
+ * A package renders by KIND, so a studio could not see the difference a
+ * reorder made: dragging a question above a block of text changes nothing,
+ * because text always comes before questions. Wiring them would have added a
+ * gesture that answers with no visible change, which is worse than no
+ * gesture. `position` still orders elements within a kind, and the server
+ * assigns it on arrival.
  */
-export async function reorderElements(input: {
-  packageId: string;
-  ids: string[];
-}): Promise<void> {
-  const who = await whoIsAsking();
-  if (!who) throw new Error('Sign in first');
-
-  const current = await read(who.studioId, [input.packageId]);
-  const mine = new Set(current.map((e) => e.id));
-  if (input.ids.length !== current.length || new Set(input.ids).size !== current.length || input.ids.some((id) => !mine.has(id))) {
-    throw new Error('That is not this package’s order');
-  }
-
-  const results = await Promise.all(input.ids.map((id, i) => db.from('package_elements')
-    .update({ position: i }).eq('id', id).eq('studio_id', who.studioId)));
-  if (results.some((result) => result.error)) throw new Error('Could not save the order');
-
-  refreshBoth();
-}
-
-/**
- * Move one earlier or later, for a keyboard.
- *
- * Kept beside the drag rather than replaced by it. A list that can only be
- * reordered by dragging cannot be reordered by somebody who does not use a
- * mouse, and "it is a visual tool" has never been a reason.
- *
- * Renumbered 0..n rather than swapping two values: positions drift — rows
- * arrive sharing one, a delete leaves a hole — and renumbering what is
- * already in hand ends the drift for nothing.
- */
-export async function moveElement(input: {
-  elementId: string;
-  towards: 'front' | 'back';
-}): Promise<void> {
-  const who = await whoIsAsking();
-  if (!who) throw new Error('Sign in first');
-
-  const { data: me } = await db.from('package_elements')
-    .select('id, package_id').eq('id', input.elementId)
-    .eq('studio_id', who.studioId).maybeSingle();
-  if (!me) throw new Error('That is not in this studio');
-
-  const order = await read(who.studioId, [(me as { package_id: string }).package_id]);
-  const at = order.findIndex((e) => e.id === input.elementId);
-  const to = input.towards === 'front' ? at - 1 : at + 1;
-  if (at < 0 || to < 0 || to >= order.length) return;
-
-  [order[at], order[to]] = [order[to], order[at]];
-
-  await Promise.all(order.map((e, i) => db.from('package_elements')
-    .update({ position: i }).eq('id', e.id).eq('studio_id', who.studioId)));
-
-  refreshBoth();
-}

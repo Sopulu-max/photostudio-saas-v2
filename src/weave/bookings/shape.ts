@@ -14,6 +14,19 @@
  */
 export type Turn = 'us' | 'them' | 'scheduled' | 'done';
 
+export const MAX_PACKAGE_QUANTITY = 2_147_483_647;
+
+export type PackageQuantity = { packageId: string; quantity: number };
+
+export type BookingPackage = {
+  position: number;
+  packageId: string | null;
+  name: string;
+  quantity: number;
+  unitMinor: number | null;
+  currency: string;
+};
+
 export const COLUMNS: { turn: Turn; heading: string; absent: string }[] = [
   { turn: 'us', heading: 'Action needed', absent: 'No action needed.' },
   { turn: 'them', heading: 'Awaiting client', absent: 'Nothing awaiting a client.' },

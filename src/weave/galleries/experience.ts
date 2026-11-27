@@ -68,6 +68,7 @@ export async function createClientHubRequest(input: {
     action: 'hub_request_created', actor_id: who.personId,
     payload: { request: request.id, purpose: input.purpose, collaborators: participantIds.length },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
@@ -83,6 +84,7 @@ export async function closeClientHubRequest(input: { galleryId: string; bookingI
     action: input.closed ? 'hub_request_closed' : 'hub_request_reopened', actor_id: who.personId,
     payload: { request: input.requestId },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
   revalidatePath('/g/[token]', 'page');
 }
@@ -175,6 +177,7 @@ export async function submitClientHubSelection(input: { token: string; email: st
     studio_id: gallery.studio_id, subject_type: 'gallery', subject_id: gallery.id,
     action: 'hub_selection_submitted', actor_id: personId, payload: { request: request.id, howMany: count ?? 0 },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/g/${input.token}`);
 }
 

@@ -71,6 +71,12 @@ export async function requestBooking(input: {
   if (!email.includes('@')) throw new Error('An email address, so they can answer you');
   if (!wants) throw new Error('Say what you are asking for');
   if (wants.length > 2_000) throw new Error('Keep it under 2,000 characters');
+  if (input.packageId) {
+    const { data: pack } = await db.from('packages').select('id')
+      .eq('studio_id', studio.studioId).eq('id', input.packageId)
+      .not('published_at', 'is', null).maybeSingle();
+    if (!pack) throw new Error('That package is unavailable');
+  }
 
   const { data: person, error: personError } = await db.from('people')
     .insert({ studio_id: studio.studioId, name, email })
@@ -108,8 +114,8 @@ export async function requestBooking(input: {
   });
 
   revalidatePath('/');
-  revalidatePath('/mobile');
   revalidatePath('/bookings');
+  revalidatePath('/dashboard');
 
   return { token: booking.request_token as string };
 }
@@ -159,6 +165,7 @@ export async function requestsWaiting(): Promise<Request[]> {
   const { data, error } = await db.from('bookings')
     .select('id, wants, asked_for, requested_at, created_at, request_token, client:people(name, email)')
     .eq('studio_id', who.studioId)
+    .not('requested_at', 'is', null)
     .is('accepted_at', null)
     .is('declined_at', null)
     .order('requested_at', { ascending: true, nullsFirst: false });
@@ -238,7 +245,7 @@ export async function acceptRequest(input: { bookingId: string; saying?: string 
   if (!who) throw new Error('Sign in first');
 
   const { data: booking } = await db.from('bookings')
-    .select('id, asked_for, accepted_at, declined_at, package_id, client:people(name)')
+    .select('id, asked_for, accepted_at, declined_at, client:people(name)')
     .eq('id', input.bookingId).eq('studio_id', who.studioId).maybeSingle();
   if (!booking) throw new Error('That request is not in this studio');
   if (booking.accepted_at || booking.declined_at) throw new Error('That request has already been answered');
@@ -265,13 +272,16 @@ export async function acceptRequest(input: { bookingId: string; saying?: string 
    * here, sized by what was promised, so the agreement becomes a thing with
    * a shape rather than a sentence in a request.
    */
-  await galleryForAcceptedJob({
-    studioId: who.studioId,
-    bookingId: input.bookingId,
-    clientName: (booking as unknown as { client: { name: string } | null }).client?.name ?? null,
-    packageId: (booking as unknown as { package_id: string | null }).package_id,
-    actorId: who.personId,
-  });
+  try {
+    await galleryForAcceptedJob({
+      studioId: who.studioId,
+      bookingId: input.bookingId,
+      clientName: (booking as unknown as { client: { name: string } | null }).client?.name ?? null,
+      actorId: who.personId,
+    });
+  } catch (error) {
+    console.error('Booking accepted, but initial gallery could not be created:', error);
+  }
 
   await db.from('events').insert({
     studio_id: who.studioId, subject_type: 'booking', subject_id: input.bookingId,
@@ -279,8 +289,8 @@ export async function acceptRequest(input: { bookingId: string; saying?: string 
   });
 
   revalidatePath('/');
-  revalidatePath('/mobile');
   revalidatePath('/bookings');
+  revalidatePath('/dashboard');
   /* Accepting opens a gallery, so the screen that lists them is told too. */
   revalidatePath('/galleries');
   revalidatePath(`/bookings/${input.bookingId}`);
@@ -318,6 +328,6 @@ export async function declineRequest(input: { bookingId: string; because?: strin
   });
 
   revalidatePath('/');
-  revalidatePath('/mobile');
   revalidatePath('/bookings');
+  revalidatePath('/dashboard');
 }

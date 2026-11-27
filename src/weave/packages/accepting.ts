@@ -1,7 +1,6 @@
-'use server';
+import 'server-only';
 
 import { weave as db } from '@/weave/db';
-import { promisedPictures } from './promised';
 import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seeding';
 
 /**
@@ -24,7 +23,6 @@ export async function galleryForAcceptedJob(input: {
   bookingId: string;
   /** For the gallery's name. A client's own name is what they will recognise. */
   clientName: string | null;
-  packageId: string | null;
   actorId: string | null;
 }): Promise<{ galleryId: string | null }> {
   /*
@@ -50,15 +48,15 @@ export async function galleryForAcceptedJob(input: {
    * place the promise exists, so the two cannot disagree. The column is left
    * in place and unread — expand, deploy, contract.
    */
-  let promised: number | null = null;
-  let templateId: string | null = null;
-  if (input.packageId) {
-    const { data: pack } = await db.from('packages')
-      .select('gallery_template_id').eq('id', input.packageId)
-      .eq('studio_id', input.studioId).maybeSingle();
-    templateId = pack?.gallery_template_id ?? null;
-    promised = await promisedPictures(input.studioId, input.packageId);
-  }
+  const [firstPackage, imagePromise] = await Promise.all([
+    db.from('booking_packages').select('package:packages(gallery_template_id)')
+      .eq('studio_id', input.studioId).eq('booking_id', input.bookingId)
+      .order('position').limit(1).maybeSingle().throwOnError(),
+    db.rpc('booking_promised_pictures', { p_studio_id: input.studioId, p_booking_id: input.bookingId }).throwOnError(),
+  ]);
+  const first = firstPackage.data as unknown as { package: { gallery_template_id: string | null } | null } | null;
+  const templateId = first?.package?.gallery_template_id ?? null;
+  const promised = imagePromise.data as number | null;
 
   /*
    * A template that has since been deleted is not worth refusing an

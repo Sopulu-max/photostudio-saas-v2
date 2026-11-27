@@ -135,6 +135,25 @@ export async function readClient(id: string): Promise<Client | null> {
   return shape(data as unknown as Row, today);
 }
 
+export async function bookingClients(): Promise<Pick<Client, 'id' | 'name' | 'email' | 'phone'>[] | null> {
+  const who = await whoIsAsking();
+  if (!who) return null;
+
+  const { data, error } = await db.from('people')
+    .select('id, name, email, phone, bookings!inner(id)')
+    .eq('studio_id', who.studioId)
+    .eq('bookings.studio_id', who.studioId)
+    .is('joined_at', null)
+    .order('name').order('id')
+    .limit(1, { referencedTable: 'bookings' });
+
+  if (error) {
+    console.error('Booking clients unavailable:', error.code);
+    return null;
+  }
+  return data.map(({ id, name, email, phone }) => ({ id, name, email, phone }));
+}
+
 /** What this client has had done, newest first, for their own page. */
 export type ClientWork = {
   id: string;

@@ -311,6 +311,117 @@ a { color: inherit; }
 }
 .q-card-narrow { max-width: 430px; width: 100%; }
 
+/* ---- Dashboard ---------------------------------------------------------- */
+
+.q-dashboard .q-page-header { align-items: center; margin-bottom: 32px; }
+.q-dashboard-summary {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px; margin-bottom: 22px;
+}
+.q-dashboard-stat {
+  display: flex; flex-direction: column; gap: 16px; padding: 18px 20px;
+  color: var(--ink); text-decoration: none;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.q-dashboard-stat:hover { border-color: var(--line-strong); background: var(--hover); }
+.q-dashboard-stat-label {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 0.82rem; font-weight: 500; color: var(--ink-dim);
+}
+.q-dashboard-stat-label svg,
+.q-dashboard-shoot > svg,
+.q-dashboard-queue-row > svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--ink-dim); }
+.q-dashboard-stat-arrow { margin-inline-start: auto; }
+.q-dashboard-stat-reading { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.2; }
+.q-dashboard-body {
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 22px; align-items: start;
+}
+.q-dashboard-panel { display: flex; flex-direction: column; gap: 18px; padding: 22px; }
+.q-dashboard-panel-head {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+}
+.q-dashboard-panel-head .q-btn svg { width: 15px; height: 15px; }
+.q-dashboard-heading {
+  margin: 0; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.45rem; line-height: 1.2; color: var(--ink);
+}
+.q-dashboard-days, .q-dashboard-queue { display: grid; gap: 8px; }
+.q-dashboard-day + .q-dashboard-day { padding-top: 12px; border-top: 1px solid var(--line); }
+.q-dashboard-day-title { margin: 0 0 5px; font-size: 0.8rem; font-weight: 500; color: var(--ink-dim); }
+.q-dashboard-shoot, .q-dashboard-queue-row {
+  display: grid; align-items: start; gap: 12px;
+  padding-block: 10px; font-size: 0.9rem; line-height: 1.5;
+}
+.q-dashboard-shoot { grid-template-columns: 5.25rem minmax(0, 1fr) auto; }
+.q-dashboard-queue-row { grid-template-columns: minmax(0, 1fr) auto; }
+.q-dashboard-shoot > svg, .q-dashboard-queue-row > svg { margin-top: 4px; }
+.q-dashboard-time {
+  font-family: var(--mono); font-size: 0.76rem; font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+.q-dashboard-row-label { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.q-dashboard-target, .q-asks[id] { scroll-margin-block-start: 20px; }
+
+@media (max-width: 64em) {
+  .q-dashboard-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 41em) {
+  .q-dashboard .q-page-header { flex-direction: row; align-items: flex-start; gap: 12px; }
+  .q-dashboard .q-page-header .q-btn { flex-shrink: 0; }
+  .q-dashboard-summary { gap: 8px; }
+  .q-dashboard-stat { gap: 10px; padding: 12px 9px; }
+  .q-dashboard-stat-label { gap: 5px; font-size: 0.72rem; }
+  .q-dashboard-stat-arrow { display: none; }
+  .q-dashboard-stat-reading { font-size: 0.96rem; }
+  .q-dashboard-panel { padding: 18px; }
+}
+@media (max-width: 26em) {
+  .q-dashboard-summary { grid-template-columns: minmax(0, 1fr); }
+  .q-dashboard-stat { flex-direction: row; justify-content: space-between; align-items: center; padding: 12px; }
+  .q-dashboard-stat-reading { text-align: end; }
+}
+
+/* ---- Booking invoices ---------------------------------------------------- */
+
+.q-invoice-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 142px), 1fr));
+  gap: 14px;
+}
+.q-invoice-fields .q-input { width: 100%; }
+.q-invoice-amounts { margin: 0; }
+.q-invoice-line, .q-invoice-payment {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px 20px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line); padding-block: 9px;
+}
+.q-invoice-line dd { margin: 0; color: var(--ink); }
+.q-invoice-balance { padding-block: 13px; }
+.q-invoice-balance dd { font-size: 1rem; font-weight: 600; }
+.q-invoice-form { border-top: 1px solid var(--line); padding-top: 14px; }
+.q-invoice-history { list-style: none; padding: 0; margin: 0; }
+.q-invoice-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.q-invoice-public {
+  min-height: 100svh; padding: clamp(20px, 7vw, 72px) 20px;
+  background: var(--paper); color: var(--ink);
+}
+.q-invoice-document { max-width: 620px; margin-inline: auto; padding: clamp(22px, 6vw, 46px); }
+.q-payment-index-item + .q-payment-index-item { border-top: 1px solid var(--line); }
+.q-payment-index-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
+  align-items: center; gap: 12px; padding-block: 14px;
+}
+.q-payment-index-row svg { width: 16px; height: 16px; color: var(--ink-dim); }
+.q-payment-index-amount { display: flex; flex-direction: column; gap: 2px; text-align: end; }
+.q-payment-index-nav { margin-top: 16px; justify-content: flex-end; }
+@media (max-width: 35em) {
+  .q-payment-index-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .q-payment-index-row svg { grid-column: 2; grid-row: 1; }
+  .q-payment-index-amount { grid-column: 1; text-align: start; }
+}
+
 /* ---- Waiting ------------------------------------------------------------- */
 
 /*
@@ -424,7 +535,7 @@ a { color: inherit; }
  */
 .q-choice-grid {
   display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 188px), 1fr));
 }
 
 /*
@@ -1298,50 +1409,6 @@ select.q-input { cursor: pointer; }
   .q-letter { padding-left: 16px; }
 }
 
-/* ---- Pocket companion --------------------------------------------------- */
-/*
- * This is deliberately not the desktop shell squeezed into a narrow column.
- * On a phone it opens with the few facts somebody can genuinely act on between
- * locations: a job to move, today's occasion, and an order needing a mark.
- */
-
-.q-mobile {
-  width: min(100%, 620px); min-height: 100vh; margin: 0 auto;
-  padding: max(22px, env(safe-area-inset-top)) 20px max(38px, env(safe-area-inset-bottom));
-  background: var(--paper);
-}
-.q-mobile-head {
-  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center;
-  gap: 14px; padding-bottom: 30px; border-bottom: 1px solid var(--line);
-}
-.q-mobile-mark {
-  display: grid; place-items: center; width: 38px; height: 38px;
-  border: 1px solid var(--ink); border-radius: 50%; color: var(--ink);
-  font-family: var(--font-display); font-size: 1.12rem; font-weight: 500; text-decoration: none;
-}
-.q-mobile-title {
-  margin: 0; font-family: var(--font-display); font-size: 2rem; font-weight: 400;
-  letter-spacing: -0.025em; line-height: 1.02;
-}
-.q-mobile-link {
-  padding: 7px 0; color: var(--ink-dim); font-family: var(--mono);
-  font-size: 0.62rem; letter-spacing: 0.1em; text-decoration: none;
-}
-.q-mobile-link:hover { color: var(--ink); }
-.q-mobile-body { padding: 34px 0; }
-.q-mobile-item {
-  display: flex; flex-direction: column; gap: 10px; padding: 17px 0;
-  border-top: 1px solid var(--line);
-}
-.q-mobile-item:last-child { border-bottom: 1px solid var(--line); }
-.q-mobile-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
-.q-mobile-actions .q-btn { min-height: 40px; }
-
-@media (min-width: 43em) {
-  .q-mobile { padding-left: 30px; padding-right: 30px; }
-  .q-mobile-head { margin-top: 14px; }
-}
-
 /* ---- The way in --------------------------------------------------------- */
 /*
  * Sign up, log in, and both halves of forgetting a password. These four pages
@@ -1782,6 +1849,21 @@ select.q-input { cursor: pointer; }
 .q-hint { margin: 8px 0 18px; font-size: 0.75rem; color: var(--ink-faint); }
 .q-label-2 { margin-top: 18px; }
 
+/*
+ * THE PALETTE IS THE SHELF. A deliverable was drawn here as a 20px mark on a
+ * chip — at that size a 5x7 print, a 20x30 canvas and a digital file are the
+ * same grey smudge, so the one thing the drawing is for, telling the studio's
+ * things apart by shape and material, was lost. The Deliverables page already
+ * draws them at size, and this is the same catalogue; it is picked up here
+ * instead of opened, which is not a reason to draw it differently.
+ */
+.q-shelf-pal {
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px; margin-top: 10px;
+}
+.q-del-grab { cursor: grab; }
+.q-del-grab:active { cursor: grabbing; transform: none; box-shadow: none; }
+
 /* The palette: the studio's own catalogue, carried into the package. */
 .q-pal { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .q-pal-one {
@@ -1799,18 +1881,7 @@ select.q-input { cursor: pointer; }
 .q-pal-one:active { cursor: grabbing; transform: none; box-shadow: none; }
 /* The ones that are not objects get no well, so the catalogue stands out. */
 .q-pal-plain { padding: 7px 14px; border-style: dashed; color: var(--ink-dim); }
-.q-pal-mark { display: grid; place-items: center; width: 22px; flex: none; }
-.q-pal-mark .q-del-obj { height: 20px; max-width: 22px; }
-.q-pal-mark .q-del-file { width: 15px; height: 19px; }
 
-.q-els { list-style: none; margin: 14px 0 0; padding: 0; }
-.q-els-none {
-  margin-top: 14px; padding: 26px 20px; text-align: center;
-  border: 1px dashed var(--line-strong); border-radius: var(--radius);
-  font-size: 0.8125rem; color: var(--ink-faint);
-}
-.q-els-tail { min-height: 26px; }
-.q-landing { border-color: var(--ink); background: var(--hover); }
 
 /* The gap that opens to take what is being carried. */
 .q-line {
@@ -1932,7 +2003,6 @@ select.q-input { cursor: pointer; }
 .q-o-more-shots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
 .q-o-shot { display: block; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: var(--paper-2); }
 .q-o-shot img, .q-o-shot video { width: 100%; height: 100%; object-fit: cover; display: block; }
-
 
 /* ---- what a studio delivers --------------------------------------------- */
 
@@ -2064,15 +2134,6 @@ select.q-input { cursor: pointer; }
 .q-b-ask-number { max-width: 110px; }
 .q-b-ask-date { max-width: 180px; font-family: var(--mono); font-size: 0.75rem; }
 
-/* The palette's second heading, set off from the catalogue above it. */
-.q-rail-title-2 { margin-top: 22px; }
-.q-tool-mark { display: grid; place-items: center; width: 34px; flex: none; }
-.q-tool-mark .q-del-obj { height: 30px; max-width: 34px; }
-.q-tool-mark .q-del-file { width: 24px; height: 30px; }
-.q-glyph-ask {
-  width: 20px; height: 14px; border: 1px solid currentColor;
-  border-radius: 2px; opacity: 0.7; color: var(--ink-dim);
-}
 
 /* The designer is two halves and wants the room; the standard page column
  * would squeeze the client's page into something narrower than it will be. */
@@ -2081,56 +2142,10 @@ select.q-input { cursor: pointer; }
 /* The file input itself is never the control; the Picture tool is. */
 .q-sr-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
-/* The package's own particulars: a name, a description, a price. Narrow on
- * purpose — a price is six characters and does not want a field the width of
- * the pane. */
-.q-particulars {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 18px; align-items: end;
-}
 .q-particular-wide { grid-column: 1 / -1; }
-.q-particular-foot {
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 14px;
-  flex-wrap: wrap; margin-top: 2px;
-}
+
 .q-pal-name { white-space: nowrap; }
 
-/*
- * A row shows the THING. Every row used to carry its kind in mono capitals
- * above a line that already said the same, and a "Shown"/"Promised" chip that
- * named an internal distinction and could not be acted on — so the list read
- * as seven labels and no contents, and a row about a photograph said
- * "PICTURE / Picture" instead of showing the photograph.
- */
-.q-el-mark { display: grid; place-items: center; width: 34px; flex: none; }
-.q-el-mark .q-del-obj { height: 30px; max-width: 34px; }
-.q-el-mark .q-del-file { width: 22px; height: 28px; }
-.q-el-thumb {
-  width: 34px; height: 30px; object-fit: cover;
-  border-radius: 3px; display: block; background: var(--paper-2);
-}
-.q-el-gone {
-  width: 34px; height: 30px; border-radius: 3px;
-  border: 1px dashed var(--line-strong);
-}
-/* A question is a field waiting to be filled. */
-.q-el-field {
-  width: 26px; height: 16px; border-radius: 3px;
-  border: 1px solid var(--line-strong); background: var(--paper-2);
-}
-/* A condition of the day is spent, not delivered: a mark, not an object. */
-.q-el-dot {
-  width: 15px; height: 15px; border-radius: 50%;
-  border: 1px solid var(--line-strong);
-}
-/* Prose, drawn as lines of it. */
-.q-el-lines {
-  width: 24px; height: 12px;
-  background: repeating-linear-gradient(
-    to bottom, var(--line-strong) 0 1px, transparent 1px 5px
-  );
-}
-.q-el-prose { color: var(--ink-dim); }
 
 /*
  * The package edits itself: whatever is clicked shows its own controls. The
@@ -2252,37 +2267,24 @@ select.q-input { cursor: pointer; }
 }
 .q-pcard-flag-off { color: var(--ink-faint); }
 
-/*
- * The package this booking is for.
- *
- * `.q-offer` is a door on the client's page and a choice on the studio's, so
- * the chosen one has to say so without a tick or a legend. The accent carries
- * emphasis in dark where light stays monochrome, so it is a ring in the accent
- * and a lift that stays lifted — the card is already up because it has been
- * pressed, which is the same language as the hover rather than a second one.
- *
- * `button` resets, because `.q-offer` was written for an anchor: a button
- * brings its own font, alignment and background that would otherwise override
- * the card entirely.
- */
-button.q-offer {
-  font: inherit; text-align: left; cursor: pointer; padding: 0;
-  width: 100%; appearance: none;
+/* ---- Package quantities on a new booking -------------------------------- */
+.q-package-option {
+  display: flex; flex-direction: column; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background: var(--card);
 }
-button.q-offer:disabled { cursor: default; opacity: 0.55; }
-
-.q-offer-on {
+.q-package-option .q-offer-art { overflow: hidden; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.q-package-option[data-selected="true"] {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-ring),
-              0 10px 26px rgba(28, 26, 23, 0.1);
-  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px var(--accent-ring);
 }
-.q-offer-on .q-offer-frame { transform: scale(1.04); }
-
-@media (prefers-reduced-motion: reduce) {
-  .q-offer-on { transform: none; }
-  .q-offer-on .q-offer-frame { transform: none; }
+.q-package-controls {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 14px; margin-top: auto; border-top: 1px solid var(--line);
 }
+.q-package-quantity { font-family: var(--mono); font-size: 0.8125rem; color: var(--ink); }
+.q-package-quantity:empty { position: absolute; }
+.q-package-option[data-selected="false"] .q-package-add { width: 100%; }
 
 /* ---- Who is on a booking ------------------------------------------------ */
 /*
@@ -2346,3 +2348,127 @@ button.q-offer:disabled { cursor: default; opacity: 0.55; }
  */
 .q-cal-owed { color: var(--ink-faint); }
 .q-cal-owed .q-cal-who { color: inherit; }
+
+/*
+ * A week's cells are taller than a month's.
+ *
+ * A month has to fit thirty-one days on a screen, so its cells hold as many
+ * lines as will go. A week has seven, and the room should be spent on reading
+ * each line in full rather than on fitting more of them.
+ */
+.q-cal-week-tall .q-cal-day { min-height: 190px; }
+
+/* ---- A segmented control ------------------------------------------------- */
+/*
+ * Options that belong together, sharing one border, the one in use filled.
+ *
+ * The appearance switcher in the sidebar is this shape already, at the size a
+ * sidebar utility wants. This is the same idea at page size, for a choice
+ * somebody makes while looking at the thing it changes. The two should fold
+ * into one the next time either is touched.
+ */
+.q-seg {
+  display: inline-flex; gap: 1px; padding: 2px;
+  background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: var(--pill);
+}
+.q-seg-pick {
+  padding: 6px 14px; cursor: pointer;
+  background: transparent; border: 0; border-radius: var(--pill);
+  font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.12em;
+  color: var(--ink-faint); white-space: nowrap;
+  /* Fixed, so a bigger glyph cannot make its group taller than its neighbour. */
+  line-height: 16px;
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.q-seg-pick:hover { color: var(--ink-dim); }
+.q-seg-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.q-seg-on { background: var(--card); color: var(--ink); }
+
+/*
+ * An arrow needs less room around it than a word, and more of itself — but
+ * not more height: the line-height above holds every pick to one box, so the
+ * two groups sit level instead of two pixels apart.
+ */
+.q-seg-arrow { padding: 6px 11px; font-size: 0.95rem; }
+
+/*
+ * The calendar's controls hold their ground.
+ *
+ * They lived in a wrapping row beside a title that changes length with the
+ * view, so "Sunday, 13 December 2026" squeezed the two pills onto separate
+ * lines and moved them sideways while somebody was clicking through them.
+ * The controls never shrink and never wrap; the title gives way instead.
+ */
+.q-cal-controls {
+  display: flex; align-items: center; gap: 10px;
+  flex: 0 0 auto; flex-wrap: nowrap;
+}
+
+/* The side that yields. `min-width: 0` is what lets it, inside a flex row. */
+.q-cal-said { min-width: 0; }
+
+/*
+ * The package, while something is held over it.
+ *
+ * `q-pal-one` has carried `cursor: grab` since it was written, so the palette
+ * was promising a gesture the page did not answer. It answers now, and says
+ * so: the accent ring this interface already uses for a chosen thing, because
+ * "this will take it" and "this is the one" are the same claim.
+ */
+.q-o-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-lg);
+}
+
+/* ---- Typing on the offer itself ----------------------------------------- */
+/*
+ * A field that is not drawn as one.
+ *
+ * The name, the description and the price are typed on the offer rather than
+ * in a form beside it, so they have to carry the offer's own type and none of
+ * a field's furniture — no box, no fill, no rule underneath. What says it can
+ * be typed in is the caret and a rule that appears only when it is being
+ * used, which is enough on a page whose whole job is to look like the thing
+ * a client will meet.
+ */
+.q-o-type {
+  width: 100%; display: block;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  background: transparent; border: 0; padding: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  transition: border-color var(--fast) var(--ease);
+}
+.q-o-type:hover { border-bottom-color: var(--line); }
+.q-o-type:focus { outline: none; border-bottom-color: var(--ink-faint); }
+.q-o-type::placeholder { color: var(--ink-faint); }
+
+/*
+ * AND THEN GIVES THE TYPE BACK.
+ *
+ * `font: inherit` above is what stops a browser drawing its own field font —
+ * but it is shorthand, it resets everything, and being later in this file it
+ * beat `.q-o-name`: the package title rendered in Inter at 15px instead of
+ * Playfair at 1.6rem. A title in the body face is the one thing the type rule
+ * exists to prevent, so each field is told again what it is.
+ */
+.q-o-name.q-o-type {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 1.6rem; line-height: 1.2;
+}
+.q-o-desc.q-o-type { font-size: 0.9375rem; line-height: 1.6; }
+
+/* The price keeps its currency beside the number, not inside the field. */
+.q-o-money { display: flex; align-items: baseline; gap: 6px; }
+.q-o-money-n {
+  width: auto; flex: 1 1 auto;
+  font-family: var(--mono); font-size: 0.875rem;
+}
+
+/* Saving, at the top of the thing being saved. */
+.q-o-save {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px;
+}

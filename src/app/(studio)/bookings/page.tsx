@@ -1,8 +1,11 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { whoIsAsking } from '@/weave/studio';
 import { bookingsHeld } from '@/weave/bookings/actions';
+import { requestsWaiting } from '@/weave/bookings/requests';
 import { sayBefore, sayHeld, sayWhen, type BookingCard } from '@/weave/bookings/shape';
+import { Requests } from './Requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,17 +38,17 @@ function Row({ booking }: { booking: BookingCard }) {
  * Earlier work is capped. Every booking a studio has ever taken stops being a
  * reading and becomes an archive, and nobody scrolls an archive.
  *
- * WHAT IS NOT HERE. Only work the studio has agreed to: an unanswered request
- * is a question rather than a booking, and counting one in would misreport the
- * load. Requests have no screen at all at the moment — accepting or declining
- * one cannot be done anywhere — which is a gap this page is the obvious home
- * for, and not something to put back without being asked.
+ * The booking list counts agreed work. Requests have a separate section
+ * with the controls to accept or decline them.
  */
 export default async function BookingsPage() {
   const who = await whoIsAsking();
   if (!who) redirect('/login');
 
-  const held = await bookingsHeld();
+  const [held, waiting, head] = await Promise.all([bookingsHeld(), requestsWaiting(), headers()]);
+  const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
+  const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  const origin = `${scheme}://${host}`;
 
   const today = new Date().toLocaleDateString('en-CA');
   const ahead = held.filter((b) => !b.on || b.on >= today);
@@ -63,6 +66,8 @@ export default async function BookingsPage() {
           New booking
         </Link>
       </header>
+
+      <Requests waiting={waiting} origin={origin} today={today} />
 
       <div className="q-stack q-stack-md">
         {held.length === 0 ? (

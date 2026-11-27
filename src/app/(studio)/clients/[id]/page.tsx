@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { InvoiceReceipts } from '@/components/InvoiceReceipts';
 import { whoIsAsking } from '@/weave/studio';
 import { readClient, workFor } from '@/weave/clients/actions';
 import { sayClient } from '@/weave/clients/shape';
 import { money } from '@/weave/store/shape';
 import { sayWhen } from '@/weave/bookings/shape';
+import { clientInvoices } from '@/weave/payments/queries';
+import { invoiceBalance } from '@/weave/payments/shape';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,8 +37,7 @@ export default async function ClientPage({
 
   const { id } = await params;
 
-  /* Asked together; neither answer depends on the other. */
-  const [client, work] = await Promise.all([readClient(id), workFor(id)]);
+  const [client, work, invoices] = await Promise.all([readClient(id), workFor(id), clientInvoices(id)]);
   if (!client) notFound();
 
   return (
@@ -102,6 +104,39 @@ export default async function ClientPage({
               )}
             </Link>
           ))}
+        </section>
+
+        <section className="q-stack q-stack-sm" aria-labelledby="client-billing">
+          <h2 className="q-section-title" id="client-billing">Booking payments</h2>
+          {invoices === null && <p className="q-note q-note-bad">Booking payments unavailable</p>}
+          {invoices?.length === 0 && <p className="q-empty">No booking invoices</p>}
+          {invoices?.map((invoice) => {
+            const { balance, status } = invoiceBalance(invoice);
+            const invoicePath = `/invoice/${invoice.shareToken}`;
+
+            return (
+              <article className="q-card q-stack q-stack-sm" key={invoice.number}>
+                <header className="q-stack q-stack-xs">
+                  <h3 className="q-reading">Invoice {invoice.number}</h3>
+                  <p className="q-note q-invoice-text">{invoice.description}</p>
+                  <p className="q-meta">{on(invoice.issuedAt.slice(0, 10))} · {status}</p>
+                </header>
+                <p className="q-note">
+                  {money(invoice.totalMinor, invoice.currency)} total
+                  {balance > 0 && ` · ${money(balance, invoice.currency)} due`}
+                </p>
+                <div className="q-row q-row-sm">
+                  <a className="q-auth-link" href={invoicePath}>View invoice</a>
+                  <Link className="q-auth-link" href={`/bookings/${invoice.bookingId}#booking-payments`}>
+                    Open booking
+                  </Link>
+                </div>
+                {invoice.voidedAt === null && (
+                  <InvoiceReceipts payments={invoice.payments} currency={invoice.currency} invoicePath={invoicePath} />
+                )}
+              </article>
+            );
+          })}
         </section>
 
         {client.spent > 0 && (

@@ -8,7 +8,10 @@ import { filesForJob } from '@/weave/files/actions';
 import { galleriesForJob, galleryActivityForJob, galleryTemplates } from '@/weave/galleries/actions';
 import { priceLists } from '@/weave/store/actions';
 import { crewFor, whoCouldBeOnIt } from '@/weave/crew/actions';
+import { bookingBilling } from '@/weave/payments/queries';
+import { PackageLines } from '@/components/PackageLines';
 import { BookingAmend } from './BookingAmend';
+import { BookingPayments } from './BookingPayments';
 import { Crew } from './Crew';
 import { Files } from './Files';
 import { Galleries } from './Galleries';
@@ -35,6 +38,10 @@ function say(action: string, payload: Record<string, unknown>): string {
   if (action === 'turn_changed') {
     return `Moved from ${heading(payload.from)} to ${heading(payload.to)}`;
   }
+  if (action === 'invoice_issued') return `Invoice ${payload.number} issued`;
+  if (action === 'invoice_voided') return 'Invoice voided';
+  if (action === 'payment_recorded') return 'Payment recorded';
+  if (action === 'payment_voided') return 'Payment entry voided';
   if (action === 'amended') {
     const changed: string[] = [];
     if ('wants' in payload) changed.push('the notes');
@@ -58,7 +65,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
    * draw one page is how an app starts feeling like a website, and none of
    * these three answers depends on another.
    */
-  const [onIt, team, files, galleries, galleryActivity, templates, lists, head] = await Promise.all([
+  const [onIt, team, files, galleries, galleryActivity, templates, lists, billing, head] = await Promise.all([
     crewFor(id),
     whoCouldBeOnIt(),
     filesForJob(id),
@@ -66,6 +73,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
     galleryActivityForJob(id),
     galleryTemplates(),
     priceLists(),
+    bookingBilling(id),
     headers(),
   ]);
 
@@ -74,6 +82,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const host = head.get('x-forwarded-host') ?? head.get('host') ?? 'localhost:3000';
   const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
   const origin = `${scheme}://${host}`;
+  const today = new Date().toLocaleDateString('en-CA');
 
   return (
     <div className="q-page q-page-narrow">
@@ -110,6 +119,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </p>
           <p className="q-meta">{sayWhen(booking.on, booking.at)}</p>
         </div>
+        <Link className="q-btn q-btn-secondary q-btn-sm" href="#booking-payments">Payments</Link>
       </header>
 
       {/*
@@ -120,6 +130,15 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         */}
       <div className="q-stack q-stack-md">
       <BookingAmend booking={booking} />
+
+      {billing && billing.packages.length > 0 && (
+        <section className="q-card q-stack q-stack-sm" aria-labelledby="booking-packages-heading">
+          <h2 className="q-section-title" id="booking-packages-heading">Packages</h2>
+          <PackageLines lines={billing.packages} />
+        </section>
+      )}
+
+      <BookingPayments bookingId={booking.id} billing={billing} origin={origin} today={today} />
 
       <Crew bookingId={booking.id} onIt={onIt} team={team} />
 

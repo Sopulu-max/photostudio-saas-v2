@@ -18,7 +18,17 @@ import { hangs, saySize, type Deliverable } from '@/weave/deliverables/shape';
  *
  * The deliverables ARE the studio's catalogue. A package points at one and
  * says how many, so nobody spells "8x10 framed" twice and the engine knows
- * whether it is posted or handed over.
+ * whether it is posted or handed over. They are drawn HERE exactly as they
+ * are drawn on the Deliverables page — the same shelf, the same objects at
+ * the same size. They were chips with a 20px mark on them, at which size a
+ * framed print and a file are the same grey smudge; the drawing is the whole
+ * point of drawing them, and shrinking it threw the point away.
+ *
+ * EVERYTHING HERE IS DRAGGABLE, and was already drawn as though it were:
+ * `q-pal-one` has carried `cursor: grab` since it was written, so the palette
+ * has been promising a gesture it did not answer. Dropping onto the package
+ * adds; a plain click still adds too, because a tool that can only be dragged
+ * cannot be used by somebody who does not drag.
  */
 
 const TELLING: { type: ElementType; label: string }[] = [
@@ -105,15 +115,28 @@ export function PackageDocument({
       {catalogue.length === 0 ? (
         <p className="q-hint">No deliverables. Added on the Deliverables page.</p>
       ) : (
-        <div className="q-pal">
+        <div className="q-shelf q-shelf-pal">
           {catalogue.map((d) => (
             <button
-              key={d.id} type="button" className="q-pal-one"
-              title={saySize(d) ?? 'File'} disabled={working}
+              key={d.id} type="button" className="q-del q-del-grab"
+              disabled={working}
               onClick={() => onAddDeliverable(d)}
+              draggable={!working}
+              onDragStart={(event) => {
+                /* What was picked up, read on the other side of the drop. */
+                event.dataTransfer.setData(
+                  'application/x-weave-element',
+                  JSON.stringify({ type: 'deliverable', deliverableId: d.id }),
+                );
+                event.dataTransfer.effectAllowed = 'copy';
+              }}
             >
-              <span className="q-pal-mark"><Obj d={d} /></span>
-              <span className="q-pal-name">{d.name}</span>
+              <span className="q-del-stage"><Obj d={d} /></span>
+              {/* The studio's own word, exactly as typed. */}
+              <span className="q-del-name">{d.name}</span>
+              <span className="q-del-sub">
+                {d.kind === 'digital' ? 'File' : saySize(d) ?? 'No size set'}
+              </span>
             </button>
           ))}
         </div>
@@ -137,12 +160,20 @@ export function PackageDocument({
           <button
             key={t.type} type="button" className="q-pal-one q-pal-plain" disabled={working}
             onClick={() => onAddElement(t.type)}
+            draggable={!working}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(
+                'application/x-weave-element',
+                JSON.stringify({ type: t.type, deliverableId: null }),
+              );
+              event.dataTransfer.effectAllowed = 'copy';
+            }}
           >
             <span className="q-pal-name">{t.label}</span>
           </button>
         ))}
       </div>
-      <p className="q-hint">Click to add. Change or remove it on the package.</p>
+      <p className="q-hint">Drag onto the package, or click to add.</p>
 
       {problem && <p className="q-note q-note-bad">{problem}</p>}
     </div>

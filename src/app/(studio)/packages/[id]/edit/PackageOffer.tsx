@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { promisesOf, type PackageElement } from '@/weave/packages/elements';
+import { promisesOf, type ElementType, type PackageElement } from '@/weave/packages/elements';
 import { hangs, type Deliverable } from '@/weave/deliverables/shape';
 import type { PackageMedia as Media } from '@/weave/packages/media';
 import { money } from '@/weave/store/shape';
@@ -28,7 +28,8 @@ import { money } from '@/weave/store/shape';
 const MOST = 18;
 
 export function PackageOffer({
-  name, about, price, currency, elements, media, catalogue, working, onCount, onRemove,
+  name, about, price, currency, elements, media, catalogue, working,
+  onCount, onRemove, onDrop, onName, onAbout, onPrice,
 }: {
   name: string;
   about: string;
@@ -37,12 +38,25 @@ export function PackageOffer({
   elements: PackageElement[];
   media: Media[];
   catalogue: Deliverable[];
-  working: boolean;
-  /* The designer holds the elements, so changes go up to it. */
-  onCount: (elementId: string, count: number) => void;
-  onRemove: (elementId: string) => void;
+  working?: boolean;
+  /*
+   * The designer holds the elements, so changes go up to it. All three are
+   * OPTIONAL, and their absence is what makes this read-only: the same
+   * component shows a studio the package it has made and lets it build one,
+   * because those are the same thing seen with and without the handles. A
+   * second rendering of a package would be a second thing to keep right.
+   */
+  /** The particulars, typed on the offer itself rather than beside it. */
+  onName?: (name: string) => void;
+  onAbout?: (about: string) => void;
+  onPrice?: (price: string) => void;
+  onCount?: (elementId: string, count: number) => void;
+  onRemove?: (elementId: string) => void;
+  /** Something dropped from the palette. */
+  onDrop?: (type: ElementType, deliverableId: string | null) => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
 
   const promise = promisesOf(elements, catalogue);
   const byId = new Map(catalogue.map((d) => [d.id, d]));
@@ -63,9 +77,12 @@ export function PackageOffer({
   const bare = shots.length === 0 && words.length === 0 && asks.length === 0
     && promise.things.length === 0 && sessions.length === 0;
 
+  /** Nothing can be changed unless somebody upstairs is listening. */
+  const editable = Boolean(onCount && onRemove);
+
   /** The controls, on whatever has been clicked. */
   function Tools({ id, count }: { id: string; count?: number | null }) {
-    if (picked !== id) return null;
+    if (!editable || picked !== id) return null;
     return (
       <span className="q-ed" onClick={(event) => event.stopPropagation()}>
         {count != null && (
@@ -76,14 +93,14 @@ export function PackageOffer({
               const n = Number(event.target.value);
               if (Number.isInteger(n) && n > 0 && n !== count) {
                 setPicked(null);
-                onCount(id, n);
+                onCount?.(id, n);
               }
             }}
           />
         )}
         <button
           type="button" className="q-ed-x" disabled={working}
-          onClick={() => { setPicked(null); onRemove(id); }}
+          onClick={() => { setPicked(null); onRemove?.(id); }}
         >
           Remove
         </button>
@@ -91,10 +108,45 @@ export function PackageOffer({
     );
   }
 
-  const pick = (id: string) => setPicked(picked === id ? null : id);
+  const pick = (id: string) => { if (editable) setPicked(picked === id ? null : id); };
 
+  /*
+   * THE PACKAGE IS THE DROP TARGET, whole. Not a slot between two lines: the
+   * offer renders by KIND — the words, then what is promised, then the
+   * pictures, then the questions — so where in it something lands is not a
+   * thing a studio can choose. Pretending otherwise with an insertion caret
+   * would promise a freedom the page does not have.
+   */
   return (
-    <article className="q-o">
+    <article
+      className={over ? 'q-o q-o-over' : 'q-o'}
+      onDragOver={(event) => {
+        if (!onDrop) return;
+        if (!event.dataTransfer.types.includes('application/x-weave-element')) return;
+        /* Without this the browser refuses the drop and nothing happens. */
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        if (!over) setOver(true);
+      }}
+      onDragLeave={(event) => {
+        /* Moving between children fires leave on the parent; ignore those. */
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+        setOver(false);
+      }}
+      onDrop={(event) => {
+        if (!onDrop) return;
+        const raw = event.dataTransfer.getData('application/x-weave-element');
+        setOver(false);
+        if (!raw) return;
+        event.preventDefault();
+        try {
+          const what = JSON.parse(raw) as { type: ElementType; deliverableId: string | null };
+          onDrop(what.type, what.deliverableId);
+        } catch {
+          /* Something else was dragged onto the page. Nothing to add. */
+        }
+      }}
+    >
       {lead && (
         <span
           className={picked === lead.e.id ? 'q-o-lead q-on' : 'q-o-lead'}
@@ -109,9 +161,57 @@ export function PackageOffer({
       )}
 
       <div className="q-o-body">
-        <h2 className="q-o-name">{name || 'Untitled package'}</h2>
-        {about && <p className="q-o-desc">{about}</p>}
-        {amount !== null && <p className="q-o-price">{money(amount, currency)}</p>}
+        {/*
+          * THE PARTICULARS ARE TYPED HERE, on the offer, not in a form beside
+          * it. The name, the description and the price were a second copy of
+          * what this already shows — a studio typed a name on the left and
+          * watched it appear on the right — which is the exact objection that
+          * removed the list of element rows from this page: "a second copy of
+          * the package written out as labels, and the studio had to read both
+          * and keep them straight."
+          *
+          * The fields carry the offer's own type and no chrome, so the page
+          * still reads as the thing a client meets rather than as a form.
+          */}
+        {onName ? (
+          <input
+            className="q-o-name q-o-type"
+            value={name}
+            onChange={(event) => onName(event.target.value)}
+            placeholder="Untitled package"
+            aria-label="Name"
+          />
+        ) : (
+          <h2 className="q-o-name">{name || 'Untitled package'}</h2>
+        )}
+
+        {onAbout ? (
+          <input
+            className="q-o-desc q-o-type"
+            value={about}
+            onChange={(event) => onAbout(event.target.value)}
+            placeholder="A line about it"
+            aria-label="Description"
+          />
+        ) : (
+          about && <p className="q-o-desc">{about}</p>
+        )}
+
+        {onPrice ? (
+          <span className="q-o-price q-o-money">
+            {currency}
+            <input
+              className="q-o-type q-o-money-n"
+              value={price}
+              onChange={(event) => onPrice(event.target.value)}
+              placeholder="0"
+              inputMode="decimal"
+              aria-label={`Price (${currency})`}
+            />
+          </span>
+        ) : (
+          amount !== null && <p className="q-o-price">{money(amount, currency)}</p>
+        )}
 
         {words.map((e) => (
           <p

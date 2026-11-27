@@ -122,23 +122,125 @@ export function sayDoubled(doubled: Doubled[]): string | null {
     + 'are each on more than one shoot in a day.';
 }
 
-/**
- * What the month holds, said as a statement.
- *
- * Counts the work, not the days: a studio asks how much is on in December,
- * never how many days in December have something on them. Shoots lead because
- * they are the work; everything else is what the work owes.
+/* ---- Views --------------------------------------------------------------- */
+/*
+ * Three ways of looking at the same dates. Not three sets of data: every view
+ * asks `theCalendar` for a range and draws what comes back, so a line cannot
+ * appear in one and be missing from another.
  */
-export function sayMonth(entries: Entry[], named: string): string {
-  if (entries.length === 0) return `Nothing on in ${named}.`;
+export type View = 'month' | 'week' | 'day';
+
+export function isView(v: string | undefined): v is View {
+  return v === 'month' || v === 'week' || v === 'day';
+}
+
+/** The Monday of the week a day falls in. */
+function mondayOf(day: string): Date {
+  const d = new Date(`${day}T00:00:00Z`);
+  const back = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - back);
+  return d;
+}
+
+const asDay = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * What a view has to ask for.
+ *
+ * The month reaches past its own edges on purpose: the grid shows the tail of
+ * the previous month and the head of the next, and a range stopping at the
+ * first and the thirty-first would leave work missing from cells that are on
+ * the screen.
+ */
+export function rangeOf(view: View, anchor: string): { from: string; to: string } {
+  if (view === 'day') return { from: anchor, to: anchor };
+
+  if (view === 'week') {
+    const start = mondayOf(anchor);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    return { from: asDay(start), to: asDay(end) };
+  }
+
+  const d = new Date(`${anchor}T00:00:00Z`);
+  const weeks = weeksOf(d.getUTCFullYear(), d.getUTCMonth());
+  return { from: weeks[0][0], to: weeks[weeks.length - 1][6] };
+}
+
+/** The same view, a step earlier or later. */
+export function step(view: View, anchor: string, by: number): string {
+  const d = new Date(`${anchor}T00:00:00Z`);
+  if (view === 'day') d.setUTCDate(d.getUTCDate() + by);
+  else if (view === 'week') d.setUTCDate(d.getUTCDate() + by * 7);
+  else d.setUTCMonth(d.getUTCMonth() + by, 1);
+  return asDay(d);
+}
+
+/**
+ * What the page is called, in the words a studio would use for the span.
+ *
+ * A month is named; a week is said as the days it runs between, because
+ * "week 50" is a number nobody thinks in; a day is the day.
+ */
+export function titleOf(view: View, anchor: string): string {
+  const d = new Date(`${anchor}T00:00:00Z`);
+
+  if (view === 'month') {
+    return d.toLocaleDateString('en-GB', {
+      month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+  }
+
+  if (view === 'day') {
+    return d.toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    });
+  }
+
+  const { from, to } = rangeOf('week', anchor);
+  const a = new Date(`${from}T00:00:00Z`);
+  const b = new Date(`${to}T00:00:00Z`);
+  const sameMonth = a.getUTCMonth() === b.getUTCMonth();
+  const short = (x: Date, withMonth: boolean) => x.toLocaleDateString('en-GB', {
+    day: 'numeric', ...(withMonth ? { month: 'long' } : {}), timeZone: 'UTC',
+  });
+  const year = b.toLocaleDateString('en-GB', { year: 'numeric', timeZone: 'UTC' });
+  return `${short(a, !sameMonth)} – ${short(b, true)} ${year}`;
+}
+
+/**
+ * What a span holds, said as a statement.
+ *
+ * It does NOT name the span. The title says which month, week or day this is,
+ * directly above — repeating it read "1 shoot in Sunday, 13 December 2026",
+ * which is both redundant and ungrammatical, since a day takes "on" and a
+ * month takes "in" and one sentence cannot do both.
+ *
+ * Shoots lead because they are the work; everything else is what the work
+ * owes.
+ */
+export function saySpan(entries: Entry[]): string {
+  if (entries.length === 0) return 'Nothing on.';
 
   const shoots = entries.filter((e) => e.kind === 'shoot').length;
   const rest = entries.length - shoots;
 
   if (shoots === 0) {
-    return `${rest} ${rest === 1 ? 'thing' : 'things'} due in ${named}, no shoots.`;
+    return `${rest} ${rest === 1 ? 'thing' : 'things'} due, no shoots.`;
   }
-  const said = `${shoots} ${shoots === 1 ? 'shoot' : 'shoots'} in ${named}`;
+  const said = `${shoots} ${shoots === 1 ? 'shoot' : 'shoots'}`;
   if (rest === 0) return `${said}.`;
   return `${said}, ${rest} ${rest === 1 ? 'other thing' : 'other things'} due.`;
+}
+
+/** The days a span covers, inclusive. */
+export function daysOf(from: string, to: string): string[] {
+  const days: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
 }

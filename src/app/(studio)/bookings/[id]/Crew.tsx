@@ -74,7 +74,7 @@ export function Crew({ bookingId, onIt, team }: {
   };
 
   return (
-    <section className="q-card q-stack q-stack-sm">
+    <section className="q-card q-stack q-stack-sm q-dashboard-target" id="booking-crew">
       <h2 className="q-reading">{sayCrew(crew)}</h2>
 
       {crew.length > 0 && (

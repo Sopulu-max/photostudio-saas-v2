@@ -4,6 +4,7 @@ import { packages } from '@/weave/packages/actions';
 import { mediaForPackages } from '@/weave/packages/media';
 import { elementsOf, catalogueOf } from '@/weave/packages/promised';
 import { whoCouldBeOnIt } from '@/weave/crew/actions';
+import { bookingClients } from '@/weave/clients/actions';
 import { TakeBooking } from './TakeBooking';
 
 export const dynamic = 'force-dynamic';
@@ -36,12 +37,12 @@ export default async function NewBookingPage({
   const catalogue = await packages();
   const ids = catalogue.map((p) => p.id);
 
-  /* Asked together: none of the three depends on another. */
-  const [elements, deliverables, media, team] = await Promise.all([
+  const [elements, deliverables, media, team, clients] = await Promise.all([
     elementsOf(who.studioId, ids),
     catalogueOf(who.studioId),
     mediaForPackages(ids),
     whoCouldBeOnIt(),
+    bookingClients(),
   ]);
 
   return (
@@ -52,14 +53,16 @@ export default async function NewBookingPage({
         </div>
       </header>
 
-      <TakeBooking
+      {clients ? <TakeBooking
         catalogue={catalogue}
         elements={elements}
         deliverables={deliverables}
         media={media}
         team={team}
+        clients={clients}
         day={day}
-      />
+        today={new Date().toLocaleDateString('en-CA')}
+      /> : <p className="q-note q-note-bad">Client list unavailable. Reload to start a booking.</p>}
     </div>
   );
 }

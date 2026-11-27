@@ -409,7 +409,8 @@ export async function fillGallery(input: {
   const [{ data: files }, { data: already }, { data: section }] = await Promise.all([
     db.from('files').select('id').eq('studio_id', who.studioId)
       .eq('booking_id', input.bookingId).order('created_at', { ascending: true }),
-    db.from('gallery_files').select('file_id').eq('gallery_id', input.galleryId),
+    db.from('gallery_files').select('file_id')
+      .eq('studio_id', who.studioId).eq('gallery_id', input.galleryId),
     db.from('gallery_sections').select('id')
       .eq('id', input.sectionId).eq('gallery_id', input.galleryId).eq('studio_id', who.studioId)
       .maybeSingle(),
@@ -435,6 +436,7 @@ export async function fillGallery(input: {
     console.error('Failed to fill the gallery:', error);
     throw new Error('Could not add those');
   }
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }
 
@@ -473,6 +475,7 @@ export async function shareGallery(input: {
     payload: {},
   });
 
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }
 
@@ -661,6 +664,7 @@ export async function setGalleryExpiry(input: {
     studio_id: who.studioId, subject_type: 'gallery', subject_id: input.galleryId,
     action: 'expiry_changed', actor_id: who.personId, payload: { expiresOn },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }
 
@@ -1039,6 +1043,7 @@ export async function requestGallerySelection(input: {
     action: 'selection_requested', actor_id: who.personId,
     payload: { email: input.email.trim().toLowerCase(), name, maxItems: input.maxItems, dueOn },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }
 
@@ -1174,6 +1179,7 @@ export async function submitGallerySelection(input: {
     action: 'selection_submitted', actor_id: personId,
     payload: { collection: collection.id, howMany: count ?? 0 },
   });
+  revalidatePath('/dashboard');
   revalidatePath(`/g/${input.token}`);
 }
 

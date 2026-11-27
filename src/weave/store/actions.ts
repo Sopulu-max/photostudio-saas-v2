@@ -509,6 +509,6 @@ export async function markOrder(input: {
   });
 
   revalidatePath('/orders');
-  revalidatePath('/mobile');
+  revalidatePath('/dashboard');
   if (data?.booking_id) revalidatePath(`/bookings/${data.booking_id}`);
 }

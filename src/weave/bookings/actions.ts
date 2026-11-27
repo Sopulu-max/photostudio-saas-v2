@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { weave as db } from '@/weave/db';
 import { whoIsAsking } from '@/weave/studio';
 import { galleryForAcceptedJob } from '@/weave/packages/accepting';
-import { COLUMNS, type Board, type BookingCard, type Turn } from './shape';
+import { invoiceFrom, paymentFrom } from '@/weave/payments/forms';
+import { INVOICE_TOKEN } from '@/weave/payments/shape';
+import { COLUMNS, MAX_PACKAGE_QUANTITY, type Board, type BookingCard, type PackageQuantity, type Turn } from './shape';
 
 /**
  * Bookings, read as a board.
@@ -89,10 +91,7 @@ export async function readBoard(): Promise<Board> {
 /**
  * Start a booking from what you actually know.
  *
- * A name is the only thing required. The client does not have to exist first —
- * a name that is new becomes a person — because making somebody visit a Clients
- * screen before they may write down a booking is the ceremony this system exists to
- * remove.
+ * The studio selects a client record or creates one as part of the booking.
  *
  * AN EMAIL AND A PHONE NUMBER ARE REQUIRED WITH IT. A client the studio
  * created had a name and nothing else, which left nothing to reach them on and
@@ -111,6 +110,10 @@ export async function readBoard(): Promise<Board> {
  * not credentials the client supplies.
  */
 export async function createBooking(input: {
+  bookingId: string;
+  clientId?: string | null;
+  /** Optional invoice and initial payment fields from the studio's form. */
+  billing?: FormData;
   clientName: string;
   /** How to reach them. Both required: a client nobody can reach is a dead end. */
   clientEmail?: string | null;
@@ -151,23 +154,13 @@ export async function createBooking(input: {
    */
   on?: string | null;
   at?: string | null;
-  /**
-   * What they are booking.
-   *
-   * A studio defines what it sells through packages, so a client who walks
-   * in or phones is booking one of them — the same thing a client books on
-   * the public page, arriving by a different door. It stays optional because
-   * the first thing a studio hears is often "do you do weddings?", and a
-   * system that refuses to write that down is one a studio keeps a notebook
-   * beside.
-   */
-  packageId?: string | null;
-}): Promise<{ id: string }> {
+  packages?: PackageQuantity[];
+}): Promise<{ id: string } | { problem: string }> {
   const who = await whoIsAsking();
-  if (!who) throw new Error('Sign in first');
+  if (!who) return { problem: 'Sign in to start a booking.' };
 
   const name = input.clientName.trim();
-  if (!name) throw new Error('A booking needs somebody it is for');
+  if (!name) return { problem: 'A client name is required.' };
 
   /*
    * Checked here and not only in the form. A server action is a public
@@ -175,9 +168,8 @@ export async function createBooking(input: {
    */
   const email = input.clientEmail?.trim().toLowerCase() || null;
   const phone = input.clientPhone?.trim() || null;
-  if (!email) throw new Error('A client needs an email address');
-  if (!email.includes('@')) throw new Error('That is not an email address');
-  if (!phone) throw new Error('A client needs a phone number');
+  if (!email || !email.includes('@')) return { problem: 'A valid client email address is required.' };
+  if (!phone) return { problem: 'A client phone number is required.' };
 
   /*
    * Also a check constraint on the table, because a server action is a public
@@ -186,169 +178,83 @@ export async function createBooking(input: {
    */
   const on = input.on?.trim() || null;
   const at = input.at?.trim() || null;
-  if (at && !on) throw new Error('A time needs a date');
+  if (at && !on) return { problem: 'A time needs a date.' };
 
-
-  /*
-   * Match an existing person by the studio's own spelling before making a
-   * second one. Exact match only: deciding that "Ada O." is "Ada Okafor" is the
-   * kind of helpfulness that quietly merges two different clients.
-   *
-   * Still by NAME, not by the email now being collected. Matching a person by
-   * a typed email is the thing this system refuses to do anywhere, and the
-   * question of which records are really one person belongs to a deliberate
-   * merge, not to a booking form guessing.
-   */
-  const { data: found } = await db
-    .from('people')
-    .select('id, email, phone')
-    .eq('studio_id', who.studioId)
-    .eq('name', name)
-    .maybeSingle();
-
-  let clientId: string | null = found?.id ?? null;
-
-  if (!clientId) {
-    const { data: made, error } = await db
-      .from('people')
-      .insert({ studio_id: who.studioId, name, email, phone })
-      .select('id')
-      .single();
-    if (error) {
-      console.error('Failed to add the client:', error);
-      throw new Error('Could not add that client');
+  const id = input.bookingId;
+  if (!INVOICE_TOKEN.test(id)) return { problem: 'Reload the form to start a booking.' };
+  const clientId = input.clientId || null;
+  if (clientId && !INVOICE_TOKEN.test(clientId)) return { problem: 'The selected client is unavailable.' };
+  const selection = input.packages ?? [];
+  if (!Array.isArray(selection)) return { problem: 'Invalid package selection.' };
+  const packageIds = new Set<string>();
+  const packages = [];
+  for (const line of selection) {
+    if (!line || !INVOICE_TOKEN.test(line.packageId) || packageIds.has(line.packageId)
+      || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_PACKAGE_QUANTITY) {
+      return { problem: 'Invalid package quantities.' };
     }
-    clientId = made.id;
-  } else {
-    /*
-     * FILL BLANKS, NEVER OVERWRITE. Learning a client's phone number on the
-     * third booking is enrichment and belongs on the record. Replacing an
-     * address already there is a change to what the studio holds about
-     * somebody, made silently, from a form that is not about them — and if
-     * the two disagree it is also evidence these may be two people, which is
-     * a question for a merge rather than for a quiet overwrite.
-     */
-    const fill: Record<string, string> = {};
-    if (email && !found!.email) fill.email = email;
-    if (phone && !found!.phone) fill.phone = phone;
-    if (Object.keys(fill).length > 0) {
-      await db.from('people').update(fill)
-        .eq('id', clientId).eq('studio_id', who.studioId);
+    packageIds.add(line.packageId);
+    packages.push({ package_id: line.packageId, quantity: line.quantity });
+  }
+  const crew = [];
+  const seen = new Set<string>();
+  for (const mate of input.crew ?? []) {
+    if (!INVOICE_TOKEN.test(mate.personId) || seen.has(mate.personId)) continue;
+    seen.add(mate.personId);
+    crew.push({ person_id: mate.personId, role: mate.role?.trim() || null });
+  }
+
+  let invoice = null;
+  if (input.billing) {
+    if (!(input.billing instanceof FormData)) return { problem: 'Invalid invoice details.' };
+    try {
+      const draft = invoiceFrom(input.billing);
+      const receipt = input.billing.get('recordPayment') === 'on' ? paymentFrom(input.billing) : null;
+      if (receipt && receipt.amount_minor > draft.total_minor) return { problem: 'Payment exceeds the invoice total.' };
+      invoice = { ...draft, receipt };
+    } catch (error) {
+      return { problem: error instanceof Error ? error.message : 'Invalid invoice or payment details.' };
     }
   }
 
-  const { data: booking, error: jobError } = await db
-    .from('bookings')
-    .insert({
-      studio_id: who.studioId,
-      client_id: clientId,
-      wants: input.wants?.trim() || null,
-      package_id: input.packageId || null,
-      occasion: input.occasion?.trim() || null,
-      occasion_on: input.occasionOn?.trim() || null,
-      scheduled_for: on,
-      at,
-      /* A day in the diary waits on nobody; an undated booking needs the studio. */
-      turn: on ? 'scheduled' : 'us',
-      // Work the studio starts itself is work the studio has already agreed to.
-      // Only a request from outside arrives unanswered.
-      accepted_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-
-  if (jobError) {
-    console.error('Failed to start the booking:', jobError);
-    throw new Error('Could not start that booking');
-  }
-
-
-  /*
-   * Who is on it. Scoped to people who WORK here: the ids arrive from a
-   * browser, and `weave.people` holds a studio's clients too, so a crafted
-   * request could otherwise put a client on a shoot.
-   */
-  if (input.crew && input.crew.length > 0) {
-    const { data: mates } = await db.from('people')
-      .select('id, role')
-      .eq('studio_id', who.studioId)
-      .in('id', input.crew.map((c) => c.personId))
-      .not('joined_at', 'is', null)
-      .is('left_at', null);
-
-    const team = (mates ?? []) as { id: string; role: string | null }[];
-
-    /*
-     * A role typed here fills a blank on the person. Only a blank: staffing a
-     * booking is not the place to silently rewrite what somebody is, and the
-     * team page is where that is changed deliberately.
-     */
-    for (const mate of team) {
-      if (mate.role) continue;
-      const said = input.crew.find((c) => c.personId === mate.id)?.role?.trim();
-      if (said) {
-        await db.from('people').update({ role: said })
-          .eq('id', mate.id).eq('studio_id', who.studioId);
-      }
-    }
-
-    const rows = team.map((mate) => ({
-      studio_id: who.studioId,
-      booking_id: booking.id,
-      person_id: mate.id,
-    }));
-
-    if (rows.length > 0) {
-      const { error: crewError } = await db.from('crew').insert(rows);
-      /* Staffing failing does not undo the booking: the agreement is the
-       * thing, and somebody can be put on it by hand afterwards. */
-      if (crewError) console.error('Started, but could not staff it:', crewError);
-    }
-  }
-
-  await db.from('events').insert({
-    studio_id: who.studioId,
-    subject_type: 'booking',
-    subject_id: booking.id,
-    action: 'started',
-    actor_id: who.personId,
-    payload: { client: name },
+  const { data: created, error } = await db.rpc('start_studio_booking', {
+    p_studio_id: who.studioId, p_actor_id: who.personId, p_booking_id: id,
+    p_booking: {
+      ...(clientId ? { client_id: clientId } : {}),
+      client_name: name, client_email: email, client_phone: phone,
+      wants: input.wants?.trim() || null, packages,
+      occasion: input.occasion?.trim() || null, occasion_on: input.occasionOn?.trim() || null,
+      scheduled_for: on, at, crew,
+    },
+    p_invoice: invoice,
   });
+  if (error) {
+    if (error.code === 'P0001') return { problem: error.message };
+    console.error('Could not start booking:', error.code);
+    return { problem: 'Could not save the booking. Check the details and try again.' };
+  }
 
-  /*
-   * The list of bookings lives at `/bookings`, so every write that changes a
-   * booking has to reach it. A literal path refreshes only itself, and
-   * `/bookings/<id>` is one booking, not the list.
-   */
   revalidatePath('/');
   revalidatePath('/bookings');
-  /*
-   * Booking it IS accepting it, so the work comes into existence here the
-   * same way it does when a request is accepted: a gallery, sized by what
-   * the package promised.
-   *
-   * This was the first cut in the spine. A booking started by the studio was
-   * already being marked accepted — "work the studio starts itself is work
-   * the studio has already agreed to" — but only `acceptRequest` ever opened
-   * the gallery. So a package booked over the phone promised pictures that
-   * nothing in the system ever made room for.
-   *
-   * A booking with no package opens nothing, which is correct: there is no
-   * promise yet to give the gallery a shape.
-   */
-  if (input.packageId) {
-    await galleryForAcceptedJob({
-      studioId: who.studioId,
-      bookingId: booking.id,
-      clientName: name,
-      packageId: input.packageId,
-      actorId: who.personId,
-    });
+  if (invoice) {
+    revalidatePath('/payments');
+    revalidatePath('/clients/[id]', 'page');
+  }
+  if (created && packages.length > 0) {
+    try {
+      const clientName = clientId ? (await db.from('people').select('name')
+        .eq('studio_id', who.studioId).eq('id', clientId).maybeSingle().throwOnError()).data?.name ?? null : name;
+      await galleryForAcceptedJob({
+        studioId: who.studioId, bookingId: id, clientName, actorId: who.personId,
+      });
+    } catch (error) {
+      console.error('Booking saved, but initial gallery could not be created:', error);
+    }
   }
 
   revalidatePath('/galleries');
-  revalidatePath('/mobile');
-  return { id: booking.id };
+  revalidatePath('/dashboard');
+  return { id };
 }
 
 /**
@@ -484,8 +390,8 @@ export async function amendBooking(input: {
 
   revalidatePath('/');
   revalidatePath('/bookings');
-  revalidatePath('/mobile');
   revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/dashboard');
 }
 
 /** Move a booking to another column. The database records the transition itself. */
@@ -515,6 +421,6 @@ export async function moveBooking(input: { bookingId: string; turn: Turn }): Pro
 
   revalidatePath('/');
   revalidatePath('/bookings');
-  revalidatePath('/mobile');
   revalidatePath(`/bookings/${input.bookingId}`);
+  revalidatePath('/dashboard');
 }

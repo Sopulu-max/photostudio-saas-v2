@@ -207,5 +207,6 @@ export async function removeFile(input: { fileId: string; bookingId: string }): 
   const { error: gone } = await db.storage.from(BUCKET).remove([file.storage_path]);
   if (gone) console.error('File row removed but the object remains:', file.storage_path, gone);
 
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }

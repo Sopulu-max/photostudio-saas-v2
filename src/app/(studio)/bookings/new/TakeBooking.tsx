@@ -2,13 +2,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition, type FormEvent } from 'react';
+import { InvoiceFields } from '@/components/InvoiceFields';
 import { createBooking } from '@/weave/bookings/actions';
 import type { Package } from '@/weave/packages/shape';
 import type { PackageElement } from '@/weave/packages/elements';
 import type { PackageMedia } from '@/weave/packages/media';
 import type { Deliverable } from '@/weave/deliverables/shape';
 import type { Mate } from '@/weave/crew/actions';
+import type { Client } from '@/weave/clients/shape';
+import { priceForInvoice } from '@/weave/payments/shape';
+import { MAX_PACKAGE_QUANTITY, type PackageQuantity } from '@/weave/bookings/shape';
+import { money } from '@/weave/store/shape';
 import { PickPackage } from './PickPackage';
 import { PickCrew, type Staffing } from './PickCrew';
 
@@ -28,19 +33,22 @@ import { PickCrew, type Staffing } from './PickCrew';
  * somebody wants after writing a booking down is the booking.
  */
 export function TakeBooking({
-  catalogue, elements, deliverables, media, team, day,
+  catalogue, elements, deliverables, media, team, clients, day, today,
 }: {
   catalogue: Package[];
   /** Who works here, so a booking can be staffed as it is written down. */
   team: Mate[];
+  clients: Pick<Client, 'id' | 'name' | 'email' | 'phone'>[];
   /** A day already chosen, when the calendar sent somebody here. */
   day: string;
+  today: string;
   /* What each package is made of, so its promise can be counted here. */
   elements: PackageElement[];
   deliverables: Deliverable[];
   media: PackageMedia[];
 }) {
   const router = useRouter();
+  const [clientId, setClientId] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -48,13 +56,37 @@ export function TakeBooking({
   const [occasionOn, setOccasionOn] = useState('');
   const [on, setOn] = useState(day);
   const [at, setAt] = useState('');
-  const [packageId, setPackageId] = useState('');
+  const [packages, setPackages] = useState<PackageQuantity[]>([]);
   const [crew, setCrew] = useState<Staffing[]>([]);
   const [wants, setWants] = useState('');
+  const [withInvoice, setWithInvoice] = useState(false);
+  const [withPayment, setWithPayment] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [working, start] = useTransition();
+  const bookingKey = useRef<string | null>(null);
 
-  const submit = (event: React.FormEvent) => {
+  const existingClient = clients.find((client) => client.id === clientId);
+  const packageLines = packages.flatMap((line) => {
+    const pack = catalogue.find((item) => item.id === line.packageId);
+    return pack ? [{ name: pack.name, unitMinor: pack.price, currency: pack.currency, quantity: line.quantity }] : [];
+  });
+  const price = priceForInvoice(packageLines);
+  const issueNow = withInvoice && price.source !== 'unavailable';
+
+  const adjustPackage = (packageId: string, delta: -1 | 1) => {
+    setPackages((current) => {
+      const line = current.find((item) => item.packageId === packageId);
+      const quantity = (line?.quantity ?? 0) + delta;
+      if (quantity > MAX_PACKAGE_QUANTITY) return current;
+      if (quantity <= 0) return current.filter((item) => item.packageId !== packageId);
+      if (!line) return [...current, { packageId, quantity }];
+      return current.map((item) => item.packageId === packageId ? { ...item, quantity } : item);
+    });
+    setWithPayment(false);
+    setProblem(null);
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!clientName.trim()) {
       setProblem('A booking needs somebody it is for.');
@@ -74,9 +106,15 @@ export function TakeBooking({
       return;
     }
     setProblem(null);
+    const billing = issueNow ? new FormData(event.currentTarget) : undefined;
+    const bookingId = bookingKey.current ?? crypto.randomUUID();
+    bookingKey.current = bookingId;
     start(async () => {
       try {
-        const { id } = await createBooking({
+        const result = await createBooking({
+          bookingId,
+          billing,
+          clientId: clientId || null,
           clientName,
           clientEmail: clientEmail || null,
           clientPhone: clientPhone || null,
@@ -85,33 +123,28 @@ export function TakeBooking({
           occasionOn: occasionOn || null,
           on: on || null,
           at: at || null,
-          packageId: packageId || null,
+          packages,
           crew,
         });
-        router.push(`/bookings/${id}`);
-      } catch (err) {
-        setProblem(err instanceof Error ? err.message : 'Could not start that booking');
+        if ('problem' in result) {
+          if (result.problem.includes('must match the package price')) {
+            router.refresh();
+            setWithPayment(false);
+            setProblem('Package pricing changed. Review the new price and any payment before saving.');
+          } else {
+            setProblem(result.problem);
+          }
+          return;
+        }
+        router.push(`/bookings/${result.id}${billing ? '#booking-payments' : ''}`);
+      } catch {
+        setProblem('Could not confirm the booking was saved. Try again.');
       }
     });
   };
 
   return (
     <form className="q-stack q-stack-lg" onSubmit={submit}>
-      {/*
-        * WHO IT IS FOR, first and in full.
-        *
-        * Only the name used to be asked for here, and that left a client with
-        * no address on their record — nothing to send a gallery to, and
-        * nothing to ever offer an account at. A client is still never made to
-        * sign up to be booked; this is simply the moment the studio has their
-        * details in front of them.
-        *
-        * ALL THREE ARE REQUIRED. This system's habit is to let a thing exist
-        * thin and grow, and this is a deliberate exception to it: a client
-        * record with no way to reach the client is not an early version of
-        * anything. The gallery has nowhere to go, the invoice has nowhere to
-        * go, and the account can never be offered.
-        */}
       {/*
         * `q-reading` rather than `q-section-title` for these two. The section
         * label and the field label were 0.68rem and 0.64rem of the same faint
@@ -123,32 +156,51 @@ export function TakeBooking({
       <section className="q-stack">
         <h2 className="q-reading">Client</h2>
 
-        <label className="q-auth-field">
-          <span className="q-label">Name</span>
-          <input
-            className="q-input" value={clientName} autoFocus required disabled={working}
-            onChange={(e) => { setClientName(e.target.value); setProblem(null); }}
-          />
-          <span className="q-auth-hint">
-            A name that is new becomes a client. No need to add them first.
-          </span>
-        </label>
+        {clients.length > 0 && (
+          <label className="q-auth-field">
+            <span className="q-label">Client record</span>
+            <select className="q-input" value={clientId} disabled={working} onChange={(event) => {
+              const selected = clients.find((client) => client.id === event.target.value);
+              setClientId(event.target.value);
+              setClientName(selected?.name ?? '');
+              setClientEmail(selected?.email ?? '');
+              setClientPhone(selected?.phone ?? '');
+              setProblem(null);
+            }}>
+              <option value="">Add new client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {[client.name, client.email, client.phone].filter(Boolean).join(' · ')}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {!existingClient && (
+          <label className="q-auth-field">
+            <span className="q-label">Name</span>
+            <input
+              className="q-input" value={clientName} autoFocus required disabled={working}
+              onChange={(e) => { setClientName(e.target.value); setProblem(null); }}
+            />
+          </label>
+        )}
 
         <label className="q-auth-field">
           <span className="q-label">Email</span>
           <input
             className="q-input" type="email" value={clientEmail} required disabled={working}
+            readOnly={Boolean(existingClient?.email)}
             onChange={(e) => { setClientEmail(e.target.value); setProblem(null); }}
           />
-          <span className="q-auth-hint">
-            Where a gallery is sent, and where an account can be offered later.
-          </span>
         </label>
 
         <label className="q-auth-field">
           <span className="q-label">Phone</span>
           <input
             className="q-input" type="tel" value={clientPhone} required disabled={working}
+            readOnly={Boolean(existingClient?.phone)}
             onChange={(e) => { setClientPhone(e.target.value); setProblem(null); }}
           />
         </label>
@@ -286,32 +338,54 @@ export function TakeBooking({
         * a stranger may take.
         */}
       <div className="q-auth-field">
-        <span className="q-label">Package</span>
+        <span className="q-label">Packages</span>
         <PickPackage
           catalogue={catalogue}
           elements={elements}
           deliverables={deliverables}
           media={media}
-          chosen={packageId}
-          onChoose={(id) => { setPackageId(id); setProblem(null); }}
+          selection={packages}
+          onAdjust={adjustPackage}
           disabled={working}
         />
         {catalogue.length > 0 && (
-          <span className="q-auth-hint">
-            {packageId
-              ? 'Opens the gallery it promises. Press it again for no package.'
-              : 'No package chosen. A booking may be taken without one.'}
+          <span className="q-auth-hint" aria-live="polite">
+            {packages.length === 0 && 'No packages selected.'}
+            {packages.length > 0 && price.source === 'packages' && `${money(price.totalMinor, price.currency)} package total`}
+            {packages.length > 0 && price.source === 'quote' && price.pricedSubtotal > 0
+              && `${money(price.pricedSubtotal, price.currency)} priced subtotal`}
           </span>
         )}
       </div>
 
       </section>
 
-      {problem && <p className="q-note q-note-bad">{problem}</p>}
+      <section className="q-card q-stack q-stack-sm" aria-labelledby="new-booking-payments">
+        <h2 className="q-reading" id="new-booking-payments">Payments</h2>
+        {price.source === 'unavailable' ? (
+          <p className="q-note">{price.problem}</p>
+        ) : (
+          <label className="q-row q-row-sm">
+            <input type="checkbox" checked={withInvoice} disabled={working}
+              onChange={(event) => {
+                setWithInvoice(event.target.checked);
+                if (!event.target.checked) setWithPayment(false);
+                setProblem(null);
+              }} />
+            <span className="q-text-body">Issue invoice</span>
+          </label>
+        )}
+        {issueNow && (
+          <InvoiceFields price={price} packageLines={packageLines} disabled={working}
+            payment={{ today, enabled: withPayment, onChange: (enabled) => { setWithPayment(enabled); setProblem(null); } }} />
+        )}
+      </section>
+
+      {problem && <p className="q-note q-note-bad" role="alert">{problem}</p>}
 
       <div className="q-row q-row-sm">
         <button className="q-btn q-btn-primary" type="submit" disabled={working}>
-          {working ? 'Starting' : 'Start booking'}
+          {working ? 'Saving booking' : issueNow ? 'Save booking and issue invoice' : 'Start booking'}
         </button>
         <Link className="q-btn q-btn-ghost" href="/bookings">Cancel</Link>
       </div>

@@ -9,7 +9,7 @@ import type { Package } from '@/weave/packages/shape';
 import type { PackageMedia as Media } from '@/weave/packages/media';
 import type { ElementType, PackageElement } from '@/weave/packages/elements';
 import type { Deliverable } from '@/weave/deliverables/shape';
-import { PackageDocument } from '../PackageDocument';
+import { PackageDocument } from '../../PackageDocument';
 import { PackageOffer } from './PackageOffer';
 
 /**
@@ -88,6 +88,22 @@ export function Designer({ pack, media, elements, catalogue }: {
       () => addElement({ packageId: pack.id, type }));
   }
 
+  /**
+   * Something dragged out of the palette and dropped on the package.
+   *
+   * The same two acts the buttons perform, chosen by what was dropped — so a
+   * deliverable raises a count rather than making a second line whether it
+   * was clicked or dragged, and the two gestures cannot drift apart.
+   */
+  function dropped(type: ElementType, deliverableId: string | null) {
+    if (type === 'deliverable' && deliverableId) {
+      const d = catalogue.find((x) => x.id === deliverableId);
+      if (d) addDeliverable(d);
+      return;
+    }
+    addElementOfType(type);
+  }
+
   function changeCount(elementId: string, count: number) {
     run(items.map((e) => (e.id === elementId ? { ...e, count } : e)),
       () => amendElement({ elementId, count }));
@@ -121,39 +137,13 @@ export function Designer({ pack, media, elements, catalogue }: {
   return (
     <div className="q-split">
       <section className="q-split-side">
-        <form className="q-particulars" onSubmit={(e) => { e.preventDefault(); save(); }}>
-          <label className="q-auth-field q-particular-wide">
-            <span className="q-label">Name</span>
-            {/*
-              * A package is created unnamed and opens here, so the name is
-              * waiting to be typed over rather than deleted first.
-              */}
-            <input
-              className="q-input" value={name}
-              autoFocus={pack.name === 'Untitled package'}
-              onFocus={(e) => { if (pack.name === 'Untitled package') e.target.select(); }}
-              onChange={(e) => setName(e.target.value)} required
-            />
-          </label>
-          <label className="q-auth-field q-particular-wide">
-            <span className="q-label">Description</span>
-            <input className="q-input" value={about} onChange={(e) => setAbout(e.target.value)} />
-          </label>
-          <label className="q-auth-field">
-            <span className="q-label">Price ({pack.currency})</span>
-            <input
-              className="q-input" type="number" min="0" step="0.01"
-              value={price} onChange={(e) => setPrice(e.target.value)}
-            />
-          </label>
-          <div className="q-particular-foot">
-            <button className="q-btn q-btn-secondary" disabled={working}>Save</button>
-            {notice && <p role="status" className="q-meta">{notice}</p>}
-          </div>
-        </form>
-
-        <hr className="q-divider" />
-
+        {/*
+          * The palette, and nothing else. A form for the name, the
+          * description and the price used to sit above it, which made the
+          * building half of this page mostly a settings panel — and those
+          * three facts were already on the offer, so a studio typed each one
+          * twice over. They are typed on the offer now.
+          */}
         <PackageDocument
           packageId={pack.id}
           catalogue={catalogue}
@@ -165,12 +155,31 @@ export function Designer({ pack, media, elements, catalogue }: {
       </section>
 
       <section className="q-split-view">
+        {/*
+          * Saving stays explicit. A package is written while somebody is on
+          * the phone about it, and a field that commits half a sentence
+          * records half a sentence — the same reason a booking's notes are
+          * not saved on every keystroke.
+          */}
+        <div className="q-o-save">
+          <button className="q-btn q-btn-primary q-btn-sm" type="button"
+            onClick={save} disabled={working}
+          >
+            {working ? 'Saving' : 'Save'}
+          </button>
+          {notice && <p role="status" className="q-meta">{notice}</p>}
+        </div>
+
         <PackageOffer
           name={name} about={about} price={price} currency={pack.currency}
           elements={items} media={media} catalogue={catalogue}
           working={working}
+          onName={setName}
+          onAbout={setAbout}
+          onPrice={setPrice}
           onCount={changeCount}
           onRemove={takeOff}
+          onDrop={dropped}
         />
       </section>
     </div>

@@ -74,14 +74,6 @@ describe('a studio with work on', () => {
       .toBe('1 request awaiting a response');
   });
 
-  /*
-   * The phone used to count the day's shoots, from `weave.occasions`. Nothing
-   * records when work happens now, so it says what the screen is for and
-   * never a number — which is the same rule, with nothing to count.
-   */
-  it('gives the phone no figure to report, because nothing is dated', () => {
-    expect(sayApp(app('mobile'), nothing)).toBe(app('mobile').what);
-  });
 });
 
 describe('the list itself', () => {

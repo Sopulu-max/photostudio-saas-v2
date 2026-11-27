@@ -128,6 +128,7 @@ export async function putOnBooking(input: {
   }
 
   revalidatePath('/bookings');
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }
 
@@ -178,5 +179,6 @@ export async function takeOffBooking(input: {
   }
 
   revalidatePath('/bookings');
+  revalidatePath('/dashboard');
   revalidatePath(`/bookings/${input.bookingId}`);
 }

@@ -3,13 +3,12 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { APPS, sayApp, type Standing } from '../apps';
 import { whoIsAsking } from '@/weave/studio';
-import { theDashboard } from '@/weave/dashboard/actions';
-import { outstanding, sayStanding } from '@/weave/dashboard/shape';
+import { theDashboard, upcomingShoots } from '@/weave/dashboard/actions';
+import { outstanding, sayStanding, staffingGaps } from '@/weave/dashboard/shape';
 import { packages } from '@/weave/packages/actions';
 import { isPublished } from '@/weave/packages/shape';
 import { team } from '@/weave/team/actions';
 import { clients } from '@/weave/clients/actions';
-import { theCalendar } from '@/weave/calendar/actions';
 import { allGalleries } from '@/weave/galleries/actions';
 import { allOrders } from '@/weave/store/actions';
 import { standingOf } from '@/weave/store/shape';
@@ -41,21 +40,17 @@ export default async function HomePage() {
   const scheme = head.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
   const origin = `${scheme}://${host}`;
 
-  const today = new Date();
-  const asDay = (d: Date) => d.toLocaleDateString('en-CA');
-  const inSevenDays = new Date(today);
-  inSevenDays.setDate(inSevenDays.getDate() + 7);
+  const today = new Date().toLocaleDateString('en-CA');
 
   /*
    * The dashboard's own readings, so the tile and the page behind it can
-   * never disagree about how much is outstanding — and so neither reads
-   * `bookings.turn`. It also answers "requests unanswered", which used to be a
-   * query of its own here.
+   * never disagree about how much is outstanding. It also supplies the
+   * booking request count and the shoot schedule.
    */
   const [board, week, offered, crew, served, galleries, orders, front, due, made] =
     await Promise.all([
-      theDashboard(asDay(today)),
-      theCalendar(asDay(today), asDay(inSevenDays)),
+      theDashboard(),
+      upcomingShoots(today),
       packages(),
       team(),
       clients(),
@@ -66,10 +61,11 @@ export default async function HomePage() {
       deliverables(),
     ]);
 
+  const unstaffed = week ? staffingGaps(week).length : null;
   const standing: Standing = {
-    outstanding: outstanding(board),
-    requestsWaiting: board.unanswered.length,
-    nextSevenDays: week.filter((e) => e.kind === 'shoot').length,
+    outstanding: board && unstaffed !== null ? outstanding(board, unstaffed) : null,
+    requestsWaiting: board?.unanswered.length ?? null,
+    nextSevenDays: week?.length ?? 0,
     deliverables: {
       files: made.filter((d) => d.kind === 'digital').length,
       objects: made.filter((d) => d.kind === 'physical').length,
@@ -92,7 +88,7 @@ export default async function HomePage() {
           <div>
             <h1 className="q-page-title">{who.studioName}</h1>
             <p className="q-page-subtitle">
-              {sayStanding(board)}
+              {board ? sayStanding(board, unstaffed) : 'Outstanding items unavailable'}
             </p>
           </div>
         </header>

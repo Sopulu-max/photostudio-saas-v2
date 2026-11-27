@@ -1,5 +1,5 @@
 import {
-  LayoutGrid, ShoppingBag, Tag, Send, Images, Smartphone,
+  LayoutGrid, ShoppingBag, Tag, Send, Images, Wallet,
   CalendarPlus, CalendarDays, Users, Contact, Package as PackageIcon,
 } from 'lucide-react';
 
@@ -16,8 +16,8 @@ import {
  */
 export type Where =
   | 'home' | 'dashboard' | 'calendar' | 'bookings' | 'clients' | 'deliverables'
-  | 'packages' | 'team' | 'orders'
-  | 'store' | 'automations' | 'galleries' | 'mobile';
+  | 'packages' | 'team' | 'orders' | 'payments'
+  | 'store' | 'automations' | 'galleries';
 
 export type AppKey = Exclude<Where, 'home'>;
 
@@ -39,11 +39,7 @@ export type App = {
 export const APPS: App[] = [
   {
     key: 'dashboard', href: '/dashboard', label: 'Dashboard', Icon: LayoutGrid,
-    what: 'What is outstanding',
-  },
-  {
-    key: 'mobile', href: '/mobile', label: 'Open work', Icon: Smartphone,
-    what: 'What needs a move, on a phone',
+    what: 'Schedule and outstanding items',
   },
   {
     key: 'calendar', href: '/calendar', label: 'Calendar', Icon: CalendarDays,
@@ -52,6 +48,10 @@ export const APPS: App[] = [
   {
     key: 'bookings', href: '/bookings', label: 'Bookings', Icon: CalendarPlus,
     what: 'Requests from outside the studio',
+  },
+  {
+    key: 'payments', href: '/payments', label: 'Payments', Icon: Wallet,
+    what: 'Booking invoices and balances',
   },
   {
     key: 'clients', href: '/clients', label: 'Clients', Icon: Contact,
@@ -90,8 +90,8 @@ export type Standing = {
    * and the page it opens can never disagree. Not derived from `bookings.turn`,
    * which is a column a human sets.
    */
-  outstanding: number;
-  requestsWaiting: number;
+  outstanding: number | null;
+  requestsWaiting: number | null;
   /* Shoots in the next seven days. Not every engagement: what a tile is for
    * is the work, and a code expiring is not somewhere anybody has to be. */
   nextSevenDays: number;
@@ -124,17 +124,17 @@ function count(n: number, one: string, many: string): string {
 export function sayApp(app: App, standing: Standing): string {
   switch (app.key) {
     case 'dashboard':
-      return standing.outstanding === 0
+      return !standing.outstanding
         ? app.what
         : count(standing.outstanding, 'item outstanding', 'items outstanding');
 
-    case 'mobile':
-      return app.what;
-
     case 'bookings':
-      return standing.requestsWaiting === 0
+      return !standing.requestsWaiting
         ? app.what
         : `${count(standing.requestsWaiting, 'request', 'requests')} awaiting a response`;
+
+    case 'payments':
+      return app.what;
 
     case 'deliverables': {
       const { files, objects } = standing.deliverables;

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { acceptRequest, declineRequest } from '@/weave/bookings/requests';
 import { sayRequests, type Request } from '@/weave/bookings/shape';
+import { sayWaiting } from '@/weave/dashboard/shape';
 
 /**
  * What somebody outside has asked for, and not yet been answered about.
@@ -16,8 +17,9 @@ import { sayRequests, type Request } from '@/weave/bookings/shape';
  * an operator do the subtraction and the answer to that subtraction is the
  * whole point.
  */
-export function Requests({ waiting, origin, heading = true }: {
+export function Requests({ waiting, origin, today, heading = true }: {
   waiting: Request[];
+  today: string;
   /** Written out in full, because the studio has to paste it into a message. */
   origin: string;
   /**
@@ -44,25 +46,21 @@ export function Requests({ waiting, origin, heading = true }: {
 
   // Nothing waiting is still worth saying; an empty band reads as a broken one.
   if (waiting.length === 0) return null;
+  const asOf = new Date(`${today}T00:00:00Z`);
 
   return (
-    <section className="q-asks">
+    <section className="q-asks" id="requests">
       {heading && <h2 className="q-section-title">{sayRequests(waiting)}</h2>}
 
       {waiting.map((ask) => {
-        const days = Math.floor(
-          (Date.now() - new Date(ask.requestedAt).getTime()) / 86_400_000,
-        );
-        const waited = days <= 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days} days ago`;
-
         return (
-          <article className="q-ask" key={ask.id} data-busy={working ? 'yes' : undefined}>
+          <article className="q-ask q-dashboard-target" id={`request-${ask.id}`} key={ask.id} data-busy={working ? 'yes' : undefined}>
             <header className="q-ask-head">
               <div className="q-ask-who">
-                <strong className="q-ask-name">{ask.askedBy ?? 'Somebody'}</strong>
+                <strong className="q-ask-name">{ask.askedBy ?? 'Unnamed client'}</strong>
                 {ask.askedByEmail && <span className="q-meta-sm">{ask.askedByEmail}</span>}
               </div>
-              <span className="q-ask-waited">{waited}</span>
+              <span className="q-ask-waited">{sayWaiting(ask.requestedAt, asOf)}</span>
             </header>
 
             <p className="q-ask-wants">{ask.wants ?? 'No details provided.'}</p>
@@ -106,9 +104,7 @@ export function Requests({ waiting, origin, heading = true }: {
               >
                 <textarea
                   className="q-input" name="saying" rows={3} autoFocus disabled={working}
-                  placeholder={mode === 'take'
-                    ? 'Reply to the client'
-                    : 'Reply to the client'}
+                  placeholder="Reply to the client"
                 />
                 {mode === 'decline' && (
                   <input

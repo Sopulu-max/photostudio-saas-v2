@@ -1,24 +1,6 @@
-/**
- * The studio, read back to itself.
- *
- * Not a page of counters. Every line here is an answer to a question a
- * studio actually asks, and every answer is a door to the thing it is about.
- *
- * ABSENCES, NOT THRESHOLDS. Nothing here is "more than five" or "older than
- * a week" — invented conditions that mean nothing to anybody and have to be
- * explained. What a studio needs told is what is MISSING: a request nobody
- * answered, a gallery never handed over, an order paid and still on the shelf.
- * Those are facts about the business, not settings.
- *
- * TWO READINGS WERE REMOVED WITH `weave.occasions`. "Shoots today" and
- * "bookings without a shoot" were both answers about DATES, and a booking no
- * longer has any. Nothing was put in their place: a reading invented to fill
- * the gap would be a label beside a number, which is the thing this file
- * exists to refuse.
- *
- * And a reading announces itself. No label beside a number, no key. If a
- * line needs explaining it is not a reading.
- */
+import type { GalleryHubRequestSummary } from '@/weave/galleries/shape';
+
+/** The dashboard reads scheduled work and outstanding commitments. */
 
 export type UnansweredRequest = {
   id: string;
@@ -27,15 +9,7 @@ export type UnansweredRequest = {
   requestedAt: string;
 };
 
-/**
- * Work with a gallery that has pictures in it and was never shared.
- *
- * It used to be read off a shoot marked as having happened. With occasions
- * gone there is no record that a shoot took place, so the reading is taken
- * from the gallery instead — which is the better edge anyway: a gallery with
- * pictures in it IS the evidence the work was done, and nobody had to
- * remember to tick anything for it to be true.
- */
+/** A gallery with files in it that has yet to be shared. */
 export type NotHandedOver = {
   bookingId: string | null;
   clientName: string | null;
@@ -61,10 +35,52 @@ export type NotSent = {
 
 export type Dashboard = {
   unanswered: UnansweredRequest[];
+  unscheduled: DashboardBooking[];
   notHandedOver: NotHandedOver[];
   shortOfPromise: ShortOfPromise[];
   notSent: NotSent[];
 };
+
+export type DashboardBooking = {
+  id: string;
+  occasion: string | null;
+  clientName: string | null;
+};
+
+export type ScheduledShoot = DashboardBooking & {
+  on: string;
+  at: string | null;
+  crew: string[];
+  needsCrew: boolean;
+};
+
+export type DeadlineGallery = {
+  id: string;
+  bookingId: string | null;
+  name: string;
+};
+
+export type GalleryDeadline = {
+  id: string;
+  on: string;
+  title: string;
+  gallery: DeadlineGallery;
+} & (
+  | { kind: 'selection' }
+  | { kind: 'hub'; purpose: GalleryHubRequestSummary['purpose'] }
+  | { kind: 'expiry' }
+);
+
+export function staffingGaps(shoots: ScheduledShoot[]): ScheduledShoot[] {
+  return shoots.filter((shoot) => shoot.needsCrew);
+}
+
+/** An inclusive seven-day window starting on the given calendar day. */
+export function scheduleThrough(today: string): string {
+  const last = new Date(`${today}T00:00:00Z`);
+  last.setUTCDate(last.getUTCDate() + 6);
+  return last.toISOString().slice(0, 10);
+}
 
 function count(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
@@ -104,25 +120,25 @@ export function sayUnanswered(rows: UnansweredRequest[]): string {
 }
 
 export function sayNotHandedOver(rows: NotHandedOver[]): string {
-  if (rows.length === 0) return 'Every gallery with pictures in it shared';
+  if (rows.length === 0) return 'No galleries awaiting sharing';
   return `${count(rows.length, 'gallery', 'galleries')} not handed over`;
 }
 
 export function sayShortOfPromise(rows: ShortOfPromise[]): string {
-  if (rows.length === 0) return 'Every gallery meets its count';
+  if (rows.length === 0) return 'No incomplete shared galleries';
   const owed = rows.reduce((n, r) => n + (r.promised - r.have), 0);
-  return `${count(rows.length, 'gallery', 'galleries')} short by ${owed}`;
+  return `${count(rows.length, 'gallery', 'galleries')} short by ${count(owed, 'file', 'files')}`;
 }
 
 export function sayNotSent(rows: NotSent[]): string {
-  if (rows.length === 0) return 'Nothing paid awaiting despatch';
-  return `${count(rows.length, 'order', 'orders')} not despatched`;
+  if (rows.length === 0) return 'No paid orders awaiting fulfilment';
+  return `${count(rows.length, 'paid order', 'paid orders')} awaiting fulfilment`;
 }
 
 /** How many things are somebody's move. */
-export function outstanding(d: Dashboard): number {
-  return d.unanswered.length + d.notHandedOver.length
-    + d.shortOfPromise.length + d.notSent.length;
+export function outstanding(d: Dashboard, unstaffed: number): number {
+  return d.unanswered.length + d.unscheduled.length + d.notHandedOver.length
+    + d.shortOfPromise.length + d.notSent.length + unstaffed;
 }
 
 /**
@@ -131,7 +147,8 @@ export function outstanding(d: Dashboard): number {
  * A figure and a noun. No exhortation, and nothing addressed to whoever is
  * reading it.
  */
-export function sayStanding(d: Dashboard): string {
-  const n = outstanding(d);
+export function sayStanding(d: Dashboard, unstaffed: number | null): string {
+  if (unstaffed === null) return 'Outstanding total unavailable';
+  const n = outstanding(d, unstaffed);
   return n === 0 ? 'Nothing outstanding' : `${count(n, 'item', 'items')} outstanding`;
 }

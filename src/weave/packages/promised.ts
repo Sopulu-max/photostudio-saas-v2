@@ -1,5 +1,5 @@
 import { weave as db } from '@/weave/db';
-import { promisesOf, type PackageElement } from './elements';
+import type { PackageElement } from './elements';
 import type { Deliverable } from '@/weave/deliverables/shape';
 
 /**
@@ -39,28 +39,6 @@ export async function elementsOf(
     answerKind: r.answer_kind,
     mediaId: r.media_id, position: r.position,
   }));
-}
-
-/**
- * How many pictures this package promises, or null if it promises none.
- *
- * Null rather than 0 on purpose: the gallery's `pictures_promised` means "no
- * promise was agreed" when null, and a promise of zero pictures is a
- * different claim nobody makes.
- *
- * This is what acceptance copies onto the gallery. It used to be a number a
- * studio typed into a field beside the layout, which meant the two could
- * disagree and the typed one won. Now the layout is the only place it exists.
- */
-export async function promisedPictures(
-  studioId: string, packageId: string,
-): Promise<number | null> {
-  const [elements, catalogue] = await Promise.all([
-    elementsOf(studioId, [packageId]),
-    catalogueOf(studioId),
-  ]);
-  const n = promisesOf(elements, catalogue).pictures;
-  return n > 0 ? n : null;
 }
 
 /**
