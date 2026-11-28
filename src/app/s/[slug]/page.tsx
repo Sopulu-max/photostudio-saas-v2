@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { studioAtSlug } from '@/weave/bookings/requests';
 import { packagesOffered } from '@/weave/packages/actions';
 import { mediaOnOffer } from '@/weave/packages/media';
+import { catalogueOf, elementsOf } from '@/weave/packages/promised';
 import { BookingForm } from './BookingForm';
 import { PackageCards } from './PackageCards';
 
@@ -39,7 +40,12 @@ export default async function StudioFrontPage({ params }: {
   // Only what the studio has actually chosen to offer.
   const offered = await packagesOffered(slug);
   /* Scoped by the studio we just resolved, because nobody is signed in here. */
-  const media = await mediaOnOffer(studio.studioId, offered.map((p) => p.id));
+  const packageIds = offered.map((p) => p.id);
+  const [media, elements, catalogue] = await Promise.all([
+    mediaOnOffer(studio.studioId, packageIds),
+    elementsOf(studio.studioId, packageIds),
+    packageIds.length > 0 ? catalogueOf(studio.studioId) : [],
+  ]);
 
   return (
     <main className="q-auth">
@@ -52,7 +58,7 @@ export default async function StudioFrontPage({ params }: {
         {offered.length > 0 && (
           <>
             <h1 className="q-auth-title">What {studio.name} offers</h1>
-            <PackageCards slug={studio.slug} packages={offered} media={media} />
+            <PackageCards slug={studio.slug} packages={offered} media={media} elements={elements} catalogue={catalogue} />
             <h2 className="q-section-title q-front-ask">Or ask about something else</h2>
           </>
         )}

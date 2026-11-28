@@ -253,6 +253,7 @@ export async function galleryTemplates(): Promise<GalleryTemplate[]> {
     .select('id, name, may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style, '
       + 'sections:gallery_template_sections(id, name, position, visible_to_clients)')
     .eq('studio_id', who.studioId).order('created_at', { ascending: true });
+  if (error?.code === 'PGRST205') return [];
   if (error) throw new Error('Could not read gallery templates');
   return ((data ?? []) as unknown as {
     id: string; name: string; may_download: boolean; price_list_id: string | null;

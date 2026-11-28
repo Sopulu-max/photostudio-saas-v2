@@ -81,10 +81,12 @@ export type Promise_ = {
   /** What the client receives, by the studio's catalogue. */
   things: Promised[];
   /**
-   * How many pictures land in the gallery. Counted only from deliverables the
-   * studio marked as filling one, because a highlight film is digital too.
+   * How many pictures land in the gallery, from native picture slots and
+   * legacy deliverables marked as filling the gallery.
    */
   pictures: number;
+  pictureSlots: number;
+  films: number;
   /** Conditions of the day, by the studio's own name for them. */
   conditions: { detail: string; count: number }[];
 };
@@ -115,20 +117,25 @@ export function promisesOf(
 
   /* The same deliverable dropped in twice is one promise of the sum. */
   const things = new Map<string, Promised>();
-  let pictures = 0;
+  let legacyPictures = 0;
+  let pictureSlots = 0;
+  let films = 0;
 
   for (const e of promised) {
+    const n = e.count ?? 0;
+    if (n <= 0) continue;
+    if (e.type === 'picture') { pictureSlots += n; continue; }
+    if (e.type === 'video') { films += n; continue; }
+
     if (e.type !== 'deliverable' || !e.deliverableId) continue;
     const d = byId.get(e.deliverableId);
     if (!d) continue;
-    const n = e.count ?? 0;
-    if (n <= 0) continue;
 
     const found = things.get(d.id);
     if (found) found.count += n;
     else things.set(d.id, { elementId: e.id, deliverableId: d.id, name: d.name, count: n });
 
-    if (d.fillsGallery) pictures += n;
+    if (d.fillsGallery) legacyPictures += n;
   }
 
   /*
@@ -148,7 +155,9 @@ export function promisesOf(
 
   return {
     things: [...things.values()],
-    pictures,
+    pictures: legacyPictures + pictureSlots,
+    pictureSlots,
+    films,
     conditions: [...byName.values()].filter((c) => c.count > 0),
   };
 }
@@ -161,14 +170,17 @@ export function promisesOf(
  * without inflecting somebody else's noun.
  */
 export function sayPromises(p: Promise_): string {
-  const bits = p.things.map((t) => `${t.count} × ${t.name}`);
+  const bits: string[] = [];
+  if (p.pictureSlots > 0) bits.push(`${p.pictureSlots} ${p.pictureSlots === 1 ? 'image' : 'images'}`);
+  if (p.films > 0) bits.push(`${p.films} ${p.films === 1 ? 'film' : 'films'}`);
+  for (const t of p.things) bits.push(`${t.count} × ${t.name}`);
   for (const c of p.conditions) bits.push(`${c.count} ${c.detail}`);
   return bits.length === 0 ? 'No promise set' : bits.join(', ');
 }
 
 /** Whether anything at all is promised. A package promising nothing cannot be sold. */
 export function promisesAnything(p: Promise_): boolean {
-  return p.things.length > 0 || p.conditions.length > 0;
+  return p.pictures > 0 || p.films > 0 || p.things.length > 0 || p.conditions.length > 0;
 }
 
 /** What a new element of this type starts as. */

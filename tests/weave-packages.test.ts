@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { promisesOf, sayPromises, type PackageElement } from '@/weave/packages/elements';
 import {
   isPublished, sayPackage, sayPromise, sayPromiseToClient, sayShape, slotSize, standingOfPromise, type Package,
 } from '@/weave/packages/shape';
@@ -44,6 +45,17 @@ describe('what shape a package makes', () => {
 });
 
 describe('what a package says', () => {
+  it('reads the picture and film slots in a migrated package', () => {
+    const picture: PackageElement = {
+      id: 'picture', packageId: 'p', type: 'picture', mode: 'promised', count: 7,
+      deliverableId: null, body: null, answerKind: null, detail: null, mediaId: null, position: 0,
+    };
+    const film: PackageElement = { ...picture, id: 'film', type: 'video', count: 1 };
+    const promise = promisesOf([picture, film], []);
+    expect(promise.pictures).toBe(7);
+    expect(sayPromises(promise)).toBe('7 images, 1 film');
+  });
+
   it('leads with the promise, because that is what is being bought', () => {
     expect(sayPackage(pack())).toBe('400 edited images');
   });

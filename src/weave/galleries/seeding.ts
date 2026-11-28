@@ -50,6 +50,16 @@ export async function readTemplate(
   return data as unknown as TemplateSeed;
 }
 
+/** Package appearance seeds booking galleries. Templates still seed galleries made by hand. */
+export async function readPackageSeed(studioId: string, packageId: string | null): Promise<TemplateSeed | null> {
+  if (!packageId) return null;
+  const { data, error } = await db.from('packages')
+    .select('may_download, price_list_id, gallery_theme, gallery_font, gallery_grid, cover_style')
+    .eq('studio_id', studioId).eq('id', packageId).maybeSingle();
+  if (error && error.code !== '42703') throw error;
+  return data ? { ...(data as Omit<TemplateSeed, 'sections'>), sections: [] } : null;
+}
+
 /** The same defaults a gallery has always had when nothing was chosen. */
 export function designFrom(template: TemplateSeed | null) {
   return {

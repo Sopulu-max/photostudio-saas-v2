@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { weave as db } from '@/weave/db';
-import { designFrom, readTemplate, writeSections } from '@/weave/galleries/seeding';
+import { designFrom, readPackageSeed, writeSections } from '@/weave/galleries/seeding';
 
 /**
  * What accepting a booking brings into existence.
@@ -38,8 +38,7 @@ export async function galleryForAcceptedJob(input: {
   /*
    * Two things come off the package: how many pictures were promised, and
    * what shape the gallery starts in. The count is copied because it is what
-   * was agreed; the template is READ now and its contents copied in, so
-   * editing the template later changes the next gallery and never this one.
+   * was agreed; the first package's appearance is copied at acceptance.
    *
    * The count is COUNTED off the package's layout rather than read from
    * `packages.pictures_promised`. That column was a number typed beside the
@@ -49,28 +48,22 @@ export async function galleryForAcceptedJob(input: {
    * in place and unread — expand, deploy, contract.
    */
   const [firstPackage, imagePromise] = await Promise.all([
-    db.from('booking_packages').select('package:packages(gallery_template_id)')
+    db.from('booking_packages').select('package_id')
       .eq('studio_id', input.studioId).eq('booking_id', input.bookingId)
       .order('position').limit(1).maybeSingle().throwOnError(),
     db.rpc('booking_promised_pictures', { p_studio_id: input.studioId, p_booking_id: input.bookingId }).throwOnError(),
   ]);
-  const first = firstPackage.data as unknown as { package: { gallery_template_id: string | null } | null } | null;
-  const templateId = first?.package?.gallery_template_id ?? null;
+  const packageId = firstPackage.data?.package_id ?? null;
   const promised = imagePromise.data as number | null;
 
-  /*
-   * A template that has since been deleted is not worth refusing an
-   * acceptance over. Null means the gallery is born plain, which is what it
-   * did before any of this existed.
-   */
-  const template = await readTemplate(input.studioId, templateId);
+  const seed = await readPackageSeed(input.studioId, packageId);
 
   const { data: gallery, error } = await db.from('galleries').insert({
     studio_id: input.studioId,
     booking_id: input.bookingId,
     name: input.clientName ? `${input.clientName}'s pictures` : 'Their pictures',
     pictures_promised: promised,
-    ...designFrom(template),
+    ...designFrom(seed),
   }).select('id').single();
 
   if (error || !gallery) {
@@ -90,7 +83,7 @@ export async function galleryForAcceptedJob(input: {
    * could hold anything.
    */
   await writeSections({
-    studioId: input.studioId, galleryId: gallery.id, template,
+    studioId: input.studioId, galleryId: gallery.id, template: seed,
   });
 
   await db.from('events').insert({
@@ -99,7 +92,7 @@ export async function galleryForAcceptedJob(input: {
     subject_id: gallery.id,
     action: 'opened_on_acceptance',
     actor_id: input.actorId,
-    payload: { booking: input.bookingId, promised, template: templateId },
+    payload: { booking: input.bookingId, promised, package: packageId },
   });
 
   return { galleryId: gallery.id };

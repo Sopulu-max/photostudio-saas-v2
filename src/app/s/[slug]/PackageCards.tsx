@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { sayPackage, type Package } from '@/weave/packages/shape';
+import type { Deliverable } from '@/weave/deliverables/shape';
+import { promisesOf, sayPromises, type PackageElement } from '@/weave/packages/elements';
+import type { Package } from '@/weave/packages/shape';
 import type { PackageMedia } from '@/weave/packages/media';
 import { money } from '@/weave/store/shape';
 
@@ -18,10 +20,12 @@ import { money } from '@/weave/store/shape';
  *
  * A server component: nothing here needs state now that nothing is selected.
  */
-export function PackageCards({ slug, packages, media }: {
+export function PackageCards({ slug, packages, media, elements, catalogue }: {
   slug: string;
   packages: Package[];
   media: PackageMedia[];
+  elements: PackageElement[];
+  catalogue: Deliverable[];
 }) {
   if (packages.length === 0) return null;
 
@@ -30,6 +34,7 @@ export function PackageCards({ slug, packages, media }: {
       {packages.map((p) => {
         const shots = media.filter((m) => m.packageId === p.id);
         const cover = shots[0] ?? null;
+        const promise = promisesOf(elements.filter((element) => element.packageId === p.id), catalogue);
 
         return (
           <Link key={p.id} href={`/s/${slug}/${p.id}`} className="q-offer">
@@ -43,6 +48,7 @@ export function PackageCards({ slug, packages, media }: {
                     muted loop playsInline autoPlay preload="metadata"
                   />
                 ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img className="q-offer-frame" src={cover.url} alt="" />
                 )
               ) : (
@@ -55,7 +61,7 @@ export function PackageCards({ slug, packages, media }: {
 
             <span className="q-offer-says">
               <strong className="q-offer-name">{p.name}</strong>
-              <span className="q-meta-sm">{sayPackage(p)}</span>
+              <span className="q-meta-sm">{sayPromises(promise)}</span>
               <span className="q-offer-price">
                 {p.price === null ? 'Price on request' : money(p.price, p.currency)}
               </span>

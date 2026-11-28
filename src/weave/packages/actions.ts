@@ -7,12 +7,11 @@ import type { Package } from './shape';
 
 /* One literal, deliberately: split with `+` and the typed client stops being
  * able to parse it, falling back to GenericStringError for every row. */
-const SELECT = 'id, name, about, price, currency, pictures_promised, gallery_template_id, published_at, position';
+const SELECT = 'id, name, about, price, currency, pictures_promised, published_at, position';
 
 type Row = {
   id: string; name: string; about: string | null; price: number | null;
   currency: string; pictures_promised: number | null;
-  gallery_template_id: string | null;
   published_at: string | null; position: number;
 };
 
@@ -24,7 +23,7 @@ function shape(r: Row): Package {
     price: r.price,
     currency: r.currency,
     picturesPromised: r.pictures_promised,
-    galleryTemplateId: r.gallery_template_id,
+    galleryTemplateId: null,
     publishedAt: r.published_at,
     position: r.position,
   };
@@ -109,7 +108,6 @@ export async function amendPackage(input: {
   about?: string | null;
   price?: number | null;
   picturesPromised?: number | null;
-  galleryTemplateId?: string | null;
 }): Promise<void> {
   const who = await whoIsAsking();
   if (!who) throw new Error('Sign in first');
@@ -123,21 +121,6 @@ export async function amendPackage(input: {
   if (input.about !== undefined) patch.about = input.about?.trim() || null;
   if (input.price !== undefined) patch.price = input.price;
   if (input.picturesPromised !== undefined) patch.pictures_promised = input.picturesPromised;
-  /*
-   * Checked against this studio's own templates before it is written. The id
-   * arrives from a form, and the database would accept another studio's
-   * template id perfectly happily — the foreign key does not know about
-   * tenancy.
-   */
-  if (input.galleryTemplateId !== undefined) {
-    if (input.galleryTemplateId) {
-      const { data: ours } = await db.from('gallery_templates')
-        .select('id').eq('id', input.galleryTemplateId)
-        .eq('studio_id', who.studioId).maybeSingle();
-      if (!ours) throw new Error('That gallery template is not in this studio');
-    }
-    patch.gallery_template_id = input.galleryTemplateId;
-  }
 
   if (Object.keys(patch).length === 0) return;
 
